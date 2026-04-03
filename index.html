@@ -1,0 +1,587 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+  <meta charset="UTF-8"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>SIIPAF SA — Accueil | Promoteur & Aménageur Immobilier Agréé</title>
+  <meta name="description" content="SIIPAF SA - Promoteur Immobilier & Aménageur Foncier Agréé MCLU en Côte d'Ivoire. Construction, BTP, logements sociaux et haut standing à Abidjan, Yamoussoukro, Bingerville."/>
+  <link rel="preconnect" href="https://fonts.googleapis.com"/>
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin/>
+  <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;500;600;700;800;900&family=Playfair+Display:ital,wght@0,400;0,700;0,900;1,400&display=swap" rel="stylesheet"/>
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css"/>
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/aos/2.3.4/aos.css"/>
+  <link rel="stylesheet" href="css/style.css"/>
+  <link rel="stylesheet" href="css/pages.css"/>
+</head>
+<body>
+
+<!-- LOADER -->
+<div id="loader">
+  <div class="loader-inner">
+    <img src="images/logo-siipaf.png" alt="SIIPAF" class="loader-logo"/>
+    <div class="loader-bar"><div class="loader-fill"></div></div>
+    <p class="loader-text">Chargement en cours...</p>
+  </div>
+</div>
+
+<!-- NAV -->
+<nav id="navbar">
+  <div class="nav-container">
+    <a href="index.html" class="nav-logo"><img src="images/logo-siipaf.png" alt="SIIPAF SA"/></a>
+    <ul class="nav-menu" id="navMenu">
+      <li><a href="index.html" class="nav-link active">Accueil</a></li>
+      <li><a href="a-propos.html" class="nav-link">À Propos</a></li>
+      <li><a href="projets.html" class="nav-link">Projets</a></li>
+      <li><a href="financement.html" class="nav-link">Financement</a></li>
+      <li><a href="contact.html" class="nav-link">Contact</a></li>
+      <li><a href="tel:+2250102279595" class="nav-cta"><i class="fas fa-phone"></i> Nous Appeler</a></li>
+    </ul>
+    <button class="hamburger" id="hamburger" aria-label="Menu">
+      <span></span><span></span><span></span>
+    </button>
+  </div>
+</nav>
+
+<!-- HERO SLIDER -->
+<section id="hero">
+  <div class="swiper hero-swiper">
+    <div class="swiper-wrapper">
+
+      <!-- Slide 1 — Accueil général -->
+      <div class="swiper-slide">
+        <div class="slide-img" style="background-image:url('images/hero/hero-1-siipaf-general.jpg')"></div>
+        <div class="slide-content">
+          <div class="slide-badge"><i class="fas fa-certificate"></i> Promoteur & Aménageur Agréé MCLU</div>
+          <h2>Votre Réseau <em>Immobilier</em> de Confiance</h2>
+          <p>Construction, promotion immobilière & aménagement foncier en Côte d'Ivoire.</p>
+          <div class="slide-btns">
+            <a href="projets.html" class="btn btn-primary"><span>Nos projets</span><i class="fas fa-arrow-right"></i></a>
+            <a href="contact.html" class="btn btn-outline"><span>Nous contacter</span></a>
+          </div>
+        </div>
+      </div>
+
+      <!-- Slide 2 — SIIPAF CITY YAMOUSSOUKRO -->
+      <div class="swiper-slide">
+        <div class="slide-img" style="background-image:url('images/hero/hero-2-yamoussoukro.jpg')"></div>
+        <div class="slide-content">
+          <div class="slide-badge"><i class="fas fa-city"></i> Logement Social & Haut Standing</div>
+          <h2>SIIPAF CITY <em>YAMOUSSOUKRO</em></h2>
+          <p>À partir de 9 210 000 FCFA — Paiement sur 36 mois. Livraison 30 mois.</p>
+          <div class="slide-btns">
+            <a href="projets.html#yamoussoukro" class="btn btn-primary"><span>Découvrir</span><i class="fas fa-arrow-right"></i></a>
+            <a href="contact.html?projet=YAMOUSSOUKRO" class="btn btn-outline"><span>Réserver</span></a>
+          </div>
+        </div>
+      </div>
+
+      <!-- Slide 3 — SIIPAF CITY AHOUTOUE -->
+      <div class="swiper-slide">
+        <div class="slide-img" style="background-image:url('images/hero/hero-3-ahoutoue.jpg')"></div>
+        <div class="slide-content">
+          <div class="slide-badge"><i class="fas fa-map-marked-alt"></i> Cité Complète — 59 hectares</div>
+          <h2>SIIPAF CITY <em>AHOUTOUE</em></h2>
+          <p>Écoles, centre médical, commerces — 20 min de Cocody via Rocade Y4.</p>
+          <div class="slide-btns">
+            <a href="projets.html#ahoutoue" class="btn btn-primary"><span>Découvrir</span><i class="fas fa-arrow-right"></i></a>
+            <a href="contact.html?projet=AHOUTOUE" class="btn btn-outline"><span>Réserver</span></a>
+          </div>
+        </div>
+      </div>
+
+      <!-- Slide 4 — RIVIERA II -->
+      <div class="swiper-slide">
+        <div class="slide-img" style="background-image:url('images/hero/hero-4-riviera.jpg')"></div>
+        <div class="slide-content">
+          <div class="slide-badge" style="background:var(--gold)"><i class="fas fa-star"></i> Haut Standing — Riviera 2 Abidjan</div>
+          <h2>RIVIERA II — <em>Appartements de Prestige</em></h2>
+          <p>Appartement F5 · 320 m² · 300 000 000 FCFA · Piscines & Gym privatifs.</p>
+          <div class="slide-btns">
+            <a href="projets.html#riviera" class="btn btn-primary"><span>Découvrir</span><i class="fas fa-arrow-right"></i></a>
+            <a href="contact.html?projet=RIVIERA" class="btn btn-outline"><span>Prendre RDV</span></a>
+          </div>
+        </div>
+      </div>
+
+      <!-- Slide 5 — C & LY -->
+      <div class="swiper-slide">
+        <div class="slide-img" style="background-image:url('images/hero/hero-5-cly.jpg')"></div>
+        <div class="slide-content">
+          <div class="slide-badge" style="background:var(--gold)"><i class="fas fa-crown"></i> Penthouse Exclusif — Cocody Angré</div>
+          <h2>C & LY — <em>Cocody Angré 9ème</em></h2>
+          <p>F2 à Penthouse 240 m² · de 50 à 180 millions FCFA · Au cœur de Cocody.</p>
+          <div class="slide-btns">
+            <a href="projets.html#cly" class="btn btn-primary"><span>Découvrir</span><i class="fas fa-arrow-right"></i></a>
+            <a href="contact.html?projet=CLY" class="btn btn-outline"><span>Réserver</span></a>
+          </div>
+        </div>
+      </div>
+
+    </div>
+    <div class="swiper-pagination"></div>
+    <div class="swiper-button-prev"></div>
+    <div class="swiper-button-next"></div>
+  </div>
+</section>
+
+<!-- TICKER -->
+<div class="ticker-wrap" id="ticker">
+  <div class="ticker" id="tickerInner">
+    <a href="contact.html?projet=YAMOUSSOUKRO" class="ticker-link"><i class="fas fa-star"></i> SIIPAF CITY YAMOUSSOUKRO — À partir de 9 210 000 FCFA</a>
+    <a href="contact.html?projet=AHOUTOUE" class="ticker-link"><i class="fas fa-star"></i> SIIPAF CITY AHOUTOUE — 59 hectares — 20 min de Cocody</a>
+    <a href="contact.html?projet=RIVIERA" class="ticker-link"><i class="fas fa-star"></i> RIVIERA II — Appartements Haut Standing 320m²</a>
+    <a href="contact.html?projet=BINGERVILLE" class="ticker-link"><i class="fas fa-star"></i> MINI-CITÉS BINGERVILLE — Duplex Haut Standing — Livraison 180 jours</a>
+    <a href="contact.html?projet=CLY" class="ticker-link"><i class="fas fa-star"></i> C & LY COCODY ANGRÉ — Penthouse 5 pièces 240m²</a>
+    <a href="financement.html" class="ticker-link"><i class="fas fa-star"></i> Paiement sur 36 mois — Options Diaspora disponibles</a>
+  </div>
+</div>
+
+<!-- STATS BAR -->
+<div class="stats-bar">
+  <div class="container">
+    <div class="stats-grid">
+      <div class="stat-item" data-aos="zoom-in" data-aos-delay="100">
+        <span class="stat-num" data-count="5">5</span>
+        <p>Projets Actifs</p>
+      </div>
+      <div class="stat-sep"></div>
+      <div class="stat-item" data-aos="zoom-in" data-aos-delay="200">
+        <span class="stat-num" data-count="59">59</span><span class="stat-unit">ha</span>
+        <p>Surface Aménagée</p>
+      </div>
+      <div class="stat-sep"></div>
+      <div class="stat-item" data-aos="zoom-in" data-aos-delay="300">
+        <span class="stat-num" data-count="3">3</span>
+        <p>Villes Couvertes</p>
+      </div>
+      <div class="stat-sep"></div>
+      <div class="stat-item" data-aos="zoom-in" data-aos-delay="400">
+        <span class="stat-num" data-count="36">36</span><span class="stat-unit">mois</span>
+        <p>Paiement Échelonné</p>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ABOUT PREVIEW -->
+<section class="section" id="about-preview">
+  <div class="container">
+    <div class="about-grid">
+      <div class="about-visual" data-aos="fade-right" data-aos-duration="900">
+        <div class="about-img-stack">
+          <div class="about-img-main" style="background-image:url('images/about/about-main.jpg')"></div>
+          <div class="about-img-accent" style="background-image:url('images/about/about-accent.jpg')"></div>
+          <div class="about-badge-float"><i class="fas fa-award"></i><span>Agréé MCLU</span></div>
+        </div>
+      </div>
+      <div class="about-text" data-aos="fade-left" data-aos-duration="900">
+        <div class="section-label">À Propos de SIIPAF</div>
+        <h2 class="section-title">Bâtissons ensemble <br/><em>votre avenir</em></h2>
+        <p class="about-lead">SIIPAF SA est une société ivoirienne spécialisée dans la promotion immobilière et l'aménagement foncier, agréée par le Ministère de la Construction, du Logement et de l'Urbanisme (MCLU).</p>
+        <p>Présente sur les grands axes de développement de la Côte d'Ivoire — Abidjan, Yamoussoukro, Bingerville — SIIPAF conçoit des projets résidentiels inclusifs, accessibles à toutes les familles.</p>
+        <div class="about-features">
+          <div class="af-item"><i class="fas fa-check-circle"></i><span>Agrément Promoteur Immobilier MCLU</span></div>
+          <div class="af-item"><i class="fas fa-check-circle"></i><span>Agrément Aménageur Foncier MCLU</span></div>
+          <div class="af-item"><i class="fas fa-check-circle"></i><span>Agréé CI-Énergie & CIE</span></div>
+          <div class="af-item"><i class="fas fa-check-circle"></i><span>Comptes séquestres : Orange Bank, BHCI, BNI</span></div>
+        </div>
+        <a href="a-propos.html" class="btn btn-primary mt-2"><span>En savoir plus</span><i class="fas fa-arrow-right"></i></a>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- COUNTERS PARALLAX -->
+<div class="counters-bar parallax-section" style="background-image:url('images/parallax/parallax-counters.jpg')">
+  <div class="counters-overlay"></div>
+  <div class="container">
+    <div class="counters-grid">
+      <div class="counter-item" data-aos="zoom-in" data-aos-delay="100"><i class="fas fa-building"></i><span class="counter-num" data-count="5">0</span><p>Projets Immobiliers</p></div>
+      <div class="counter-item" data-aos="zoom-in" data-aos-delay="200"><i class="fas fa-map-marked-alt"></i><span class="counter-num" data-count="59">0</span><span class="counter-unit">ha</span><p>Surface Aménagée</p></div>
+      <div class="counter-item" data-aos="zoom-in" data-aos-delay="300"><i class="fas fa-city"></i><span class="counter-num" data-count="3">0</span><p>Villes Couvertes</p></div>
+      <div class="counter-item" data-aos="zoom-in" data-aos-delay="400"><i class="fas fa-handshake"></i><span class="counter-num" data-count="36">0</span><span class="counter-unit">mois</span><p>Paiement Échelonné</p></div>
+    </div>
+  </div>
+</div>
+
+<!-- ACTIVITES ZIGZAG -->
+<section class="activities-zz" id="activities">
+  <div class="container" style="max-width: 1000px;">
+    <div class="section-header" data-aos="fade-up">
+      <div class="section-label">Expertises</div>
+      <h2 class="section-title">Nos <em>Domaines d'Activité</em></h2>
+      <p class="section-sub">De la conception à la livraison, SIIPAF maîtrise toute la chaîne immobilière.</p>
+    </div>
+
+    <!-- 1 — Promoteur Immobilier (image gauche) -->
+    <div class="zz-item" data-aos="fade-up">
+      <div class="zz-image" style="background-image:url('images/activites/act-promoteur.jpg')"></div>
+      <div class="zz-content">
+        <div class="zz-num">01</div>
+        <div class="zz-icon"><i class="fas fa-home"></i></div>
+        <h3>Promoteur Immobilier</h3>
+        <p>Développement de programmes résidentiels modernes pour tous les profils — du logement social accessible à l'appartement haut standing. Agréé par le Ministère de la Construction, du Logement et de l'Urbanisme (MCLU).</p>
+        <div class="zz-tags">
+          <span class="zz-tag"><i class="fas fa-check"></i>Appartements & Villas</span>
+          <span class="zz-tag"><i class="fas fa-check"></i>Duplex & Penthouses</span>
+          <span class="zz-tag"><i class="fas fa-check"></i>Livraison clé en main</span>
+        </div>
+        <a href="a-propos.html#activities" class="btn btn-primary btn-sm"><span>En savoir plus</span><i class="fas fa-arrow-right"></i></a>
+      </div>
+    </div>
+
+    <!-- 2 — Aménageur Foncier (image droite) -->
+    <div class="zz-item zz-reverse" data-aos="fade-up">
+      <div class="zz-image" style="background-image:url('images/activites/act-amenageur.jpg')"></div>
+      <div class="zz-content">
+        <div class="zz-num">02</div>
+        <div class="zz-icon"><i class="fas fa-map"></i></div>
+        <h3>Aménageur Foncier</h3>
+        <p>Viabilisation et lotissement de grandes superficies foncières, intégrées aux plans directeurs d'urbanisme des villes. SIIPAF crée des cités résidentielles complètes avec toutes les infrastructures nécessaires. Agréé MCLU.</p>
+        <div class="zz-tags">
+          <span class="zz-tag"><i class="fas fa-check"></i>Lotissements viabilisés</span>
+          <span class="zz-tag"><i class="fas fa-check"></i>Cités résidentielles</span>
+          <span class="zz-tag"><i class="fas fa-check"></i>Plan d'urbanisme</span>
+        </div>
+        <a href="a-propos.html#activities" class="btn btn-primary btn-sm"><span>En savoir plus</span><i class="fas fa-arrow-right"></i></a>
+      </div>
+    </div>
+
+    <!-- 3 — BTP (image gauche) -->
+    <div class="zz-item" data-aos="fade-up">
+      <div class="zz-image" style="background-image:url('images/activites/act-btp.jpg')"></div>
+      <div class="zz-content">
+        <div class="zz-num">03</div>
+        <div class="zz-icon"><i class="fas fa-hard-hat"></i></div>
+        <h3>BTP — Bâtiment & Travaux Publics</h3>
+        <p>Réalisation de tous types de constructions : logements, immeubles résidentiels, équipements publics. Du gros œuvre à la finition, SIIPAF garantit qualité et délais.</p>
+        <div class="zz-tags">
+          <span class="zz-tag"><i class="fas fa-check"></i>Génie civil</span>
+          <span class="zz-tag"><i class="fas fa-check"></i>Gros œuvre</span>
+          <span class="zz-tag"><i class="fas fa-check"></i>VRD & Assainissement</span>
+        </div>
+        <a href="a-propos.html#activities" class="btn btn-primary btn-sm"><span>En savoir plus</span><i class="fas fa-arrow-right"></i></a>
+      </div>
+    </div>
+
+    <!-- 4 — Électrification (image droite) -->
+    <div class="zz-item zz-reverse" data-aos="fade-up">
+      <div class="zz-image" style="background-image:url('images/activites/act-electricite.jpg')"></div>
+      <div class="zz-content">
+        <div class="zz-num">04</div>
+        <div class="zz-icon"><i class="fas fa-bolt"></i></div>
+        <h3>Travaux & Électrification Publique</h3>
+        <p>Travaux d'infrastructure publique et d'électrification de quartiers et cités résidentielles. Agréée par CI-Énergie et CIE pour les réseaux basse et haute tension.</p>
+        <div class="zz-tags">
+          <span class="zz-tag"><i class="fas fa-check"></i>Réseaux BT/HT</span>
+          <span class="zz-tag"><i class="fas fa-check"></i>Éclairage public</span>
+          <span class="zz-tag"><i class="fas fa-check"></i>Agrément CI-Énergie</span>
+        </div>
+        <a href="a-propos.html#activities" class="btn btn-primary btn-sm"><span>En savoir plus</span><i class="fas fa-arrow-right"></i></a>
+      </div>
+    </div>
+
+    <!-- 5 — Assistance & Conseils (image gauche) -->
+    <div class="zz-item" data-aos="fade-up">
+      <div class="zz-image" style="background-image:url('images/activites/act-conseil.jpg')"></div>
+      <div class="zz-content">
+        <div class="zz-num">05</div>
+        <div class="zz-icon"><i class="fas fa-comments"></i></div>
+        <h3>Assistance & Conseils Immobiliers</h3>
+        <p>Accompagnement personnalisé dans votre projet de A à Z : choix du bien, constitution du dossier de financement, assistance juridique jusqu'à la remise des clés.</p>
+        <div class="zz-tags">
+          <span class="zz-tag"><i class="fas fa-check"></i>Conseil immobilier</span>
+          <span class="zz-tag"><i class="fas fa-check"></i>Aide au financement</span>
+          <span class="zz-tag"><i class="fas fa-check"></i>Suivi juridique</span>
+        </div>
+        <a href="contact.html" class="btn btn-primary btn-sm"><span>Nous consulter</span><i class="fas fa-arrow-right"></i></a>
+      </div>
+    </div>
+
+  </div>
+</section>
+
+<!-- PROJETS FEATURED -->
+<section class="section">
+  <div class="container">
+    <div class="section-header" data-aos="fade-up">
+      <div class="section-label">Portfolio</div>
+      <h2 class="section-title">Nos <em>Projets Phares</em></h2>
+      <p class="section-sub">5 programmes immobiliers pour tous les budgets, de l'accessible au prestige.</p>
+    </div>
+    <div class="projects-preview-grid">
+      <a href="projets.html#yamoussoukro" class="pp-card" data-aos="fade-up" data-aos-delay="100" style="background-image:url('images/projets/proj-yamoussoukro.jpg')">
+        <div class="pp-overlay"></div>
+        <div class="pp-content">
+          <div class="pp-tag">Logement Social & Haut Standing</div>
+          <h3>SIIPAF CITY YAMOUSSOUKRO</h3>
+          <p>À partir de <strong>9 210 000 FCFA</strong></p>
+          <span class="pp-cta">Voir le projet <i class="fas fa-arrow-right"></i></span>
+        </div>
+      </a>
+      <a href="projets.html#ahoutoue" class="pp-card" data-aos="fade-up" data-aos-delay="200" style="background-image:url('images/projets/proj-ahoutoue.jpg')">
+        <div class="pp-overlay"></div>
+        <div class="pp-content">
+          <div class="pp-tag">Cité Complète — 59 ha</div>
+          <h3>SIIPAF CITY AHOUTOUE</h3>
+          <p>À partir de <strong>11 210 000 FCFA</strong></p>
+          <span class="pp-cta">Voir le projet <i class="fas fa-arrow-right"></i></span>
+        </div>
+      </a>
+      <a href="projets.html#riviera" class="pp-card pp-card-tall" data-aos="fade-up" data-aos-delay="300" style="background-image:url('images/projets/proj-riviera.jpg')">
+        <div class="pp-overlay"></div>
+        <div class="pp-content">
+          <div class="pp-tag pp-tag-gold">Haut Standing</div>
+          <h3>RIVIERA II — Abidjan</h3>
+          <p>Appartement F5 · 320 m² · <strong>300 000 000 FCFA</strong></p>
+          <span class="pp-cta">Voir le projet <i class="fas fa-arrow-right"></i></span>
+        </div>
+      </a>
+      <a href="projets.html#bingerville" class="pp-card" data-aos="fade-up" data-aos-delay="400" style="background-image:url('images/projets/proj-bingerville.jpg')">
+        <div class="pp-overlay"></div>
+        <div class="pp-content">
+          <div class="pp-tag pp-tag-gold">Duplex · Domotique</div>
+          <h3>MINI-CITÉS BINGERVILLE</h3>
+          <p>À partir de <strong>75 000 000 FCFA</strong></p>
+          <span class="pp-cta">Voir le projet <i class="fas fa-arrow-right"></i></span>
+        </div>
+      </a>
+      <a href="projets.html#cly" class="pp-card" data-aos="fade-up" data-aos-delay="500" style="background-image:url('images/projets/proj-cly.jpg')">
+        <div class="pp-overlay"></div>
+        <div class="pp-content">
+          <div class="pp-tag pp-tag-gold">Penthouse</div>
+          <h3>C & LY — COCODY ANGRÉ</h3>
+          <p>F2 à Penthouse · de <strong>50 000 000 FCFA</strong></p>
+          <span class="pp-cta">Voir le projet <i class="fas fa-arrow-right"></i></span>
+        </div>
+      </a>
+    </div>
+    <div style="text-align:center;margin-top:48px;" data-aos="fade-up">
+      <a href="projets.html" class="btn btn-primary"><span>Tous nos projets</span><i class="fas fa-arrow-right"></i></a>
+    </div>
+  </div>
+</section>
+
+<!-- POURQUOI SIIPAF — Nouvelle version cards -->
+<section class="section why-cards-section">
+  <div class="container">
+    <div class="section-header" data-aos="fade-up">
+      <div class="section-label">Nos Engagements</div>
+      <h2 class="section-title">Pourquoi choisir <em>SIIPAF SA ?</em></h2>
+      <p class="section-sub">Des garanties solides, une expertise reconnue et un accompagnement sur mesure pour chaque acquéreur.</p>
+    </div>
+    <div class="why-cards-grid">
+      <div class="why-card" data-aos="fade-up" data-aos-delay="100">
+        <div class="wc-num">01</div>
+        <div class="wc-icon"><i class="fas fa-certificate"></i></div>
+        <h3>Agrément Officiel MCLU</h3>
+        <p>Promoteur Immobilier & Aménageur Foncier agréés par le Ministère de la Construction — garantie légale totale de votre investissement.</p>
+      </div>
+      <div class="why-card" data-aos="fade-up" data-aos-delay="200">
+        <div class="wc-num">02</div>
+        <div class="wc-icon"><i class="fas fa-shield-alt"></i></div>
+        <h3>Fonds Sécurisés</h3>
+        <p>Vos versements sont déposés sur des comptes séquestres certifiés auprès d'Orange Bank, BHCI et BNI — vos fonds sont intouchables jusqu'à la livraison.</p>
+      </div>
+      <div class="why-card" data-aos="fade-up" data-aos-delay="300">
+        <div class="wc-num">03</div>
+        <div class="wc-icon"><i class="fas fa-tags"></i></div>
+        <h3>Tous les Budgets</h3>
+        <p>De 9 millions FCFA (logement social) à 300 millions FCFA (appartement prestige) — SIIPAF a une solution pour chaque famille et chaque budget.</p>
+      </div>
+      <div class="why-card" data-aos="fade-up" data-aos-delay="400">
+        <div class="wc-num">04</div>
+        <div class="wc-icon"><i class="fas fa-globe-africa"></i></div>
+        <h3>Option Diaspora</h3>
+        <p>Achetez sans apport initial depuis l'étranger. Payez 100% du prix sur 36 mois. Une offre exclusive pour la diaspora ivoirienne et africaine.</p>
+      </div>
+      <div class="why-card" data-aos="fade-up" data-aos-delay="500">
+        <div class="wc-num">05</div>
+        <div class="wc-icon"><i class="fas fa-hard-hat"></i></div>
+        <h3>Qualité & Délais Garantis</h3>
+        <p>Nos constructions respectent les normes techniques ivoiriennes. Délais contractuellement garantis : 30 mois ou 180 jours selon les projets.</p>
+      </div>
+      <div class="why-card why-card-dark" data-aos="fade-up" data-aos-delay="600">
+        <div class="wc-icon"><i class="fas fa-phone-alt"></i></div>
+        <h3>Un conseiller dédié</h3>
+        <p>De la réservation à la remise des clés, un expert SIIPAF vous accompagne à chaque étape de votre acquisition.</p>
+        <a href="contact.html" class="btn btn-white btn-sm" style="margin-top:16px;"><span>Contacter un conseiller</span></a>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- TÉMOIGNAGES -->
+<section class="section temoignages-section">
+  <div class="container">
+    <div class="section-header" data-aos="fade-up">
+      <div class="section-label">Témoignages</div>
+      <h2 class="section-title">Ce que disent <em>nos clients</em></h2>
+      <p class="section-sub">Des familles et investisseurs qui ont fait confiance à SIIPAF SA pour réaliser leur projet immobilier.</p>
+    </div>
+    <div class="temoignages-grid">
+
+      <div class="temo-card" data-aos="fade-up" data-aos-delay="100">
+        <div class="temo-stars"><i class="fas fa-star"></i><i class="fas fa-star"></i><i class="fas fa-star"></i><i class="fas fa-star"></i><i class="fas fa-star"></i></div>
+        <div class="temo-quote"><i class="fas fa-quote-left"></i></div>
+        <p class="temo-text">Grâce à SIIPAF, j'ai pu acquérir mon appartement à Yamoussoukro sans apport initial. L'option Diaspora m'a permis de payer depuis la France sur 36 mois. Un accompagnement sérieux et transparent du début à la fin.</p>
+        <div class="temo-author">
+          <div class="temo-avatar"><i class="fas fa-user"></i></div>
+          <div>
+            <strong>Kouamé A.</strong>
+            <span>Diaspora France · SIIPAF CITY YAMOUSSOUKRO</span>
+          </div>
+        </div>
+      </div>
+
+      <div class="temo-card temo-card-featured" data-aos="fade-up" data-aos-delay="200">
+        <div class="temo-stars"><i class="fas fa-star"></i><i class="fas fa-star"></i><i class="fas fa-star"></i><i class="fas fa-star"></i><i class="fas fa-star"></i></div>
+        <div class="temo-quote"><i class="fas fa-quote-left"></i></div>
+        <p class="temo-text">J'ai investi dans un duplex à Bingerville. La livraison en 180 jours a été tenue comme promis dans le contrat. L'équipe SIIPAF est très professionnelle et disponible à chaque étape. Je recommande vivement !</p>
+        <div class="temo-author">
+          <div class="temo-avatar"><i class="fas fa-user"></i></div>
+          <div>
+            <strong>Bamba S.</strong>
+            <span>Cadre supérieur · MINI-CITÉS BINGERVILLE</span>
+          </div>
+        </div>
+      </div>
+
+      <div class="temo-card" data-aos="fade-up" data-aos-delay="300">
+        <div class="temo-stars"><i class="fas fa-star"></i><i class="fas fa-star"></i><i class="fas fa-star"></i><i class="fas fa-star"></i><i class="fas fa-star"></i></div>
+        <div class="temo-quote"><i class="fas fa-quote-left"></i></div>
+        <p class="temo-text">Mon appartement F4 à Cocody Angré est exactement comme présenté dans la brochure. Les finitions sont impeccables et le standing est au rendez-vous. SIIPAF SA mérite sa réputation de promoteur sérieux.</p>
+        <div class="temo-author">
+          <div class="temo-avatar"><i class="fas fa-user"></i></div>
+          <div>
+            <strong>N'Goran E.</strong>
+            <span>Chef d'entreprise · C & LY COCODY ANGRÉ</span>
+          </div>
+        </div>
+      </div>
+
+    </div>
+  </div>
+</section>
+
+<!-- CTA SPLIT -->
+<div class="cta-split">
+  <div class="cta-split-image parallax-section" style="background-image:url('images/parallax/parallax-why.jpg')">
+    <div class="cta-split-img-overlay"></div>
+  </div>
+  <div class="cta-split-content">
+    <div data-aos="fade-left">
+      <div class="section-label" style="background:rgba(255,255,255,0.15);color:rgba(255,255,255,0.85);">Passez à l'action</div>
+      <h2 class="section-title" style="color:var(--white);margin-top:12px;">Concrétisez votre <br/><em style="color:var(--gold-lt);">projet immobilier</em></h2>
+      <p style="color:rgba(255,255,255,0.72);margin-bottom:32px;">Nos conseillers sont disponibles pour répondre à toutes vos questions et vous accompagner dans votre acquisition en Côte d'Ivoire.</p>
+      <div class="cta-split-btns">
+        <a href="projets.html" class="btn btn-primary"><span>Voir les projets</span><i class="fas fa-building"></i></a>
+        <a href="contact.html" class="btn btn-outline"><span>Prendre RDV</span><i class="fas fa-calendar"></i></a>
+        <a href="https://wa.me/2250102279595?text=Bonjour%20SIIPAF%2C%20je%20suis%20intéressé(e)%20par%20vos%20programmes%20immobiliers." class="btn-wa-split" target="_blank" rel="noopener">
+          <i class="fab fa-whatsapp"></i><span>WhatsApp</span>
+        </a>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- NEWSLETTER -->
+<section class="newsletter-section">
+  <div class="newsletter-inner" data-aos="fade-up">
+    <div class="container container-newsletter">
+      <div class="newsletter-text">
+        <i class="fas fa-envelope-open-text newsletter-icon"></i>
+        <h3>Restez informé de nos <em>nouveaux projets</em></h3>
+        <p>Recevez en avant-première nos nouvelles offres, prix et disponibilités.</p>
+      </div>
+      <form class="newsletter-form" id="newsletterForm">
+        <div class="nl-input-wrap">
+          <input type="email" placeholder="Votre adresse email" required/>
+          <button type="submit" class="btn btn-primary"><span>S'abonner</span><i class="fas fa-paper-plane"></i></button>
+        </div>
+        <p class="nl-note"><i class="fas fa-lock"></i> Nous respectons votre vie privée. Désinscription possible à tout moment.</p>
+      </form>
+    </div>
+  </div>
+</section>
+
+<!-- FOOTER -->
+<footer id="footer">
+  <div class="footer-top">
+    <div class="container">
+      <div class="footer-grid">
+        <div class="footer-brand">
+          <img src="images/logo-siipaf.png" alt="SIIPAF SA" class="footer-logo"/>
+          <p>SIIPAF SA — Votre Réseau Immobilier. Promoteur Immobilier Agréé & Aménageur Foncier Agréé MCLU. Côte d'Ivoire.</p>
+          <div class="footer-social">
+            <a href="#" aria-label="Facebook"><i class="fab fa-facebook-f"></i></a>
+            <a href="#" aria-label="Instagram"><i class="fab fa-instagram"></i></a>
+            <a href="#" aria-label="Twitter"><i class="fab fa-twitter"></i></a>
+            <a href="#" aria-label="LinkedIn"><i class="fab fa-linkedin-in"></i></a>
+          </div>
+        </div>
+        <div class="footer-col">
+          <h5>Nos Projets</h5>
+          <ul>
+            <li><a href="projets.html#yamoussoukro">SIIPAF CITY YAMOUSSOUKRO</a></li>
+            <li><a href="projets.html#ahoutoue">SIIPAF CITY AHOUTOUE</a></li>
+            <li><a href="projets.html#riviera">RIVIERA II — Abidjan</a></li>
+            <li><a href="projets.html#bingerville">MINI-CITÉS BINGERVILLE</a></li>
+            <li><a href="projets.html#cly">C & LY COCODY ANGRÉ</a></li>
+          </ul>
+        </div>
+        <div class="footer-col">
+          <h5>Navigation</h5>
+          <ul>
+            <li><a href="index.html">Accueil</a></li>
+            <li><a href="a-propos.html">À Propos</a></li>
+            <li><a href="projets.html">Nos Projets</a></li>
+            <li><a href="financement.html">Financement</a></li>
+            <li><a href="contact.html">Contact</a></li>
+          </ul>
+        </div>
+        <div class="footer-col">
+          <h5>Contact</h5>
+          <ul class="footer-contact">
+            <li><i class="fas fa-map-marker-alt"></i> Cocody 2 Plateaux 7ème Tranche, Abidjan</li>
+            <li><i class="fas fa-phone"></i><a href="tel:+2250102279595">+225 01 02 27 95 95</a></li>
+            <li><i class="fas fa-phone"></i><a href="tel:+2252722205020">+225 27 22 20 50 20</a></li>
+            <li><i class="fas fa-envelope"></i><a href="mailto:info@siipaf.ci">info@siipaf.ci</a></li>
+          </ul>
+        </div>
+      </div>
+    </div>
+  </div>
+  <div class="footer-bottom">
+    <div class="container">
+      <p>&copy; 2025 SIIPAF SA — Tous droits réservés | Promoteur Immobilier Agréé MCLU | Aménageur Foncier Agréé MCLU</p>
+    </div>
+  </div>
+</footer>
+
+<!-- FLOATING BUTTONS -->
+<a href="https://wa.me/2250102279595?text=Bonjour%20SIIPAF%2C%20je%20suis%20intéressé(e)%20par%20vos%20programmes%20immobiliers." class="whatsapp-float" target="_blank" rel="noopener" aria-label="WhatsApp">
+  <i class="fab fa-whatsapp"></i>
+  <span class="wa-tooltip">Discutons sur WhatsApp !</span>
+  <span class="wa-pulse"></span>
+</a>
+<button class="back-to-top" id="backToTop" aria-label="Retour en haut"><i class="fas fa-chevron-up"></i></button>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/aos/2.3.4/aos.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/swiper@11/swiper-bundle.min.js"></script>
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/swiper@11/swiper-bundle.min.css"/>
+<script src="js/main.js"></script>
+<script>
+  // Hero Swiper init
+  new Swiper('.hero-swiper', {
+    loop: true,
+    autoplay: { delay: 5000, disableOnInteraction: false },
+    effect: 'fade',
+    fadeEffect: { crossFade: true },
+    speed: 1000,
+    pagination: { el: '.swiper-pagination', clickable: true },
+    navigation: { nextEl: '.swiper-button-next', prevEl: '.swiper-button-prev' },
+  });
+</script>
+</body>
+</html>
