@@ -219,12 +219,22 @@ body.page-inner #navbar {
   box-shadow: 0 20px 60px rgba(196,30,46,0.3);
 }
 .fin-option-featured h3,
-.fin-option-featured > p { color: var(--white) !important; }
-.fin-option-featured .foc-number { color: rgba(255,255,255,0.1); }
+.fin-option-featured > p,
+.fin-option-featured .foc-step p,
+.fin-option-featured .foc-note,
+.fin-option-featured .foc-note i { color: rgba(255,255,255,0.9) !important; }
+.fin-option-featured .foc-number { color: rgba(255,255,255,0.08); }
+.fin-option-featured .foc-note {
+  background: rgba(255,255,255,0.12);
+  border-left-color: rgba(255,255,255,0.4);
+}
 .foc-badge {
-  position: absolute; top: -12px; left: 32px;
+  position: absolute; top: -14px; left: 50%; transform: translateX(-50%);
   background: var(--gold); color: var(--dark);
-  padding: 4px 16px; border-radius: 50px; font-size: 0.72rem; font-weight: 700; letter-spacing: 1px;
+  padding: 5px 20px; border-radius: 50px;
+  font-size: 0.72rem; font-weight: 800; letter-spacing: 1.5px;
+  text-transform: uppercase; white-space: nowrap;
+  box-shadow: 0 4px 12px rgba(184,151,46,0.4);
 }
 .foc-icon {
   width: 56px; height: 56px; border-radius: 14px;
