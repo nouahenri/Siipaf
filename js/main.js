@@ -135,9 +135,12 @@ document.addEventListener('DOMContentLoaded', function () {
         }
       }
     });
-  }, { threshold: 0.1 });
+  }, { threshold: 0, rootMargin: '0px 0px -50px 0px' });
 
-  document.querySelectorAll('[data-count]').forEach(el => counterObserver.observe(el));
+  document.querySelectorAll('[data-count]').forEach(el => {
+    el.textContent = el.dataset.count;
+    counterObserver.observe(el);
+  });
 
   /* ── PROJECT TABS ─────────────────────────────────────── */
   const tabs = document.querySelectorAll('.ptab');
