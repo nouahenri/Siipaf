@@ -47,18 +47,37 @@ document.addEventListener('DOMContentLoaded', function () {
   /* ── HAMBURGER MENU ───────────────────────────────────── */
   const hamburger = document.getElementById('hamburger');
   const navMenu = document.getElementById('navMenu');
+  const navOverlay = document.getElementById('navOverlay');
+
+  function closeMenu() {
+    hamburger.classList.remove('active');
+    navMenu.classList.remove('open');
+    if (navOverlay) navOverlay.classList.remove('active');
+    document.body.style.overflow = '';
+  }
+
+  function openMenu() {
+    hamburger.classList.add('active');
+    navMenu.classList.add('open');
+    if (navOverlay) navOverlay.classList.add('active');
+    document.body.style.overflow = 'hidden';
+  }
 
   hamburger.addEventListener('click', () => {
-    hamburger.classList.toggle('active');
-    navMenu.classList.toggle('open');
+    if (navMenu.classList.contains('open')) {
+      closeMenu();
+    } else {
+      openMenu();
+    }
   });
 
   navMenu.querySelectorAll('a').forEach(link => {
-    link.addEventListener('click', () => {
-      hamburger.classList.remove('active');
-      navMenu.classList.remove('open');
-    });
+    link.addEventListener('click', closeMenu);
   });
+
+  if (navOverlay) {
+    navOverlay.addEventListener('click', closeMenu);
+  }
 
   /* ── TYPED TEXT ───────────────────────────────────────── */
   const phrases = [
