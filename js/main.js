@@ -12,7 +12,7 @@ document.addEventListener('DOMContentLoaded', function () {
       setTimeout(() => {
         loader.classList.add('hidden');
         document.body.style.overflow = 'auto';
-      }, 2200);
+      }, 800);
     });
   } else {
     document.body.style.overflow = 'auto';
@@ -135,7 +135,7 @@ document.addEventListener('DOMContentLoaded', function () {
         }
       }
     });
-  }, { threshold: 0.5 });
+  }, { threshold: 0.1 });
 
   document.querySelectorAll('[data-count]').forEach(el => counterObserver.observe(el));
 
