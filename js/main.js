@@ -5,60 +5,112 @@
 document.addEventListener('DOMContentLoaded', function () {
 
   /* ── LOADER ───────────────────────────────────────────── */
+  // Masqué dès que le DOM est prêt (max 600 ms) : on n'attend plus le
+  // téléchargement de toutes les images.
   const loader = document.getElementById('loader');
   if (loader) {
-    document.body.style.overflow = 'hidden';
-    window.addEventListener('load', () => {
-      setTimeout(() => {
-        loader.classList.add('hidden');
-        document.body.style.overflow = 'auto';
-      }, 800);
-    });
+    const hideLoader = () => loader.classList.add('hidden');
+    setTimeout(hideLoader, 600);
+    window.addEventListener('load', hideLoader);
+  }
+
+  /* ── LAZY BACKGROUNDS ─────────────────────────────────── */
+  // Les éléments avec data-bg ne chargent leur image qu'à l'approche du viewport.
+  const lazyBgs = document.querySelectorAll('[data-bg]');
+  const loadBg = el => {
+    el.style.backgroundImage = `url('${el.dataset.bg}')`;
+    el.removeAttribute('data-bg');
+  };
+  if ('IntersectionObserver' in window) {
+    const bgObserver = new IntersectionObserver((entries, obs) => {
+      entries.forEach(entry => {
+        if (entry.isIntersecting) {
+          loadBg(entry.target);
+          obs.unobserve(entry.target);
+        }
+      });
+    }, { rootMargin: '400px 0px' });
+    lazyBgs.forEach(el => bgObserver.observe(el));
   } else {
-    document.body.style.overflow = 'auto';
+    lazyBgs.forEach(loadBg);
   }
 
   /* ── AOS INIT ─────────────────────────────────────────── */
-  AOS.init({
-    duration: 800,
-    once: true,
-    offset: 80,
-    easing: 'ease-out-cubic',
-  });
+  // Sur mobile, les animations latérales provoquent un débordement horizontal :
+  // on les remplace par un fondu vertical.
+  if (window.matchMedia('(max-width: 1024px)').matches) {
+    document.querySelectorAll('[data-aos="fade-left"], [data-aos="fade-right"]').forEach(el => {
+      el.setAttribute('data-aos', 'fade-up');
+    });
+  }
+  if (window.AOS) {
+    AOS.init({
+      duration: 800,
+      once: true,
+      offset: 60,
+      easing: 'ease-out-cubic',
+    });
+  }
 
   /* ── NAVBAR SCROLL ────────────────────────────────────── */
   const navbar = document.getElementById('navbar');
   const backTop = document.getElementById('backToTop');
+  let scrollTicking = false;
+
+  function onScroll() {
+    const scrolled = window.scrollY > 60;
+    if (navbar) navbar.classList.toggle('scrolled', scrolled || document.body.classList.contains('page-inner'));
+    if (backTop) backTop.classList.toggle('visible', scrolled);
+    scrollTicking = false;
+  }
 
   window.addEventListener('scroll', () => {
-    if (window.scrollY > 60) {
-      navbar.classList.add('scrolled');
-      backTop.classList.add('visible');
-    } else {
-      navbar.classList.remove('scrolled');
-      backTop.classList.remove('visible');
+    if (!scrollTicking) {
+      scrollTicking = true;
+      requestAnimationFrame(onScroll);
     }
-  });
+  }, { passive: true });
 
-  backTop.addEventListener('click', () => {
-    window.scrollTo({ top: 0, behavior: 'smooth' });
-  });
+  if (backTop) {
+    backTop.addEventListener('click', () => {
+      window.scrollTo({ top: 0, behavior: 'smooth' });
+    });
+  }
 
   /* ── HAMBURGER MENU ───────────────────────────────────── */
   const hamburger = document.getElementById('hamburger');
   const navMenu = document.getElementById('navMenu');
 
-  hamburger.addEventListener('click', () => {
-    hamburger.classList.toggle('active');
-    navMenu.classList.toggle('open');
-  });
+  if (hamburger && navMenu) {
+    const backdrop = document.createElement('div');
+    backdrop.className = 'nav-backdrop';
+    document.body.appendChild(backdrop);
 
-  navMenu.querySelectorAll('a').forEach(link => {
-    link.addEventListener('click', () => {
-      hamburger.classList.remove('active');
-      navMenu.classList.remove('open');
+    hamburger.setAttribute('aria-label', 'Ouvrir le menu');
+    hamburger.setAttribute('aria-controls', 'navMenu');
+    hamburger.setAttribute('aria-expanded', 'false');
+
+    const setMenu = open => {
+      hamburger.classList.toggle('active', open);
+      navMenu.classList.toggle('open', open);
+      backdrop.classList.toggle('visible', open);
+      document.body.classList.toggle('menu-open', open);
+      hamburger.setAttribute('aria-expanded', String(open));
+      hamburger.setAttribute('aria-label', open ? 'Fermer le menu' : 'Ouvrir le menu');
+    };
+
+    hamburger.addEventListener('click', () => setMenu(!navMenu.classList.contains('open')));
+    backdrop.addEventListener('click', () => setMenu(false));
+    document.addEventListener('keydown', e => {
+      if (e.key === 'Escape' && navMenu.classList.contains('open')) setMenu(false);
     });
-  });
+    window.addEventListener('resize', () => {
+      if (window.innerWidth > 1024 && navMenu.classList.contains('open')) setMenu(false);
+    });
+    navMenu.querySelectorAll('a').forEach(link => {
+      link.addEventListener('click', () => setMenu(false));
+    });
+  }
 
   /* ── TYPED TEXT ───────────────────────────────────────── */
   const phrases = [
@@ -91,7 +143,7 @@ document.addEventListener('DOMContentLoaded', function () {
     }
     setTimeout(typeLoop, deleting ? 40 : 75);
   }
-  setTimeout(typeLoop, 1500);
+  if (typedEl) setTimeout(typeLoop, 1500);
 
   /* ── PARTICLES ────────────────────────────────────────── */
   const particlesContainer = document.getElementById('particles');
@@ -108,7 +160,9 @@ document.addEventListener('DOMContentLoaded', function () {
     `;
     particlesContainer.appendChild(p);
   }
-  for (let i = 0; i < 40; i++) createParticle();
+  if (particlesContainer) {
+    for (let i = 0; i < 40; i++) createParticle();
+  }
 
   /* ── COUNTERS ─────────────────────────────────────────── */
   function animateCounter(el, target, duration = 2000) {
@@ -213,9 +267,11 @@ document.addEventListener('DOMContentLoaded', function () {
   const sectionObserver = new IntersectionObserver((entries) => {
     entries.forEach(entry => {
       if (entry.isIntersecting) {
-        navLinks.forEach(link => link.classList.remove('active'));
+        // Ne touche au lien actif que si la section a un lien d'ancre dans le menu
         const active = document.querySelector(`.nav-link[href="#${entry.target.id}"]`);
-        if (active) active.classList.add('active');
+        if (!active) return;
+        navLinks.forEach(link => link.classList.remove('active'));
+        active.classList.add('active');
       }
     });
   }, { threshold: 0.4 });

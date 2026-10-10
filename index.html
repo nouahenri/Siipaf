@@ -7,9 +7,12 @@
   <meta name="description" content="SIIPAF SA - Promoteur Immobilier & Aménageur Foncier Agréé MCLU en Côte d'Ivoire. Construction, BTP, logements sociaux et haut standing à Abidjan, Yamoussoukro, Bingerville."/>
   <link rel="preconnect" href="https://fonts.googleapis.com"/>
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin/>
+  <link rel="preconnect" href="https://cdnjs.cloudflare.com" crossorigin/>
   <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;500;600;700;800;900&family=Playfair+Display:ital,wght@0,400;0,700;0,900;1,400&display=swap" rel="stylesheet"/>
   <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css"/>
   <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/aos/2.3.4/aos.css"/>
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/swiper@11.1.14/swiper-bundle.min.css"/>
+  <link rel="preload" as="image" href="images/hero/hero-1-siipaf-general.jpg"/>
   <link rel="stylesheet" href="css/style.css"/>
   <link rel="stylesheet" href="css/pages.css"/>
 </head>
@@ -169,8 +172,8 @@
     <div class="about-grid">
       <div class="about-visual" data-aos="fade-right" data-aos-duration="900">
         <div class="about-img-stack">
-          <div class="about-img-main" style="background-image:url('images/about/about-main.jpg')"></div>
-          <div class="about-img-accent" style="background-image:url('images/about/about-accent.jpg')"></div>
+          <div class="about-img-main" data-bg="images/about/about-main.jpg"></div>
+          <div class="about-img-accent" data-bg="images/about/about-accent.jpg"></div>
           <div class="about-badge-float"><i class="fas fa-award"></i><span>Agréé MCLU</span></div>
         </div>
       </div>
@@ -215,7 +218,7 @@
 
     <!-- 1 — Promoteur Immobilier (image gauche) -->
     <div class="zz-item" data-aos="fade-up">
-      <div class="zz-image" style="background-image:url('images/activites/act-promoteur.jpg')"></div>
+      <div class="zz-image" data-bg="images/activites/act-promoteur.jpg"></div>
       <div class="zz-content">
         <div class="zz-num">01</div>
         <div class="zz-icon"><i class="fas fa-home"></i></div>
@@ -232,7 +235,7 @@
 
     <!-- 2 — Aménageur Foncier (image droite) -->
     <div class="zz-item zz-reverse" data-aos="fade-up">
-      <div class="zz-image" style="background-image:url('images/activites/act-amenageur.jpg')"></div>
+      <div class="zz-image" data-bg="images/activites/act-amenageur.jpg"></div>
       <div class="zz-content">
         <div class="zz-num">02</div>
         <div class="zz-icon"><i class="fas fa-map"></i></div>
@@ -249,7 +252,7 @@
 
     <!-- 3 — BTP (image gauche) -->
     <div class="zz-item" data-aos="fade-up">
-      <div class="zz-image" style="background-image:url('images/activites/act-btp.jpg')"></div>
+      <div class="zz-image" data-bg="images/activites/act-btp.jpg"></div>
       <div class="zz-content">
         <div class="zz-num">03</div>
         <div class="zz-icon"><i class="fas fa-hard-hat"></i></div>
@@ -266,7 +269,7 @@
 
     <!-- 4 — Électrification (image droite) -->
     <div class="zz-item zz-reverse" data-aos="fade-up">
-      <div class="zz-image" style="background-image:url('images/activites/act-electricite.jpg')"></div>
+      <div class="zz-image" data-bg="images/activites/act-electricite.jpg"></div>
       <div class="zz-content">
         <div class="zz-num">04</div>
         <div class="zz-icon"><i class="fas fa-bolt"></i></div>
@@ -283,7 +286,7 @@
 
     <!-- 5 — Assistance & Conseils (image gauche) -->
     <div class="zz-item" data-aos="fade-up">
-      <div class="zz-image" style="background-image:url('images/activites/act-conseil.jpg')"></div>
+      <div class="zz-image" data-bg="images/activites/act-conseil.jpg"></div>
       <div class="zz-content">
         <div class="zz-num">05</div>
         <div class="zz-icon"><i class="fas fa-comments"></i></div>
@@ -310,7 +313,7 @@
       <p class="section-sub">5 programmes immobiliers pour tous les budgets, de l'accessible au prestige.</p>
     </div>
     <div class="projects-preview-grid">
-      <a href="projets.html#yamoussoukro" class="pp-card" data-aos="fade-up" data-aos-delay="100" style="background-image:url('images/projets/proj-yamoussoukro.jpg')">
+      <a href="projets.html#yamoussoukro" class="pp-card" data-aos="fade-up" data-aos-delay="100" data-bg="images/projets/proj-yamoussoukro.jpg">
         <div class="pp-overlay"></div>
         <div class="pp-content">
           <div class="pp-tag">Logement Social & Haut Standing</div>
@@ -319,7 +322,7 @@
           <span class="pp-cta">Voir le projet <i class="fas fa-arrow-right"></i></span>
         </div>
       </a>
-      <a href="projets.html#ahoutoue" class="pp-card" data-aos="fade-up" data-aos-delay="200" style="background-image:url('images/projets/proj-ahoutoue.jpg')">
+      <a href="projets.html#ahoutoue" class="pp-card" data-aos="fade-up" data-aos-delay="200" data-bg="images/projets/proj-ahoutoue.jpg">
         <div class="pp-overlay"></div>
         <div class="pp-content">
           <div class="pp-tag">Cité Complète — 59 ha</div>
@@ -328,7 +331,7 @@
           <span class="pp-cta">Voir le projet <i class="fas fa-arrow-right"></i></span>
         </div>
       </a>
-      <a href="projets.html#riviera" class="pp-card pp-card-tall" data-aos="fade-up" data-aos-delay="300" style="background-image:url('images/projets/proj-riviera.jpg')">
+      <a href="projets.html#riviera" class="pp-card pp-card-tall" data-aos="fade-up" data-aos-delay="300" data-bg="images/projets/proj-riviera.jpg">
         <div class="pp-overlay"></div>
         <div class="pp-content">
           <div class="pp-tag pp-tag-gold">Haut Standing</div>
@@ -337,7 +340,7 @@
           <span class="pp-cta">Voir le projet <i class="fas fa-arrow-right"></i></span>
         </div>
       </a>
-      <a href="projets.html#bingerville" class="pp-card" data-aos="fade-up" data-aos-delay="400" style="background-image:url('images/projets/proj-bingerville.jpg')">
+      <a href="projets.html#bingerville" class="pp-card" data-aos="fade-up" data-aos-delay="400" data-bg="images/projets/proj-bingerville.jpg">
         <div class="pp-overlay"></div>
         <div class="pp-content">
           <div class="pp-tag pp-tag-gold">Duplex · Domotique</div>
@@ -346,7 +349,7 @@
           <span class="pp-cta">Voir le projet <i class="fas fa-arrow-right"></i></span>
         </div>
       </a>
-      <a href="projets.html#cly" class="pp-card" data-aos="fade-up" data-aos-delay="500" style="background-image:url('images/projets/proj-cly.jpg')">
+      <a href="projets.html#cly" class="pp-card" data-aos="fade-up" data-aos-delay="500" data-bg="images/projets/proj-cly.jpg">
         <div class="pp-overlay"></div>
         <div class="pp-content">
           <div class="pp-tag pp-tag-gold">Penthouse</div>
@@ -401,7 +404,7 @@
         <h3>Qualité & Délais Garantis</h3>
         <p>Nos constructions respectent les normes techniques ivoiriennes. Délais contractuellement garantis : 30 mois ou 180 jours selon les projets.</p>
       </div>
-      <div class="why-card why-card-img" data-aos="fade-up" data-aos-delay="600" style="background-image:url('images/conseiller.jpg')">
+      <div class="why-card why-card-img" data-aos="fade-up" data-aos-delay="600" data-bg="images/conseiller.jpg">
         <div class="wc-img-overlay"></div>
         <div class="wc-img-content">
           <div class="wc-icon"><i class="fas fa-headset"></i></div>
@@ -429,7 +432,7 @@
         <div class="temo-quote"><i class="fas fa-quote-left"></i></div>
         <p class="temo-text">Grâce à SIIPAF, j'ai pu acquérir mon appartement à Yamoussoukro sans apport initial. L'option Diaspora m'a permis de payer depuis la France sur 36 mois. Un accompagnement sérieux et transparent du début à la fin.</p>
         <div class="temo-author">
-          <div class="temo-avatar temo-avatar-img" style="background-image:url('https://images.unsplash.com/photo-1522529599102-193c0d76b5b6?w=100&h=100&fit=crop&crop=face')"></div>
+          <div class="temo-avatar temo-avatar-img" data-bg="https://images.unsplash.com/photo-1522529599102-193c0d76b5b6?w=100&h=100&fit=crop&crop=face"></div>
           <div>
             <strong>Kouamé A.</strong>
             <span>Diaspora France · SIIPAF CITY YAMOUSSOUKRO</span>
@@ -442,7 +445,7 @@
         <div class="temo-quote"><i class="fas fa-quote-left"></i></div>
         <p class="temo-text">J'ai investi dans un duplex à Bingerville. La livraison en 180 jours a été tenue comme promis dans le contrat. L'équipe SIIPAF est très professionnelle et disponible à chaque étape. Je recommande vivement !</p>
         <div class="temo-author">
-          <div class="temo-avatar temo-avatar-img" style="background-image:url('https://images.unsplash.com/photo-1531123897727-8f129e1688ce?w=100&h=100&fit=crop&crop=face')"></div>
+          <div class="temo-avatar temo-avatar-img" data-bg="https://images.unsplash.com/photo-1531123897727-8f129e1688ce?w=100&h=100&fit=crop&crop=face"></div>
           <div>
             <strong>Bamba S.</strong>
             <span>Cadre supérieur · MINI-CITÉS BINGERVILLE</span>
@@ -455,7 +458,7 @@
         <div class="temo-quote"><i class="fas fa-quote-left"></i></div>
         <p class="temo-text">Mon appartement F4 à Cocody Angré est exactement comme présenté dans la brochure. Les finitions sont impeccables et le standing est au rendez-vous. SIIPAF SA mérite sa réputation de promoteur sérieux.</p>
         <div class="temo-author">
-          <div class="temo-avatar temo-avatar-img" style="background-image:url('https://images.unsplash.com/photo-1506277886164-e25aa3f4ef7f?w=100&h=100&fit=crop&crop=face')"></div>
+          <div class="temo-avatar temo-avatar-img" data-bg="https://images.unsplash.com/photo-1506277886164-e25aa3f4ef7f?w=100&h=100&fit=crop&crop=face"></div>
           <div>
             <strong>N'Goran E.</strong>
             <span>Chef d'entreprise · C & LY COCODY ANGRÉ</span>
@@ -469,7 +472,7 @@
 
 <!-- CTA SPLIT -->
 <div class="cta-split">
-  <div class="cta-split-image parallax-section" style="background-image:url('images/parallax/parallax-why.jpg')">
+  <div class="cta-split-image parallax-section" data-bg="images/parallax/parallax-why.jpg">
     <div class="cta-split-img-overlay"></div>
   </div>
   <div class="cta-split-content">
@@ -567,13 +570,12 @@
 </a>
 <button class="back-to-top" id="backToTop" aria-label="Retour en haut"><i class="fas fa-chevron-up"></i></button>
 
-<script src="https://cdnjs.cloudflare.com/ajax/libs/aos/2.3.4/aos.js"></script>
-<script src="https://cdn.jsdelivr.net/npm/swiper@11/swiper-bundle.min.js"></script>
-<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/swiper@11/swiper-bundle.min.css"/>
-<script src="js/main.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/aos/2.3.4/aos.js" defer></script>
+<script src="https://cdn.jsdelivr.net/npm/swiper@11.1.14/swiper-bundle.min.js" defer></script>
+<script src="js/main.js" defer></script>
 <script>
-  // Hero Swiper init
-  new Swiper('.hero-swiper', {
+  // Hero Swiper init (après chargement des scripts différés)
+  document.addEventListener('DOMContentLoaded', () => new Swiper('.hero-swiper', {
     loop: true,
     autoplay: { delay: 5000, disableOnInteraction: false },
     effect: 'fade',
@@ -581,7 +583,7 @@
     speed: 1000,
     pagination: { el: '.swiper-pagination', clickable: true },
     navigation: { nextEl: '.swiper-button-next', prevEl: '.swiper-button-prev' },
-  });
+  }));
 </script>
 </body>
 </html>

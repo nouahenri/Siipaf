@@ -14,6 +14,9 @@
   --grey: #888888;
   --light: #F4F4F4;
   --white: #FFFFFF;
+  --gold: #B8972E;
+  --gold-lt: #D4AF37;
+  --gray: var(--grey);
   --font: 'Poppins', sans-serif;
   --serif: 'Playfair Display', serif;
   --shadow: 0 8px 40px rgba(0, 0, 0, 0.12);
@@ -302,7 +305,7 @@ button {
   background: linear-gradient(100deg,
       rgba(10, 10, 10, 0.82) 0%,
       rgba(10, 10, 10, 0.4) 55%,
-      rgba(227, 6, 19, 0.12) 100%);
+      rgba(10, 10, 10, 0.15) 100%);
   z-index: 1;
 }
 
@@ -414,7 +417,7 @@ button {
   inset: 0;
   background: linear-gradient(135deg,
       rgba(10, 10, 10, 0.88) 0%,
-      rgba(196, 30, 46, 0.25) 50%,
+      rgba(10, 10, 10, 0.5) 50%,
       rgba(10, 10, 10, 0.85) 100%);
 }
 
@@ -900,7 +903,7 @@ button {
 .counters-overlay {
   position: absolute;
   inset: 0;
-  background: linear-gradient(135deg, rgba(10, 10, 10, 0.88), rgba(196, 30, 46, 0.3));
+  background: linear-gradient(135deg, rgba(10, 10, 10, 0.88), rgba(10, 10, 10, 0.6));
 }
 
 .counters-grid {
@@ -1001,7 +1004,7 @@ button {
   content: '';
   position: absolute;
   inset: 0;
-  background: linear-gradient(135deg, rgba(227, 6, 19, 0.15), rgba(10, 10, 10, 0.25));
+  background: linear-gradient(135deg, rgba(10, 10, 10, 0.05), rgba(10, 10, 10, 0.2));
   transition: opacity 0.4s;
   z-index: 1;
 }
@@ -1828,7 +1831,7 @@ button {
 .why-overlay {
   position: absolute;
   inset: 0;
-  background: linear-gradient(135deg, rgba(10, 10, 10, 0.9) 50%, rgba(196, 30, 46, 0.2));
+  background: linear-gradient(135deg, rgba(10, 10, 10, 0.9) 50%, rgba(10, 10, 10, 0.55));
 }
 
 .why-content {
@@ -2641,75 +2644,6 @@ button {
     padding: 64px 0;
   }
 
-  .nav-menu {
-    position: fixed;
-    top: 0;
-    right: -100%;
-    width: 78%;
-    max-width: 300px;
-    height: 100vh;
-    background: var(--white);
-    box-shadow: -12px 0 48px rgba(0,0,0,0.18);
-    flex-direction: column;
-    justify-content: flex-start;
-    align-items: stretch;
-    gap: 0;
-    transition: right 0.4s cubic-bezier(0.4, 0, 0.2, 1);
-    padding: 0;
-    z-index: 1001;
-    overflow-y: auto;
-  }
-
-  .nav-menu.open {
-    right: 0;
-  }
-
-  /* En-tête du menu mobile */
-  .nav-menu::before {
-    content: 'Menu';
-    display: block;
-    padding: 24px 24px 16px;
-    font-size: 0.7rem;
-    font-weight: 700;
-    letter-spacing: 3px;
-    text-transform: uppercase;
-    color: var(--gray);
-    border-bottom: 1px solid #f0f0f0;
-    margin-bottom: 8px;
-  }
-
-  .hamburger {
-    display: flex;
-    z-index: 1002;
-  }
-
-  .nav-link {
-    font-size: 0.95rem;
-    font-weight: 500;
-    color: var(--dark);
-    width: 100%;
-    padding: 14px 24px;
-    border-radius: 0;
-    border-left: 3px solid transparent;
-    transition: all 0.2s;
-  }
-
-  .nav-link:hover,
-  .nav-link.active {
-    background: rgba(227,6,19,0.05);
-    color: var(--red);
-    border-left-color: var(--red);
-    padding-left: 28px;
-  }
-
-  .nav-cta {
-    margin: 16px 24px 24px;
-    border-radius: 8px;
-    justify-content: center;
-    padding: 14px 20px;
-    font-size: 0.9rem;
-  }
-
   .hero-stats {
     flex-direction: column;
     gap: 20px;
@@ -2809,3 +2743,277 @@ button {
 [data-aos] {
   will-change: transform, opacity;
 }
+/* ============================================================
+   CORRECTIFS — Responsive, menu mobile, badges
+============================================================ */
+
+/* Empêche tout débordement horizontal (animations latérales, ticker…) */
+html,
+body {
+  overflow-x: clip;
+}
+
+@supports not (overflow-x: clip) {
+  html,
+  body {
+    overflow-x: hidden;
+  }
+}
+
+body.menu-open {
+  overflow: hidden;
+}
+
+/* ─── Badges des tuiles d'offres ─────────────────────────── */
+.pricing-cards-grid {
+  padding-top: 14px;
+  align-items: stretch;
+}
+
+.pricing-card {
+  display: flex;
+  flex-direction: column;
+}
+
+.pricing-card .btn {
+  margin-top: auto;
+  align-self: center;
+}
+
+.pc-badge,
+.foc-badge {
+  z-index: 2;
+  line-height: 1.4;
+  text-transform: uppercase;
+  box-shadow: 0 6px 16px rgba(184, 151, 46, 0.35);
+  border: 2px solid var(--white);
+}
+
+.pricing-card-penthouse .pc-badge {
+  border-color: var(--dark);
+}
+
+.pc-badge-gold {
+  color: var(--dark);
+}
+
+.phc-badge {
+  max-width: 100%;
+  white-space: normal;
+}
+
+.proj-tag,
+.pp-tag,
+.slide-badge {
+  max-width: 100%;
+  white-space: normal;
+  line-height: 1.4;
+}
+
+/* ─── Menu mobile / tablette ─────────────────────────────── */
+.nav-backdrop {
+  position: fixed;
+  inset: 0;
+  background: rgba(10, 10, 10, 0.55);
+  opacity: 0;
+  visibility: hidden;
+  transition: opacity 0.3s ease, visibility 0.3s ease;
+  z-index: 999;
+}
+
+.nav-backdrop.visible {
+  opacity: 1;
+  visibility: visible;
+}
+
+@media (max-width: 1024px) {
+  .nav-container {
+    padding: 0 20px;
+    height: 68px;
+  }
+
+  #hero {
+    margin-top: 68px;
+  }
+
+  .nav-logo img,
+  #navbar.scrolled .nav-logo img {
+    height: 44px;
+  }
+
+  .hamburger {
+    display: flex;
+    position: relative;
+    z-index: 1002;
+    width: 44px;
+    height: 44px;
+    align-items: center;
+    justify-content: center;
+    border-radius: 10px;
+    flex-shrink: 0;
+  }
+
+  .hamburger:focus-visible {
+    outline: 2px solid var(--red);
+  }
+
+  .hamburger.active span:nth-child(1) {
+    transform: translateY(7px) rotate(45deg);
+  }
+
+  .hamburger.active span:nth-child(3) {
+    transform: translateY(-7px) rotate(-45deg);
+  }
+
+  .nav-menu {
+    position: fixed;
+    top: 0;
+    right: 0;
+    width: 82%;
+    max-width: 320px;
+    height: 100vh;
+    height: 100dvh;
+    background: var(--white);
+    box-shadow: -12px 0 48px rgba(0, 0, 0, 0.18);
+    flex-direction: column;
+    justify-content: flex-start;
+    align-items: stretch;
+    gap: 0;
+    padding: 0 0 24px;
+    z-index: 1001;
+    overflow-y: auto;
+    transform: translateX(100%);
+    visibility: hidden;
+    transition: transform 0.35s cubic-bezier(0.4, 0, 0.2, 1), visibility 0.35s;
+  }
+
+  .nav-menu.open {
+    transform: translateX(0);
+    visibility: visible;
+  }
+
+  .nav-menu::before {
+    content: 'Menu';
+    display: flex;
+    align-items: center;
+    height: 68px;
+    padding: 0 24px;
+    font-size: 0.72rem;
+    font-weight: 700;
+    letter-spacing: 3px;
+    text-transform: uppercase;
+    color: var(--grey);
+    border-bottom: 1px solid #f0f0f0;
+    margin-bottom: 8px;
+    flex-shrink: 0;
+  }
+
+  .nav-menu li {
+    width: 100%;
+  }
+
+  .nav-link {
+    display: block;
+    width: 100%;
+    font-size: 1rem;
+    font-weight: 500;
+    color: var(--dark);
+    padding: 14px 24px;
+    border-radius: 0;
+    border-left: 3px solid transparent;
+    transition: background 0.2s, color 0.2s, border-color 0.2s;
+  }
+
+  .nav-link::after {
+    display: none;
+  }
+
+  .nav-link:hover,
+  .nav-link.active {
+    background: rgba(227, 6, 19, 0.06);
+    color: var(--red);
+    border-left-color: var(--red);
+  }
+
+  .nav-cta {
+    margin: 20px 24px 0;
+    border-radius: 10px;
+    justify-content: center;
+    padding: 14px 20px;
+    font-size: 0.95rem;
+  }
+
+  /* Slider d'accueil */
+  #hero {
+    height: auto;
+    max-height: none;
+  }
+
+  .hero-swiper .swiper-slide {
+    min-height: 440px;
+  }
+
+  .slide-content {
+    padding: 56px 32px 64px;
+    max-width: 640px;
+  }
+}
+
+@media (max-width: 600px) {
+  .hero-swiper .swiper-button-next,
+  .hero-swiper .swiper-button-prev {
+    display: none;
+  }
+
+  .hero-swiper .swiper-slide {
+    min-height: 460px;
+  }
+
+  .slide-content {
+    padding: 40px 20px 56px;
+  }
+
+  .slide-badge {
+    font-size: 0.65rem;
+    letter-spacing: 1px;
+    padding: 5px 12px;
+  }
+
+  .slide-content p {
+    font-size: 0.9rem;
+  }
+
+  .slide-btns .btn {
+    flex: 1 1 auto;
+    justify-content: center;
+  }
+
+  .container {
+    padding-left: 16px;
+    padding-right: 16px;
+  }
+
+  .proj-body {
+    padding: 20px 16px;
+  }
+
+  .pricing-cards-grid {
+    gap: 28px;
+  }
+}
+
+/* Les colonnes de grille ne doivent pas s'élargir selon leur contenu
+   (tableaux de prix, longues adresses e-mail…) */
+.proj-main,
+.proj-layout > *,
+.contact-grid > *,
+.about-grid > *,
+.footer-grid > * {
+  min-width: 0;
+}
+
+.ci-card,
+.ci-card * {
+  overflow-wrap: anywhere;
+}
+
