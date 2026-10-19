@@ -6,6 +6,7 @@ import Layout from './components/Layout';
 import Login from './pages/Login';
 import Dashboard from './pages/Dashboard';
 import Leads from './pages/Leads';
+import Clients from './pages/Clients';
 import Appointments from './pages/Appointments';
 import Lots from './pages/Lots';
 import Projects from './pages/Projects';
@@ -36,6 +37,7 @@ function App() {
       <Route element={<Layout />}>
         <Route index element={<Dashboard />} />
         <Route path="prospects" element={<Guard perm="leads:read"><Leads /></Guard>} />
+        <Route path="clients" element={<Guard perm="sales:read"><Clients /></Guard>} />
         <Route path="rendez-vous" element={<Guard perm="appointments:read"><Appointments /></Guard>} />
         <Route path="lots" element={<Guard perm="lots:read"><Lots /></Guard>} />
         <Route path="projets" element={<Guard perm="projects:read"><Projects /></Guard>} />

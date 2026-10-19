@@ -2,7 +2,7 @@ import { useEffect, useRef, useState } from 'react';
 import { useRevealOnScroll } from '../lib/reveal';
 import { NavLink, Outlet, useLocation } from 'react-router-dom';
 import {
-  LayoutDashboard, Building2, Map, Users, CalendarDays, Mail, Newspaper, Image, PanelsTopLeft, UserCog, LogOut, Menu, KeyRound, MessageSquareQuote, ShieldCheck, MessagesSquare,
+  LayoutDashboard, Building2, Map, Users, CalendarDays, Mail, Newspaper, Image, PanelsTopLeft, UserCog, LogOut, Menu, KeyRound, MessageSquareQuote, ShieldCheck, MessagesSquare, UserCheck,
 } from 'lucide-react';
 import { useAuth, useResource } from '../lib/app-context';
 import { ROLE_LABELS } from '../lib/domain';
@@ -12,6 +12,7 @@ const NAV = [
   { group: null, items: [{ to: '/', label: 'Tableau de bord', icon: LayoutDashboard, end: true }] },
   { group: 'Ventes', items: [
     { to: '/prospects', label: 'Prospects', icon: Users, perm: 'leads:read' },
+    { to: '/clients', label: 'Clients', icon: UserCheck, perm: 'sales:read' },
     { to: '/rendez-vous', label: 'Rendez-vous', icon: CalendarDays, perm: 'appointments:read' },
     { to: '/messagerie-clients', label: 'Messagerie clients', icon: MessagesSquare, perm: 'client_messages', badge: 'unread_client_messages' },
   ] },
@@ -33,7 +34,7 @@ const NAV = [
 ];
 
 const TITLES = {
-  '/': 'Tableau de bord', '/prospects': 'Prospects', '/rendez-vous': 'Rendez-vous', '/lots': 'Lots & disponibilités',
+  '/': 'Tableau de bord', '/prospects': 'Prospects', '/clients': 'Clients', '/rendez-vous': 'Rendez-vous', '/lots': 'Lots & disponibilités',
   '/projets': 'Projets', '/contenu': 'Contenu du site', '/medias': 'Médiathèque', '/messages': 'Messages', '/messagerie-clients': 'Messagerie clients',
   '/newsletter': 'Newsletter', '/temoignages': 'Témoignages', '/plans': 'Plan de masse', '/utilisateurs': 'Utilisateurs', '/roles': 'Rôles & privilèges', '/compte': 'Mon compte',
 };

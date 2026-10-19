@@ -291,3 +291,16 @@ test('accès désactivé ou dossier désisté : plus rien de visible', async () 
   assert.deepEqual((await agent.get('/api/client/dossiers')).body, []);
   assert.equal((await agent.get(`/api/client/dossiers/${saleA.id}`)).status, 404);
 });
+
+test('liste des clients : dossiers, situation de paiement, accès et non-lus', async () => {
+  const res = await admin.get('/api/admin/clients');
+  assert.equal(res.status, 200);
+  const awa = res.body.find(c => c.client_code === leadA.client_code);
+  assert.ok(awa, 'le client figure dans la liste');
+  assert.equal(awa.sales.length, 1);
+  assert.equal(awa.status, 'desiste', 'dossier désisté au test précédent');
+  assert.ok(awa.access, 'accès client renseigné');
+  assert.ok(res.body.every(c => c.client_code), 'seuls les prospects avec un code client');
+  const editeur = await login(app, 'editeur@test.ci', 'motdepasse-test-123');
+  assert.equal((await editeur.get('/api/admin/clients')).status, 403);
+});

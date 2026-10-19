@@ -10,9 +10,46 @@ const { sendMail } = require('../lib/mailer');
 const { clientAppUrl } = require('../config');
 const { SITE_STAGES } = require('../lib/domain');
 const { grantAccess, accessStatus, siteUpdatesQuery, serializeUpdate } = require('../services/clients');
+const { totals } = require('../services/sales');
+const { scheduleStatus } = require('../services/schedule');
 
 module.exports = function clientAdminRoutes(db) {
   const r = express.Router();
+
+  // ─── Clients (prospects devenus acquéreurs : ils ont un code client) ─────
+  r.get('/clients', requirePermission('sales:read'), ah(async (req, res) => {
+    const [leads, sales, accounts, unread] = await Promise.all([
+      db('leads').whereNotNull('client_code').orderBy('client_code', 'desc'),
+      db('sales as s').join('lots as l', 'l.id', 's.lot_id').join('projects as p', 'p.id', 'l.project_id')
+        .select('s.*', 'l.code as lot_code', 'l.ilot', 'p.name as project_name').orderBy('s.id'),
+      db('client_accounts').select('lead_id', 'active', 'must_change_password', 'last_login_at'),
+      db('client_messages').where({ sender: 'client' }).whereNull('read_at').select('lead_id').count({ n: '*' }).groupBy('lead_id'),
+    ]);
+    const salesByLead = {};
+    for (const sale of sales) {
+      const t = await totals(db, sale);
+      const sch = sale.status === 'desiste' ? { overdue_fcfa: 0, overdue_count: 0, next_due: null } : await scheduleStatus(db, sale, t);
+      (salesByLead[sale.lead_id] ||= []).push({
+        id: sale.id, lot_id: sale.lot_id, lot_code: sale.lot_code, ilot: sale.ilot, project_name: sale.project_name,
+        status: sale.status, financing: sale.financing, price_fcfa: Number(sale.price_fcfa), ...t,
+        overdue_fcfa: sch.overdue_fcfa, overdue_count: sch.overdue_count, next_due: sch.next_due,
+      });
+    }
+    const accessBy = Object.fromEntries(accounts.map(a => [a.lead_id, { active: !!a.active, must_change_password: !!a.must_change_password, last_login_at: isoTime(a.last_login_at) }]));
+    const unreadBy = Object.fromEntries(unread.map(u => [u.lead_id, Number(u.n)]));
+    res.json(leads.map(l => {
+      const ds = salesByLead[l.id] || [];
+      const live = ds.filter(d => d.status !== 'desiste');
+      return {
+        lead_id: l.id, name: l.name, client_code: l.client_code, phone: l.phone, email: l.email, country: l.country,
+        is_diaspora: !!l.is_diaspora, stage: l.stage, sales: ds,
+        price_fcfa: live.reduce((n, d) => n + d.price_fcfa, 0), paid_fcfa: live.reduce((n, d) => n + d.paid_fcfa, 0),
+        overdue_fcfa: live.reduce((n, d) => n + d.overdue_fcfa, 0), overdue_count: live.reduce((n, d) => n + d.overdue_count, 0),
+        status: !live.length ? 'desiste' : live.every(d => d.status === 'solde') ? 'solde' : 'en_cours',
+        access: accessBy[l.id] || null, unread_messages: unreadBy[l.id] || 0,
+      };
+    }));
+  }));
 
   // ─── Accès à l'espace client ──────────────────────────────
   r.get('/leads/:id/client-access', requirePermission('leads:read'), ah(async (req, res) => {

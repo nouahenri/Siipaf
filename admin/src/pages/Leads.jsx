@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
 import { useSearchParams } from 'react-router-dom';
-import { Search, Plus, Download, List, Columns3, Users, Phone, Mail as MailIcon, CalendarPlus, Trash2 } from 'lucide-react';
+import { Search, Plus, Download, List, Columns3, Users, Phone, Mail as MailIcon, CalendarPlus, Trash2, Upload } from 'lucide-react';
+import ImportModal from '../components/ImportModal';
 import { api, qs } from '../lib/api';
 import { useAuth, useResource, useToast } from '../lib/app-context';
 import { Card, Drawer, Field, Badge, Empty, ErrorBox, Skeleton, Pagination } from '../components/ui';
@@ -20,6 +21,7 @@ export default function Leads() {
   const changePageSize = n => { setPageSize(n); setPage(1); try { localStorage.setItem('leads.pageSize', String(n)); } catch { /* stockage indisponible */ } };
   const [selected, setSelected] = useState(null);
   const [creating, setCreating] = useState(false);
+  const [importing, setImporting] = useState(false);
   const projects = useResource('/admin/projects');
 
   const limit = view === 'pipeline' ? 200 : pageSize;
@@ -54,6 +56,7 @@ export default function Leads() {
             <button className={view === 'pipeline' ? 'active' : ''} onClick={() => setView('pipeline')}><Columns3 />Pipeline</button>
           </div>
           <a className="btn" href="/api/admin/leads.csv"><Download />Exporter</a>
+          {can('leads:write') && <button className="btn" onClick={() => setImporting(true)}><Upload />Importer</button>}
           {can('leads:write') && <button className="btn btn-primary" onClick={() => setCreating(true)}><Plus />Nouveau prospect</button>}
         </div>
       </div>
@@ -64,6 +67,7 @@ export default function Leads() {
         : <Pipeline leads={leads} onOpen={setSelected} canWrite={can('leads:write')} />}
 
       {selected && <LeadDrawer id={selected} onClose={() => setSelected(null)} onSaved={leads.reload} projects={projects.data || []} />}
+      {importing && <ImportModal mode="prospects" allowModes={can('sales:write') ? ['prospects', 'clients'] : ['prospects']} onClose={() => setImporting(false)} onDone={() => leads.reload()} />}
       {creating && <LeadDrawer onClose={() => setCreating(false)} onSaved={() => { setCreating(false); leads.reload(); }} projects={projects.data || []} />}
     </div>
   );

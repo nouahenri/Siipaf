@@ -51,7 +51,7 @@ async function findOrCreateLead(trx, data) {
     message: data.message || null,
   };
   const [id] = await trx('leads').insert(row);
-  return { id: typeof id === 'object' ? id.id : id, ...row, stage: 'prospection' };
+  return { id: typeof id === 'object' ? id.id : id, ...row, stage: 'prospection', created: true };
 }
 
 /** Enregistre un changement de statut (déjà vérifié) et son historique. */
