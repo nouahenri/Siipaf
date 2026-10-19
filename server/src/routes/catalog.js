@@ -5,6 +5,11 @@ const { ah, parse, idParam, HttpError, json } = require('../lib/http');
 const { requirePermission } = require('../auth');
 const { LOT_STATUSES, DELETABLE_LOT_STATUSES, NEW_LOT_STATUSES } = require('../lib/domain');
 const { changeLotStatus, placeOption, throttledExpiry } = require('../services/lots');
+const multer = require('multer');
+const { parseCad } = require('../services/cad');
+
+// Plans AutoCAD lus en mémoire (jamais enregistrés tels quels sur le serveur)
+const cadUpload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 60 * 1024 * 1024, files: 1 } });
 
 const point = z.tuple([z.number().min(0).max(1), z.number().min(0).max(1)]);
 const shape = z.array(point).min(3, 'Un lot doit avoir au moins 3 points.').max(200).nullable();
@@ -119,6 +124,12 @@ module.exports = function catalogRoutes(db) {
       offers,
       lots: lots.map(decodeLot),
     });
+  }));
+
+  // Lecture d'un plan AutoCAD (DWG / DXF) : renvoie la géométrie, le dashboard y détecte les parcelles
+  r.post('/cad/parse', requirePermission('plans:write'), cadUpload.single('file'), ah(async (req, res) => {
+    if (!req.file) throw new HttpError(400, 'Aucun fichier reçu.');
+    res.json(await parseCad(req.file.buffer, req.file.originalname));
   }));
 
   r.post('/plans', requirePermission('plans:write'), ah(async (req, res) => {

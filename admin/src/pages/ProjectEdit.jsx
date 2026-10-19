@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { Link, useParams } from 'react-router-dom';
+import { Link, useNavigate, useParams } from 'react-router-dom';
 import { ArrowLeft, Plus, Trash2, ArrowUp, ArrowDown, ImagePlus, Map, FileText, PenTool } from 'lucide-react';
 import { api } from '../lib/api';
 import { useAuth, useResource, useToast } from '../lib/app-context';
@@ -7,6 +7,7 @@ import { Card, Field, ErrorBox, Skeleton, Badge, Empty } from '../components/ui'
 import { MediaPicker, Dropzone } from '../components/MediaLibrary';
 import { Modal } from '../components/ui';
 import { pdfToImage } from '../lib/pdf';
+import CadImport from '../components/CadImport';
 import { fcfa } from '../lib/format';
 
 const FIELDS = ['name', 'slug', 'city', 'location', 'tagline', 'description', 'category', 'delivery', 'option_days', 'published', 'cover_media_id', 'amenities'];
@@ -151,8 +152,10 @@ export default function ProjectEdit() {
 /** Ajout d'un plan : image, ou PDF converti en image dans le navigateur. */
 function AddPlanModal({ projectId, onClose, onDone }) {
   const toast = useToast();
+  const navigate = useNavigate();
   const [busy, setBusy] = useState('');
   const [name, setName] = useState('');
+  const [cad, setCad] = useState(false);
 
   const handle = async files => {
     const file = files[0];
@@ -182,10 +185,19 @@ function AddPlanModal({ projectId, onClose, onDone }) {
   };
 
   return (
-    <Modal title="Ajouter un plan de masse" onClose={onClose}>
+    <Modal title={cad ? 'Convertir un plan AutoCAD en carte interactive' : 'Ajouter un plan de masse'} onClose={onClose}>
+      {cad ? <CadImport projectId={projectId} onCancel={() => setCad(false)} onDone={plan => { onDone(); navigate(`/plans/${plan.id}`); }} /> : <>
       <Field label="Nom du plan" hint="Ex. : Tranche 1, Îlots A à D…"><input className="input" value={name} onChange={e => setName(e.target.value)} /></Field>
       {busy ? <p className="muted">{busy}</p> : <Dropzone onFiles={handle} busy={false} accept="image/jpeg,image/png,image/webp,application/pdf" />}
-      <p className="small muted">Image (JPG, PNG) ou PDF : la première page du PDF est convertie en image haute définition.</p>
+      <p className="small muted">Image (JPG, PNG) ou PDF : la première page du PDF est convertie en image haute définition. Les lots se dessinent ensuite à la main.</p>
+      {!busy && (
+        <div className="card" style={{ padding: 14, marginTop: 6, background: 'var(--surface-2)' }}>
+          <strong>Vous avez le plan AutoCAD (DWG ou DXF) ?</strong>
+          <p className="small muted" style={{ margin: '4px 0 10px' }}>Les parcelles et leurs numéros sont reconnus automatiquement : la carte interactive et les lots sont créés en une fois.</p>
+          <button className="btn btn-primary btn-sm" onClick={() => setCad(true)}><PenTool />Convertir un plan AutoCAD</button>
+        </div>
+      )}
+      </>}
     </Modal>
   );
 }

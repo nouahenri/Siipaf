@@ -465,3 +465,8 @@ fieldset { min-width: 0; }
 .perm-dot { width: 8px; height: 8px; border-radius: 50%; background: var(--border-strong); flex-shrink: 0; }
 .perm-dot.on { background: var(--ok); }
 .alert-info { background: #eef4fd; color: #1f5fae; display: flex; align-items: center; gap: 8px; }
+
+/* Indicateur de chargement */
+@keyframes spin { to { transform: rotate(360deg); } }
+.spin { animation: spin 1s linear infinite; }
+@media (prefers-reduced-motion: reduce) { .spin { animation-duration: 3s; } }

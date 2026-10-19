@@ -30,3 +30,12 @@ test('vidéos de chantier : MOV (iPhone) et MP4 acceptées, filtre « vidéo » 
   const refused = await admin.post('/api/admin/media').attach('files', Buffer.from('x'), { filename: 'virus.exe', contentType: 'application/x-msdownload' });
   assert.equal(refused.status, 400);
 });
+
+test('plan AutoCAD : un fichier qui n’est pas un DWG est refusé ; droit plans:write requis', async () => {
+  const res = await admin.post('/api/admin/cad/parse').attach('file', Buffer.from('pas un plan'), { filename: 'plan.dwg', contentType: 'application/octet-stream' });
+  assert.equal(res.status, 400);
+  assert.match(res.body.error, /pas un plan AutoCAD/);
+  const { createUser } = require('./helpers');
+  const comptable = await login(app, await createUser(db, 'comptable', 'comptable-cad@test.ci'), 'motdepasse-test-123');
+  assert.equal((await comptable.post('/api/admin/cad/parse').attach('file', Buffer.from('AC1027'), { filename: 'plan.dwg' })).status, 403);
+});
