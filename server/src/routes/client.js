@@ -1,0 +1,138 @@
+/**
+ * API de l'espace client (/api/client) : connexion par code client ou téléphone, dossiers, échéancier,
+ * documents, chantier et messagerie. Chaque requête est cloisonnée sur l'acquéreur connecté.
+ */
+const path = require('path');
+const express = require('express');
+const rateLimit = require('express-rate-limit');
+const { z } = require('zod');
+const { ah, parse, idParam, HttpError, isoTime } = require('../lib/http');
+const { checkPassword, hashPassword } = require('../auth');
+const { issueClientSession, clearClientSession, requireClient } = require('../auth/client');
+const { isTest, uploadsDir } = require('../config');
+const { notifyTeam } = require('../lib/mailer');
+const { CLIENT_PASSWORD_MIN } = require('../lib/domain');
+const {
+  findAccountByLogin, requestReset, resetPassword, clientSales, clientSaleDetail, clientDocumentFile,
+  ownSale, saleContext, siteUpdatesQuery, serializeUpdate,
+} = require('../services/clients');
+
+// Ancien nom du champ d'identifiant : « code »
+const withLogin = body => ({ ...(body || {}), login: body?.login ?? body?.code });
+
+const newPassword = z.string().min(CLIENT_PASSWORD_MIN, `Le mot de passe doit faire au moins ${CLIENT_PASSWORD_MIN} caractères.`).max(200);
+
+module.exports = function clientRoutes(db) {
+  const r = express.Router();
+  const limiter = (limit, minutes = 15) => rateLimit({
+    windowMs: minutes * 60 * 1000, limit: isTest ? 1000 : limit, standardHeaders: true, legacyHeaders: false,
+    message: { error: 'Trop de tentatives, réessayez dans quelques minutes.' },
+  });
+  const authed = requireClient(db);
+  const pending = requireClient(db, { allowPending: true });
+
+  async function profile(account) {
+    const lead = await db('leads').where({ id: account.lead_id }).first();
+    const [{ n }] = await db('client_messages').where({ lead_id: lead.id, sender: 'equipe' }).whereNull('read_at').count({ n: '*' });
+    return {
+      client_code: lead.client_code, name: lead.name, email: lead.email, phone: lead.phone, country: lead.country,
+      must_change_password: !!account.must_change_password, unread_messages: Number(n),
+    };
+  }
+
+  // ─── Connexion ────────────────────────────────────────────
+  r.post('/login', limiter(10), ah(async (req, res) => {
+    // « login » : code client ou numéro de téléphone (« code » accepté pour les anciennes versions de l'écran)
+    const { login, password } = parse(z.object({
+      login: z.string().trim().min(4, 'Code client ou numéro de téléphone requis').max(40),
+      password: z.string().min(1, 'Mot de passe requis').max(200),
+    }), withLogin(req.body));
+    const account = await findAccountByLogin(db, login);
+    // Même message dans tous les cas pour ne pas révéler les comptes existants
+    if (!account || !account.active || !(await checkPassword(password, account.password_hash))) {
+      throw new HttpError(401, 'Identifiant ou mot de passe incorrect.');
+    }
+    await db('client_accounts').where({ id: account.id }).update({ last_login_at: new Date() });
+    issueClientSession(res, account);
+    res.json({ client: await profile(account) });
+  }));
+
+  r.post('/logout', (req, res) => {
+    clearClientSession(res);
+    res.json({ ok: true });
+  });
+
+  r.get('/me', pending, ah(async (req, res) => res.json({ client: await profile(req.client) })));
+
+  r.post('/password', pending, ah(async (req, res) => {
+    const { current, next } = parse(z.object({ current: z.string().min(1), next: newPassword }), req.body);
+    if (!(await checkPassword(current, req.client.password_hash))) throw new HttpError(400, 'Mot de passe actuel incorrect.');
+    if (current === next) throw new HttpError(400, 'Choisissez un mot de passe différent du mot de passe provisoire.');
+    await db('client_accounts').where({ id: req.client.id }).update({
+      password_hash: await hashPassword(next), must_change_password: false, updated_at: new Date(),
+    });
+    res.json({ client: await profile({ ...req.client, must_change_password: false }) });
+  }));
+
+  r.post('/password/forgot', limiter(5), ah(async (req, res) => {
+    const { login } = parse(z.object({ login: z.string().trim().min(4).max(40) }), withLogin(req.body));
+    await requestReset(db, login);
+    res.json({ ok: true, message: 'Si cet identifiant correspond à un accès avec une adresse e-mail, un lien de réinitialisation vient d’être envoyé.' });
+  }));
+
+  r.post('/password/reset', limiter(10), ah(async (req, res) => {
+    const { token, password } = parse(z.object({ token: z.string().min(32).max(128), password: newPassword }), req.body);
+    const account = await resetPassword(db, token, password);
+    issueClientSession(res, account);
+    res.json({ client: await profile({ ...account, must_change_password: false }) });
+  }));
+
+  // ─── Dossiers ─────────────────────────────────────────────
+  r.get('/dossiers', authed, ah(async (req, res) => res.json(await clientSales(db, req.client.lead_id))));
+
+  r.get('/dossiers/:id', authed, ah(async (req, res) => res.json(await clientSaleDetail(db, req.client.lead_id, idParam(req)))));
+
+  r.get('/dossiers/:id/chantier', authed, ah(async (req, res) => {
+    const sale = await ownSale(db, req.client.lead_id, idParam(req));
+    const { lot, property } = await saleContext(db, sale);
+    const updates = await siteUpdatesQuery(db, lot).limit(100);
+    res.json({ property, updates: await Promise.all(updates.map(u => serializeUpdate(db, u))) });
+  }));
+
+  r.get('/documents/:id/fichier', authed, ah(async (req, res) => {
+    const doc = await clientDocumentFile(db, req.client.lead_id, idParam(req));
+    const ext = path.extname(doc.original_name || doc.filename);
+    res.set('Cache-Control', 'private, no-store');
+    res.download(path.join(uploadsDir, path.basename(doc.filename)), `${doc.label}${ext}`, err => {
+      if (err && !res.headersSent) res.status(404).json({ error: 'Fichier indisponible.' });
+    });
+  }));
+
+  // ─── Messagerie ───────────────────────────────────────────
+  r.get('/messages', authed, ah(async (req, res) => {
+    const leadId = req.client.lead_id;
+    const rows = await db('client_messages as m').leftJoin('users as u', 'u.id', 'm.user_id')
+      .where('m.lead_id', leadId).select('m.*', 'u.name as author').orderBy([{ column: 'm.created_at', order: 'asc' }, { column: 'm.id', order: 'asc' }]).limit(500);
+    await db('client_messages').where({ lead_id: leadId, sender: 'equipe' }).whereNull('read_at').update({ read_at: new Date() });
+    res.json(rows.map(m => ({
+      id: m.id, sender: m.sender, body: m.body, sale_id: m.sale_id, created_at: isoTime(m.created_at),
+      author: m.sender === 'equipe' ? (m.author ? m.author.split(' ')[0] : 'Équipe SIIPAF') : null,
+      read: m.sender === 'client' ? !!m.read_at : true,
+    })));
+  }));
+
+  r.post('/messages', authed, limiter(30), ah(async (req, res) => {
+    const data = parse(z.object({
+      body: z.string().trim().min(1, 'Message vide.').max(4000),
+      sale_id: z.number().int().positive().optional(),
+    }), req.body);
+    if (data.sale_id) await ownSale(db, req.client.lead_id, data.sale_id);
+    const [id] = await db('client_messages').insert({ lead_id: req.client.lead_id, sale_id: data.sale_id || null, sender: 'client', body: data.body });
+    const lead = await db('leads').where({ id: req.client.lead_id }).first();
+    notifyTeam(`Message client ${lead.client_code}`, `${lead.name} (${lead.client_code}) a écrit depuis l’espace client :\n\n${data.body}`).catch(() => {});
+    const m = await db('client_messages').where({ id }).first();
+    res.status(201).json({ id: m.id, sender: 'client', body: m.body, sale_id: m.sale_id, created_at: isoTime(m.created_at), author: null, read: false });
+  }));
+
+  return r;
+};

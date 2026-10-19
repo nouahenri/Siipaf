@@ -1146,3 +1146,41 @@ body.page-inner #navbar {
   .fin-options-grid,
   .banks-showcase { max-width: 640px; margin-left: auto; margin-right: auto; }
 }
+
+/* ─── Témoignages : initiales, bouton de dépôt, formulaire ─── */
+.temo-avatar-initials { color: #fff; font-weight: 700; font-size: 0.85rem; letter-spacing: .5px; display: flex; align-items: center; justify-content: center; }
+.temo-cta { text-align: center; margin-top: 40px; display: flex; flex-direction: column; align-items: center; gap: 14px; }
+.temo-cta p { color: var(--gray); margin: 0; }
+body.temo-modal-open { overflow: hidden; }
+.temo-modal { position: fixed; inset: 0; z-index: 3000; display: flex; align-items: center; justify-content: center; padding: 16px; }
+.temo-modal[hidden] { display: none; }
+.temo-modal-backdrop { position: absolute; inset: 0; background: rgba(10, 10, 10, .6); }
+.temo-modal-panel { position: relative; width: min(620px, 100%); max-height: calc(100vh - 32px); overflow-y: auto; background: #fff; border-radius: 16px; padding: 32px; display: flex; flex-direction: column; gap: 14px; box-shadow: 0 24px 64px rgba(0, 0, 0, .3); animation: temoIn .25s ease-out; }
+@keyframes temoIn { from { opacity: 0; transform: translateY(12px); } }
+.temo-modal-panel h3 { font-family: var(--serif); font-size: 1.6rem; color: var(--dark); margin: 0; }
+.temo-modal-sub { color: var(--gray); font-size: .9rem; margin: -6px 0 4px; }
+.temo-modal-close { position: absolute; top: 14px; right: 14px; width: 38px; height: 38px; border-radius: 50%; border: none; background: #f4f4f4; cursor: pointer; color: var(--dark); }
+.temo-modal-panel label { display: flex; flex-direction: column; gap: 6px; font-size: .85rem; font-weight: 600; color: var(--dark); }
+.temo-modal-panel input:not([type="radio"]):not([type="checkbox"]), .temo-modal-panel select, .temo-modal-panel textarea {
+  font: inherit; font-weight: 400; padding: 11px 14px; border: 1px solid #ddd; border-radius: 8px; background: #fff; width: 100%;
+}
+.temo-modal-panel input:focus, .temo-modal-panel select:focus, .temo-modal-panel textarea:focus { outline: none; border-color: var(--red); box-shadow: 0 0 0 3px rgba(227, 6, 19, .12); }
+.temo-row { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; }
+.temo-rating { display: inline-flex; flex-direction: row-reverse; justify-content: flex-end; gap: 4px; }
+.temo-rating input { position: absolute; opacity: 0; width: 1px; height: 1px; }
+.temo-rating label { cursor: pointer; font-size: 1.6rem; color: #ddd; transition: color .15s, transform .15s; }
+.temo-rating input:checked ~ label, .temo-rating label:hover, .temo-rating label:hover ~ label { color: #e0a100; }
+.temo-rating input:focus-visible + label { outline: 2px solid var(--red); border-radius: 4px; }
+.temo-rating label:hover { transform: scale(1.1); }
+.temo-hp { position: absolute; left: -9999px; width: 1px; height: 1px; opacity: 0; }
+.temo-modal-panel .temo-consent { flex-direction: row; align-items: flex-start; gap: 10px; font-weight: 400; color: var(--gray); }
+.temo-consent input { margin-top: 3px; accent-color: var(--red); }
+.temo-feedback { margin: 0; font-size: .9rem; }
+.temo-feedback:empty { display: none; }
+.temo-feedback.ok { color: #1f8a4c; background: #e7f5ec; padding: 10px 14px; border-radius: 8px; }
+.temo-feedback.err { color: #c0262d; background: #fdecee; padding: 10px 14px; border-radius: 8px; }
+.temo-modal-panel .btn { align-self: flex-start; }
+@media (max-width: 600px) {
+  .temo-row { grid-template-columns: 1fr; }
+  .temo-modal-panel { padding: 24px 18px; }
+}

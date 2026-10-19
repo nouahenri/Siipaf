@@ -549,7 +549,7 @@
             <li><i class="fas fa-map-marker-alt"></i> Cocody 2 Plateaux 7ème Tranche, Abidjan</li>
             <li><i class="fas fa-phone"></i><a href="tel:+2250102279595">+225 01 02 27 95 95</a></li>
             <li><i class="fas fa-phone"></i><a href="tel:+2252722205020">+225 27 22 20 50 20</a></li>
-            <li><i class="fas fa-envelope"></i><a href="mailto:info@siipaf.ci">info@siipaf.ci</a></li>
+            <li><i class="fas fa-envelope"></i><a href="mailto:info@siipaf.com">info@siipaf.com</a></li>
           </ul>
         </div>
       </div>
@@ -572,10 +572,13 @@
 
 <script src="https://cdnjs.cloudflare.com/ajax/libs/aos/2.3.4/aos.js" defer></script>
 <script src="https://cdn.jsdelivr.net/npm/swiper@11.1.14/swiper-bundle.min.js" defer></script>
+<script src="js/site-content.js" defer></script>
 <script src="js/main.js" defer></script>
+<script src="js/testimonials.js" defer></script>
 <script>
-  // Hero Swiper init (après chargement des scripts différés)
-  document.addEventListener('DOMContentLoaded', () => new Swiper('.hero-swiper', {
+  // Hero Swiper init (après chargement des scripts différés) ; js/site-content.js le lance lui-même
+  // une fois le diaporama du dashboard en place
+  document.addEventListener('DOMContentLoaded', () => !window.SIIPAF_HERO_PENDING && new Swiper('.hero-swiper', {
     loop: true,
     autoplay: { delay: 5000, disableOnInteraction: false },
     effect: 'fade',
