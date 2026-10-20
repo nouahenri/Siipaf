@@ -1,6 +1,6 @@
 const { test, before, after } = require('node:test');
 const assert = require('node:assert/strict');
-const { setup, login, createUser } = require('./helpers');
+const { setup, login, createUser, request } = require('./helpers');
 
 let db, app, admin, project;
 
@@ -71,4 +71,18 @@ test('supprimer un prospect : interdit avec un dossier ou une option, réservé 
   const res = await admin.delete(`/api/admin/leads/${buyer.lead_id}`);
   assert.equal(res.status, 409);
   assert.match(res.body.error, /dossier d’acquisition/);
+});
+
+test('type de projet « lotissement » et indication de plan interactif sur le site', async () => {
+  const p = await admin.post('/api/admin/projects').send({ name: 'Lotissement Test', slug: 'lotissement-test', published: true });
+  assert.equal(p.status, 201, JSON.stringify(p.body));
+  assert.equal((await admin.patch(`/api/admin/projects/${p.body.id}`).send({ category: 'inconnu' })).status, 400);
+  assert.equal((await admin.patch(`/api/admin/projects/${p.body.id}`).send({ category: 'lotissement' })).status, 200);
+  let list = await request(app).get('/api/public/projects');
+  let mine = list.body.find(x => x.slug === 'lotissement-test');
+  assert.equal(mine.category, 'lotissement');
+  assert.equal(mine.has_plan, false);
+  await admin.post('/api/admin/plans').send({ project_id: p.body.id, name: 'Tranche 1', published: true });
+  list = await request(app).get('/api/public/projects');
+  assert.equal(list.body.find(x => x.slug === 'lotissement-test').has_plan, true);
 });

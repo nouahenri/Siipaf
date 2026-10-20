@@ -43,11 +43,16 @@ module.exports = function publicRoutes(db) {
 
   r.get('/projects', ah(async (req, res) => {
     const projects = await db('projects').where({ published: true }).orderBy('sort');
-    const counts = await db('lots').select('project_id', 'status').count({ n: '*' }).groupBy('project_id', 'status');
+    const [counts, plans] = await Promise.all([
+      db('lots').select('project_id', 'status').count({ n: '*' }).groupBy('project_id', 'status'),
+      db('site_plans').where({ published: true }).select('project_id').count({ n: '*' }).groupBy('project_id'),
+    ]);
     res.json(projects.map(p => ({
       id: p.id, slug: p.slug, name: p.name, city: p.city, location: p.location, tagline: p.tagline,
       category: p.category, delivery: p.delivery, cover: mediaUrl(p.cover_media_id),
       lots: Object.fromEntries(counts.filter(c => c.project_id === p.id).map(c => [c.status, Number(c.n)])),
+      // Un plan de masse publié = carte interactive consultable sur le site
+      has_plan: plans.some(pl => pl.project_id === p.id),
     })));
   }));
 

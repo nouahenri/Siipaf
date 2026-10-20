@@ -18,7 +18,7 @@ Périmètre : dashboard admin (admin.siipaf.com), espace client (client.siipaf.c
 | Fiche lot › Aperçu | Le dossier d'acquisition ne se modifie pas : prix convenu, financement, date de signature, notes. Pourtant le financement pilote l'échéancier. | ✅ Fait le 19/10 : « Modifier le dossier » (et correction des dates) |
 | Contenu du site | Diaporama, bandeau, chiffres clés et coordonnées s'enregistrent mais **le site public ne les lit pas** (tout y est écrit en dur). | ✅ Fait le 19/10 : `js/site-content.js` sur les 5 pages ; les 5 diapositives et les 6 messages du bandeau sont repris en base. À mettre en ligne sur siipaf.com. |
 | Projets | Pas de suppression d'un projet créé par erreur. Le masquage existe (case « publié »). | P2 |
-| Prospects | Pas de suppression d'un prospect (doublon, demande RGPD). | P2 |
+| Prospects | ~~Pas de suppression d'un prospect~~ — fait le 20/10 (refusée s'il y a un dossier ou une option). | P2 ✔ |
 | Messages (formulaire de contact) | Pas de réponse depuis l'admin : traiter ou archiver seulement. | P3 |
 | Rendez-vous | Création depuis la fiche prospect uniquement, pas depuis l'agenda. | P3 |
 
@@ -33,9 +33,9 @@ Périmètre : dashboard admin (admin.siipaf.com), espace client (client.siipaf.c
 |---|---|---|
 | Documents juridiques | Les fichiers joints aux dossiers (contrats, ACD…) sont dans `/uploads`, **lisibles par quiconque connaît leur adresse**. Il faut les servir seulement aux personnes autorisées. | ✅ Fait le 19/10 : réservés à l'équipe ayant accès aux ventes ou aux documents ; le client passe par son espace |
 | E-mails | SMTP non configuré : aucun e-mail ne part (mot de passe oublié, notifications). | **P1** (à faire avec le client) |
-| Sauvegardes | Pas de sauvegarde planifiée de la base MySQL ni du dossier `uploads`. | P2 |
+| Sauvegardes | ~~Pas de sauvegarde planifiée~~ — script `server/scripts/backup.js` fait le 20/10 ; tâche cron à créer sur cPanel. | P2 ✔ |
 | Hébergement | `SIIPAF_WEB.zip` public sur siipaf.com ; jeton GitHub en clair dans le dépôt local. | **P1** (actions du client) |
-| Git | Rien n'est committé depuis `8a52007`. | P2 |
+| Git | ~~Rien n'est committé~~ — commits sur `plateforme-admin-espace-client` (20/10). | P2 ✔ |
 
 ## 5. Plan d'action
 - **P1, maintenant** : création et modification des lots ; modification du dossier d'acquisition ; documents juridiques protégés ; contenu du site branché sur le site public (sa mise en ligne attend l'accord du client).

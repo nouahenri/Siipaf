@@ -9,6 +9,7 @@ import { Modal } from '../components/ui';
 import { pdfToImage } from '../lib/pdf';
 import CadImport from '../components/CadImport';
 import { fcfa } from '../lib/format';
+import { PROJECT_CATEGORIES } from '../lib/domain';
 
 const FIELDS = ['name', 'slug', 'city', 'location', 'tagline', 'description', 'category', 'delivery', 'option_days', 'published', 'cover_media_id', 'amenities'];
 
@@ -79,6 +80,12 @@ export default function ProjectEdit() {
               <Field label="Nom" className="full"><input className="input" value={form.name} onChange={set('name')} /></Field>
               <Field label="Identifiant (adresse)"><input className="input" value={form.slug} onChange={set('slug')} /></Field>
               <Field label="Ville"><input className="input" value={form.city} onChange={set('city')} /></Field>
+              <Field label="Type de projet" hint="« Lotissement » : le projet apparaît dans Projets › Lotissements sur le site.">
+                <select className="select" value={form.category || ''} onChange={set('category')}>
+                  <option value="">— Non précisé —</option>
+                  {Object.entries(PROJECT_CATEGORIES).map(([k, v]) => <option key={k} value={k}>{v}</option>)}
+                </select>
+              </Field>
               <Field label="Localisation" className="full"><input className="input" value={form.location} onChange={set('location')} /></Field>
               <Field label="Accroche" className="full" hint="Phrase courte affichée sous le nom."><input className="input" value={form.tagline} onChange={set('tagline')} /></Field>
               <Field label="Description" className="full"><textarea className="textarea" value={form.description} onChange={set('description')} /></Field>

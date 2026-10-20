@@ -33,6 +33,12 @@ export const LEAD_STAGES = [
 ];
 export const stageLabel = id => LEAD_STAGES.find(s => s.id === id)?.label || id;
 
+export const PROJECT_CATEGORIES = {
+  social: 'Logement social',
+  social_haut_standing: 'Logement social & haut standing',
+  haut_standing: 'Haut standing',
+  lotissement: 'Lotissement (terrains)',
+};
 export const FINANCING = { apport: 'Avec apport (30 %)', diaspora: 'Diaspora (0 % apport)', credit: 'Crédit bancaire', comptant: 'Comptant' };
 export const SOURCES = { site: 'Site web', plan: 'Plan de masse', ia: 'Assistant IA', whatsapp: 'WhatsApp', admin: 'Saisie interne', import: 'Import' };
 export const APPT_KINDS = { visite: 'Visite sur site', appel: 'Appel', bureau: 'RDV au bureau', visio: 'Visio' };

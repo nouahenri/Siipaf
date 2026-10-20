@@ -1,0 +1,152 @@
+/* ============================================================
+   SIIPAF — Sous-menu Projets, lotissements et plans interactifs
+============================================================ */
+
+/* ─── Sous-menu « Projets » ─────────────────────────────── */
+.nav-has-sub { position: relative; }
+.nav-caret { font-size: .62rem; margin-left: 4px; transition: transform .25s ease; }
+.nav-has-sub:hover .nav-caret, .nav-has-sub:focus-within .nav-caret { transform: rotate(180deg); }
+.nav-sub {
+  position: absolute; top: calc(100% + 6px); left: 50%; transform: translate(-50%, 8px);
+  min-width: 270px; padding: 8px; list-style: none; background: var(--white);
+  border-radius: 14px; box-shadow: 0 18px 48px rgba(0, 0, 0, .16); border: 1px solid #f0f0f0;
+  opacity: 0; visibility: hidden; transition: opacity .2s ease, transform .2s ease, visibility .2s; z-index: 1002;
+}
+.nav-sub::before { content: ''; position: absolute; top: -10px; left: 0; right: 0; height: 10px; } /* passerelle de survol */
+.nav-has-sub:hover .nav-sub, .nav-has-sub:focus-within .nav-sub { opacity: 1; visibility: visible; transform: translate(-50%, 0); }
+.nav-sub a { display: flex; align-items: flex-start; gap: 12px; padding: 11px 12px; border-radius: 10px; color: var(--dark2); font-size: .88rem; font-weight: 600; line-height: 1.3; }
+.nav-sub a i { width: 30px; height: 30px; border-radius: 8px; display: grid; place-items: center; background: rgba(227, 6, 19, .07); color: var(--red); font-size: .85rem; flex-shrink: 0; }
+.nav-sub a small { display: block; font-weight: 400; font-size: .76rem; color: var(--grey); margin-top: 2px; }
+.nav-sub a:hover, .nav-sub a[aria-current='page'] { background: rgba(227, 6, 19, .05); color: var(--red); }
+@media (max-width: 1024px) {
+  .nav-sub { position: static; transform: none; opacity: 1; visibility: visible; box-shadow: none; border: 0; min-width: 0; padding: 0 0 6px; background: transparent; }
+  .nav-has-sub:hover .nav-sub, .nav-has-sub:focus-within .nav-sub { transform: none; }
+  .nav-sub a { padding: 10px 24px 10px 36px; font-size: .92rem; border-radius: 0; }
+  .nav-sub a i { width: 26px; height: 26px; }
+  .nav-caret { display: none; }
+}
+
+/* ─── Liste des lotissements ────────────────────────────── */
+.lots-page { background: var(--light); }
+.lots-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(300px, 1fr)); gap: 26px; }
+.lots-loading { grid-column: 1 / -1; text-align: center; color: var(--grey); padding: 40px 0; }
+.lot-card { background: var(--white); border-radius: var(--radius); overflow: hidden; box-shadow: var(--shadow); display: flex; flex-direction: column; transition: var(--trans); }
+.lot-card:hover { transform: translateY(-4px); box-shadow: var(--shadow-lg); }
+.lot-card-img { position: relative; aspect-ratio: 16 / 10; background: #222 center / cover no-repeat; }
+.lot-card-img::after { content: ''; position: absolute; inset: 0; background: linear-gradient(180deg, rgba(0,0,0,0) 45%, rgba(0,0,0,.55)); }
+.lot-card-tag { position: absolute; top: 14px; left: 14px; z-index: 1; background: var(--red); color: #fff; font-size: .7rem; font-weight: 700; letter-spacing: .06em; text-transform: uppercase; padding: 6px 12px; border-radius: 50px; }
+.lot-card-city { position: absolute; bottom: 14px; left: 16px; z-index: 1; color: #fff; font-size: .82rem; font-weight: 500; }
+.lot-card-body { padding: 22px 22px 24px; display: flex; flex-direction: column; gap: 12px; flex: 1; }
+.lot-card-body h3 { font-family: var(--serif); font-size: 1.35rem; line-height: 1.2; color: var(--dark); }
+.lot-card-body p { color: #555; font-size: .9rem; line-height: 1.6; }
+.lot-stock { display: flex; align-items: center; gap: 10px; font-size: .85rem; color: var(--dark2); }
+.lot-stock-bar { flex: 1; height: 6px; border-radius: 6px; background: #eee; overflow: hidden; }
+.lot-stock-bar span { display: block; height: 100%; background: #2e9e5b; border-radius: 6px; }
+.lot-card .btn { align-self: flex-start; margin-top: auto; padding: 12px 24px; }
+.lot-card .btn-plan-soon { color: var(--grey); font-size: .85rem; margin-top: auto; }
+.lots-other { margin-top: 56px; }
+.lots-other h3 { font-family: var(--serif); font-size: 1.5rem; margin-bottom: 20px; color: var(--dark); }
+.lots-empty { grid-column: 1 / -1; background: var(--white); border-radius: var(--radius); padding: 40px 28px; text-align: center; box-shadow: var(--shadow); }
+.lots-empty i { font-size: 2rem; color: var(--red); margin-bottom: 12px; }
+.lots-empty h3 { font-family: var(--serif); font-size: 1.4rem; margin-bottom: 8px; }
+.lots-empty p { color: #555; max-width: 520px; margin: 0 auto 18px; }
+
+/* Bouton « Plan interactif » de la page Projets */
+.btn-plan { background: var(--white); color: var(--dark); border-color: #e5e5e5; }
+.btn-plan:hover { border-color: var(--red); color: var(--red); transform: translateY(-3px); }
+
+/* ─── Page plan interactif ─────────────────────────────── */
+.plan-head { padding: 130px 0 18px; background: var(--light); }
+.plan-breadcrumb { color: var(--grey); font-size: .82rem; margin-bottom: 10px; }
+.plan-breadcrumb a { color: var(--grey); }
+.plan-breadcrumb a:hover { color: var(--red); }
+.plan-breadcrumb i { font-size: .6rem; margin: 0 6px; }
+.plan-title { font-family: var(--serif); font-size: clamp(1.7rem, 4vw, 2.6rem); color: var(--dark); line-height: 1.15; }
+.plan-sub { color: #555; margin-top: 6px; }
+.plan-section { background: var(--light); padding: 8px 0 70px; }
+.plan-app { display: grid; grid-template-columns: minmax(0, 1fr) 340px; gap: 20px; align-items: start; }
+.plan-app > .lots-loading { grid-column: 1 / -1; }
+.plan-main { display: flex; flex-direction: column; gap: 12px; min-width: 0; }
+
+.plan-toolbar { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; }
+.plan-tabs { display: flex; gap: 6px; flex-wrap: wrap; }
+.plan-tab { padding: 8px 16px; border-radius: 50px; border: 1.5px solid #e2e2e2; background: var(--white); font-size: .82rem; font-weight: 600; color: #444; cursor: pointer; }
+.plan-tab[aria-pressed='true'] { background: var(--dark); color: #fff; border-color: var(--dark); }
+.plan-search { position: relative; margin-left: auto; }
+.plan-search input { height: 40px; width: 190px; border-radius: 50px; border: 1.5px solid #e2e2e2; padding: 0 14px 0 36px; font: inherit; font-size: .85rem; background: var(--white); }
+.plan-search input:focus { outline: none; border-color: var(--red); }
+.plan-search i { position: absolute; left: 13px; top: 50%; transform: translateY(-50%); color: var(--grey); font-size: .8rem; }
+
+.plan-legend { display: flex; flex-wrap: wrap; gap: 6px; }
+.legend-chip { display: inline-flex; align-items: center; gap: 7px; padding: 6px 12px; border-radius: 50px; background: var(--white); border: 1.5px solid #e8e8e8; font-size: .78rem; font-weight: 500; color: #333; cursor: pointer; }
+.legend-chip i { width: 11px; height: 11px; border-radius: 3px; }
+.legend-chip b { font-weight: 700; }
+.legend-chip[aria-pressed='false'] { opacity: .45; }
+
+.plan-viewport { position: relative; height: min(72vh, 760px); min-height: 380px; background: #fff; border-radius: var(--radius); box-shadow: var(--shadow); overflow: hidden; touch-action: none; cursor: grab; user-select: none; }
+.plan-viewport.dragging { cursor: grabbing; }
+.plan-stage { position: absolute; left: 0; top: 0; transform-origin: 0 0; will-change: transform; }
+.plan-stage img { display: block; width: 100%; height: 100%; pointer-events: none; }
+.plan-stage svg { position: absolute; inset: 0; width: 100%; height: 100%; overflow: visible; }
+.plan-lot { stroke: #fff; stroke-width: 1; vector-effect: non-scaling-stroke; fill-opacity: .62; cursor: pointer; transition: fill-opacity .15s; }
+.plan-lot:hover { fill-opacity: .9; }
+.plan-lot.dim { fill-opacity: .12; }
+.plan-lot.selected { fill-opacity: .95; stroke: #111; stroke-width: 2.5; }
+.plan-lot.found { stroke: var(--red); stroke-width: 3; }
+.plan-label { font-family: var(--font); font-weight: 600; fill: #111; pointer-events: none; text-anchor: middle; dominant-baseline: central; display: none; }
+.plan-stage.show-labels .plan-label { display: block; }
+
+.plan-zoom { position: absolute; right: 12px; bottom: 12px; display: flex; flex-direction: column; gap: 6px; z-index: 2; }
+.plan-zoom button { width: 40px; height: 40px; border-radius: 12px; background: var(--white); border: 1px solid #e5e5e5; box-shadow: 0 4px 14px rgba(0,0,0,.1); color: var(--dark); cursor: pointer; font-size: .9rem; }
+.plan-zoom button:hover { color: var(--red); }
+.plan-hint { position: absolute; left: 12px; bottom: 12px; z-index: 2; background: rgba(255,255,255,.92); border-radius: 10px; padding: 6px 10px; font-size: .74rem; color: #555; pointer-events: none; }
+.plan-tooltip { position: absolute; z-index: 3; pointer-events: none; background: var(--dark); color: #fff; font-size: .78rem; line-height: 1.4; padding: 8px 10px; border-radius: 10px; box-shadow: 0 8px 24px rgba(0,0,0,.25); white-space: nowrap; transform: translate(-50%, calc(-100% - 12px)); }
+.plan-tooltip b { font-size: .86rem; }
+
+/* Panneau du lot */
+.lot-panel { background: var(--white); border-radius: var(--radius); box-shadow: var(--shadow); padding: 22px; position: sticky; top: 96px; }
+.lot-panel-empty { color: #666; font-size: .9rem; line-height: 1.6; }
+.lot-panel-empty i { color: var(--red); font-size: 1.4rem; display: block; margin-bottom: 10px; }
+.lot-panel h2 { font-family: var(--serif); font-size: 1.7rem; color: var(--dark); line-height: 1.1; }
+.lot-status { display: inline-flex; align-items: center; gap: 7px; padding: 5px 12px; border-radius: 50px; font-size: .78rem; font-weight: 600; margin: 10px 0 14px; }
+.lot-status i { width: 9px; height: 9px; border-radius: 50%; }
+.lot-facts { display: grid; grid-template-columns: auto 1fr; gap: 8px 14px; font-size: .88rem; margin-bottom: 16px; }
+.lot-facts dt { color: var(--grey); }
+.lot-facts dd { text-align: right; font-weight: 600; color: var(--dark2); }
+.lot-price { font-family: var(--serif); font-size: 1.5rem; color: var(--red); }
+.lot-actions { display: flex; flex-direction: column; gap: 8px; }
+.lot-actions .btn { justify-content: center; padding: 12px 18px; font-size: .86rem; white-space: normal; text-align: center; }
+.btn-ghost-dark { border-color: #e2e2e2; color: var(--dark); background: var(--white); }
+.btn-ghost-dark:hover { border-color: var(--dark); }
+.lot-form { display: flex; flex-direction: column; gap: 10px; margin-top: 4px; }
+.lot-form input, .lot-form textarea { width: 100%; border: 1.5px solid #e2e2e2; border-radius: 12px; padding: 11px 13px; font: inherit; font-size: .88rem; }
+.lot-form input:focus, .lot-form textarea:focus { outline: none; border-color: var(--red); }
+.lot-form .hint { font-size: .76rem; color: var(--grey); line-height: 1.5; }
+.lot-msg { border-radius: 12px; padding: 12px 14px; font-size: .86rem; line-height: 1.5; }
+.lot-msg.ok { background: #e7f5ec; color: #1f6b3d; }
+.lot-msg.err { background: #fdecee; color: #a50c17; }
+.lot-close { display: none; }
+
+/* Liste des lots disponibles (accessible et pratique sur téléphone) */
+.lot-list { background: var(--white); border-radius: var(--radius); box-shadow: var(--shadow); }
+.lot-list summary { padding: 14px 18px; cursor: pointer; font-weight: 600; font-size: .9rem; }
+.lot-list-table { width: 100%; border-collapse: collapse; font-size: .85rem; }
+.lot-list-table th, .lot-list-table td { padding: 9px 18px; border-top: 1px solid #f0f0f0; text-align: left; }
+.lot-list-table th { font-size: .72rem; text-transform: uppercase; letter-spacing: .06em; color: var(--grey); font-weight: 600; }
+.lot-list-table tbody tr { cursor: pointer; }
+.lot-list-table tbody tr:hover { background: #fafafa; }
+.lot-list-wrap { max-height: 320px; overflow-y: auto; }
+
+@media (max-width: 960px) {
+  .plan-app { grid-template-columns: 1fr; }
+  .lot-panel { position: fixed; left: 0; right: 0; bottom: 0; top: auto; z-index: 1003; border-radius: 22px 22px 0 0; max-height: 78vh; overflow-y: auto; padding: 20px 18px calc(18px + env(safe-area-inset-bottom)); box-shadow: 0 -12px 40px rgba(0,0,0,.2); transform: translateY(110%); transition: transform .3s ease; }
+  .lot-panel.open { transform: none; }
+  .lot-close { display: grid; place-items: center; position: absolute; top: 14px; right: 14px; width: 36px; height: 36px; border-radius: 50%; border: 0; background: var(--light); cursor: pointer; }
+  .plan-search { margin-left: 0; width: 100%; }
+  .plan-search input { width: 100%; }
+  .plan-viewport { height: 62vh; }
+  .plan-head { padding-top: 110px; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .nav-sub, .lot-card, .lot-panel, .plan-lot { transition: none; }
+}

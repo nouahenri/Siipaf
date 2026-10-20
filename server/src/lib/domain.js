@@ -34,6 +34,14 @@ const LOT_TRANSITIONS = {
   bloque: { disponible: {} },
 };
 
+// Types de projets : promotions immobilières (logements) et lotissements (terrains nus)
+const PROJECT_CATEGORIES = {
+  social: 'Logement social',
+  social_haut_standing: 'Logement social & haut standing',
+  haut_standing: 'Haut standing',
+  lotissement: 'Lotissement (terrains)',
+};
+
 // Circuit de vente : Prospection → Visite → Décision → Choix du bien → Paiement → Contrat → Notaire → Livraison → SAV
 const LEAD_STAGES = ['prospection', 'visite', 'decision', 'choix_bien', 'paiement', 'contrat', 'notaire', 'livraison', 'sav', 'perdu'];
 
@@ -292,5 +300,5 @@ module.exports = {
   PERMISSION_CATALOG, PERMISSION_IDS,
   FINANCING_PLANS, FINANCINGS, SCHEDULE_KINDS, INSTALLMENT_STATUS_LABELS, SITE_STAGES, SITE_STAGE_LABELS,
   MESSAGE_SENDERS, CLIENT_PASSWORD_MIN, CLIENT_RESET_HOURS, CLIENT_VISIBLE_SALE_STATUSES,
-  addMonths, buildSchedule, allocatePayments, phoneKey, looksLikeClientCode, PROTECTED_ROLES, DELETABLE_LOT_STATUSES, NEW_LOT_STATUSES,
+  addMonths, buildSchedule, allocatePayments, phoneKey, looksLikeClientCode, PROTECTED_ROLES, DELETABLE_LOT_STATUSES, NEW_LOT_STATUSES, PROJECT_CATEGORIES,
 };

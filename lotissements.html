@@ -1,0 +1,133 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+  <meta charset="UTF-8"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>Lotissements — SIIPAF SA | Terrains viabilisés et plans interactifs</title>
+  <meta name="description" content="Lotissements SIIPAF en Côte d’Ivoire : terrains viabilisés, plans de masse interactifs, disponibilité des lots en temps réel et pré-réservation en ligne."/>
+  <link rel="preconnect" href="https://fonts.googleapis.com"/>
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin/>
+  <link rel="preconnect" href="https://cdnjs.cloudflare.com" crossorigin/>
+  <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;500;600;700;800;900&family=Playfair+Display:ital,wght@0,400;0,700;0,900;1,400&display=swap" rel="stylesheet"/>
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css"/>
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/aos/2.3.4/aos.css"/>
+  <link rel="stylesheet" href="css/style.css"/>
+  <link rel="stylesheet" href="css/pages.css"/>
+  <link rel="stylesheet" href="css/plans.css"/>
+</head>
+<body class="page-inner">
+
+<!-- NAV -->
+<nav id="navbar" class="scrolled">
+  <div class="nav-container">
+    <a href="index.html" class="nav-logo"><img src="images/logo-siipaf.png" alt="SIIPAF SA"/></a>
+    <ul class="nav-menu" id="navMenu">
+      <li><a href="index.html" class="nav-link">Accueil</a></li>
+      <li><a href="a-propos.html" class="nav-link">À Propos</a></li>
+      <li class="nav-has-sub">
+        <a href="projets.html" class="nav-link active" aria-haspopup="true">Projets <i class="fas fa-chevron-down nav-caret" aria-hidden="true"></i></a>
+        <ul class="nav-sub">
+          <li><a href="projets.html"><i class="fas fa-building"></i><span>Promotions immobilières<small>Appartements, villas, duplex</small></span></a></li>
+          <li><a href="lotissements.html" aria-current="page"><i class="fas fa-map-marked-alt"></i><span>Lotissements<small>Terrains et plans interactifs</small></span></a></li>
+        </ul>
+      </li>
+      <li><a href="financement.html" class="nav-link">Financement</a></li>
+      <li><a href="contact.html" class="nav-link">Contact</a></li>
+      <li><a href="tel:+2250102279595" class="nav-cta"><i class="fas fa-phone"></i> Nous Appeler</a></li>
+    </ul>
+    <button class="hamburger" id="hamburger" aria-label="Menu"><span></span><span></span><span></span></button>
+  </div>
+</nav>
+
+<!-- PAGE HERO -->
+<div class="page-hero" style="background-image:url('images/hero/hero-3-ahoutoue.jpg')">
+  <div class="page-hero-overlay"></div>
+  <div class="page-hero-content" data-aos="fade-up">
+    <div class="breadcrumb"><a href="index.html">Accueil</a> <i class="fas fa-chevron-right"></i> <a href="projets.html">Projets</a> <i class="fas fa-chevron-right"></i> <span>Lotissements</span></div>
+    <h1>Nos <em>Lotissements</em></h1>
+    <p>Des terrains viabilisés, choisis lot par lot sur le plan de masse interactif.</p>
+  </div>
+</div>
+<!-- LOTISSEMENTS -->
+<section class="section lots-page">
+  <div class="container">
+    <div class="section-header lots-intro" data-aos="fade-up">
+      <div class="section-label">Aménageur foncier agréé MCLU</div>
+      <h2 class="section-title">Choisissez votre <em>terrain</em></h2>
+      <p class="section-sub">Ouvrez le plan de masse, repérez les lots disponibles en vert et pré-réservez gratuitement celui qui vous plaît pendant 7 jours.</p>
+    </div>
+    <div class="lots-grid" id="lotissementsList" aria-live="polite">
+      <div class="lots-loading"><i class="fas fa-circle-notch fa-spin"></i> Chargement des lotissements…</div>
+    </div>
+    <div class="lots-other" id="otherPlans" hidden>
+      <h3>Autres projets avec plan interactif</h3>
+      <div class="lots-grid" id="otherPlansList"></div>
+    </div>
+  </div>
+</section>
+
+<footer id="footer">
+  <div class="footer-top">
+    <div class="container">
+      <div class="footer-grid">
+        <div class="footer-brand">
+          <img src="images/logo-siipaf.png" alt="SIIPAF SA" class="footer-logo"/>
+          <p>SIIPAF SA — Votre Réseau Immobilier. Promoteur & Aménageur Agréé MCLU. Côte d'Ivoire.</p>
+          <div class="footer-social">
+            <a href="#"><i class="fab fa-facebook-f"></i></a>
+            <a href="#"><i class="fab fa-instagram"></i></a>
+            <a href="#"><i class="fab fa-twitter"></i></a>
+            <a href="#"><i class="fab fa-linkedin-in"></i></a>
+          </div>
+        </div>
+        <div class="footer-col">
+          <h5>Nos Projets</h5>
+          <ul>
+            <li><a href="#yamoussoukro">SIIPAF CITY YAMOUSSOUKRO</a></li>
+            <li><a href="#ahoutoue">SIIPAF CITY AHOUTOUE</a></li>
+            <li><a href="#riviera">RIVIERA II — Abidjan</a></li>
+            <li><a href="#bingerville">MINI-CITÉS BINGERVILLE</a></li>
+            <li><a href="#cly">C & LY COCODY ANGRÉ</a></li>
+          </ul>
+        </div>
+        <div class="footer-col">
+          <h5>Navigation</h5>
+          <ul>
+            <li><a href="index.html">Accueil</a></li>
+            <li><a href="a-propos.html">À Propos</a></li>
+            <li><a href="projets.html">Nos Projets</a></li>
+            <li><a href="financement.html">Financement</a></li>
+            <li><a href="contact.html">Contact</a></li>
+          </ul>
+        </div>
+        <div class="footer-col">
+          <h5>Contact</h5>
+          <ul class="footer-contact">
+            <li><i class="fas fa-map-marker-alt"></i> Cocody 2 Plateaux 7ème Tranche, Abidjan</li>
+            <li><i class="fas fa-phone"></i><a href="tel:+2250102279595">+225 01 02 27 95 95</a></li>
+            <li><i class="fas fa-envelope"></i><a href="mailto:info@siipaf.com">info@siipaf.com</a></li>
+          </ul>
+        </div>
+      </div>
+    </div>
+  </div>
+  <div class="footer-bottom">
+    <div class="container">
+      <p>&copy; 2025 SIIPAF SA — Tous droits réservés | Promoteur Immobilier Agréé MCLU</p>
+    </div>
+  </div>
+</footer>
+
+<a href="https://wa.me/2250102279595" class="whatsapp-float" target="_blank" rel="noopener" aria-label="WhatsApp">
+  <i class="fab fa-whatsapp"></i>
+  <span class="wa-tooltip">Discutons sur WhatsApp !</span>
+  <span class="wa-pulse"></span>
+</a>
+<button class="back-to-top" id="backToTop"><i class="fas fa-chevron-up"></i></button>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/aos/2.3.4/aos.js" defer></script>
+<script src="js/site-content.js" defer></script>
+<script src="js/main.js" defer></script>
+<script src="js/lotissements.js" defer></script>
+</body>
+</html>

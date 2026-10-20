@@ -3,7 +3,7 @@ const express = require('express');
 const { z } = require('zod');
 const { ah, parse, idParam, HttpError, json } = require('../lib/http');
 const { requirePermission } = require('../auth');
-const { LOT_STATUSES, DELETABLE_LOT_STATUSES, NEW_LOT_STATUSES } = require('../lib/domain');
+const { LOT_STATUSES, DELETABLE_LOT_STATUSES, NEW_LOT_STATUSES, PROJECT_CATEGORIES } = require('../lib/domain');
 const { changeLotStatus, placeOption, throttledExpiry } = require('../services/lots');
 const multer = require('multer');
 const { parseCad } = require('../services/cad');
@@ -26,7 +26,7 @@ module.exports = function catalogRoutes(db) {
     location: z.string().trim().max(255).nullable().optional(),
     tagline: z.string().trim().max(255).nullable().optional(),
     description: z.string().max(10000).nullable().optional(),
-    category: z.string().trim().max(80).nullable().optional(),
+    category: z.enum(Object.keys(PROJECT_CATEGORIES)).nullable().optional(),
     cover_media_id: z.number().int().positive().nullable().optional(),
     option_days: z.number().int().min(1).max(60).nullable().optional(),
     delivery: z.string().trim().max(80).nullable().optional(),
