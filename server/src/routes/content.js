@@ -8,6 +8,7 @@ const { z } = require('zod');
 const { ah, parse, idParam, HttpError, json } = require('../lib/http');
 const { requirePermission } = require('../auth');
 const { uploadsDir } = require('../config');
+const { slotById, imageAssignments, imagePlacements, assignImage } = require('../services/siteImages');
 
 // Clés de contenu connues et leur forme
 const heroSlide = z.object({
@@ -62,6 +63,22 @@ module.exports = function contentRoutes(db) {
   }));
 
   // ─── Médiathèque ──────────────────────────────────────────
+  r.get('/media-placements', requirePermission('content:write'), ah(async (req, res) => {
+    res.json(await imagePlacements(db));
+  }));
+
+  r.get('/media-placements/default/:slot', requirePermission('content:write'), ah(async (req, res) => {
+    const slot = slotById(req.params.slot);
+    if (!slot) throw new HttpError(404, 'Emplacement inconnu.');
+    res.set('Cache-Control', 'private, no-store');
+    res.sendFile(path.resolve(__dirname, '../../..', slot.fallback));
+  }));
+
+  r.put('/media-placements/:slot', requirePermission('content:write'), ah(async (req, res) => {
+    const data = parse(z.object({ media_id: z.number().int().positive().nullable(), alt: z.string().trim().max(255).optional() }), req.body);
+    res.json(await assignImage(db, req.params.slot, data, req.user.id));
+  }));
+
   fs.mkdirSync(uploadsDir, { recursive: true });
   const upload = multer({
     storage: multer.diskStorage({
@@ -111,6 +128,14 @@ module.exports = function contentRoutes(db) {
     const used = await db('projects').where({ cover_media_id: id }).first()
       || await db('site_plans').where({ media_id: id }).first();
     if (used) throw new HttpError(409, 'Ce fichier est utilisé par un projet ou un plan de masse.');
+    const assignments = await imageAssignments(db);
+    if (Object.values(assignments).some(a => a.media_id === id)) {
+      throw new HttpError(409, 'Cette image est affectée à une section du site. Retirez son affectation avant de la supprimer.');
+    }
+    const hero = await db('site_content').where({ key: 'hero' }).first();
+    if ((json(hero?.value, {}).slides || []).some(s => s.media_id === id)) {
+      throw new HttpError(409, 'Cette image est utilisée dans le diaporama d’accueil. Retirez-la du diaporama avant de la supprimer.');
+    }
     await db('media').where({ id }).del();
     fs.rm(path.join(uploadsDir, path.basename(m.filename)), { force: true }, () => {});
     res.json({ ok: true });

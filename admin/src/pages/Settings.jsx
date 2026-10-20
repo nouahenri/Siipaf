@@ -2,7 +2,7 @@
  * Paramètres : listes de référence (menus déroulants et cases à cocher des projets),
  * réglages généraux et thème d'affichage du compte.
  */
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { useSearchParams } from 'react-router-dom';
 import { Plus, Trash2, ArrowUp, ArrowDown, Archive, ArchiveRestore, MapPin, Building, Dumbbell, Store, Construction, Home, SlidersHorizontal, Palette } from 'lucide-react';
 import { api } from '../lib/api';
@@ -210,20 +210,48 @@ function General({ editable }) {
 function Display() {
   const { theme, setTheme } = useAuth();
   const toast = useToast();
-  const choices = [['clair', 'Clair', 'light'], ['sombre', 'Sombre', 'dark'], ['systeme', 'Système', 'auto']];
+  const [saving, setSaving] = useState(false);
+  const [systemDark, setSystemDark] = useState(() => window.matchMedia('(prefers-color-scheme: dark)').matches);
+  useEffect(() => {
+    const media = window.matchMedia('(prefers-color-scheme: dark)');
+    const onChange = () => setSystemDark(media.matches);
+    media.addEventListener('change', onChange);
+    return () => media.removeEventListener('change', onChange);
+  }, []);
+  const followSystem = theme === 'systeme';
+  const dark = followSystem ? systemDark : theme === 'sombre';
   const pick = async value => {
+    if (saving) return;
+    setSaving(true);
     try { await setTheme(value); toast('Affichage enregistré pour votre compte'); } catch (e) { toast(e.message, 'err'); }
+    finally { setSaving(false); }
   };
   return (
     <Card title="Affichage">
-      <p className="small muted" style={{ marginBottom: 14 }}>Propre à votre compte. « Système » suit le réglage clair ou sombre de votre ordinateur ou téléphone.</p>
-      <div className="theme-choices" role="group" aria-label="Thème">
-        {choices.map(([value, label, cls]) => (
-          <button key={value} type="button" className="theme-choice" aria-pressed={theme === value} onClick={() => pick(value)}>
-            <span className={`theme-swatch ${cls}`} aria-hidden="true"><i /><i /></span>
-            <strong>{label}</strong>
+      <p className="small muted" style={{ marginBottom: 14 }}>Préférences d’affichage propres à votre compte.</p>
+      <div className="display-settings" role="group" aria-label="Thème" aria-busy={saving}>
+        <div className="display-setting">
+          <div className="display-setting-copy">
+            <strong id="display-system-label">Suivre le système</strong>
+            <p id="display-system-help" className="small muted">Utilise le thème clair ou sombre de votre ordinateur ou téléphone.</p>
+          </div>
+          <button type="button" className="display-switch" role="switch" aria-checked={followSystem}
+            aria-labelledby="display-system-label" aria-describedby="display-system-help" disabled={saving}
+            onClick={() => pick(followSystem ? (dark ? 'sombre' : 'clair') : 'systeme')}>
+            <span aria-hidden="true" />
           </button>
-        ))}
+        </div>
+        <div className="display-setting">
+          <div className="display-setting-copy">
+            <strong id="display-dark-label">Mode sombre</strong>
+            <p id="display-dark-help" className="small muted">{followSystem ? 'Désactivez « Suivre le système » pour choisir manuellement.' : 'Désactivez pour utiliser le mode clair.'}</p>
+          </div>
+          <button type="button" className="display-switch" role="switch" aria-checked={dark}
+            aria-labelledby="display-dark-label" aria-describedby="display-dark-help" disabled={saving || followSystem}
+            onClick={() => pick(dark ? 'clair' : 'sombre')}>
+            <span aria-hidden="true" />
+          </button>
+        </div>
       </div>
     </Card>
   );

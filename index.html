@@ -22,7 +22,7 @@
 <!-- LOADER -->
 <div id="loader">
   <div class="loader-inner">
-    <img src="images/logo-siipaf.png" alt="SIIPAF" class="loader-logo"/>
+    <img data-media-slot="shared.logo" src="images/logo-siipaf.png" alt="SIIPAF" class="loader-logo"/>
     <div class="loader-bar"><div class="loader-fill"></div></div>
     <p class="loader-text">Chargement en cours...</p>
   </div>
@@ -31,7 +31,7 @@
 <!-- NAV -->
 <nav id="navbar">
   <div class="nav-container">
-    <a href="index.html" class="nav-logo"><img src="images/logo-siipaf.png" alt="SIIPAF SA"/></a>
+    <a href="index.html" class="nav-logo"><img data-media-slot="shared.logo" src="images/logo-siipaf.png" alt="SIIPAF SA"/></a>
     <ul class="nav-menu" id="navMenu">
       <li><a href="index.html" class="nav-link active">Accueil</a></li>
       <li><a href="a-propos.html" class="nav-link">À Propos</a></li>
@@ -179,8 +179,8 @@
     <div class="about-grid">
       <div class="about-visual" data-aos="fade-right" data-aos-duration="900">
         <div class="about-img-stack">
-          <div class="about-img-main" data-bg="images/about/about-main.jpg"></div>
-          <div class="about-img-accent" data-bg="images/about/about-accent.jpg"></div>
+          <div data-media-slot="home.about.main" class="about-img-main" data-bg="images/about/about-main.jpg"></div>
+          <div data-media-slot="home.about.accent" class="about-img-accent" data-bg="images/about/about-accent.jpg"></div>
           <div class="about-badge-float"><i class="fas fa-award"></i><span>Agréé MCLU</span></div>
         </div>
       </div>
@@ -225,7 +225,7 @@
 
     <!-- 1 — Promoteur Immobilier (image gauche) -->
     <div class="zz-item" data-aos="fade-up">
-      <div class="zz-image" data-bg="images/activites/act-promoteur.jpg"></div>
+      <div data-media-slot="home.activities.promoteur" class="zz-image" data-bg="images/activites/act-promoteur.jpg"></div>
       <div class="zz-content">
         <div class="zz-num">01</div>
         <div class="zz-icon"><i class="fas fa-home"></i></div>
@@ -242,7 +242,7 @@
 
     <!-- 2 — Aménageur Foncier (image droite) -->
     <div class="zz-item zz-reverse" data-aos="fade-up">
-      <div class="zz-image" data-bg="images/activites/act-amenageur.jpg"></div>
+      <div data-media-slot="home.activities.amenageur" class="zz-image" data-bg="images/activites/act-amenageur.jpg"></div>
       <div class="zz-content">
         <div class="zz-num">02</div>
         <div class="zz-icon"><i class="fas fa-map"></i></div>
@@ -259,7 +259,7 @@
 
     <!-- 3 — BTP (image gauche) -->
     <div class="zz-item" data-aos="fade-up">
-      <div class="zz-image" data-bg="images/activites/act-btp.jpg"></div>
+      <div data-media-slot="home.activities.btp" class="zz-image" data-bg="images/activites/act-btp.jpg"></div>
       <div class="zz-content">
         <div class="zz-num">03</div>
         <div class="zz-icon"><i class="fas fa-hard-hat"></i></div>
@@ -276,7 +276,7 @@
 
     <!-- 4 — Électrification (image droite) -->
     <div class="zz-item zz-reverse" data-aos="fade-up">
-      <div class="zz-image" data-bg="images/activites/act-electricite.jpg"></div>
+      <div data-media-slot="home.activities.electricite" class="zz-image" data-bg="images/activites/act-electricite.jpg"></div>
       <div class="zz-content">
         <div class="zz-num">04</div>
         <div class="zz-icon"><i class="fas fa-bolt"></i></div>
@@ -293,7 +293,7 @@
 
     <!-- 5 — Assistance & Conseils (image gauche) -->
     <div class="zz-item" data-aos="fade-up">
-      <div class="zz-image" data-bg="images/activites/act-conseil.jpg"></div>
+      <div data-media-slot="home.activities.conseil" class="zz-image" data-bg="images/activites/act-conseil.jpg"></div>
       <div class="zz-content">
         <div class="zz-num">05</div>
         <div class="zz-icon"><i class="fas fa-comments"></i></div>
@@ -320,7 +320,7 @@
       <p class="section-sub">5 programmes immobiliers pour tous les budgets, de l'accessible au prestige.</p>
     </div>
     <div class="projects-preview-grid">
-      <a href="projets.html#yamoussoukro" class="pp-card" data-aos="fade-up" data-aos-delay="100" data-bg="images/projets/proj-yamoussoukro.jpg">
+      <a data-media-slot="home.projects.yamoussoukro" href="projets.html#yamoussoukro" class="pp-card" data-aos="fade-up" data-aos-delay="100" data-bg="images/projets/proj-yamoussoukro.jpg">
         <div class="pp-overlay"></div>
         <div class="pp-content">
           <div class="pp-tag">Logement Social & Haut Standing</div>
@@ -329,7 +329,7 @@
           <span class="pp-cta">Voir le projet <i class="fas fa-arrow-right"></i></span>
         </div>
       </a>
-      <a href="projets.html#ahoutoue" class="pp-card" data-aos="fade-up" data-aos-delay="200" data-bg="images/projets/proj-ahoutoue.jpg">
+      <a data-media-slot="home.projects.ahoutoue" href="projets.html#ahoutoue" class="pp-card" data-aos="fade-up" data-aos-delay="200" data-bg="images/projets/proj-ahoutoue.jpg">
         <div class="pp-overlay"></div>
         <div class="pp-content">
           <div class="pp-tag">Cité Complète — 59 ha</div>
@@ -338,7 +338,7 @@
           <span class="pp-cta">Voir le projet <i class="fas fa-arrow-right"></i></span>
         </div>
       </a>
-      <a href="projets.html#riviera" class="pp-card pp-card-tall" data-aos="fade-up" data-aos-delay="300" data-bg="images/projets/proj-riviera.jpg">
+      <a data-media-slot="home.projects.riviera" href="projets.html#riviera" class="pp-card pp-card-tall" data-aos="fade-up" data-aos-delay="300" data-bg="images/projets/proj-riviera.jpg">
         <div class="pp-overlay"></div>
         <div class="pp-content">
           <div class="pp-tag pp-tag-gold">Haut Standing</div>
@@ -347,7 +347,7 @@
           <span class="pp-cta">Voir le projet <i class="fas fa-arrow-right"></i></span>
         </div>
       </a>
-      <a href="projets.html#bingerville" class="pp-card" data-aos="fade-up" data-aos-delay="400" data-bg="images/projets/proj-bingerville.jpg">
+      <a data-media-slot="home.projects.bingerville" href="projets.html#bingerville" class="pp-card" data-aos="fade-up" data-aos-delay="400" data-bg="images/projets/proj-bingerville.jpg">
         <div class="pp-overlay"></div>
         <div class="pp-content">
           <div class="pp-tag pp-tag-gold">Duplex · Domotique</div>
@@ -356,7 +356,7 @@
           <span class="pp-cta">Voir le projet <i class="fas fa-arrow-right"></i></span>
         </div>
       </a>
-      <a href="projets.html#cly" class="pp-card" data-aos="fade-up" data-aos-delay="500" data-bg="images/projets/proj-cly.jpg">
+      <a data-media-slot="home.projects.cly" href="projets.html#cly" class="pp-card" data-aos="fade-up" data-aos-delay="500" data-bg="images/projets/proj-cly.jpg">
         <div class="pp-overlay"></div>
         <div class="pp-content">
           <div class="pp-tag pp-tag-gold">Penthouse</div>
@@ -411,7 +411,7 @@
         <h3>Qualité & Délais Garantis</h3>
         <p>Nos constructions respectent les normes techniques ivoiriennes. Délais contractuellement garantis : 30 mois ou 180 jours selon les projets.</p>
       </div>
-      <div class="why-card why-card-img" data-aos="fade-up" data-aos-delay="600" data-bg="images/conseiller.jpg">
+      <div data-media-slot="home.why.adviser" class="why-card why-card-img" data-aos="fade-up" data-aos-delay="600" data-bg="images/conseiller.jpg">
         <div class="wc-img-overlay"></div>
         <div class="wc-img-content">
           <div class="wc-icon"><i class="fas fa-headset"></i></div>
@@ -479,7 +479,7 @@
 
 <!-- CTA SPLIT -->
 <div class="cta-split">
-  <div class="cta-split-image parallax-section" data-bg="images/parallax/parallax-why.jpg">
+  <div data-media-slot="home.contact.image" class="cta-split-image parallax-section" data-bg="images/parallax/parallax-why.jpg">
     <div class="cta-split-img-overlay"></div>
   </div>
   <div class="cta-split-content">
@@ -521,7 +521,7 @@
     <div class="container">
       <div class="footer-grid">
         <div class="footer-brand">
-          <img src="images/logo-siipaf.png" alt="SIIPAF SA" class="footer-logo"/>
+          <img data-media-slot="shared.logo" src="images/logo-siipaf.png" alt="SIIPAF SA" class="footer-logo"/>
           <p>SIIPAF SA — Votre Réseau Immobilier. Promoteur Immobilier Agréé & Aménageur Foncier Agréé MCLU. Côte d'Ivoire.</p>
           <div class="footer-social">
             <a href="#" aria-label="Facebook"><i class="fab fa-facebook-f"></i></a>

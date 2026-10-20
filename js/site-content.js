@@ -106,6 +106,23 @@
     });
   }
 
+  function applyImages(images) {
+    if (!images) return;
+    Array.prototype.forEach.call(document.querySelectorAll('[data-media-slot]'), function (el) {
+      var image = images[el.getAttribute('data-media-slot')];
+      if (!image || !/^\/uploads\/[a-z0-9_.-]+$/i.test(image.url || '')) return;
+      var url = API + image.url;
+      if (el.tagName === 'IMG') {
+        el.src = url;
+        if (image.alt) el.alt = image.alt;
+      } else {
+        el.style.backgroundImage = 'url("' + url + '")';
+        // Le chargement différé doit lui aussi utiliser la nouvelle image.
+        if (el.hasAttribute('data-bg')) el.setAttribute('data-bg', url);
+      }
+    });
+  }
+
   function load() {
     var timer = setTimeout(startHero, 2500);
     fetch(API + '/api/public/content', { credentials: 'omit' })
@@ -115,6 +132,7 @@
         try { applyTicker(c.ticker); } catch (e) {}
         try { applyStats(c.stats); } catch (e) {}
         try { applySite(c.site); } catch (e) {}
+        try { applyImages(c.images); } catch (e) {}
       })
       .catch(function () {})
       .then(function () { clearTimeout(timer); startHero(); });

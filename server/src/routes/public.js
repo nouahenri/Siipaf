@@ -13,6 +13,7 @@ const { notifyTeam, sendMail } = require('../lib/mailer');
 const { projectRefs } = require('../services/refs');
 const { getSetting } = require('../services/settings');
 const { isTest } = require('../config');
+const { publicSiteImages } = require('../services/siteImages');
 
 const phone = z.string().trim().min(6, 'Téléphone trop court').max(40);
 const contactFields = {
@@ -40,11 +41,11 @@ module.exports = function publicRoutes(db) {
 
   r.get('/content', ah(async (req, res) => {
     const rows = await db('site_content').whereIn('key', ['hero', 'site', 'ticker', 'stats']);
-    res.json(Object.fromEntries(rows.map(row => [row.key, json(row.value)])));
+    res.json({ ...Object.fromEntries(rows.map(row => [row.key, json(row.value)])), images: await publicSiteImages(db) });
   }));
 
   r.get('/projects', ah(async (req, res) => {
-    const projects = await db('projects').where({ published: true }).orderBy('sort');
+    const projects = await db('projects').where({ published: true }).whereNull('archived_at').orderBy('sort');
     const [counts, plans] = await Promise.all([
       db('lots').select('project_id', 'status').count({ n: '*' }).groupBy('project_id', 'status'),
       db('site_plans').where({ published: true }).whereNull('archived_at').select('project_id').count({ n: '*' }).groupBy('project_id'),
@@ -60,7 +61,7 @@ module.exports = function publicRoutes(db) {
 
   r.get('/projects/:slug', ah(async (req, res) => {
     await expire();
-    const p = await db('projects').where({ slug: req.params.slug, published: true }).first();
+    const p = await db('projects').where({ slug: req.params.slug, published: true }).whereNull('archived_at').first();
     if (!p) throw new HttpError(404, 'Projet introuvable.');
     const [offers, plans, lots] = await Promise.all([
       db('project_offers').where({ project_id: p.id }).orderBy('sort'),

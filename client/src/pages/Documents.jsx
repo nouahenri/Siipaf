@@ -1,25 +1,36 @@
-import { Download, FileCheck2, FileClock, FileText } from 'lucide-react';
+import { Link, useParams } from 'react-router-dom';
+import { ChevronRight, FileCheck2, FileClock, FileText } from 'lucide-react';
 import { useSession } from '../lib/session';
 import { DOCUMENT_STATUS } from '../lib/domain';
 import { Badge, Empty, ErrorState, PageHead, PageSkeleton } from '../components/ui';
 import { useDossier } from './Paiements';
 import { NoDossier } from './Home';
+import DocumentDetail from '../components/DocumentDetail';
 
 export default function Documents() {
+  const { documentId } = useParams();
   const { selected } = useSession();
   const { data: d, error, loading, reload } = useDossier(selected?.id);
 
   if (!selected) return <NoDossier />;
-  if (loading) return <PageSkeleton />;
+  if (loading || (d && d.id !== selected.id)) return <PageSkeleton />;
   if (error) return <ErrorState error={error} onRetry={reload} />;
 
   const docs = d.documents;
   const ready = docs.filter(x => DOCUMENT_STATUS[x.status]?.step === 2).length;
+  if (documentId) {
+    const doc = docs.find(x => String(x.id) === documentId);
+    return doc ? <DocumentDetail key={`${d.id}:${doc.id}`} doc={doc} dossier={d} /> : (
+      <div className="card"><Empty icon={FileText} title="Document introuvable" text="Ce document n’est pas disponible dans le dossier sélectionné.">
+        <Link className="btn btn-ghost btn-sm" to="/documents">Mes documents</Link>
+      </Empty></div>
+    );
+  }
 
   return (
     <>
       <PageHead eyebrow={`Lot ${d.property.lot_code} · ${d.property.project.name}`} title="Mes documents"
-        sub="Votre dossier administratif et juridique, de la réservation à la livraison. Les documents disponibles se téléchargent ici." />
+        sub="Votre dossier administratif et juridique, de la réservation à la livraison. Sélectionnez un document pour le consulter et accéder à ses actions." />
 
       {docs.length === 0 ? (
         <div className="card"><Empty icon={FileText} title="Aucun document pour le moment" text="Vos documents apparaîtront ici au fil de l’avancement de votre dossier." /></div>
@@ -37,7 +48,7 @@ export default function Documents() {
               const st = DOCUMENT_STATUS[doc.status] || DOCUMENT_STATUS.a_fournir;
               const done = st.step === 2;
               return (
-                <div key={doc.id} className={`doc${done ? ' ready' : ''}`}>
+                <Link key={doc.id} to={`/documents/${doc.id}`} className={`doc doc-link${done ? ' ready' : ''}`} aria-label={`Consulter ${doc.label}`}>
                   <span className="doc-icon">{done ? <FileCheck2 aria-hidden="true" /> : <FileClock aria-hidden="true" />}</span>
                   <div className="doc-main">
                     <div className="doc-title">{doc.label}</div>
@@ -48,11 +59,9 @@ export default function Documents() {
                   </div>
                   <div className="doc-end">
                     <Badge tone={st.tone}>{st.label}</Badge>
-                    {doc.download_url && (
-                      <a className="btn btn-dark btn-sm" href={doc.download_url} download aria-label={`Télécharger ${doc.label}`}><Download aria-hidden="true" /><span className="hide-xs">Télécharger</span></a>
-                    )}
+                    <span className="doc-open">Consulter<ChevronRight size={16} aria-hidden="true" /></span>
                   </div>
-                </div>
+                </Link>
               );
             })}
           </div>

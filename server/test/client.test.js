@@ -162,6 +162,20 @@ test('dossier client : bien, situation financière, retards, reçus, documents v
   res = await agent.get(contrat.download_url);
   assert.equal(res.status, 200);
   assert.match(res.headers['content-disposition'], /attachment/);
+  res = await agent.get(`${contrat.download_url}?preview=1`);
+  assert.equal(res.status, 200);
+  assert.match(res.headers['content-disposition'], /^inline;/);
+  assert.match(res.headers['content-type'], /^application\/pdf/);
+  assert.match(res.headers['cache-control'], /private.*no-store/);
+  assert.equal((await agent.head(`${contrat.download_url}?preview=1`)).status, 200, 'vérification de disponibilité avant aperçu');
+  assert.equal((await agent.get(`/api/client/documents/${docs[1].id}/fichier?preview=1`)).status, 404, 'aperçu masqué');
+  const { agent: otherClient } = await clientLogin(leadB.client_code, passwords.b);
+  assert.equal((await otherClient.get(`${contrat.download_url}?preview=1`)).status, 404, 'aperçu interdit à un autre client');
+  assert.equal((await request(app).get(`${contrat.download_url}?preview=1`)).status, 401, 'aperçu interdit sans session');
+  await db('media').where({ id: media }).update({ mime: 'image/svg+xml' });
+  assert.equal((await agent.get(`${contrat.download_url}?preview=1`)).status, 415, 'les formats pouvant contenir du script ne sont pas affichés en ligne');
+  assert.match((await agent.get(contrat.download_url)).headers['content-disposition'], /attachment/, 'le téléchargement reste possible');
+  await db('media').where({ id: media }).update({ mime: 'application/pdf' });
   assert.equal((await agent.get(`/api/client/documents/${docs[1].id}/fichier`)).status, 404, 'document masqué');
 
   // Une pièce juridique n'est jamais publique par son adresse /uploads

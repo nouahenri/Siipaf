@@ -1,5 +1,6 @@
 import { Fragment, useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react';
 import { MessageCircle, SendHorizontal } from 'lucide-react';
+import { useLocation, useNavigate } from 'react-router-dom';
 import { api } from '../lib/api';
 import { useSession } from '../lib/session';
 import { dayLabel, time } from '../lib/format';
@@ -8,14 +9,20 @@ import { Alert, Empty, ErrorState, Skeleton } from '../components/ui';
 const POLL_MS = 30000;
 
 export default function Messages() {
+  const location = useLocation();
+  const navigate = useNavigate();
+  const [documentContext, setDocumentContext] = useState(() => location.state?.documentContext || null);
   const { selected, refreshMe } = useSession();
   const [messages, setMessages] = useState(null);
   const [error, setError] = useState(null);
-  const [text, setText] = useState('');
+  const [text, setText] = useState(() => documentContext ? `Bonjour, je vous contacte au sujet du document « ${documentContext.label} » (lot ${documentContext.lotCode} · ${documentContext.projectName}).\n\n` : '');
   const [sending, setSending] = useState(false);
   const [sendError, setSendError] = useState('');
   const areaRef = useRef(null);
   const count = useRef(0);
+  useEffect(() => {
+    if (location.state?.documentContext) navigate(location.pathname, { replace: true, state: null });
+  }, [location.state, location.pathname, navigate]);
 
   const load = useCallback(async () => {
     try {
@@ -59,9 +66,11 @@ export default function Messages() {
     setSending(true);
     setSendError('');
     try {
-      const m = await api.post('/messages', { body, ...(selected ? { sale_id: selected.id } : {}) });
+      const saleId = documentContext?.saleId || selected?.id;
+      const m = await api.post('/messages', { body, ...(saleId ? { sale_id: saleId } : {}) });
       setMessages(list => [...(list || []), m]);
       setText('');
+      setDocumentContext(null);
     } catch (err) {
       setSendError(err.message);
     }

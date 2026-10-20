@@ -62,11 +62,12 @@ module.exports = function catalogRoutes(db) {
     const id = idParam(req);
     const p = await db('projects').where({ id }).first();
     if (!p) throw new HttpError(404, 'Projet introuvable.');
-    const [offers, plans] = await Promise.all([
+    const [offers, plans, lotCount] = await Promise.all([
       db('project_offers').where({ project_id: id }).orderBy('sort'),
       db('site_plans').where({ project_id: id }).orderBy('id'),
+      db('lots').where({ project_id: id }).count({ n: '*' }).first(),
     ]);
-    res.json({ ...decodeProject(p), refs: await projectRefs(db, id), offers, plans: plans.map(pl => ({ ...pl, published: !!pl.published })) });
+    res.json({ ...decodeProject(p), lot_count: Number(lotCount.n), refs: await projectRefs(db, id), offers, plans: plans.map(pl => ({ ...pl, published: !!pl.published })) });
   }));
 
   r.post('/projects', requirePermission('projects:write'), ah(async (req, res) => {
@@ -82,16 +83,55 @@ module.exports = function catalogRoutes(db) {
 
   r.patch('/projects/:id', requirePermission('projects:write'), ah(async (req, res) => {
     const id = idParam(req);
-    const [data, refs] = splitRefs(parse(projectSchema.partial(), req.body));
+    const { archived, ...input } = parse(projectSchema.partial().extend({ archived: z.boolean().optional() }), req.body);
+    const [data, refs] = splitRefs(input);
     if (data.slug && await db('projects').where({ slug: data.slug }).whereNot({ id }).first()) {
       throw new HttpError(409, 'Cet identifiant (slug) est déjà utilisé.');
     }
     await db.transaction(async trx => {
+      const project = await trx('projects').where({ id }).first();
+      if (!project) throw new HttpError(404, 'Projet introuvable.');
+      if (archived === true) Object.assign(data, { archived_at: new Date(), published: false });
+      if (archived === false) Object.assign(data, { archived_at: null, published: false });
+      if (data.published && (archived === undefined ? project.archived_at : archived)) {
+        throw new HttpError(409, 'Ce projet est archivé : restaurez-le avant de le publier.');
+      }
       const n = await trx('projects').where({ id }).update({ ...encodeProject(data), updated_at: new Date() });
       if (!n) throw new HttpError(404, 'Projet introuvable.');
       if (Object.keys(refs).length) await applyProjectRefs(trx, id, refs);
     });
     res.json(decodeProject(await db('projects').where({ id }).first()));
+  }));
+
+  r.delete('/projects/:id', requirePermission('projects:write'), ah(async (req, res) => {
+    const id = idParam(req);
+    await db.transaction(async trx => {
+      const project = await trx('projects').where({ id }).first();
+      if (!project) throw new HttpError(404, 'Projet introuvable.');
+      const lotIds = () => trx('lots').select('id').where({ project_id: id });
+      const protectedLot = await trx('lots').where({ project_id: id }).whereNotIn('status', DELETABLE_LOT_STATUSES).first();
+      const sale = await trx('sales').whereIn('lot_id', lotIds()).first();
+      const option = await trx('lot_options').whereIn('lot_id', lotIds()).first();
+      const history = await trx('lot_status_history').whereIn('lot_id', lotIds())
+        .where(q => q.whereNotNull('lead_id').orWhereIn('to_status', ['option', 'reserve', 'vendu', 'desistement'])).first();
+      if (protectedLot || sale || option || history) {
+        throw new HttpError(409, 'Ce projet contient des lots engagés ou un historique commercial. Archivez-le pour conserver ses dossiers et versements.');
+      }
+      // Conserver également les liens des prospects, du chantier et du SAV.
+      for (const table of ['leads', 'appointments', 'contact_messages', 'testimonials', 'site_updates']) {
+        const linked = await trx(table).where({ project_id: id })
+          .modify(q => { if (['leads', 'appointments'].includes(table)) q.orWhereIn('lot_id', lotIds()); }).first();
+        if (linked) throw new HttpError(409, 'Ce projet est lié à des contacts ou à un suivi client. Archivez-le pour conserver cet historique.');
+      }
+      if (await trx.schema.hasTable('sav_tickets')) {
+        const ticket = await trx('sav_tickets').where({ project_id: id }).orWhereIn('lot_id', lotIds()).first();
+        if (ticket) throw new HttpError(409, 'Ce projet possède un suivi SAV. Archivez-le pour conserver cet historique.');
+      }
+      // Les clés étrangères suppriment ses lots libres, plans, offres et références.
+      // Les fichiers de la médiathèque restent disponibles.
+      await trx('projects').where({ id }).del();
+    });
+    res.json({ ok: true });
   }));
 
   // Remplace toute la grille de prix d'un projet (ordre = ordre du tableau)

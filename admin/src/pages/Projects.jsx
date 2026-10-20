@@ -10,6 +10,9 @@ export default function Projects() {
   const { can } = useAuth();
   const projects = useResource('/admin/projects');
   const [creating, setCreating] = useState(false);
+  const [showArchived, setShowArchived] = useState(false);
+  const archivedCount = projects.data?.filter(p => p.archived_at).length || 0;
+  const visible = (projects.data || []).filter(p => showArchived ? p.archived_at : !p.archived_at);
 
   return (
     <div className="stack">
@@ -17,12 +20,17 @@ export default function Projects() {
         <p className="muted">Les projets publiés apparaissent sur le site, avec leur grille de prix et leur plan de masse.</p>
         {can('projects:write') && <button className="btn btn-primary" onClick={() => setCreating(true)}><Plus />Nouveau projet</button>}
       </div>
+      {archivedCount > 0 && <div className="row">
+        <button className="btn btn-sm" aria-pressed={showArchived} onClick={() => setShowArchived(v => !v)}>
+          {showArchived ? 'Voir les projets actifs' : `Voir les projets archivés (${archivedCount})`}
+        </button>
+      </div>}
       <ErrorBox error={projects.error} />
       {projects.loading && !projects.data ? <Skeleton h={200} />
-        : !projects.data?.length ? <Empty icon={Building2}>Aucun projet.</Empty>
+        : !visible.length ? <Empty icon={Building2}>{showArchived ? 'Aucun projet archivé.' : 'Aucun projet actif.'}</Empty>
         : (
           <div className="grid grid-3">
-            {projects.data.map(p => {
+            {visible.map(p => {
               const total = Object.values(p.lots).reduce((a, b) => a + b, 0);
               return (
                 <Link key={p.id} to={`/projets/${p.id}`} className="card" style={{ overflow: 'hidden', display: 'flex', flexDirection: 'column' }}>
@@ -32,7 +40,7 @@ export default function Projects() {
                   <div className="card-body stack" style={{ gap: 10, flex: 1 }}>
                     <div className="row-between">
                       <strong>{p.name}</strong>
-                      {!p.published && <Badge><EyeOff size={13} />Masqué</Badge>}
+                      {p.archived_at ? <Badge>Archivé</Badge> : !p.published && <Badge><EyeOff size={13} />Masqué</Badge>}
                     </div>
                     <div className="small muted row" style={{ gap: 6 }}><MapPin size={14} aria-hidden="true" />{p.city || '—'}</div>
                     {total > 0 ? (

@@ -103,6 +103,17 @@ module.exports = function clientRoutes(db) {
     const doc = await clientDocumentFile(db, req.client.lead_id, idParam(req));
     const ext = path.extname(doc.original_name || doc.filename);
     res.set('Cache-Control', 'private, no-store');
+    if (req.query.preview === '1') {
+      if (!['application/pdf', 'image/jpeg', 'image/png', 'image/webp', 'image/gif'].includes(doc.mime)) {
+        throw new HttpError(415, 'Ce format ne permet pas d’aperçu. Téléchargez le document pour le consulter.');
+      }
+      res.attachment(`${doc.label}${ext}`);
+      res.set('Content-Disposition', res.get('Content-Disposition').replace(/^attachment/, 'inline'));
+      res.type(doc.mime);
+      return res.sendFile(path.join(uploadsDir, path.basename(doc.filename)), err => {
+        if (err && !res.headersSent) res.status(404).json({ error: 'Fichier indisponible.' });
+      });
+    }
     res.download(path.join(uploadsDir, path.basename(doc.filename)), `${doc.label}${ext}`, err => {
       if (err && !res.headersSent) res.status(404).json({ error: 'Fichier indisponible.' });
     });

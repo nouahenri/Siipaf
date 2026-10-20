@@ -6,6 +6,7 @@ import { Drawer, Card, Field, Badge, StatusBadge, Skeleton, ErrorBox, Empty } fr
 import { MediaPicker } from './MediaLibrary';
 import { ScheduleTab, AccessTab, SiteTab, MessageThread } from './ClientSpace';
 import { LotFormModal, SaleEditModal } from './LotForms';
+import LeadAutocomplete from './LeadAutocomplete';
 import { FINANCING, lotStatus, stageLabel } from '../lib/domain';
 import { fcfa, num, date, dateTime, relative } from '../lib/format';
 
@@ -176,6 +177,8 @@ function OpenSaleForm({ d, onDone, onCancel }) {
   });
   const [error, setError] = useState(null);
   const set = k => e => setF(x => ({ ...x, [k]: e.target.value, ...(['name', 'phone', 'email'].includes(k) ? { lead_id: null } : {}) }));
+  const setName = name => setF(x => ({ ...x, name, lead_id: null, ...(x.lead_id ? { phone: '', email: '' } : {}) }));
+  const pickLead = lead => setF(x => ({ ...x, lead_id: lead.id, name: lead.name, phone: lead.phone || '', email: lead.email || '', financing: lead.financing || x.financing }));
 
   const submit = async () => {
     setError(null);
@@ -193,11 +196,11 @@ function OpenSaleForm({ d, onDone, onCancel }) {
   return (
     <div className="stack" style={{ gap: 12 }}>
       <ErrorBox error={error} />
-      {f.lead_id && <p className="small alert alert-ok">Acquéreur repris de l’option en cours.</p>}
+      {f.lead_id && <p className="small alert alert-ok">Fiche existante sélectionnée : ce dossier sera rattaché à {f.name}.</p>}
       <div className="form-grid">
-        <Field label="Nom de l’acquéreur" className="full"><input className="input" value={f.name} onChange={set('name')} /></Field>
-        <Field label="Téléphone"><input className="input" value={f.phone} onChange={set('phone')} /></Field>
-        <Field label="E-mail"><input className="input" type="email" value={f.email} onChange={set('email')} /></Field>
+        <LeadAutocomplete value={f.name} selectedId={f.lead_id} onChange={setName} onSelect={pickLead} />
+        <Field label="Téléphone" hint={f.lead_id ? 'Coordonnée de la fiche sélectionnée.' : undefined}><input className="input" value={f.phone} onChange={set('phone')} readOnly={!!f.lead_id} /></Field>
+        <Field label="E-mail"><input className="input" type="email" value={f.email} onChange={set('email')} readOnly={!!f.lead_id} /></Field>
         <Field label="Prix convenu (FCFA)"><input className="input tabular" inputMode="numeric" value={f.price_fcfa} onChange={set('price_fcfa')} /></Field>
         <Field label="Financement">
           <select className="select" value={f.financing} onChange={set('financing')}>

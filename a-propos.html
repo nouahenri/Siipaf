@@ -20,7 +20,7 @@
 <!-- NAV -->
 <nav id="navbar" class="scrolled">
   <div class="nav-container">
-    <a href="index.html" class="nav-logo"><img src="images/logo-siipaf.png" alt="SIIPAF SA"/></a>
+    <a href="index.html" class="nav-logo"><img data-media-slot="shared.logo" src="images/logo-siipaf.png" alt="SIIPAF SA"/></a>
     <ul class="nav-menu" id="navMenu">
       <li><a href="index.html" class="nav-link">Accueil</a></li>
       <li><a href="a-propos.html" class="nav-link active">À Propos</a></li>
@@ -40,7 +40,7 @@
 </nav>
 
 <!-- PAGE HERO -->
-<div class="page-hero" style="background-image:url('images/a-propos.jpg')">
+<div data-media-slot="about.hero" class="page-hero" style="background-image:url('images/a-propos.jpg')">
   <div class="page-hero-overlay"></div>
   <div class="page-hero-content" data-aos="fade-up">
     <div class="breadcrumb"><a href="index.html">Accueil</a> <i class="fas fa-chevron-right"></i> <span>À Propos</span></div>
@@ -58,14 +58,14 @@
 
       <!-- Visuel -->
       <div class="ap-id-visual" data-aos="fade-right" data-aos-duration="900">
-        <div class="ap-id-img" data-bg="images/about/about-main.jpg">
+        <div data-media-slot="about.about.main" class="ap-id-img" data-bg="images/about/about-main.jpg">
           <div class="ap-id-img-overlay"></div>
           <div class="ap-id-img-badge">
             <i class="fas fa-award"></i>
             <span>Agréé MCLU</span>
           </div>
         </div>
-        <div class="ap-id-accent" data-bg="images/about/about-accent.jpg"></div>
+        <div data-media-slot="about.about.accent" class="ap-id-accent" data-bg="images/about/about-accent.jpg"></div>
       </div>
 
       <!-- Texte -->
@@ -198,7 +198,7 @@
 <!-- ══════════════════════════════════════════
      CHIFFRES CLÉS PARALLAX
 ══════════════════════════════════════════ -->
-<div class="counters-bar parallax-section" data-bg="images/parallax/parallax-why.jpg">
+<div data-media-slot="about.stats.background" class="counters-bar parallax-section" data-bg="images/parallax/parallax-why.jpg">
   <div class="counters-overlay"></div>
   <div class="container">
     <div class="counters-grid">
@@ -229,7 +229,7 @@
           <div class="act-tl-line"></div>
         </div>
         <div class="act-tl-body">
-          <div class="act-tl-img" data-bg="images/activites/act-promoteur.jpg">
+          <div data-media-slot="about.activities.promoteur" class="act-tl-img" data-bg="images/activites/act-promoteur.jpg">
             <div class="act-tl-img-overlay">
               <i class="fas fa-home"></i>
             </div>
@@ -252,7 +252,7 @@
           <div class="act-tl-line"></div>
         </div>
         <div class="act-tl-body">
-          <div class="act-tl-img" data-bg="images/activites/act-amenageur.jpg">
+          <div data-media-slot="about.activities.amenageur" class="act-tl-img" data-bg="images/activites/act-amenageur.jpg">
             <div class="act-tl-img-overlay">
               <i class="fas fa-map"></i>
             </div>
@@ -275,7 +275,7 @@
           <div class="act-tl-line"></div>
         </div>
         <div class="act-tl-body">
-          <div class="act-tl-img" data-bg="images/activites/act-btp.jpg">
+          <div data-media-slot="about.activities.btp" class="act-tl-img" data-bg="images/activites/act-btp.jpg">
             <div class="act-tl-img-overlay">
               <i class="fas fa-hard-hat"></i>
             </div>
@@ -298,7 +298,7 @@
           <div class="act-tl-line"></div>
         </div>
         <div class="act-tl-body">
-          <div class="act-tl-img" data-bg="images/activites/act-electricite.jpg">
+          <div data-media-slot="about.activities.electricite" class="act-tl-img" data-bg="images/activites/act-electricite.jpg">
             <div class="act-tl-img-overlay">
               <i class="fas fa-bolt"></i>
             </div>
@@ -320,7 +320,7 @@
           <div class="act-tl-num">05</div>
         </div>
         <div class="act-tl-body">
-          <div class="act-tl-img" data-bg="images/activites/act-conseil.jpg">
+          <div data-media-slot="about.activities.conseil" class="act-tl-img" data-bg="images/activites/act-conseil.jpg">
             <div class="act-tl-img-overlay">
               <i class="fas fa-comments"></i>
             </div>
@@ -379,7 +379,7 @@
 <!-- ══════════════════════════════════════════
      ENGAGEMENTS PARALLAX
 ══════════════════════════════════════════ -->
-<div class="why-parallax parallax-section" data-bg="images/parallax/parallax-why.jpg">
+<div data-media-slot="about.why.background" class="why-parallax parallax-section" data-bg="images/parallax/parallax-why.jpg">
   <div class="why-overlay"></div>
   <div class="container">
     <div class="why-content">
@@ -409,35 +409,35 @@
     <!-- Partenaires institutionnels -->
     <div class="confiance-partners" data-aos="fade-up" data-aos-delay="100">
       <div class="cp-card">
-        <div class="cp-logo"><img src="images/partenaires/logo_MCLU.jpg" alt="MCLU" loading="lazy" decoding="async"/></div>
+        <div class="cp-logo"><img data-media-slot="about.partners.MCLU" src="images/partenaires/logo_MCLU.jpg" alt="MCLU" loading="lazy" decoding="async"/></div>
         <div class="cp-info">
           <strong>Ministère de la Construction (MCLU)</strong>
           <span>Agrément Promoteur & Aménageur Foncier</span>
         </div>
       </div>
       <div class="cp-card">
-        <div class="cp-logo"><img src="images/partenaires/logo_orange_bank.jpg" alt="Orange Bank" loading="lazy" decoding="async"/></div>
+        <div class="cp-logo"><img data-media-slot="about.partners.orange_bank" src="images/partenaires/logo_orange_bank.jpg" alt="Orange Bank" loading="lazy" decoding="async"/></div>
         <div class="cp-info">
           <strong>Orange Bank CI</strong>
           <span>Compte séquestre certifié</span>
         </div>
       </div>
       <div class="cp-card">
-        <div class="cp-logo"><img src="images/partenaires/logo_BHCI.jpg" alt="BHCI" loading="lazy" decoding="async"/></div>
+        <div class="cp-logo"><img data-media-slot="about.partners.BHCI" src="images/partenaires/logo_BHCI.jpg" alt="BHCI" loading="lazy" decoding="async"/></div>
         <div class="cp-info">
           <strong>BHCI</strong>
           <span>Banque de l'Habitat — Compte séquestre</span>
         </div>
       </div>
       <div class="cp-card">
-        <div class="cp-logo"><img src="images/partenaires/logo_BNI.jpg" alt="BNI" loading="lazy" decoding="async"/></div>
+        <div class="cp-logo"><img data-media-slot="about.partners.BNI" src="images/partenaires/logo_BNI.jpg" alt="BNI" loading="lazy" decoding="async"/></div>
         <div class="cp-info">
           <strong>BNI</strong>
           <span>Banque Nationale d'Investissement — Séquestre</span>
         </div>
       </div>
       <div class="cp-card">
-        <div class="cp-logo"><img src="images/partenaires/logo_CIE.jpg" alt="CIE" loading="lazy" decoding="async"/></div>
+        <div class="cp-logo"><img data-media-slot="about.partners.CIE" src="images/partenaires/logo_CIE.jpg" alt="CIE" loading="lazy" decoding="async"/></div>
         <div class="cp-info">
           <strong>CI-Énergie & CIE</strong>
           <span>Agrément travaux électrification publique</span>
@@ -498,7 +498,7 @@
     <div class="container">
       <div class="footer-grid">
         <div class="footer-brand">
-          <img src="images/logo-siipaf.png" alt="SIIPAF SA" class="footer-logo"/>
+          <img data-media-slot="shared.logo" src="images/logo-siipaf.png" alt="SIIPAF SA" class="footer-logo"/>
           <p>SIIPAF SA — Votre Réseau Immobilier. Promoteur & Aménageur Agréé MCLU. Côte d'Ivoire.</p>
           <div class="footer-social">
             <a href="#"><i class="fab fa-facebook-f"></i></a>

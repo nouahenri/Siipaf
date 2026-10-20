@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
 import { Camera, CalendarClock, ChevronRight, LifeBuoy, Plus, SendHorizontal, Star, X } from 'lucide-react';
+import { useLocation, useNavigate } from 'react-router-dom';
 import { api } from '../lib/api';
 import { useResource, useSession } from '../lib/session';
 import { SAV_STATUS } from '../lib/domain';
@@ -10,12 +11,18 @@ const status = s => SAV_STATUS[s] || SAV_STATUS.nouveau;
 
 /** Service après-vente : signaler un problème, suivre son traitement, donner son avis. */
 export default function Demandes() {
+  const location = useLocation();
+  const navigate = useNavigate();
+  const [documentContext, setDocumentContext] = useState(() => location.state?.documentContext || null);
   const { dossiers } = useSession();
   const list = useResource('sav', () => api.get('/sav'));
   const meta = useResource('sav-meta', () => api.get('/sav/meta'));
-  const [creating, setCreating] = useState(false);
+  const [creating, setCreating] = useState(!!documentContext);
   const [openId, setOpenId] = useState(null);
   const [toast, say] = useToast();
+  useEffect(() => {
+    if (location.state?.documentContext) navigate(location.pathname, { replace: true, state: null });
+  }, [location.state, location.pathname, navigate]);
 
   if (list.loading) return <PageSkeleton />;
   if (list.error) return <ErrorState error={list.error} onRetry={list.reload} />;
@@ -26,7 +33,7 @@ export default function Demandes() {
     <>
       <PageHead eyebrow="Service après-vente" title="Mes demandes"
         sub="Un souci dans votre logement ? Signalez-le avec une photo : l’équipe SAV vous répond ici et organise l’intervention.">
-        {dossiers.length > 0 && <button className="btn btn-primary" style={{ marginTop: 14 }} onClick={() => setCreating(true)}><Plus aria-hidden="true" />Signaler un problème</button>}
+        {dossiers.length > 0 && <button className="btn btn-primary" style={{ marginTop: 14 }} onClick={() => { setDocumentContext(null); setCreating(true); }}><Plus aria-hidden="true" />Signaler un problème</button>}
       </PageHead>
 
       {rows.length === 0 ? (
@@ -57,7 +64,7 @@ export default function Demandes() {
       )}
 
       {creating && (
-        <NewRequest meta={meta.data} onClose={() => setCreating(false)}
+        <NewRequest meta={meta.data} documentContext={documentContext} onClose={() => setCreating(false)}
           onCreated={t => { setCreating(false); list.reload(); setOpenId(t.id); say('Demande envoyée à l’équipe SAV'); }} />
       )}
       {openId && <Detail id={openId} onClose={() => setOpenId(null)} onChange={list.reload} say={say} />}
@@ -102,9 +109,14 @@ function PhotoField({ value, onChange }) {
   );
 }
 
-function NewRequest({ meta, onClose, onCreated }) {
+function NewRequest({ meta, documentContext, onClose, onCreated }) {
   const { dossiers, selected } = useSession();
-  const [form, setForm] = useState({ sale_id: selected?.id || dossiers[0]?.id, category: '', title: '', location: '', description: '' });
+  const [form, setForm] = useState({
+    sale_id: documentContext?.saleId || selected?.id || dossiers[0]?.id,
+    category: documentContext ? 'administratif' : '',
+    title: documentContext ? `Problème : ${documentContext.label}`.slice(0, 160) : '', location: '',
+    description: documentContext ? `Document « ${documentContext.label} » — lot ${documentContext.lotCode} · ${documentContext.projectName}.\n\n` : '',
+  });
   const [photos, setPhotos] = useState([]);
   const [error, setError] = useState('');
   const [busy, setBusy] = useState(false);

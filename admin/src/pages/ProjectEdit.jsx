@@ -8,6 +8,7 @@ import { MediaPicker } from '../components/MediaLibrary';
 import { Modal } from '../components/ui';
 import PlanImport from '../components/PlanImport';
 import PlanManage from '../components/PlanManage';
+import ProjectActions from '../components/ProjectActions';
 import { fcfa } from '../lib/format';
 import { PROJECT_CATEGORIES } from '../lib/domain';
 
@@ -16,6 +17,7 @@ const FEATURES = ['equipement', 'commodite', 'viabilisation'];
 
 export default function ProjectEdit() {
   const { id } = useParams();
+  const navigate = useNavigate();
   const { can } = useAuth();
   const toast = useToast();
   const project = useResource(`/admin/projects/${id}`);
@@ -90,9 +92,13 @@ export default function ProjectEdit() {
     <div className="stack">
       <div className="row-between">
         <Link to="/projets" className="btn btn-ghost"><ArrowLeft />Projets</Link>
-        {editable && <button className="btn btn-primary" disabled={busy} onClick={save}>{busy ? 'Enregistrement…' : 'Enregistrer'}</button>}
+        {editable && <div className="row">
+          <ProjectActions project={project.data} disabled={busy} onBusyChange={setBusy} onChanged={project.reload} onDeleted={() => navigate('/projets')} />
+          <button className="btn btn-primary" disabled={busy} onClick={save}>{busy ? 'Enregistrement…' : 'Enregistrer'}</button>
+        </div>}
       </div>
       <ErrorBox error={error} />
+      {project.data.archived_at && <p className="alert alert-info">Projet archivé : il est retiré du site. Restaurez-le pour pouvoir le republier.</p>}
 
       <fieldset disabled={!editable} style={{ border: 'none' }} className="stack">
         <div className="grid edit-grid">
@@ -127,7 +133,7 @@ export default function ProjectEdit() {
           </Card>
           <div className="stack">
             <Card title="Publication">
-              <label className="checkbox"><input type="checkbox" checked={form.published} onChange={set('published')} />Visible sur le site</label>
+              <label className="checkbox"><input type="checkbox" checked={form.published} onChange={set('published')} disabled={!!project.data.archived_at} />Visible sur le site</label>
             </Card>
             <Card title="Image principale">
               <button type="button" className="slide-thumb" style={{ width: '100%', backgroundImage: form.cover_media_id ? `url(/uploads/by-id/${form.cover_media_id})` : undefined, border: '1px solid var(--border)' }} onClick={() => setPicker('cover')} aria-label="Choisir l’image principale">

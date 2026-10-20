@@ -26,11 +26,15 @@ export default function SiteContent() {
   const content = useResource('/admin/content');
   const [tab, setTab] = useState('hero');
   const [value, setValue] = useState(null);
+  const [valueTab, setValueTab] = useState(null);
   const [error, setError] = useState(null);
   const [busy, setBusy] = useState(false);
 
   useEffect(() => {
-    if (content.data) setValue(structuredClone({ ...DEFAULTS[tab], ...(content.data[tab] || {}) }));
+    if (content.data) {
+      setValue(structuredClone({ ...DEFAULTS[tab], ...(content.data[tab] || {}) }));
+      setValueTab(tab);
+    }
     setError(null);
   }, [content.data, tab]);
 
@@ -50,7 +54,8 @@ export default function SiteContent() {
         {TABS.map(t => <button key={t.id} role="tab" aria-selected={tab === t.id} className={`tab ${tab === t.id ? 'active' : ''}`} onClick={() => setTab(t.id)}>{t.label}</button>)}
       </div>
       <ErrorBox error={error} />
-      {!value ? <Skeleton h={300} /> : (
+      {/* Au changement d’onglet, attendre ses données avant de monter son éditeur. */}
+      {!value || valueTab !== tab ? <Skeleton h={300} /> : (
         <>
           {tab === 'hero' && <HeroEditor value={value} onChange={setValue} />}
           {tab === 'ticker' && <TickerEditor value={value} onChange={setValue} />}

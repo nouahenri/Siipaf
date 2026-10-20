@@ -1,0 +1,337 @@
+{
+  "pages": [
+    {
+      "id": "shared",
+      "label": "Éléments communs",
+      "path": null
+    },
+    {
+      "id": "home",
+      "label": "Accueil",
+      "path": "index.html"
+    },
+    {
+      "id": "about",
+      "label": "À propos",
+      "path": "a-propos.html"
+    },
+    {
+      "id": "projects",
+      "label": "Projets",
+      "path": "projets.html"
+    },
+    {
+      "id": "lotissements",
+      "label": "Lotissements",
+      "path": "lotissements.html"
+    },
+    {
+      "id": "financing",
+      "label": "Financement",
+      "path": "financement.html"
+    },
+    {
+      "id": "contact",
+      "label": "Contact",
+      "path": "contact.html"
+    }
+  ],
+  "slots": [
+    {
+      "id": "shared.logo",
+      "page": "shared",
+      "section": "Identité du site",
+      "label": "Logo — navigation, pied de page et chargement",
+      "fallback": "images/logo-siipaf.png"
+    },
+    {
+      "id": "home.about.main",
+      "page": "home",
+      "section": "Présentation",
+      "label": "Photo principale",
+      "fallback": "images/about/about-main.jpg"
+    },
+    {
+      "id": "home.about.accent",
+      "page": "home",
+      "section": "Présentation",
+      "label": "Photo secondaire",
+      "fallback": "images/about/about-accent.jpg"
+    },
+    {
+      "id": "about.about.main",
+      "page": "about",
+      "section": "Présentation",
+      "label": "Photo principale",
+      "fallback": "images/about/about-main.jpg"
+    },
+    {
+      "id": "about.about.accent",
+      "page": "about",
+      "section": "Présentation",
+      "label": "Photo secondaire",
+      "fallback": "images/about/about-accent.jpg"
+    },
+    {
+      "id": "home.activities.promoteur",
+      "page": "home",
+      "section": "Nos activités",
+      "label": "Promotion immobilière",
+      "fallback": "images/activites/act-promoteur.jpg"
+    },
+    {
+      "id": "home.activities.amenageur",
+      "page": "home",
+      "section": "Nos activités",
+      "label": "Aménagement foncier",
+      "fallback": "images/activites/act-amenageur.jpg"
+    },
+    {
+      "id": "home.activities.btp",
+      "page": "home",
+      "section": "Nos activités",
+      "label": "Bâtiment et travaux publics",
+      "fallback": "images/activites/act-btp.jpg"
+    },
+    {
+      "id": "home.activities.electricite",
+      "page": "home",
+      "section": "Nos activités",
+      "label": "Électricité",
+      "fallback": "images/activites/act-electricite.jpg"
+    },
+    {
+      "id": "home.activities.conseil",
+      "page": "home",
+      "section": "Nos activités",
+      "label": "Conseil",
+      "fallback": "images/activites/act-conseil.jpg"
+    },
+    {
+      "id": "about.activities.promoteur",
+      "page": "about",
+      "section": "Nos activités",
+      "label": "Promotion immobilière",
+      "fallback": "images/activites/act-promoteur.jpg"
+    },
+    {
+      "id": "about.activities.amenageur",
+      "page": "about",
+      "section": "Nos activités",
+      "label": "Aménagement foncier",
+      "fallback": "images/activites/act-amenageur.jpg"
+    },
+    {
+      "id": "about.activities.btp",
+      "page": "about",
+      "section": "Nos activités",
+      "label": "Bâtiment et travaux publics",
+      "fallback": "images/activites/act-btp.jpg"
+    },
+    {
+      "id": "about.activities.electricite",
+      "page": "about",
+      "section": "Nos activités",
+      "label": "Électricité",
+      "fallback": "images/activites/act-electricite.jpg"
+    },
+    {
+      "id": "about.activities.conseil",
+      "page": "about",
+      "section": "Nos activités",
+      "label": "Conseil",
+      "fallback": "images/activites/act-conseil.jpg"
+    },
+    {
+      "id": "home.projects.yamoussoukro",
+      "page": "home",
+      "section": "Projets présentés",
+      "label": "Yamoussoukro",
+      "fallback": "images/projets/proj-yamoussoukro.jpg"
+    },
+    {
+      "id": "home.projects.ahoutoue",
+      "page": "home",
+      "section": "Projets présentés",
+      "label": "Ahoutoué",
+      "fallback": "images/projets/proj-ahoutoue.jpg"
+    },
+    {
+      "id": "home.projects.riviera",
+      "page": "home",
+      "section": "Projets présentés",
+      "label": "Riviera II",
+      "fallback": "images/projets/proj-riviera.jpg"
+    },
+    {
+      "id": "home.projects.bingerville",
+      "page": "home",
+      "section": "Projets présentés",
+      "label": "Bingerville",
+      "fallback": "images/projets/proj-bingerville.jpg"
+    },
+    {
+      "id": "home.projects.cly",
+      "page": "home",
+      "section": "Projets présentés",
+      "label": "Cocody Angré",
+      "fallback": "images/projets/proj-cly.jpg"
+    },
+    {
+      "id": "projects.projects.yamoussoukro",
+      "page": "projects",
+      "section": "Projets présentés",
+      "label": "Yamoussoukro",
+      "fallback": "images/projets/proj-yamoussoukro.jpg"
+    },
+    {
+      "id": "projects.projects.ahoutoue",
+      "page": "projects",
+      "section": "Projets présentés",
+      "label": "Ahoutoué",
+      "fallback": "images/projets/proj-ahoutoue.jpg"
+    },
+    {
+      "id": "projects.projects.riviera",
+      "page": "projects",
+      "section": "Projets présentés",
+      "label": "Riviera II",
+      "fallback": "images/projets/proj-riviera.jpg"
+    },
+    {
+      "id": "projects.projects.bingerville",
+      "page": "projects",
+      "section": "Projets présentés",
+      "label": "Bingerville",
+      "fallback": "images/projets/proj-bingerville.jpg"
+    },
+    {
+      "id": "projects.projects.cly",
+      "page": "projects",
+      "section": "Projets présentés",
+      "label": "Cocody Angré",
+      "fallback": "images/projets/proj-cly.jpg"
+    },
+    {
+      "id": "home.why.adviser",
+      "page": "home",
+      "section": "Pourquoi SIIPAF",
+      "label": "Photo du conseiller",
+      "fallback": "images/conseiller.jpg"
+    },
+    {
+      "id": "home.contact.image",
+      "page": "home",
+      "section": "Contact en bas de page",
+      "label": "Image d’accompagnement",
+      "fallback": "images/parallax/parallax-why.jpg"
+    },
+    {
+      "id": "about.hero",
+      "page": "about",
+      "section": "En-tête de page",
+      "label": "Bannière principale",
+      "fallback": "images/a-propos.jpg"
+    },
+    {
+      "id": "projects.hero",
+      "page": "projects",
+      "section": "En-tête de page",
+      "label": "Bannière principale",
+      "fallback": "images/projets.jpg"
+    },
+    {
+      "id": "lotissements.hero",
+      "page": "lotissements",
+      "section": "En-tête de page",
+      "label": "Bannière principale",
+      "fallback": "images/hero/hero-3-ahoutoue.jpg"
+    },
+    {
+      "id": "financing.hero",
+      "page": "financing",
+      "section": "En-tête de page",
+      "label": "Bannière principale",
+      "fallback": "images/financement.jpg"
+    },
+    {
+      "id": "contact.hero",
+      "page": "contact",
+      "section": "En-tête de page",
+      "label": "Bannière principale",
+      "fallback": "images/contact/bureau-siipaf.jpg"
+    },
+    {
+      "id": "about.stats.background",
+      "page": "about",
+      "section": "Chiffres clés",
+      "label": "Image de fond",
+      "fallback": "images/parallax/parallax-why.jpg",
+      "match": "counters-bar"
+    },
+    {
+      "id": "about.why.background",
+      "page": "about",
+      "section": "Pourquoi SIIPAF",
+      "label": "Image de fond",
+      "fallback": "images/parallax/parallax-why.jpg",
+      "match": "why-parallax"
+    },
+    {
+      "id": "about.partners.MCLU",
+      "page": "about",
+      "section": "Partenaires",
+      "label": "Logo MCLU",
+      "fallback": "images/partenaires/logo_MCLU.jpg"
+    },
+    {
+      "id": "about.partners.orange_bank",
+      "page": "about",
+      "section": "Partenaires",
+      "label": "Logo Orange Bank",
+      "fallback": "images/partenaires/logo_orange_bank.jpg"
+    },
+    {
+      "id": "about.partners.BHCI",
+      "page": "about",
+      "section": "Partenaires",
+      "label": "Logo BHCI",
+      "fallback": "images/partenaires/logo_BHCI.jpg"
+    },
+    {
+      "id": "about.partners.BNI",
+      "page": "about",
+      "section": "Partenaires",
+      "label": "Logo BNI",
+      "fallback": "images/partenaires/logo_BNI.jpg"
+    },
+    {
+      "id": "about.partners.CIE",
+      "page": "about",
+      "section": "Partenaires",
+      "label": "Logo CIE",
+      "fallback": "images/partenaires/logo_CIE.jpg"
+    },
+    {
+      "id": "financing.partners.orange_bank",
+      "page": "financing",
+      "section": "Partenaires",
+      "label": "Logo Orange Bank",
+      "fallback": "images/partenaires/logo_orange_bank.jpg"
+    },
+    {
+      "id": "financing.partners.BHCI",
+      "page": "financing",
+      "section": "Partenaires",
+      "label": "Logo BHCI",
+      "fallback": "images/partenaires/logo_BHCI.jpg"
+    },
+    {
+      "id": "financing.partners.BNI",
+      "page": "financing",
+      "section": "Partenaires",
+      "label": "Logo BNI",
+      "fallback": "images/partenaires/logo_BNI.jpg"
+    }
+  ]
+}

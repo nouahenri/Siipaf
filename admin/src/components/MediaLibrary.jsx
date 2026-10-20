@@ -66,7 +66,7 @@ export function MediaThumb({ m, selected, onClick, children }) {
   );
 }
 
-export function MediaGrid({ type, onPick, selectedId }) {
+export function MediaGrid({ type, onPick, selectedId, onAssign }) {
   const { can } = useAuth();
   const toast = useToast();
   const media = useResource(`/admin/media${type ? `?type=${type}` : ''}`);
@@ -86,6 +86,7 @@ export function MediaGrid({ type, onPick, selectedId }) {
           <div className="media-grid">
             {media.data.map(m => (
               <MediaThumb key={m.id} m={m} selected={selectedId === m.id} onClick={onPick ? () => onPick(m) : () => window.open(m.url, '_blank')}>
+                {onAssign && m.mime.startsWith('image/') && <button className="btn btn-ghost btn-sm media-assign" onClick={() => onAssign(m)} aria-label={`Affecter ${m.original_name} au site`}>Affecter au site</button>}
                 {!onPick && can('media:write') && (
                   <button className="btn btn-sm btn-ghost btn-danger" style={{ position: 'absolute', top: 6, right: 6, background: 'rgba(255,255,255,.9)' }} onClick={() => remove(m)} aria-label={`Supprimer ${m.original_name}`}><Trash2 /></button>
                 )}

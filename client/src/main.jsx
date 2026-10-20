@@ -49,6 +49,7 @@ function App() {
         <Route path="paiements" element={<Paiements />} />
         <Route path="paiements/recu/:paymentId" element={<Receipt />} />
         <Route path="documents" element={<Documents />} />
+        <Route path="documents/:documentId" element={<Documents />} />
         <Route path="messages" element={<Messages />} />
         <Route path="demandes" element={<Demandes />} />
         <Route path="profil" element={<Profile />} />
