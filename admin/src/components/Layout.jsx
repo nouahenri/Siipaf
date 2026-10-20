@@ -2,7 +2,7 @@ import { useEffect, useRef, useState } from 'react';
 import { useRevealOnScroll } from '../lib/reveal';
 import { NavLink, Outlet, useLocation } from 'react-router-dom';
 import {
-  LayoutDashboard, Building2, Map, Users, CalendarDays, Mail, Newspaper, Image, PanelsTopLeft, UserCog, LogOut, Menu, KeyRound, MessageSquareQuote, ShieldCheck, MessagesSquare, UserCheck, SlidersHorizontal,
+  LayoutDashboard, Building2, Map, Users, CalendarDays, Mail, Newspaper, Image, PanelsTopLeft, UserCog, LogOut, Menu, KeyRound, MessageSquareQuote, ShieldCheck, MessagesSquare, UserCheck, SlidersHorizontal, LayoutGrid,
 } from 'lucide-react';
 import { useAuth, useResource } from '../lib/app-context';
 import { ROLE_LABELS } from '../lib/domain';
@@ -33,6 +33,10 @@ const NAV = [
     { to: '/parametres', label: 'Paramètres', icon: SlidersHorizontal },
   ] },
 ];
+
+// L'ERP (erp.siipaf.com, erp.localhost en local) partage la base du dashboard : mêmes prospects, clients, lots et ventes
+const erpUrl = () => `${window.location.protocol}//${window.location.host.replace(/^admin\./, 'erp.')}/`;
+const ERP_PERMS = ['commercial:read', 'vefa:write', 'sav:read'];
 
 const TITLES = {
   '/': 'Tableau de bord', '/prospects': 'Prospects', '/clients': 'Clients', '/rendez-vous': 'Rendez-vous', '/lots': 'Lots & disponibilités',
@@ -76,6 +80,7 @@ export default function Layout() {
           );
         })}
         <div className="sidebar-foot">
+          {ERP_PERMS.some(can) && <a href={erpUrl()} className="nav-item"><LayoutGrid aria-hidden="true" />ERP SIIPAF</a>}
           <NavLink to="/compte" className={({ isActive }) => `nav-item ${isActive ? 'active' : ''}`}><KeyRound aria-hidden="true" />Mon compte</NavLink>
           <button className="nav-item btn-ghost" style={{ width: '100%', border: 'none', cursor: 'pointer' }} onClick={logout}>
             <LogOut aria-hidden="true" />Déconnexion

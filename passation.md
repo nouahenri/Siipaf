@@ -14,7 +14,7 @@ SIIPAF SA, promoteur et aménageur immobilier agréé MCLU (Côte d'Ivoire). Tro
 |---|---|---|
 | **1. Site + admin** | Serveur Node, dashboard admin, plan de masse interactif, RDV assistés par IA | **En cours** — étapes 1 à 3 faites |
 | **2. Espace client** | Suivi chantier, documents juridiques, cotisations, messagerie | **En cours** — étapes 1 (serveur), 2 (application client) et 3 (gestion dans l'admin) faites ; prochaine : 4 (import CSV des 112 clients, dès réception du fichier) |
-| **3. ERP** | Admin générale, RH, Compta, Client/SAV, Juridique, KPI commerciaux | **En cours** — modules **Commercial** (§5 septies) et **Client & SAV** (§5 sexies) faits le 20/10, **non mis en ligne** ; module suivant à proposer au client |
+| **3. ERP** | Admin générale, RH, Compta, Client/SAV, Juridique, KPI commerciaux | **En cours** — modules **Service commercial** (§5 septies) et **Client & SAV** (§5 sexies) faits le 20/10, **non mis en ligne** ; prochain : **Comptabilité** |
 
 Circuit métier à respecter partout : **Prospection → Visite → Décision → Choix du bien → Paiement → Contrat → Notaire → Livraison → SAV**.
 
@@ -215,7 +215,20 @@ Objectif : une couverture fonctionnelle complète pour **l'immobilier, la vente 
 | Ressources humaines | Employés & Contrats, Présences & Congés | Fiches et contrats BTP, pointage sur site, planification des congés |
 | Verticale immobilier | Property Management (lots, tantièmes, plans de masse) | Les biens immobiliers sont des lots (pas des articles de stock) : déjà le modèle de SIIPAF |
 
-Ordre de construction retenu : Client & SAV en premier ; la suite (Chantiers/BTP, Achats & stocks, Facturation VEFA, Comptabilité, RH, personnalisation) sera proposée au client module par module.
+Ordre de construction retenu : Client & SAV en premier ; la suite (Chantiers/BTP, Achats & stocks, Facturation VEFA, Comptabilité, RH, personnalisation) sera proposée au client module par module. **Mise à jour du 20/10** : Service commercial et Client & SAV faits ; **prochain module : Comptabilité** (demande du client).
+
+### Fonctionnalités attendues d'un ERP modulaire immobilier (liste du client, 20/10)
+
+| # | Fonctionnalité demandée | Où / état |
+|---|---|---|
+| 1 | **Gestion des biens immobiliers** : suivi des propriétés, gestion des locations et des ventes | Ventes et parc (projet › îlot › bâtiment › étage › lot) : **fait** (Service commercial). Locations : **à cadrer** (SIIPAF est promoteur et vendeur de terrains ; utile seulement s'il loue des biens — locaux commerciaux, logements invendus) |
+| 2 | **CRM** : relations clients, prospects, opportunités | **Fait** (Service commercial : pipeline, activités, historique, rendez-vous ; mêmes prospects que le dashboard) |
+| 3 | **Gestion des projets** : planification et suivi des chantiers de construction ou de rénovation | **À faire** (module Chantiers : Gantt, phases, jalons, feuilles de temps — s'appuie sur le journal de chantier existant) |
+| 4 | **Facturation et comptabilité** : factures, paiements, comptabilité générale | **Prochain module** (SYSCOHADA ; les versements et appels de fonds existants doivent produire leurs écritures) |
+| 5 | **Reporting et analyses** : rapports financiers, performance, tableaux de bord personnalisés | En partie : tableaux de bord du dashboard, du Service commercial et du SAV. À compléter avec la comptabilité (états financiers, marge par programme) et des tableaux de bord personnalisables |
+| 6 | **Intégration avec d'autres outils** : connexion à des plateformes tierces pour centraliser les données | **À cadrer** (pistes : banque / Mobile Money pour les encaissements, WhatsApp Business, Google Agenda, signature électronique, export comptable) |
+
+**Règle IMPORTANTE (client, 20/10) : l'ERP et ses modules doivent être étroitement liés au dashboard admin** pour la transmission et l'utilisation des données (clients, prospects, comptabilité, employés…). En pratique : même serveur, même base, mêmes comptes et mêmes droits (`PERMISSION_CATALOG`) ; aucune donnée ressaisie ni copiée d'une application à l'autre. Un prospect créé sur le site, un versement saisi par le comptable dans le dashboard ou un point de chantier publié sont immédiatement visibles et utilisés dans l'ERP, et inversement. Le dashboard a un lien « ERP SIIPAF » dans sa barre latérale (et l'ERP un lien « Dashboard du site »). Les modules à venir (comptabilité, RH…) réutilisent les tables existantes (`leads`, `sales`, `payments`, `fund_calls`, `users`…) au lieu d'en créer des copies.
 
 ## 5 sexies. ERP · module « Client & SAV » (fait le 20/10, commit a3ee954 + adaptation terrains — **non mis en ligne**)
 
@@ -230,7 +243,7 @@ Choix du client (20/10) : construit dans cette discussion ; application dans `ER
 - **Adaptation terrains (20/10, remarque du client : « promotion immobilière et vente de terrains, pas une agence »)** : catégories `bornage`, `foncier` (ACD, titre foncier, morcellement), `viabilisation` (eau, électricité) ; avec `vrd` elles relèvent de l'« engagement du lotisseur » (`SAV_LAND_CATEGORIES`), sans date de livraison.
 - À valider avec SIIPAF : délais par priorité, rattachement des catégories aux garanties, qui reçoit les notifications (aujourd'hui `MAIL_NOTIFY`, mais aucun e-mail ne part tant que le SMTP n'est pas configuré).
 
-## 5 septies. ERP · module « Commercial » (fait le 20/10 — **non mis en ligne**)
+## 5 septies. ERP · module « Service commercial » (fait le 20/10 — **non mis en ligne**)
 
 Demande du client (20/10) : « Promotion immobilière & vente de terrains » — parc immobilier projet › îlot › bâtiment › étage › lot, CRM et pipeline du premier contact à la signature chez le notaire avec historique des échanges, **ventes complètes dans l'ERP** (prospects, pipeline, rendez-vous, clients, lots, dossiers de vente, objectifs et KPI par commercial), **plans de paiement VEFA** avec appels de fonds selon l'avancement des travaux. Inspiré d'Odoo CRM (pipeline par étapes avec montants, probabilité par étape → pipeline pondéré, activités planifiées avec pastille de retard et « Fait & planifier la suivante », historique, motif de perte obligatoire) et des modules immobiliers Odoo (tours/bâtiments, étages, unités).
 - **Règles légales VEFA (Côte d'Ivoire, loi n° 2019-576, Code de la construction et de l'habitat)** : acte notarié (art. 119) ; aucun versement avant la signature hors dépôt de garantie de réservation (art. 121 ; dépôt plafonné à 10 % / 5 % / 0 selon le délai, art. 130) ; plafonds **cumulés** de 20 % à l'achèvement des fondations, 60 % à la mise hors d'eau, 90 % à l'achèvement des travaux, solde à la mise à disposition (art. 124). Contrôlés par `checkVefaPlan()` (`domain.js`, `VEFA_LEGAL_CAPS`). Plan par défaut (`DEFAULT_VEFA_PLAN`) : signature 10 %, fondations 10 %, gros œuvre 20 %, mise hors d'eau 20 %, achèvement 30 %, remise des clés 10 % — **à valider avec SIIPAF et son notaire**.

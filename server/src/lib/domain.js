@@ -285,8 +285,8 @@ const PERMISSION_CATALOG = [
     ['site_updates:write', 'Publier l’avancement du chantier', 'Étapes, pourcentages, photos et vidéos'],
     ['schedule:write', 'Gérer les échéanciers', 'Générer et modifier les échéances de paiement'],
   ] },
-  { group: 'ERP · Commercial', items: [
-    ['commercial:read', 'Ouvrir le module Commercial', 'Tableau de bord, pipeline, activités, parc, ventes, appels de fonds, objectifs'],
+  { group: 'ERP · Service commercial', items: [
+    ['commercial:read', 'Ouvrir le Service commercial', 'Tableau de bord, pipeline, activités, parc, ventes, appels de fonds, objectifs'],
     ['targets:write', 'Fixer les objectifs commerciaux', 'Objectifs mensuels par commercial'],
     ['property:write', 'Structurer le parc immobilier', 'Bâtiments, étages et caractéristiques des lots'],
     ['vefa:write', 'Gérer les appels de fonds VEFA', 'Plans d’appels de fonds et constat d’avancement des travaux'],
@@ -416,7 +416,7 @@ function checkLotTransition(from, to, role) {
   return null;
 }
 
-/* ─── ERP · Commercial ────────────────────────────────────────────────────── */
+/* ─── ERP · Service commercial ────────────────────────────────────────────────────── */
 
 // Probabilité de conclure par étape du circuit (pipeline pondéré, façon Odoo CRM)
 const STAGE_PROBABILITY = {

@@ -4,7 +4,7 @@ import { useAuth } from '@admin/lib/app-context';
 
 // Feuille de route de l'ERP (passation.md §5 quinquies) : seuls les modules livrés sont ouverts
 const MODULES = [
-  { id: 'commercial', to: '/commercial', label: 'Commercial', text: 'Parc immobilier, pipeline de la prospection au notaire, ventes, appels de fonds VEFA, objectifs.', icon: Briefcase, perm: ['commercial:read', 'vefa:write'], color: '#d2101e' },
+  { id: 'commercial', to: '/commercial', label: 'Service commercial', text: 'Parc immobilier, pipeline de la prospection au notaire, ventes, appels de fonds VEFA, objectifs.', icon: Briefcase, perm: ['commercial:read', 'vefa:write'], color: '#d2101e' },
   { id: 'sav', to: '/sav', label: 'Client & SAV', text: 'Après la vente : réserves de livraison, réclamations (maisons et terrains), interventions, satisfaction.', icon: LifeBuoy, perm: 'sav:read', color: '#2a78d6' },
   { id: 'compta', label: 'Comptabilité', text: 'SYSCOHADA : journaux, grand livre, balance, états financiers.', icon: Calculator, color: '#1baf7a' },
   { id: 'rh', label: 'RH & paie', text: 'Dossiers du personnel, congés, paie CNPS / ITS, objectifs.', icon: Users, color: '#eb6834' },

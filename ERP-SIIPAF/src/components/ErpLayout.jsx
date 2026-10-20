@@ -12,7 +12,7 @@ import { initials } from '@admin/lib/format';
 // Navigation de chaque module ; les modules suivants (comptabilité, RH…) viendront s'ajouter ici
 const MODULES = {
   commercial: {
-    label: 'Commercial', icon: Briefcase, perm: ['commercial:read', 'vefa:write'],
+    label: 'Service commercial', icon: Briefcase, perm: ['commercial:read', 'vefa:write'],
     items: [
       { to: '/commercial', label: 'Tableau de bord', icon: LayoutDashboard, end: true, perm: 'commercial:read' },
       { to: '/commercial/pipeline', label: 'Pipeline', icon: Columns3, perm: 'leads:read' },
@@ -36,7 +36,7 @@ const MODULES = {
 };
 
 const TITLES = {
-  '/': 'Modules', '/commercial': 'Commercial', '/commercial/pipeline': 'Pipeline commercial', '/commercial/activites': 'Mes activités',
+  '/': 'Modules', '/commercial': 'Service commercial', '/commercial/pipeline': 'Pipeline commercial', '/commercial/activites': 'Mes activités',
   '/commercial/rendez-vous': 'Rendez-vous', '/commercial/parc': 'Parc immobilier', '/commercial/ventes': 'Dossiers de vente',
   '/commercial/vefa': 'Appels de fonds VEFA', '/commercial/objectifs': 'Objectifs commerciaux', '/sav': 'Client & SAV', '/sav/reclamations': 'Réclamations', '/sav/reserves': 'Réserves de livraison', '/sav/interventions': 'Interventions',
 };
