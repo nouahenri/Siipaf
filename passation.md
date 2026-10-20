@@ -148,6 +148,68 @@ Plan détaillé :
 3. Créer la tâche cron de sauvegarde.
 4. En production : passer Ahoutoué en « Lotissement » si c'est voulu, convertir le DWG d'Ahoutoué et publier le plan.
 
+## 5 quater bis. Paramètres, gestion des plans, import ZIP/HTML (20/10, committé, **pas encore mis en ligne**)
+
+- **Paramètres** (menu Administration › Paramètres, `admin/src/pages/Settings.jsx`) : listes en base (table `ref_items`) — villes, localisations (rattachées à une ville), équipements, commodités à proximité, éléments de viabilisation (avec état prévu / en cours / réalisé par projet, table `project_refs`), types de biens (suggestions de la grille de prix). Règles dans `domain.js` (`REF_KINDS`) et `services/refs.js` : une valeur utilisée ne se supprime pas, elle s'archive ; renommer met à jour les projets ; une case peut changer de liste. Droit `settings:write` (éditeur, resp. exploitation). **Réglages généraux** : durée de pré-réservation par défaut (`app_settings`, utilisée si le projet n'en a pas). **Affichage** : thème clair / sombre / système, enregistré sur le compte (`users.theme`, `PATCH /api/auth/preferences`).
+- **Fiche projet** : Ville et Localisation en menus déroulants (+ « Précision d'accès » libre) ; équipements, commodités, viabilisation en cases à cocher. Les colonnes texte `city`, `location`, `amenities` restent remplies automatiquement (le site et les autres écrans les lisent). L'API publique d'un projet renvoie aussi `commodites` et `viabilisation`.
+- **Plans de masse** : menu « Gérer » (fiche projet et éditeur, `components/PlanManage.jsx`) — renommer, reconvertir / remplacer le fichier, archiver (retire du site ; un plan archivé ne se publie pas), restaurer, supprimer (un plan publié est d'abord retiré du site ; les lots ne sont jamais perdus : ils passent « à placer » ; option pour supprimer les lots libres sans option ni dossier). Reconversion : `PUT /projects/:id/lots?replace_plan=ID`.
+- **Import universel** (`components/PlanImport.jsx`, `lib/planImport.js`) : DWG/DXF, **ZIP** (lu dans le navigateur avec `fflate`, page HTML + images retrouvées), **HTML ou SVG** (formes SVG avec leurs transformations, ou image + zones `<map><area>` ; numéro pris dans un attribut, un titre ou le texte posé sur la parcelle), PDF, image. Le contenu importé n'est jamais exécuté (scripts et attributs « on… » retirés).
+- **Site** : légende en carrés de couleur posée sur la carte (repliée sur téléphone) ; fil d'Ariane « Promotions immobilières » pour une promotion ; blocs Viabilisation / Équipements / À proximité sous la carte.
+- CSP du serveur : `img-src` autorise `blob:` (lecture d'une image dans le navigateur avant envoi ; l'ajout d'un plan JPG/PNG en dépendait).
+- **Incident corrigé** : la première version de la migration `20261022000000_settings.js` ajoutait des colonnes à clé étrangère sur `projects` ; sous **SQLite** cela reconstruit la table et **supprime en cascade** lots, plans, dossiers… Les bases locale et démo ont été touchées : la démo a été restaurée depuis la copie prise juste avant, la base locale reconstruite (données de départ). MySQL (production) n'est pas concerné. Règle : sous SQLite, jamais de `.references()` dans un `alterTable` ; test de régression `test/migration-settings.test.js`.
+- Tests : **73 tests serveur, tous verts** (`settings.test.js`, `migration-settings.test.js`).
+- Mise en ligne : comme 5 quater, plus la migration `20261022000000_settings.js` (lancée par la commande de mise à jour) et le site (`css/plans.css`, `js/plan-interactif.js`, `lotissements.html`).
+
+## 5 quinquies. Phase 3 — ERP : cadrage validé par le client le 20/10 (à démarrer après « Paramètres »)
+
+Le client veut que l'ERP soit construit **dans la discussion « Passation »**, une fois le chantier « Paramètres » terminé et enregistré (un seul chantier à la fois).
+- **Emplacement : l'ERP est contenu dans un dossier `ERP-SIIPAF/`** à la racine du dépôt (comme `admin/` et `client/`). Proposition à valider avec le client au démarrage : application React + Vite dans `ERP-SIIPAF/`, branchée sur le même serveur `server/` et la même base (pour relier prospection, ventes, lots et chantiers sans double saisie), avec ses routes dans `server/src/routes/erp/` et son propre sous-domaine (ex. `erp.siipaf.com`). Ajouter `ERP-SIIPAF/` à `.vercelignore`.
+- **Premier module : Client & SAV** — prolonge l'espace client : réclamations après livraison, tickets, interventions, délais de traitement, satisfaction ; à brancher sur les dossiers d'acquisition et la messagerie client existants.
+- **Comptabilité : complète, plan SYSCOHADA** — plan comptable, écritures en partie double, journaux, grand livre, balance, états financiers ; les versements déjà saisis par le comptable doivent produire leurs écritures. À valider avec le comptable de SIIPAF avant de figer les comptes et journaux.
+- **RH, tout est indispensable** : dossiers employés (fiche, contrat, poste, documents), congés et absences (demande, validation, soldes, calendrier), **paie** (bulletins ivoiriens : CNPS, ITS… — barèmes à faire valider), objectifs commerciaux, et **indicateurs de performance liés aux objectifs assignés** (rejoint le module « KPI / profil employé »).
+- Modules restants à cadrer ensuite : Administration générale, Juridique (dossiers notariés, ACD, contentieux, échéances).
+- Chaque module est un système complet (pas un simple menu) et respecte le circuit Prospection → … → SAV. Réutiliser les rôles et privilèges configurables (`PERMISSION_CATALOG`, `req.can`) : ajouter les droits de chaque module au catalogue.
+- Avant de coder chaque module : poser les questions de détail au client (comme pour les phases 1 et 2).
+
+### Vision fonctionnelle demandée par le client (20/10) — « un ERP comme Odoo », adapté à SIIPAF
+
+Objectif : une couverture fonctionnelle complète pour **l'immobilier, la vente de terrains, la promotion immobilière et le BTP**, avec une architecture modulaire qui relie **prospection foncière, suivi des chantiers et gestion des ventes** dans un même outil. On s'inspire des modules Odoo ci-dessous ; on ne les installe pas, on les construit dans la plateforme existante (serveur Node, admin React, mêmes rôles et privilèges).
+
+**1. BTP & gestion de chantiers (suivi opérationnel)**
+- *Projet* (équivalent Odoo Projet) : un projet par chantier, vues **Gantt** et **Kanban**, phases (terrassement, gros œuvre, second œuvre…), jalons, affectation des équipes, suivi des retards. Réutiliser `site_updates` et les étapes `SITE_STAGES` de l'espace client.
+- *Feuilles de temps* : pointage des heures des ouvriers et conducteurs de travaux par chantier, **depuis le téléphone** ; alimente le coût de main-d'œuvre du chantier.
+- *Achats & sous-traitance* : demandes de prix, bons de commande de matériaux (ciment, acier…), contrats-cadres et suivi des sous-traitants.
+- *Stock & logistique* : stocks de matériaux par dépôt et par chantier (emplacements temporaires), mouvements dépôt ↔ chantiers, alertes de rupture.
+
+**2. Promotion immobilière & vente de terrains (commercialisation)**
+- *Parc immobilier* : structure **projet › îlot › bâtiment › étage › lot** (appartement, villa, parcelle). Aujourd'hui : projets, îlots et lots existent ; ajouter bâtiments, étages et, pour les copropriétés, les tantièmes. Champs métier sur mesure (ex. « Numéro de titre foncier », « Superficie en m² »), plans de masse (déjà faits).
+- *CRM et pipeline* : déjà en place (prospects, circuit Prospection → … → SAV) ; à prolonger jusqu'à la signature chez le notaire avec historique complet des échanges.
+- *Ventes* : contrats de réservation, devis pour les options de finition, **signature électronique** des documents.
+- *Plans de paiement VEFA* : **appels de fonds automatiques selon l'avancement des travaux** (ex. 15 % aux fondations, 35 % à la mise hors d'eau), en plus des échéanciers actuels (apport 30 % + 36 mois, Diaspora, comptant, crédit).
+
+**3. Gestion financière & rentabilité**
+- *Comptabilité* : SYSCOHADA complète (voir plus haut) avec **comptabilité analytique** : chaque facture fournisseur ou sous-traitant est affectée à un chantier ou un programme → marge réelle par projet en temps réel.
+- *Facturation & recouvrement* : factures de **situation de travaux** (BTP), **traites** des acheteurs de terrains, appels de fonds VEFA, **relances automatiques** en cas de retard.
+
+**4. Ressources humaines**
+- *Employés & contrats* : fiches des équipes (ingénieurs, maçons, commerciaux), contrats CDI / CDD / chantier / intérim.
+- *Présences & congés* : pointage des équipes sur site, congés planifiés pour ne pas bloquer un chantier par manque d'effectif ; paie, objectifs et indicateurs (voir plus haut).
+
+**5. Personnalisation sans code (équivalent Odoo Studio)**
+- Pouvoir ajouter des **champs personnalisés** (titre foncier, superficie…) et des **fiches techniques** sur mesure pour terrains et bâtiments, ainsi que les flux spécifiques : suivi des **réserves à la livraison**, **métrés**. À prévoir dans la rubrique « Paramètres » (listes de référence déjà en cours) : champs personnalisés par type d'objet.
+
+**Correspondance des modules (référence Odoo → SIIPAF)**
+
+| Direction | Modules de référence | Utilité pour SIIPAF |
+|---|---|---|
+| Finance, compta, achats | Comptabilité, Facturation, Achats | Analytique par chantier/programme, situations de travaux, appels de fonds VEFA, demandes de prix, contrats-cadres sous-traitants |
+| Relation client & vente de lots | CRM, Ventes | Tunnel Premier contact → Visite → Réservation → Signature notaire ; contrats de réservation, devis de finitions, signature électronique |
+| Opérations, chantiers, logistique | Projet, Inventaire, Feuilles de temps | Gantt des phases, stocks dépôt ↔ chantiers, pointage mobile alimentant le coût de revient |
+| Ressources humaines | Employés & Contrats, Présences & Congés | Fiches et contrats BTP, pointage sur site, planification des congés |
+| Verticale immobilier | Property Management (lots, tantièmes, plans de masse) | Les biens immobiliers sont des lots (pas des articles de stock) : déjà le modèle de SIIPAF |
+
+Ordre de construction retenu : Client & SAV en premier ; la suite (Chantiers/BTP, Achats & stocks, Facturation VEFA, Comptabilité, RH, personnalisation) sera proposée au client module par module.
+
 ## 6. En attente / points ouverts
 
 - [ ] **Contenu du site non branché** (remarque du client, capture « Contenu du site ») : les onglets Diaporama / Bandeau / Chiffres clés / Coordonnées s'enregistrent en base, mais le site public ne lit pas `/api/public/content` (tout est en dur dans le HTML). À faire : un `js/site-content.js` qui applique diaporama (image d'origine si pas de média), bandeau, chiffres et coordonnées sur toutes les pages, et une migration qui remplit le diaporama avec les 5 diapositives actuelles du site (aujourd'hui 1 seule en base).

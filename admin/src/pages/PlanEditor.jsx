@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { Link, useParams } from 'react-router-dom';
+import { Link, useNavigate, useParams } from 'react-router-dom';
 import {
   ArrowLeft, MousePointer2, Pentagon, Square, Hand, ZoomIn, ZoomOut, Maximize, Undo2, Copy, Trash2, Save, Search, Eye, EyeOff,
 } from 'lucide-react';
@@ -8,6 +8,7 @@ import { useAuth, useResource, useToast } from '../lib/app-context';
 import { Field, ErrorBox, Skeleton, StatusBadge } from '../components/ui';
 import { LOT_STATUSES, lotStatus } from '../lib/domain';
 import { fcfa } from '../lib/format';
+import PlanManage from '../components/PlanManage';
 
 /* ─── Géométrie (coordonnées relatives 0–1 du plan) ─────────────────────── */
 const clamp01 = v => Math.min(1, Math.max(0, v));
@@ -46,6 +47,7 @@ export default function PlanEditor() {
   const toast = useToast();
   const plan = useResource(`/admin/plans/${id}`);
   const editable = can('plans:write');
+  const navigate = useNavigate();
 
   const [lots, setLots] = useState([]);
   const [dirty, setDirty] = useState(new Set());
@@ -360,7 +362,11 @@ export default function PlanEditor() {
           <span className="small muted tabular">{placed.length} lots placés · {unplaced.length} à placer</span>
         </div>
         <div className="row">
-          {editable && <button className="btn" onClick={togglePublish}>{plan.data.published ? <><EyeOff />Retirer du site</> : <><Eye />Publier sur le site</>}</button>}
+          {plan.data.archived_at && <span className="badge">Archivé</span>}
+          {editable && !plan.data.archived_at && <button className="btn" onClick={togglePublish}>{plan.data.published ? <><EyeOff />Retirer du site</> : <><Eye />Publier sur le site</>}</button>}
+          {editable && <PlanManage plan={plan.data} projectId={plan.data.project.id}
+            onChanged={() => { if (dirty.size && !window.confirm('Des modifications ne sont pas enregistrées : recharger le plan quand même ?')) return; setDirty(new Set()); plan.reload(); }}
+            onDeleted={() => navigate(`/projets/${plan.data.project.id}`)} />}
           {editable && <button className="btn btn-primary" disabled={!dirty.size || saving} onClick={save}><Save />{saving ? 'Enregistrement…' : `Enregistrer${dirty.size ? ` (${dirty.size})` : ''}`}</button>}
         </div>
       </div>

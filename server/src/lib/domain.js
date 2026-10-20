@@ -42,6 +42,31 @@ const PROJECT_CATEGORIES = {
   lotissement: 'Lotissement (terrains)',
 };
 
+/**
+ * Listes de référence gérées dans Paramètres (menus déroulants et cases à cocher des projets).
+ * - localisation : rattachée à une ville (parent) ;
+ * - feature : se coche sur un projet (équipements, commodités, viabilisation) ;
+ * - states : la case cochée porte aussi un état d'avancement (viabilisation d'un lotissement).
+ * Une valeur utilisée par un projet ne se supprime pas : on l'archive (elle n'est plus proposée
+ * mais reste sur les projets qui l'ont). Renommer une valeur met à jour les projets concernés.
+ */
+const REF_KINDS = {
+  ville: { label: 'Villes', one: 'ville' },
+  localisation: { label: 'Localisations', one: 'localisation', parent: 'ville' },
+  equipement: { label: 'Équipements', one: 'équipement', feature: true },
+  commodite: { label: 'Commodités à proximité', one: 'commodité', feature: true },
+  viabilisation: { label: 'Éléments de viabilisation', one: 'élément de viabilisation', feature: true, states: true },
+  type_bien: { label: 'Types de biens', one: 'type de bien' },
+};
+const FEATURE_KINDS = Object.keys(REF_KINDS).filter(k => REF_KINDS[k].feature);
+const VIABILISATION_STATES = { prevu: 'Prévu', en_cours: 'En cours', fait: 'Réalisé' };
+
+// Réglages généraux (Paramètres › Général) : clé → valeur par défaut
+const APP_SETTINGS = {
+  option_days_default: { label: 'Durée d’une pré-réservation (jours)', min: 1, max: 60 },
+};
+const THEMES = ['clair', 'sombre', 'systeme'];
+
 // Circuit de vente : Prospection → Visite → Décision → Choix du bien → Paiement → Contrat → Notaire → Livraison → SAV
 const LEAD_STAGES = ['prospection', 'visite', 'decision', 'choix_bien', 'paiement', 'contrat', 'notaire', 'livraison', 'sav', 'perdu'];
 
@@ -216,7 +241,7 @@ const PERMISSIONS = {
   ],
   editeur: [
     'projects:read', 'projects:write', 'plans:write', 'lots:read', 'content:write', 'media:write',
-    'newsletter:read', 'newsletter:write', 'contacts:read', 'testimonials:write',
+    'newsletter:read', 'newsletter:write', 'contacts:read', 'testimonials:write', 'settings:write',
   ],
   conducteur_travaux: ['projects:read', 'lots:read', 'sales:read', 'documents:write', 'site_updates:write', 'client_messages'],
   comptable: [
@@ -227,7 +252,7 @@ const PERMISSIONS = {
     'projects:read', 'projects:write', 'plans:write', 'lots:read', 'lots:status', 'leads:read', 'leads:delete',
     'appointments:read', 'contacts:read', 'users:read', 'newsletter:read',
     'sales:read', 'sales:write', 'documents:write', 'testimonials:write',
-    'client_access:write', 'client_messages', 'site_updates:write', 'schedule:write',
+    'client_access:write', 'client_messages', 'site_updates:write', 'schedule:write', 'settings:write',
   ],
 };
 
@@ -263,6 +288,7 @@ const PERMISSION_CATALOG = [
     ['projects:read', 'Voir les projets', null],
     ['projects:write', 'Modifier les projets', 'Textes, images, grilles de prix, publication'],
     ['plans:write', 'Éditer les plans de masse', 'Dessiner et importer les lots'],
+    ['settings:write', 'Gérer les paramètres', 'Villes, localisations, équipements, commodités, viabilisation, réglages généraux'],
   ] },
   { group: 'Site web', items: [
     ['content:write', 'Modifier le contenu du site', 'Diaporama, bandeau, chiffres clés, coordonnées'],
@@ -301,4 +327,5 @@ module.exports = {
   FINANCING_PLANS, FINANCINGS, SCHEDULE_KINDS, INSTALLMENT_STATUS_LABELS, SITE_STAGES, SITE_STAGE_LABELS,
   MESSAGE_SENDERS, CLIENT_PASSWORD_MIN, CLIENT_RESET_HOURS, CLIENT_VISIBLE_SALE_STATUSES,
   addMonths, buildSchedule, allocatePayments, phoneKey, looksLikeClientCode, PROTECTED_ROLES, DELETABLE_LOT_STATUSES, NEW_LOT_STATUSES, PROJECT_CATEGORIES,
+  REF_KINDS, FEATURE_KINDS, VIABILISATION_STATES, APP_SETTINGS, THEMES,
 };

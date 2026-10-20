@@ -21,6 +21,7 @@ import Testimonials from './pages/Testimonials';
 import UsersPage from './pages/Users';
 import Roles from './pages/Roles';
 import Account from './pages/Account';
+import Settings from './pages/Settings';
 import './styles.css';
 
 function Guard({ perm, children }) {
@@ -52,6 +53,7 @@ function App() {
         <Route path="utilisateurs" element={<Guard perm="users:read"><UsersPage /></Guard>} />
         <Route path="roles" element={<Guard perm="users:read"><Roles /></Guard>} />
         <Route path="compte" element={<Account />} />
+        <Route path="parametres" element={<Settings />} />
         <Route path="*" element={<Navigate to="/" replace />} />
       </Route>
     </Routes>

@@ -27,9 +27,35 @@
   function esc(s) { return String(s == null ? '' : s).replace(/[&<>"']/g, function (c) { return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]; }); }
   function money(n) { return n == null ? null : new Intl.NumberFormat('fr-FR').format(Math.round(n)) + ' FCFA'; }
   function num(n) { return new Intl.NumberFormat('fr-FR').format(n); }
+  // Lotissement → page Lotissements ; promotion immobilière → page Projets
+  function isLotissement() { return !state.project || state.project.category === 'lotissement'; }
+  function backLink() {
+    return isLotissement()
+      ? { href: 'lotissements.html', label: 'Lotissements', cta: 'Voir les lotissements' }
+      : { href: 'projets.html' + (state.project ? '#' + encodeURIComponent(state.project.slug) : ''), label: 'Promotions immobilières', cta: 'Voir nos programmes' };
+  }
   function fail(title, text) {
+    var back = backLink();
     app.innerHTML = '<div class="lots-empty"><i class="fas fa-map"></i><h3>' + esc(title) + '</h3><p>' + esc(text) + '</p>' +
-      '<a class="btn btn-primary" href="lotissements.html"><span>Voir les lotissements</span></a></div>';
+      '<a class="btn btn-primary" href="' + back.href + '"><span>' + back.cta + '</span></a></div>';
+  }
+
+  // Équipements, commodités à proximité et avancement de la viabilisation (Paramètres du dashboard)
+  var VIAB_ICON = { fait: 'fa-check-circle', en_cours: 'fa-hard-hat', prevu: 'fa-clock' };
+  function features(p) {
+    var blocks = [];
+    if (p.viabilisation && p.viabilisation.length) {
+      blocks.push('<div class="plan-feature"><h3><i class="fas fa-road"></i> Viabilisation</h3><ul class="viab-list">' + p.viabilisation.map(function (v) {
+        return '<li class="viab-' + esc(v.state) + '"><i class="fas ' + (VIAB_ICON[v.state] || 'fa-clock') + '"></i><span>' + esc(v.label) + '</span><b>' + esc(v.state_label) + '</b></li>';
+      }).join('') + '</ul></div>');
+    }
+    if (p.amenities && p.amenities.length) {
+      blocks.push('<div class="plan-feature"><h3><i class="fas fa-swimming-pool"></i> Équipements</h3><ul class="feature-tags">' + p.amenities.map(function (a) { return '<li>' + esc(a) + '</li>'; }).join('') + '</ul></div>');
+    }
+    if (p.commodites && p.commodites.length) {
+      blocks.push('<div class="plan-feature"><h3><i class="fas fa-map-signs"></i> À proximité</h3><ul class="feature-tags">' + p.commodites.map(function (a) { return '<li>' + esc(a) + '</li>'; }).join('') + '</ul></div>');
+    }
+    return blocks.length ? '<section class="plan-features" aria-label="Le projet">' + blocks.join('') + '</section>' : '';
   }
 
   if (!slug) return fail('Aucun projet choisi', 'Choisissez un lotissement pour ouvrir son plan.');
@@ -43,6 +69,8 @@
       document.getElementById('planTitle').textContent = p.name;
       document.getElementById('planCrumb').textContent = p.name;
       document.getElementById('planSub').textContent = [p.city, p.location].filter(Boolean).join(' · ');
+      var back = backLink(), crumb = document.querySelector('.plan-breadcrumb a[href="lotissements.html"]');
+      if (crumb) { crumb.href = back.href; crumb.textContent = back.label; }
       if (!p.plans || !p.plans.length) return fail('Plan bientôt en ligne', 'Le plan de masse de ce projet n’est pas encore publié. Contactez-nous pour connaître les lots disponibles.');
       build();
       selectPlan(p.plans[0]);
@@ -68,10 +96,15 @@
         '<div class="plan-legend" id="planLegend" role="group" aria-label="Filtrer par statut"></div>' +
         '<div class="plan-viewport" id="planViewport">' +
           '<div class="plan-stage" id="planStage"><svg id="planSvg" viewBox="0 0 1 1" preserveAspectRatio="none" role="img"></svg></div>' +
+          // Légende indicative posée sur la carte : un carré de couleur par statut
+          '<details class="plan-key" id="planKey" open><summary>Légende</summary><ul>' + ORDER.map(function (st) {
+            return '<li><i style="background:' + STATUS[st].color + '"></i>' + STATUS[st].label + '</li>';
+          }).join('') + '</ul><p>À titre indicatif : disponibilité mise à jour en temps réel, confirmée par un conseiller.</p></details>' +
           '<div class="plan-zoom"><button type="button" data-zoom="in" aria-label="Zoomer"><i class="fas fa-plus"></i></button><button type="button" data-zoom="out" aria-label="Dézoomer"><i class="fas fa-minus"></i></button><button type="button" data-zoom="fit" aria-label="Recentrer"><i class="fas fa-expand"></i></button></div>' +
           '<div class="plan-hint">Molette ou deux doigts : zoom · glisser : déplacer · cliquer un lot : détails</div>' +
           '<div class="plan-tooltip" id="planTip" hidden></div>' +
         '</div>' +
+        features(p) +
         '<details class="lot-list" id="lotList"><summary>Liste des lots disponibles</summary><div class="lot-list-wrap"><table class="lot-list-table"><thead><tr><th>Lot</th><th>Îlot</th><th>Surface</th><th>Prix</th></tr></thead><tbody id="lotListBody"></tbody></table></div></details>' +
       '</div>' +
       '<aside class="lot-panel" id="lotPanel" aria-live="polite"></aside>';
@@ -81,6 +114,8 @@
     img.alt = '';
     img.decoding = 'async';
     document.getElementById('planStage').prepend(img);
+    // Sur téléphone la légende démarre repliée pour laisser la place à la carte
+    if (window.matchMedia && window.matchMedia('(max-width: 600px)').matches) document.getElementById('planKey').removeAttribute('open');
     el = {
       viewport: document.getElementById('planViewport'), stage: document.getElementById('planStage'), img: img,
       svg: document.getElementById('planSvg'), tip: document.getElementById('planTip'), legend: document.getElementById('planLegend'),
@@ -337,7 +372,7 @@
     }, { passive: false });
     el.viewport.addEventListener('dblclick', function (e) { var r = el.viewport.getBoundingClientRect(); zoomAt(e.clientX - r.left, e.clientY - r.top, 1.8); });
     el.viewport.addEventListener('pointerdown', function (e) {
-      if (e.target.closest('.plan-zoom')) return;
+      if (e.target.closest('.plan-zoom, .plan-key')) return;
       pointers[e.pointerId] = { x: e.clientX, y: e.clientY };
       state.moved = false;
       last = { x: e.clientX, y: e.clientY };

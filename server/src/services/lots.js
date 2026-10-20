@@ -1,6 +1,6 @@
 const { HttpError } = require('../lib/http');
 const { checkLotTransition, SELLABLE_STATUSES } = require('../lib/domain');
-const { optionDaysDefault } = require('../config');
+const { getSetting } = require('./settings');
 
 const DAY_MS = 24 * 60 * 60 * 1000;
 
@@ -113,7 +113,8 @@ async function placeOption(db, { lotId, leadData, userId = null }) {
     }
 
     const project = await trx('projects').where({ id: lot.project_id }).first();
-    const days = (project && project.option_days) || optionDaysDefault;
+    // Durée propre au projet, sinon celle de Paramètres › Général
+    const days = (project && project.option_days) || await getSetting(trx, 'option_days_default');
     const expiresAt = new Date(Date.now() + days * DAY_MS);
 
     const [optId] = await trx('lot_options').insert({

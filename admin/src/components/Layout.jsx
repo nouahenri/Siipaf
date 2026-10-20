@@ -2,7 +2,7 @@ import { useEffect, useRef, useState } from 'react';
 import { useRevealOnScroll } from '../lib/reveal';
 import { NavLink, Outlet, useLocation } from 'react-router-dom';
 import {
-  LayoutDashboard, Building2, Map, Users, CalendarDays, Mail, Newspaper, Image, PanelsTopLeft, UserCog, LogOut, Menu, KeyRound, MessageSquareQuote, ShieldCheck, MessagesSquare, UserCheck,
+  LayoutDashboard, Building2, Map, Users, CalendarDays, Mail, Newspaper, Image, PanelsTopLeft, UserCog, LogOut, Menu, KeyRound, MessageSquareQuote, ShieldCheck, MessagesSquare, UserCheck, SlidersHorizontal,
 } from 'lucide-react';
 import { useAuth, useResource } from '../lib/app-context';
 import { ROLE_LABELS } from '../lib/domain';
@@ -30,13 +30,14 @@ const NAV = [
   { group: 'Administration', items: [
     { to: '/utilisateurs', label: 'Utilisateurs', icon: UserCog, perm: 'users:read' },
     { to: '/roles', label: 'Rôles & privilèges', icon: ShieldCheck, perm: 'users:read' },
+    { to: '/parametres', label: 'Paramètres', icon: SlidersHorizontal },
   ] },
 ];
 
 const TITLES = {
   '/': 'Tableau de bord', '/prospects': 'Prospects', '/clients': 'Clients', '/rendez-vous': 'Rendez-vous', '/lots': 'Lots & disponibilités',
   '/projets': 'Projets', '/contenu': 'Contenu du site', '/medias': 'Médiathèque', '/messages': 'Messages', '/messagerie-clients': 'Messagerie clients',
-  '/newsletter': 'Newsletter', '/temoignages': 'Témoignages', '/plans': 'Plan de masse', '/utilisateurs': 'Utilisateurs', '/roles': 'Rôles & privilèges', '/compte': 'Mon compte',
+  '/newsletter': 'Newsletter', '/temoignages': 'Témoignages', '/plans': 'Plan de masse', '/utilisateurs': 'Utilisateurs', '/roles': 'Rôles & privilèges', '/parametres': 'Paramètres', '/compte': 'Mon compte',
 };
 
 export default function Layout() {

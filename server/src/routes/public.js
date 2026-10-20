@@ -7,9 +7,11 @@ const express = require('express');
 const rateLimit = require('express-rate-limit');
 const { z } = require('zod');
 const { ah, parse, HttpError, json } = require('../lib/http');
-const { LOT_STATUS_LABELS, SELLABLE_STATUSES } = require('../lib/domain');
+const { LOT_STATUS_LABELS, SELLABLE_STATUSES, VIABILISATION_STATES } = require('../lib/domain');
 const { findOrCreateLead, placeOption, throttledExpiry } = require('../services/lots');
 const { notifyTeam, sendMail } = require('../lib/mailer');
+const { projectRefs } = require('../services/refs');
+const { getSetting } = require('../services/settings');
 const { isTest } = require('../config');
 
 const phone = z.string().trim().min(6, 'Téléphone trop court').max(40);
@@ -45,7 +47,7 @@ module.exports = function publicRoutes(db) {
     const projects = await db('projects').where({ published: true }).orderBy('sort');
     const [counts, plans] = await Promise.all([
       db('lots').select('project_id', 'status').count({ n: '*' }).groupBy('project_id', 'status'),
-      db('site_plans').where({ published: true }).select('project_id').count({ n: '*' }).groupBy('project_id'),
+      db('site_plans').where({ published: true }).whereNull('archived_at').select('project_id').count({ n: '*' }).groupBy('project_id'),
     ]);
     res.json(projects.map(p => ({
       id: p.id, slug: p.slug, name: p.name, city: p.city, location: p.location, tagline: p.tagline,
@@ -62,13 +64,17 @@ module.exports = function publicRoutes(db) {
     if (!p) throw new HttpError(404, 'Projet introuvable.');
     const [offers, plans, lots] = await Promise.all([
       db('project_offers').where({ project_id: p.id }).orderBy('sort'),
-      db('site_plans').where({ project_id: p.id, published: true }),
+      db('site_plans').where({ project_id: p.id, published: true }).whereNull('archived_at'),
       db('lots').where({ project_id: p.id }).select('id', 'plan_id', 'offer_id', 'code', 'ilot', 'surface_m2', 'price_fcfa', 'status', 'shape'),
     ]);
+    const features = await projectRefs(db, p.id);
     res.json({
       id: p.id, slug: p.slug, name: p.name, city: p.city, location: p.location, tagline: p.tagline,
       description: p.description, category: p.category, delivery: p.delivery, amenities: json(p.amenities, []),
-      cover: mediaUrl(p.cover_media_id), option_days: p.option_days,
+      // Listes de Paramètres : commodités à proximité et état de la viabilisation (lotissements)
+      commodites: features.commodite.map(f => f.label),
+      viabilisation: features.viabilisation.map(f => ({ label: f.label, state: f.state, state_label: VIABILISATION_STATES[f.state] })),
+      cover: mediaUrl(p.cover_media_id), option_days: p.option_days || await getSetting(db, 'option_days_default'),
       offers,
       statuses: LOT_STATUS_LABELS,
       plans: plans.map(pl => ({

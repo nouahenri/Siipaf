@@ -5,6 +5,7 @@ const { ah, parse, HttpError } = require('../lib/http');
 const { checkPassword, hashPassword, issueSession, clearSession, requireAuth, publicUser, roleLabel } = require('../auth');
 const { effectivePermissions } = require('../services/permissions');
 const { isTest } = require('../config');
+const { THEMES } = require('../lib/domain');
 
 module.exports = function authRoutes(db) {
   const r = express.Router();
@@ -44,6 +45,13 @@ module.exports = function authRoutes(db) {
     if (!(await checkPassword(current, user.password_hash))) throw new HttpError(400, 'Mot de passe actuel incorrect.');
     await db('users').where({ id: user.id }).update({ password_hash: await hashPassword(next), updated_at: new Date() });
     res.json({ ok: true });
+  }));
+
+  // Préférences d'affichage du compte (thème clair, sombre ou celui du système)
+  r.patch('/preferences', requireAuth(db), ah(async (req, res) => {
+    const { theme } = parse(z.object({ theme: z.enum(THEMES) }), req.body);
+    await db('users').where({ id: req.user.id }).update({ theme, updated_at: new Date() });
+    res.json({ theme });
   }));
 
   return r;

@@ -1,3 +1,4 @@
+const { backfill } = require('../src/services/refs');
 /**
  * Données de départ reprises du site actuel. Idempotent : ne remplace rien d'existant,
  * on peut le relancer sans risque (`npm run seed`).
@@ -104,6 +105,9 @@ exports.seed = async function (knex) {
       project_id: projectId, label, surface, price_fcfa: price, diaspora_price_fcfa: diaspora, sort: i,
     })));
   }
+
+  // Listes de Paramètres et rattachement des projets (villes, localisations, équipements)
+  await backfill(knex);
 
   for (const [key, value] of Object.entries(CONTENT)) {
     if (!(await knex('site_content').where({ key }).first())) {

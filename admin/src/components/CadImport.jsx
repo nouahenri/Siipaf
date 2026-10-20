@@ -2,14 +2,15 @@
  * Conversion d'un plan AutoCAD (DWG / DXF) en carte interactive :
  * lecture → choix des calques → parcelles détectées (aperçu) → image de fond + lots créés.
  */
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { FileUp, Wand2, Check, AlertTriangle, Loader2 } from 'lucide-react';
-import { api } from '../lib/api';
+import { savePlan, summaryText } from '../lib/planSave';
 import { useToast } from '../lib/app-context';
 import { Field, ErrorBox, Badge } from './ui';
 import { readDrawing, segmentsOf, textsOf, buildFaces, findParcels, findUnnumbered, defaultAreaRange, extentsOf, renderPlan, toRelative } from '../lib/cadPlan';
 
-export default function CadImport({ projectId, onDone, onCancel }) {
+/** planId : reconversion d'un plan existant ; initialFile : fichier déjà choisi (ex. tiré d'un ZIP). */
+export default function CadImport({ projectId, planId, initialFile, onDone, onCancel }) {
   const toast = useToast();
   const [file, setFile] = useState(null);
   const [drawing, setDrawing] = useState(null);
@@ -37,6 +38,9 @@ export default function CadImport({ projectId, onDone, onCancel }) {
     setBusy('');
   };
 
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  useEffect(() => { if (initialFile) open(initialFile); }, [initialFile]);
+
   const analyse = () => {
     setError(null); setBusy('Recherche des parcelles…');
     // Laisse le navigateur afficher le message avant le calcul
@@ -60,19 +64,12 @@ export default function CadImport({ projectId, onDone, onCancel }) {
       setBusy('Création de l’image du plan…');
       const textLayers = new Set(drawing.layers.filter(l => l.texts).map(l => l.name));
       const { blob, width, height } = await renderPlan(drawing.entities, lineLayers, analysis.ext, { textLayers });
-      setBusy('Envoi de l’image…');
-      const form = new FormData();
-      form.append('files', new File([blob], `${name || 'plan'}.png`, { type: 'image/png' }));
-      form.append('meta', JSON.stringify([{ width, height, alt: `Plan de masse — ${name}` }]));
-      const [media] = await api.post('/admin/media', form);
-      const plan = await api.post('/admin/plans', { project_id: projectId, name: name || 'Plan de masse', media_id: media.id, width, height });
-      setBusy(`Création des ${analysis.parcels.length + unnumbered.length} lots…`);
       const lots = [
-        ...[...analysis.parcels, ...unnumbered].map(p => ({ code: p.code, shape: toRelative(p.pts, analysis.ext), plan_id: plan.id, surface_m2: p.surface, status })),
+        ...[...analysis.parcels, ...unnumbered].map(p => ({ code: p.code, shape: toRelative(p.pts, analysis.ext), surface_m2: p.surface, status })),
         ...analysis.missing.map(code => ({ code, status })),
       ];
-      const r = await api.put(`/admin/projects/${projectId}/lots`, lots);
-      toast(`Carte créée : ${r.created} lot(s) créé(s), ${r.updated} mis à jour`);
+      const { plan, summary } = await savePlan({ projectId, planId, name, image: blob, width, height, lots, onStep: setBusy });
+      toast(`${planId ? 'Plan reconverti' : 'Carte créée'} : ${summaryText(summary)}`);
       onDone(plan);
     } catch (e) { setError(e); setBusy(''); }
   };
@@ -104,7 +101,7 @@ export default function CadImport({ projectId, onDone, onCancel }) {
             <FileUp />Choisir un fichier DWG ou DXF
             <input type="file" hidden accept=".dwg,.dxf" onChange={e => e.target.files[0] && open(e.target.files[0])} />
           </label>
-          <button className="btn btn-ghost btn-sm" style={{ alignSelf: 'flex-start' }} onClick={onCancel}>← Revenir à l’import d’une image ou d’un PDF</button>
+          {onCancel && <button className="btn btn-ghost btn-sm" style={{ alignSelf: 'flex-start' }} onClick={onCancel}>← Revenir</button>}
         </>
       )}
       {busy && <p className="row" style={{ gap: 8 }}><Loader2 className="spin" size={18} />{busy}</p>}
@@ -113,7 +110,7 @@ export default function CadImport({ projectId, onDone, onCancel }) {
         <>
           <div className="small muted">{file.name} · {drawing.entities.length} éléments · {drawing.layers.length} calques</div>
           <div className="form-grid">
-            <Field label="Nom du plan"><input className="input" value={name} onChange={e => setName(e.target.value)} /></Field>
+            {!planId && <Field label="Nom du plan"><input className="input" value={name} onChange={e => setName(e.target.value)} /></Field>}
             <Field label="Calque des numéros de lots">
               <select className="select" value={numberLayer} onChange={e => { setNumberLayer(e.target.value); setAnalysis(null); }}>
                 {drawing.layers.filter(l => l.texts).map(l => <option key={l.name} value={l.name}>{l.name} — {l.numbers} numéro(s), {l.areas} surface(s)</option>)}
@@ -144,7 +141,7 @@ export default function CadImport({ projectId, onDone, onCancel }) {
             {analysis.missing.length > 0 && <Badge tone="warn" dot>{analysis.missing.length} lot(s) à placer à la main</Badge>}
             {analysis.parcels.some(p => p.duplicate) && <Badge tone="danger" dot>Numéros en double</Badge>}
           </div>
-          <div style={{ border: '1px solid var(--border)', borderRadius: 10, overflow: 'hidden', background: '#fff' }}>
+          <div style={{ border: '1px solid var(--border)', borderRadius: 10, overflow: 'hidden', background: '#fff' }} className="cad-preview">
             <svg viewBox={`0 0 ${preview.w} ${preview.h}`} style={{ width: '100%', height: 'auto', maxHeight: 420, display: 'block' }} role="img" aria-label="Aperçu des parcelles détectées">
               <path d={preview.lines} stroke="#9ca3af" strokeWidth="0.6" fill="none" />
               {preview.extra.map(p => <path key={p.code} d={p.d} fill="rgba(11,107,168,.28)" stroke="#0b6ba8" strokeWidth="0.6"><title>{p.code} (provisoire)</title></path>)}
@@ -176,10 +173,10 @@ export default function CadImport({ projectId, onDone, onCancel }) {
               </select>
             </Field>
           </div>
-          <p className="small muted">Un lot dont le numéro existe déjà dans le projet garde son statut et son dossier ; il reçoit seulement sa forme et sa surface.</p>
+          <p className="small muted">Un lot dont le numéro existe déjà dans le projet garde son statut et son dossier ; il reçoit seulement sa forme et sa surface.{planId && ' Les lots de ce plan absents du nouveau fichier passent dans « Lots à placer ».'}</p>
           <div className="row" style={{ gap: 8 }}>
             <button className="btn" onClick={() => setAnalysis(null)}>Modifier les calques</button>
-            <button className="btn btn-primary" disabled={!analysis.parcels.length && !unnumbered.length} onClick={create}><Check />Créer la carte ({analysis.parcels.length + unnumbered.length} lots)</button>
+            <button className="btn btn-primary" disabled={!analysis.parcels.length && !unnumbered.length} onClick={create}><Check />{planId ? 'Reconvertir le plan' : 'Créer la carte'} ({analysis.parcels.length + unnumbered.length} lots)</button>
           </div>
         </>
       )}

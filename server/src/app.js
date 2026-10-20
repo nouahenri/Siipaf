@@ -14,7 +14,11 @@ function createApp(db) {
   const app = express();
   app.set('trust proxy', 1); // derrière le proxy Passenger / LiteSpeed de cPanel
   app.disable('x-powered-by');
-  app.use(helmet({ crossOriginResourcePolicy: { policy: 'cross-origin' } }));
+  app.use(helmet({
+    crossOriginResourcePolicy: { policy: 'cross-origin' },
+    // blob: : images lues dans le navigateur avant envoi (dimensions d'une photo, import d'un plan)
+    contentSecurityPolicy: { directives: { 'img-src': ["'self'", 'data:', 'blob:'] } },
+  }));
   app.use(express.json({ limit: '2mb' }));
   app.use(cookieParser());
 
@@ -53,6 +57,7 @@ function createApp(db) {
   admin.use(adminTestimonials(db));
   admin.use(require('./routes/clientAdmin')(db));
   admin.use(require('./routes/imports')(db));
+  admin.use(require('./routes/settings')(db));
   app.use('/api/admin', admin);
   app.use('/api', (req, res) => res.status(404).json({ error: 'Route inconnue.' }));
 

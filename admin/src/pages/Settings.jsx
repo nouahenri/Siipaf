@@ -1,0 +1,230 @@
+/**
+ * Paramètres : listes de référence (menus déroulants et cases à cocher des projets),
+ * réglages généraux et thème d'affichage du compte.
+ */
+import { useMemo, useState } from 'react';
+import { useSearchParams } from 'react-router-dom';
+import { Plus, Trash2, ArrowUp, ArrowDown, Archive, ArchiveRestore, MapPin, Building, Dumbbell, Store, Construction, Home, SlidersHorizontal, Palette } from 'lucide-react';
+import { api } from '../lib/api';
+import { useAuth, useResource, useToast } from '../lib/app-context';
+import { Card, Field, ErrorBox, Skeleton, Badge, Empty } from '../components/ui';
+
+const ICONS = { ville: Building, localisation: MapPin, equipement: Dumbbell, commodite: Store, viabilisation: Construction, type_bien: Home };
+const HELP = {
+  ville: 'Villes proposées dans la fiche projet.',
+  localisation: 'Quartiers, communes ou sites, rattachés à une ville : la fiche projet ne propose que ceux de la ville choisie.',
+  equipement: 'Équipements du programme (cases à cocher dans la fiche projet), affichés sur le site.',
+  commodite: 'Commodités à proximité (écoles, marché, santé…), affichées sur le site.',
+  viabilisation: 'Travaux de viabilisation d’un lotissement : chaque élément coché porte son état (prévu, en cours, réalisé), visible par les acheteurs.',
+  type_bien: 'Types de biens proposés dans la grille de prix des projets.',
+};
+
+export default function Settings() {
+  const { can } = useAuth();
+  const [params, setParams] = useSearchParams();
+  const refs = useResource('/admin/refs');
+  const section = params.get('section') || 'ville';
+  const go = s => setParams({ section: s }, { replace: true });
+
+  if (refs.loading && !refs.data) return <Skeleton h={400} />;
+  if (refs.error) return <ErrorBox error={refs.error} />;
+  const { kinds, items } = refs.data;
+  const count = k => items.filter(i => i.kind === k && !i.archived).length;
+
+  return (
+    <div className="settings-layout">
+      <nav className="card settings-nav" aria-label="Rubriques des paramètres">
+        {Object.entries(kinds).map(([k, meta]) => {
+          const Icon = ICONS[k] || SlidersHorizontal;
+          return <button key={k} aria-current={section === k} onClick={() => go(k)}><Icon aria-hidden="true" />{meta.label}<span className="n">{count(k)}</span></button>;
+        })}
+        <div className="sep" />
+        <button aria-current={section === 'general'} onClick={() => go('general')}><SlidersHorizontal aria-hidden="true" />Réglages généraux</button>
+        <button aria-current={section === 'affichage'} onClick={() => go('affichage')}><Palette aria-hidden="true" />Affichage</button>
+      </nav>
+      <div className="stack">
+        {kinds[section] && <RefList kind={section} data={refs.data} editable={can('settings:write')} reload={refs.reload} />}
+        {section === 'general' && <General editable={can('settings:write')} />}
+        {section === 'affichage' && <Display />}
+      </div>
+    </div>
+  );
+}
+
+function RefList({ kind, data, editable, reload }) {
+  const toast = useToast();
+  const meta = data.kinds[kind];
+  const parentKind = meta.parent;
+  const featureKinds = Object.keys(data.kinds).filter(k => data.kinds[k].feature);
+  const parents = data.items.filter(i => i.kind === parentKind);
+  const [label, setLabel] = useState('');
+  const [parentId, setParentId] = useState('');
+  const [filter, setFilter] = useState('');
+  const [showArchived, setShowArchived] = useState(false);
+  const [error, setError] = useState(null);
+
+  const all = useMemo(() => data.items.filter(i => i.kind === kind), [data.items, kind]);
+  const archivedCount = all.filter(i => i.archived).length;
+  const rows = all.filter(i => (showArchived || !i.archived) && (!filter || String(i.parent_id) === filter));
+  const parentName = id => parents.find(p => p.id === id)?.label || '—';
+
+  const run = async (fn, ok) => {
+    setError(null);
+    try { await fn(); if (ok) toast(ok); await reload(); } catch (e) { setError(e); }
+  };
+  const add = e => {
+    e.preventDefault();
+    if (!label.trim()) return;
+    const pid = Number(parentId || filter) || null;
+    run(async () => { await api.post('/admin/refs', { kind, label, parent_id: pid }); setLabel(''); }, `« ${label.trim()} » ajouté`);
+  };
+  const rename = (item, value) => {
+    if (!value.trim() || value.trim() === item.label) return;
+    run(() => api.patch(`/admin/refs/${item.id}`, { label: value }), 'Renommé — les projets concernés sont à jour');
+  };
+  const move = (i, d) => {
+    const ids = all.map(x => x.id);
+    const a = ids.indexOf(rows[i].id), b = ids.indexOf(rows[i + d].id);
+    [ids[a], ids[b]] = [ids[b], ids[a]];
+    run(() => api.put('/admin/refs/order', { ids }));
+  };
+  const remove = item => {
+    if (!window.confirm(`Supprimer « ${item.label} » ?`)) return;
+    run(() => api.del(`/admin/refs/${item.id}`), 'Supprimé');
+  };
+
+  return (
+    <Card title={meta.label} bodyClass="" actions={archivedCount > 0 && (
+      <label className="checkbox small"><input type="checkbox" checked={showArchived} onChange={e => setShowArchived(e.target.checked)} />Afficher les archivés ({archivedCount})</label>
+    )}>
+      <p className="small muted" style={{ padding: '12px 16px 0' }}>{HELP[kind]}</p>
+      {error && <div style={{ padding: '10px 16px 0' }}><ErrorBox error={error} /></div>}
+      {parentKind && (
+        <div style={{ padding: '12px 16px 0', maxWidth: 360 }}>
+          <Field label={`Filtrer par ${data.kinds[parentKind].one}`}>
+            <select className="select" value={filter} onChange={e => { setFilter(e.target.value); setParentId(e.target.value); }}>
+              <option value="">Toutes</option>
+              {parents.map(p => <option key={p.id} value={p.id}>{p.label}</option>)}
+            </select>
+          </Field>
+        </div>
+      )}
+      {editable && (
+        <form className="ref-add" onSubmit={add}>
+          <input className="input" value={label} onChange={e => setLabel(e.target.value)} placeholder={`Nouvelle valeur (${meta.one})`} aria-label={`Nouveau ${meta.one}`} maxLength={120} />
+          {parentKind && (
+            <select className="select" style={{ flex: '0 1 220px' }} value={parentId} onChange={e => setParentId(e.target.value)} aria-label={data.kinds[parentKind].one} required>
+              <option value="">— {data.kinds[parentKind].one} —</option>
+              {parents.filter(p => !p.archived).map(p => <option key={p.id} value={p.id}>{p.label}</option>)}
+            </select>
+          )}
+          <button className="btn btn-primary" disabled={!label.trim() || (parentKind && !(parentId || filter))}><Plus />Ajouter</button>
+        </form>
+      )}
+      {!rows.length ? <Empty>Aucune valeur.</Empty> : (
+        <div className="table-wrap">
+          <table className="table">
+            <thead><tr>
+              <th>Libellé</th>
+              {parentKind && <th>{data.kinds[parentKind].one}</th>}
+              {editable && featureKinds.includes(kind) && <th>Liste</th>}
+              <th>Utilisation</th>
+              {editable && <th className="right">Actions</th>}
+            </tr></thead>
+            <tbody>
+              {rows.map((item, i) => (
+                <tr key={item.id} className={`ref-row ${item.archived ? 'archived' : ''}`}>
+                  <td style={{ minWidth: 200 }}>
+                    {editable
+                      ? <input className="input ref-label-input" defaultValue={item.label} key={item.label} aria-label="Libellé"
+                          onBlur={e => rename(item, e.target.value)} onKeyDown={e => { if (e.key === 'Enter') e.currentTarget.blur(); }} />
+                      : item.label}
+                    {item.archived && <Badge>Archivé</Badge>}
+                  </td>
+                  {parentKind && <td>{parentName(item.parent_id)}</td>}
+                  {editable && featureKinds.includes(kind) && (
+                    <td>
+                      <select className="select" style={{ height: 32, minWidth: 150 }} value={kind} aria-label="Déplacer vers la liste"
+                        onChange={e => run(() => api.patch(`/admin/refs/${item.id}`, { kind: e.target.value }), `Déplacé vers « ${data.kinds[e.target.value].label} »`)}>
+                        {featureKinds.map(k => <option key={k} value={k}>{data.kinds[k].label}</option>)}
+                      </select>
+                    </td>
+                  )}
+                  <td className="small muted nowrap">
+                    {item.used ? `${item.used} projet${item.used > 1 ? 's' : ''}` : 'Non utilisé'}
+                    {item.children > 0 && ` · ${item.children} localisation${item.children > 1 ? 's' : ''}`}
+                  </td>
+                  {editable && (
+                    <td className="right nowrap">
+                      <button className="btn btn-sm btn-ghost btn-icon" disabled={i === 0} onClick={() => move(i, -1)} aria-label="Monter"><ArrowUp /></button>
+                      <button className="btn btn-sm btn-ghost btn-icon" disabled={i === rows.length - 1} onClick={() => move(i, 1)} aria-label="Descendre"><ArrowDown /></button>
+                      {item.archived
+                        ? <button className="btn btn-sm btn-ghost btn-icon" title="Restaurer" aria-label="Restaurer" onClick={() => run(() => api.patch(`/admin/refs/${item.id}`, { archived: false }), 'Restauré')}><ArchiveRestore /></button>
+                        : <button className="btn btn-sm btn-ghost btn-icon" title="Archiver : n’est plus proposé, reste sur les projets qui l’ont" aria-label="Archiver" onClick={() => run(() => api.patch(`/admin/refs/${item.id}`, { archived: true }), 'Archivé')}><Archive /></button>}
+                      <button className="btn btn-sm btn-ghost btn-icon btn-danger" disabled={item.used > 0 || item.children > 0}
+                        title={item.used > 0 ? 'Utilisé par un projet : archivez-le plutôt' : item.children > 0 ? 'A encore des localisations' : 'Supprimer'}
+                        aria-label="Supprimer" onClick={() => remove(item)}><Trash2 /></button>
+                    </td>
+                  )}
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      )}
+    </Card>
+  );
+}
+
+function General({ editable }) {
+  const toast = useToast();
+  const settings = useResource('/admin/settings');
+  const [values, setValues] = useState(null);
+  const [error, setError] = useState(null);
+  if (settings.loading && !settings.data) return <Skeleton h={160} />;
+  if (settings.error) return <ErrorBox error={settings.error} />;
+  const v = values || settings.data.values;
+  const save = async () => {
+    setError(null);
+    try {
+      const body = Object.fromEntries(Object.entries(v).map(([k, x]) => [k, Number(x)]));
+      await api.put('/admin/settings', body);
+      toast('Réglages enregistrés');
+      setValues(null); settings.reload();
+    } catch (e) { setError(e); }
+  };
+  return (
+    <Card title="Réglages généraux" actions={editable && <button className="btn btn-primary btn-sm" onClick={save} disabled={!values}>Enregistrer</button>}>
+      <ErrorBox error={error} />
+      <fieldset disabled={!editable} style={{ border: 'none' }} className="form-grid">
+        {Object.entries(settings.data.fields).map(([k, f]) => (
+          <Field key={k} label={f.label} hint={k === 'option_days_default' ? 'S’applique aux projets dont la fiche ne précise pas de durée (site et dashboard).' : null}>
+            <input className="input" type="number" min={f.min} max={f.max} value={v[k] ?? ''} onChange={e => setValues({ ...v, [k]: e.target.value })} />
+          </Field>
+        ))}
+      </fieldset>
+    </Card>
+  );
+}
+
+function Display() {
+  const { theme, setTheme } = useAuth();
+  const toast = useToast();
+  const choices = [['clair', 'Clair', 'light'], ['sombre', 'Sombre', 'dark'], ['systeme', 'Système', 'auto']];
+  const pick = async value => {
+    try { await setTheme(value); toast('Affichage enregistré pour votre compte'); } catch (e) { toast(e.message, 'err'); }
+  };
+  return (
+    <Card title="Affichage">
+      <p className="small muted" style={{ marginBottom: 14 }}>Propre à votre compte. « Système » suit le réglage clair ou sombre de votre ordinateur ou téléphone.</p>
+      <div className="theme-choices" role="group" aria-label="Thème">
+        {choices.map(([value, label, cls]) => (
+          <button key={value} type="button" className="theme-choice" aria-pressed={theme === value} onClick={() => pick(value)}>
+            <span className={`theme-swatch ${cls}`} aria-hidden="true"><i /><i /></span>
+            <strong>{label}</strong>
+          </button>
+        ))}
+      </div>
+    </Card>
+  );
+}

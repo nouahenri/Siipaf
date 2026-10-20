@@ -99,6 +99,16 @@
 .plan-zoom { position: absolute; right: 12px; bottom: 12px; display: flex; flex-direction: column; gap: 6px; z-index: 2; }
 .plan-zoom button { width: 40px; height: 40px; border-radius: 12px; background: var(--white); border: 1px solid #e5e5e5; box-shadow: 0 4px 14px rgba(0,0,0,.1); color: var(--dark); cursor: pointer; font-size: .9rem; }
 .plan-zoom button:hover { color: var(--red); }
+/* Légende posée sur la carte (carrés de couleur, à titre indicatif) */
+.plan-key { position: absolute; left: 12px; top: 12px; z-index: 2; max-width: 240px; background: rgba(255,255,255,.95); border: 1px solid #e8e8e8; border-radius: 12px; box-shadow: 0 6px 18px rgba(0,0,0,.1); font-size: .76rem; color: #333; cursor: default; }
+.plan-key summary { list-style: none; cursor: pointer; padding: 8px 12px; font-weight: 700; font-size: .78rem; display: flex; align-items: center; gap: 8px; }
+.plan-key summary::-webkit-details-marker { display: none; }
+.plan-key summary::after { content: '\f107'; font-family: 'Font Awesome 6 Free'; font-weight: 900; margin-left: auto; transition: transform .2s; }
+.plan-key[open] summary::after { transform: rotate(180deg); }
+.plan-key ul { list-style: none; margin: 0; padding: 0 12px 4px; display: grid; gap: 5px; }
+.plan-key li { display: flex; align-items: center; gap: 8px; }
+.plan-key li i { width: 14px; height: 14px; border-radius: 3px; flex-shrink: 0; box-shadow: inset 0 0 0 1px rgba(0,0,0,.12); }
+.plan-key p { margin: 6px 12px 10px; font-size: .68rem; line-height: 1.35; color: #777; }
 .plan-hint { position: absolute; left: 12px; bottom: 12px; z-index: 2; background: rgba(255,255,255,.92); border-radius: 10px; padding: 6px 10px; font-size: .74rem; color: #555; pointer-events: none; }
 .plan-tooltip { position: absolute; z-index: 3; pointer-events: none; background: var(--dark); color: #fff; font-size: .78rem; line-height: 1.4; padding: 8px 10px; border-radius: 10px; box-shadow: 0 8px 24px rgba(0,0,0,.25); white-space: nowrap; transform: translate(-50%, calc(-100% - 12px)); }
 .plan-tooltip b { font-size: .86rem; }
@@ -150,3 +160,17 @@
 @media (prefers-reduced-motion: reduce) {
   .nav-sub, .lot-card, .lot-panel, .plan-lot { transition: none; }
 }
+
+/* Le projet : viabilisation, équipements, commodités (sous la carte) */
+.plan-features { display: grid; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); gap: 14px; margin-top: 16px; }
+.plan-feature { background: var(--white); border-radius: var(--radius); box-shadow: var(--shadow); padding: 16px 18px; }
+.plan-feature h3 { font-size: .95rem; margin: 0 0 10px; display: flex; align-items: center; gap: 8px; }
+.plan-feature h3 i { color: var(--red); }
+.viab-list { list-style: none; margin: 0; padding: 0; display: grid; gap: 7px; }
+.viab-list li { display: grid; grid-template-columns: 18px 1fr auto; align-items: center; gap: 8px; font-size: .84rem; }
+.viab-list b { font-size: .72rem; font-weight: 600; padding: 2px 8px; border-radius: 50px; background: #f1f1f1; color: #555; }
+.viab-fait i { color: #2E9E5B; } .viab-fait b { background: #e7f5ec; color: #1f7a45; }
+.viab-en_cours i { color: #A16207; } .viab-en_cours b { background: #fbf4e2; color: #8a5a06; }
+.viab-prevu i { color: #8A8F98; }
+.feature-tags { list-style: none; margin: 0; padding: 0; display: flex; flex-wrap: wrap; gap: 6px; }
+.feature-tags li { font-size: .78rem; padding: 5px 11px; border-radius: 50px; background: var(--light); color: #444; }

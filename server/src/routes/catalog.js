@@ -7,6 +7,7 @@ const { LOT_STATUSES, DELETABLE_LOT_STATUSES, NEW_LOT_STATUSES, PROJECT_CATEGORI
 const { changeLotStatus, placeOption, throttledExpiry } = require('../services/lots');
 const multer = require('multer');
 const { parseCad } = require('../services/cad');
+const { applyProjectRefs, projectRefs } = require('../services/refs');
 
 // Plans AutoCAD lus en mémoire (jamais enregistrés tels quels sur le serveur)
 const cadUpload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 60 * 1024 * 1024, files: 1 } });
@@ -33,7 +34,18 @@ module.exports = function catalogRoutes(db) {
     amenities: z.array(z.string().trim().max(80)).max(40).optional(),
     published: z.boolean().optional(),
     sort: z.number().int().optional(),
+    // Listes de Paramètres : ville, localisation (de cette ville), cases cochées
+    city_id: z.number().int().positive().nullable().optional(),
+    location_id: z.number().int().positive().nullable().optional(),
+    location_detail: z.string().trim().max(255).nullable().optional(),
+    refs: z.array(z.object({ id: z.number().int().positive(), state: z.string().max(20).nullable().optional() })).max(200).optional(),
   });
+  const REF_FIELDS = ['city_id', 'location_id', 'location_detail', 'refs'];
+  const splitRefs = data => {
+    const fields = { ...data }, refs = {};
+    for (const k of REF_FIELDS) if (k in fields) { refs[k] = fields[k]; delete fields[k]; }
+    return [fields, refs];
+  };
   const encodeProject = d => ('amenities' in d ? { ...d, amenities: JSON.stringify(d.amenities) } : d);
   const decodeProject = p => p && { ...p, amenities: json(p.amenities, []), published: !!p.published };
 
@@ -54,24 +66,31 @@ module.exports = function catalogRoutes(db) {
       db('project_offers').where({ project_id: id }).orderBy('sort'),
       db('site_plans').where({ project_id: id }).orderBy('id'),
     ]);
-    res.json({ ...decodeProject(p), offers, plans: plans.map(pl => ({ ...pl, published: !!pl.published })) });
+    res.json({ ...decodeProject(p), refs: await projectRefs(db, id), offers, plans: plans.map(pl => ({ ...pl, published: !!pl.published })) });
   }));
 
   r.post('/projects', requirePermission('projects:write'), ah(async (req, res) => {
-    const data = parse(projectSchema, req.body);
+    const [data, refs] = splitRefs(parse(projectSchema, req.body));
     if (await db('projects').where({ slug: data.slug }).first()) throw new HttpError(409, 'Cet identifiant (slug) est déjà utilisé.');
-    const [id] = await db('projects').insert(encodeProject(data));
+    const id = await db.transaction(async trx => {
+      const [newId] = await trx('projects').insert(encodeProject(data));
+      if (Object.keys(refs).length) await applyProjectRefs(trx, newId, refs);
+      return newId;
+    });
     res.status(201).json(decodeProject(await db('projects').where({ id }).first()));
   }));
 
   r.patch('/projects/:id', requirePermission('projects:write'), ah(async (req, res) => {
     const id = idParam(req);
-    const data = parse(projectSchema.partial(), req.body);
+    const [data, refs] = splitRefs(parse(projectSchema.partial(), req.body));
     if (data.slug && await db('projects').where({ slug: data.slug }).whereNot({ id }).first()) {
       throw new HttpError(409, 'Cet identifiant (slug) est déjà utilisé.');
     }
-    const n = await db('projects').where({ id }).update({ ...encodeProject(data), updated_at: new Date() });
-    if (!n) throw new HttpError(404, 'Projet introuvable.');
+    await db.transaction(async trx => {
+      const n = await trx('projects').where({ id }).update({ ...encodeProject(data), updated_at: new Date() });
+      if (!n) throw new HttpError(404, 'Projet introuvable.');
+      if (Object.keys(refs).length) await applyProjectRefs(trx, id, refs);
+    });
     res.json(decodeProject(await db('projects').where({ id }).first()));
   }));
 
@@ -140,10 +159,50 @@ module.exports = function catalogRoutes(db) {
 
   r.patch('/plans/:id', requirePermission('plans:write'), ah(async (req, res) => {
     const id = idParam(req);
-    const data = parse(planSchema.omit({ project_id: true }).partial(), req.body);
-    const n = await db('site_plans').where({ id }).update({ ...data, updated_at: new Date() });
-    if (!n) throw new HttpError(404, 'Plan introuvable.');
+    const data = parse(planSchema.omit({ project_id: true }).partial().extend({ archived: z.boolean().optional() }), req.body);
+    const plan = await db('site_plans').where({ id }).first();
+    if (!plan) throw new HttpError(404, 'Plan introuvable.');
+    const { archived, ...fields } = data;
+    // Archiver retire le plan du site ; un plan archivé ne se publie pas (le restaurer d'abord)
+    if (archived === true) Object.assign(fields, { archived_at: new Date(), published: false });
+    if (archived === false) fields.archived_at = null;
+    if (fields.published && (archived === undefined ? plan.archived_at : archived)) {
+      throw new HttpError(409, 'Ce plan est archivé : restaurez-le avant de le publier.');
+    }
+    await db('site_plans').where({ id }).update({ ...fields, updated_at: new Date() });
     res.json(await db('site_plans').where({ id }).first());
+  }));
+
+  /**
+   * Suppression d'un plan. Les lots ne sont jamais perdus : ils redeviennent « à placer ».
+   * Avec delete_lots=1, les lots du plan encore libres (disponible ou non commercialisé, sans
+   * historique de vente ni option) sont supprimés — utile après une conversion ratée.
+   * Un plan publié ne se supprime pas : le dépublier ou l'archiver d'abord.
+   */
+  r.delete('/plans/:id', requirePermission('plans:write'), ah(async (req, res) => {
+    const id = idParam(req);
+    const plan = await db('site_plans').where({ id }).first();
+    if (!plan) throw new HttpError(404, 'Plan introuvable.');
+    if (plan.published) throw new HttpError(409, 'Ce plan est publié sur le site : dépubliez-le avant de le supprimer.');
+    const withLots = req.query.delete_lots === '1' || req.query.delete_lots === 'true';
+    const result = await db.transaction(async trx => {
+      let deleted = 0;
+      if (withLots) {
+        const free = await trx('lots').where({ plan_id: id }).whereIn('status', DELETABLE_LOT_STATUSES)
+          .whereNotExists(function () { this.select(1).from('sales').whereRaw('sales.lot_id = lots.id'); })
+          .whereNotExists(function () { this.select(1).from('lot_options').whereRaw('lot_options.lot_id = lots.id'); })
+          .pluck('id');
+        for (let i = 0; i < free.length; i += 500) {
+          const ids = free.slice(i, i + 500);
+          await trx('lot_status_history').whereIn('lot_id', ids).del();
+          deleted += await trx('lots').whereIn('id', ids).del();
+        }
+      }
+      const unplaced = await trx('lots').where({ plan_id: id }).update({ plan_id: null, shape: null, updated_at: new Date() });
+      await trx('site_plans').where({ id }).del();
+      return { deleted, unplaced };
+    });
+    res.json({ ok: true, ...result });
   }));
 
   // ─── Lots ─────────────────────────────────────────────────
@@ -195,8 +254,13 @@ module.exports = function catalogRoutes(db) {
       if (codes.has(l.code)) throw new HttpError(400, `Le code de lot « ${l.code} » apparaît deux fois.`);
       codes.add(l.code);
     }
+    // Reconversion d'un plan : les lots de ce plan absents du nouveau fichier redeviennent « à placer »
+    const replacePlan = req.query.replace_plan ? Number(req.query.replace_plan) : null;
+    if (replacePlan && !(await db('site_plans').where({ id: replacePlan, project_id: projectId }).first())) {
+      throw new HttpError(400, 'Plan introuvable dans ce projet.');
+    }
     const summary = await db.transaction(async trx => {
-      let created = 0, updated = 0;
+      let created = 0, updated = 0, unplaced = 0;
       for (const l of lots) {
         const { status, ...fields } = l;
         const existing = await trx('lots').where({ project_id: projectId, code: l.code }).first();
@@ -209,7 +273,11 @@ module.exports = function catalogRoutes(db) {
           created++;
         }
       }
-      return { created, updated };
+      if (replacePlan) {
+        unplaced = await trx('lots').where({ project_id: projectId, plan_id: replacePlan }).whereNotIn('code', [...codes])
+          .update({ plan_id: null, shape: null, updated_at: new Date() });
+      }
+      return replacePlan ? { created, updated, unplaced } : { created, updated };
     });
     res.json(summary);
   }));
