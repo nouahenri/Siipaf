@@ -21,6 +21,8 @@ module.exports = {
   clientAppUrl: (env.CLIENT_APP_URL || 'http://localhost:4000').replace(/\/$/, ''),
   // Adresse du dashboard : le serveur y sert l'admin, et l'espace client partout ailleurs
   adminHost: env.ADMIN_HOST || 'admin.localhost',
+  // Adresse de l'ERP (ERP-SIIPAF/dist), même serveur et même base
+  erpHost: env.ERP_HOST || 'erp.localhost',
   smtp: {
     host: env.SMTP_HOST,
     port: Number(env.SMTP_PORT) || 465,

@@ -12,13 +12,14 @@ let onAuthError = () => {};
 export const setAuthErrorHandler = fn => { onAuthError = fn; };
 
 async function request(method, url, body) {
+  const isForm = body instanceof FormData;
   let res;
   try {
     res = await fetch(`/api/client${url}`, {
       method,
       credentials: 'same-origin',
-      headers: body ? { 'Content-Type': 'application/json' } : undefined,
-      body: body ? JSON.stringify(body) : undefined,
+      headers: body && !isForm ? { 'Content-Type': 'application/json' } : undefined,
+      body: body ? (isForm ? body : JSON.stringify(body)) : undefined,
     });
   } catch {
     throw new ApiError(0, 'Connexion impossible. Vérifiez votre accès à Internet et réessayez.');
@@ -38,4 +39,6 @@ async function request(method, url, body) {
 export const api = {
   get: url => request('GET', url),
   post: (url, body) => request('POST', url, body ?? {}),
+  /** Envoi de fichiers (FormData). */
+  upload: (url, form) => request('POST', url, form),
 };

@@ -1,7 +1,7 @@
 # Passation — Plateforme SIIPAF
 
 > Document de reprise pour continuer le travail dans une nouvelle discussion.
-> Dernière mise à jour : 20 octobre 2026.
+> Dernière mise à jour : 20 octobre 2026 (ERP · Client & SAV).
 > Pour reprendre : ouvrir une discussion dans ce dossier et taper `/passation`.
 
 ---
@@ -14,7 +14,7 @@ SIIPAF SA, promoteur et aménageur immobilier agréé MCLU (Côte d'Ivoire). Tro
 |---|---|---|
 | **1. Site + admin** | Serveur Node, dashboard admin, plan de masse interactif, RDV assistés par IA | **En cours** — étapes 1 à 3 faites |
 | **2. Espace client** | Suivi chantier, documents juridiques, cotisations, messagerie | **En cours** — étapes 1 (serveur), 2 (application client) et 3 (gestion dans l'admin) faites ; prochaine : 4 (import CSV des 112 clients, dès réception du fichier) |
-| 3. ERP | Admin générale, RH, Compta, Client/SAV, Juridique, KPI commerciaux | À faire |
+| **3. ERP** | Admin générale, RH, Compta, Client/SAV, Juridique, KPI commerciaux | **En cours** — module 1 **Client & SAV fait le 20/10** (local : non commité, non mis en ligne, voir §5 sexies) ; module suivant à proposer au client |
 
 Circuit métier à respecter partout : **Prospection → Visite → Décision → Choix du bien → Paiement → Contrat → Notaire → Livraison → SAV**.
 
@@ -39,6 +39,8 @@ SIIPAF_WEB/
 ├── admin/                       Dashboard React + Vite, servi par le serveur à /admin
 │   └── src/pages, components    Tableau de bord, Prospects, RDV, Lots, Projets, Éditeur de plan,
 │                                Contenu, Médiathèque, Messages, Témoignages, Newsletter, Utilisateurs
+├── ERP-SIIPAF/                  ERP React + Vite (erp.siipaf.com, erp.localhost en local) — réutilise
+│                                les briques du dashboard via l'alias « @admin » (../admin/src)
 └── client/                      Espace client React + Vite, servi par le serveur à /espace-client
     ├── src/pages                Login, Password (1re connexion, oubli, réinitialisation), Home, Chantier,
     │                            Paiements, Receipt (reçu imprimable), Documents, Messages, Profile
@@ -64,6 +66,7 @@ cd client && npm install && npm run build     # compile l'espace client (servi �
 - **Aperçus** (fichier `.claude/launch.json`) :
   - `admin-demo` → API + dashboard sur http://localhost:4000/admin (base démo)
   - `client-demo` → même serveur sur le port 4001 : espace client sur http://localhost:4001/espace-client (base démo)
+  - `erp-demo` → même serveur sur le port 4002 : ERP sur http://erp.localhost:4002, espace client sur http://localhost:4002 (base démo). Données SAV de démo : `DB_FILENAME=./data/demo.sqlite node scripts/demo-sav.js` (déjà passé)
   - `siipaf` → site public sur http://localhost:8765
 - Le serveur ne sert `client/dist` que s'il existe **au démarrage** : après le premier `npm run build` de `client/`, redémarrer l'aperçu.
 - **Compte admin local** : `admin@siipaf.com`, mot de passe dans `server/.env` (`ADMIN_PASSWORD`). Ne jamais le recopier dans la discussion.
@@ -196,7 +199,7 @@ Objectif : une couverture fonctionnelle complète pour **l'immobilier, la vente 
 - *Facturation & recouvrement* : factures de **situation de travaux** (BTP), **traites** des acheteurs de terrains, appels de fonds VEFA, **relances automatiques** en cas de retard.
 
 **4. Ressources humaines**
-- *Employés & contrats* : fiches des équipes (ingénieurs, maçons, commerciaux), contrats CDI / CDD / chantier / intérim.
+- *Employés & contrats* : fiches des équipes (ingénieurs, maçons, commerciaux, personnels de bureeau), contrats CDI / CDD / chantier / intérim.
 - *Présences & congés* : pointage des équipes sur site, congés planifiés pour ne pas bloquer un chantier par manque d'effectif ; paie, objectifs et indicateurs (voir plus haut).
 
 **5. Personnalisation sans code (équivalent Odoo Studio)**
@@ -213,6 +216,18 @@ Objectif : une couverture fonctionnelle complète pour **l'immobilier, la vente 
 | Verticale immobilier | Property Management (lots, tantièmes, plans de masse) | Les biens immobiliers sont des lots (pas des articles de stock) : déjà le modèle de SIIPAF |
 
 Ordre de construction retenu : Client & SAV en premier ; la suite (Chantiers/BTP, Achats & stocks, Facturation VEFA, Comptabilité, RH, personnalisation) sera proposée au client module par module.
+
+## 5 sexies. ERP · module 1 « Client & SAV » (fait le 20/10 — **non commité, non mis en ligne**)
+
+Choix du client (20/10) : construit dans cette discussion ; application dans `ERP-SIIPAF/`, même serveur et même base ; v1 = réclamations / tickets, réserves à la livraison, interventions, satisfaction & indicateurs.
+- **Règles** (`server/src/lib/domain.js`) : `SAV_CATEGORIES` (10 types), `SAV_PRIORITIES` (basse 240 h, normale 120 h, haute 48 h, urgente 24 h → échéance `due_at`), `SAV_STATUSES` / `SAV_TRANSITIONS` (nouveau → qualifié → intervention planifiée → en cours → résolu → clos ; rejeté), `WARRANTIES` + `warrantyFor()` / `warrantyDates()` (parfait achèvement 1 an, biennale 2 ans pour plomberie/électricité/menuiserie/équipements, décennale 10 ans pour maçonnerie/étanchéité, comptées depuis `sales.delivered_at`). Droits `sav:read` (commercial, conducteur de travaux, resp. exploitation) et `sav:write` (conducteur de travaux, resp. exploitation), groupe « ERP · Client & SAV » du catalogue.
+- **Migration `20261023000000_erp_sav.js`** : colonne `sales.delivered_at` (date du PV de livraison, sans clé étrangère — règle SQLite), tables `sav_tickets` (réf. `SAV-AAAA-NNNN`), `sav_events` (fil : commentaires, notes internes, statuts, affectations), `sav_reserves`, `sav_interventions`, `sav_files` (photos). Bases locale et démo migrées, données démo intactes (31 dossiers, 94 versements, 186 documents).
+- **Photos du SAV privées** : rangées dans `uploads/private/sav/` (comprises dans la sauvegarde nocturne), `/uploads/private` renvoie 404 ; servies par `/api/admin/erp/sav/files/:id` (droit `sav:read`) ou `/api/client/sav/files/:id` (propriétaire seulement). Une photo d'une note interne n'est jamais visible du client.
+- **Serveur** : `services/sav.js`, routes équipe `routes/erp/sav.js` (`/api/admin/erp/sav/…` : meta, stats, tickets, statut, commentaires, dossiers + date de livraison, réserves, interventions, photos), routes client `routes/clientSav.js` (`/api/client/sav/…` : liste, dépôt avec photos, fil, réponse, avis 1–5). Une réponse du client sur une demande résolue la rouvre ; son avis la clôt. Le client ne voit ni notes internes, ni journal des statuts, ni le responsable. Le prospect passe à l'étape « SAV » du circuit (« Livraison » quand la date de PV est saisie). `app.js` choisit l'interface selon l'adresse : `ADMIN_HOST` → admin, **`ERP_HOST` (défaut `erp.localhost`) → `ERP-SIIPAF/dist`**, sinon espace client. Tests : `test/sav.test.js` (9 tests) ; **suite complète : 87 tests, tous verts**.
+- **ERP (`ERP-SIIPAF/`)** : écran d'accueil des modules (Client & SAV ouvert, les 7 autres « À venir »), tableau de bord SAV (ouvertes, en retard, délai moyen et % dans les délais, satisfaction, courbe 6 mois, répartition par statut, par type, par programme, réserves et interventions, liste des retards), réclamations en **liste** paginée ou **tableau** (glisser-déposer entre statuts), fiche réclamation (statut, responsable, priorité, garantie, fil avec notes internes, photos, interventions planifiées puis compte rendu avec coût et photos après travaux), **réserves de livraison** (PV : date de livraison → dates de fin de garanties, réserves avec photos, lever / rouvrir, « Suivre » ouvre une réclamation), **planning hebdomadaire** des interventions. Même connexion que le dashboard. Vérifié dans le navigateur sur la base démo.
+- **Espace client** : onglet **SAV** › « Mes demandes » (`client/src/pages/Demandes.jsx`) — signaler un problème (type, titre, lieu, détails, photos), suivi en 3 étapes avec libellés clients (Reçue, Prise en charge, Intervention prévue, En cours, Résolue, Terminée, Non retenue), date d'intervention, fil d'échanges, avis par étoiles. Vérifié (dépôt d'une demande de bout en bout sur la démo).
+- **Mise en ligne (à faire, avec l'accord du client)** : 1) créer le sous-domaine `erp.siipaf.com` dans cPanel pointant sur le même dossier que admin/client (`public_html/client.siipaf.com`) + certificat SSL ; 2) ajouter `ERP_HOST=erp.siipaf.com` au `.env` du serveur ; 3) `npm run build` dans `admin/`, `client/` et `ERP-SIIPAF/` (`npm install` d'abord dans `ERP-SIIPAF/`), ajouter `ERP-SIIPAF/dist` à `deploy/siipaf-api.zip` (dossier `ERP-SIIPAF/dist` à côté de `admin/dist`) ; 4) commande de mise à jour habituelle (section 6) : elle passe la migration `20261023000000_erp_sav`. Sauvegarder la base avant.
+- À valider avec SIIPAF : délais par priorité, rattachement des catégories aux garanties, qui reçoit les notifications (aujourd'hui `MAIL_NOTIFY`, mais aucun e-mail ne part tant que le SMTP n'est pas configuré).
 
 ## 6. En attente / points ouverts
 

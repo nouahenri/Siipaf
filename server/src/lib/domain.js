@@ -237,13 +237,13 @@ const PERMISSIONS = {
   commercial: [
     'projects:read', 'lots:read', 'lots:status', 'leads:read', 'leads:write',
     'appointments:read', 'appointments:write', 'contacts:read', 'sales:read', 'sales:write',
-    'client_access:write', 'client_messages',
+    'client_access:write', 'client_messages', 'sav:read',
   ],
   editeur: [
     'projects:read', 'projects:write', 'plans:write', 'lots:read', 'content:write', 'media:write',
     'newsletter:read', 'newsletter:write', 'contacts:read', 'testimonials:write', 'settings:write',
   ],
-  conducteur_travaux: ['projects:read', 'lots:read', 'sales:read', 'documents:write', 'site_updates:write', 'client_messages'],
+  conducteur_travaux: ['projects:read', 'lots:read', 'sales:read', 'documents:write', 'site_updates:write', 'client_messages', 'sav:read', 'sav:write'],
   comptable: [
     'projects:read', 'lots:read', 'leads:read', 'appointments:read', 'sales:read', 'payments:write',
     'schedule:write', 'client_messages',
@@ -253,6 +253,7 @@ const PERMISSIONS = {
     'appointments:read', 'contacts:read', 'users:read', 'newsletter:read',
     'sales:read', 'sales:write', 'documents:write', 'testimonials:write',
     'client_access:write', 'client_messages', 'site_updates:write', 'schedule:write', 'settings:write',
+    'sav:read', 'sav:write',
   ],
 };
 
@@ -284,6 +285,10 @@ const PERMISSION_CATALOG = [
     ['site_updates:write', 'Publier l’avancement du chantier', 'Étapes, pourcentages, photos et vidéos'],
     ['schedule:write', 'Gérer les échéanciers', 'Générer et modifier les échéances de paiement'],
   ] },
+  { group: 'ERP · Client & SAV', items: [
+    ['sav:read', 'Voir le SAV', 'Réclamations, réserves à la livraison, interventions, indicateurs'],
+    ['sav:write', 'Traiter le SAV', 'Créer et faire avancer les réclamations, lever les réserves, planifier les interventions'],
+  ] },
   { group: 'Catalogue', items: [
     ['projects:read', 'Voir les projets', null],
     ['projects:write', 'Modifier les projets', 'Textes, images, grilles de prix, publication'],
@@ -304,6 +309,84 @@ const PERMISSION_CATALOG = [
   ] },
 ];
 const PERMISSION_IDS = PERMISSION_CATALOG.flatMap(g => g.items.map(i => i[0]));
+
+/* ─── ERP · Client & SAV ──────────────────────────────────────────────────── */
+
+const SAV_CATEGORIES = {
+  plomberie: 'Plomberie',
+  electricite: 'Électricité',
+  maconnerie: 'Maçonnerie / fissures',
+  etancheite: 'Étanchéité / infiltrations',
+  menuiserie: 'Menuiserie (portes, fenêtres)',
+  revetements: 'Carrelage / peinture',
+  equipements: 'Sanitaires / équipements',
+  vrd: 'Voirie, réseaux, clôture',
+  administratif: 'Administratif / documents',
+  autre: 'Autre',
+};
+
+// Délai de traitement visé selon la priorité (heures calendaires)
+const SAV_PRIORITIES = {
+  basse: { label: 'Basse', hours: 240 },
+  normale: { label: 'Normale', hours: 120 },
+  haute: { label: 'Haute', hours: 48 },
+  urgente: { label: 'Urgente', hours: 24 },
+};
+
+const SAV_STATUSES = ['nouveau', 'qualifie', 'planifie', 'en_cours', 'resolu', 'clos', 'rejete'];
+const SAV_STATUS_LABELS = {
+  nouveau: 'Nouveau', qualifie: 'Qualifié', planifie: 'Intervention planifiée', en_cours: 'En cours',
+  resolu: 'Résolu', clos: 'Clos', rejete: 'Rejeté',
+};
+const SAV_OPEN_STATUSES = ['nouveau', 'qualifie', 'planifie', 'en_cours'];
+// Passages autorisés ; « clos » et « rejeté » peuvent être rouverts
+const SAV_TRANSITIONS = {
+  nouveau: ['qualifie', 'planifie', 'en_cours', 'resolu', 'rejete'],
+  qualifie: ['planifie', 'en_cours', 'resolu', 'rejete'],
+  planifie: ['en_cours', 'resolu', 'qualifie'],
+  en_cours: ['planifie', 'resolu'],
+  resolu: ['clos', 'en_cours'],
+  clos: ['en_cours'],
+  rejete: ['qualifie'],
+};
+const SAV_SOURCES = ['client', 'equipe', 'livraison'];
+
+/**
+ * Garanties légales de la construction, comptées depuis la livraison (date du PV) :
+ * parfait achèvement (1 an, tous désordres), bon fonctionnement (2 ans, équipements dissociables),
+ * décennale (10 ans, solidité de l'ouvrage, structure et étanchéité).
+ */
+const WARRANTIES = {
+  parfait_achevement: { label: 'Parfait achèvement', years: 1 },
+  biennale: { label: 'Bon fonctionnement (biennale)', years: 2 },
+  decennale: { label: 'Décennale', years: 10 },
+};
+const DECENNALE_CATEGORIES = ['maconnerie', 'etancheite'];
+const BIENNALE_CATEGORIES = ['plomberie', 'electricite', 'menuiserie', 'equipements'];
+
+/** Garantie applicable à un désordre de catégorie donnée, ou « hors_garantie » / null si pas livré. */
+function warrantyFor(category, deliveredAt, today = new Date()) {
+  if (!deliveredAt) return null;
+  const d = new Date(deliveredAt);
+  const until = years => { const x = new Date(d); x.setFullYear(x.getFullYear() + years); return x; };
+  if (today <= until(1)) return 'parfait_achevement';
+  if (BIENNALE_CATEGORIES.includes(category) && today <= until(2)) return 'biennale';
+  if (DECENNALE_CATEGORIES.includes(category) && today <= until(10)) return 'decennale';
+  return 'hors_garantie';
+}
+
+/** Échéances des trois garanties pour une date de livraison (pour l'affichage). */
+function warrantyDates(deliveredAt) {
+  if (!deliveredAt) return null;
+  return Object.fromEntries(Object.entries(WARRANTIES).map(([k, w]) => {
+    const x = new Date(deliveredAt);
+    x.setFullYear(x.getFullYear() + w.years);
+    return [k, isoDate(x)];
+  }));
+}
+
+const SAV_RESERVE_STATUSES = ['ouverte', 'levee'];
+const SAV_INTERVENTION_STATUSES = ['planifiee', 'realisee', 'annulee'];
 
 function can(role, permission) {
   const perms = PERMISSIONS[role] || [];
@@ -328,4 +411,6 @@ module.exports = {
   MESSAGE_SENDERS, CLIENT_PASSWORD_MIN, CLIENT_RESET_HOURS, CLIENT_VISIBLE_SALE_STATUSES,
   addMonths, buildSchedule, allocatePayments, phoneKey, looksLikeClientCode, PROTECTED_ROLES, DELETABLE_LOT_STATUSES, NEW_LOT_STATUSES, PROJECT_CATEGORIES,
   REF_KINDS, FEATURE_KINDS, VIABILISATION_STATES, APP_SETTINGS, THEMES,
+  SAV_CATEGORIES, SAV_PRIORITIES, SAV_STATUSES, SAV_STATUS_LABELS, SAV_OPEN_STATUSES, SAV_TRANSITIONS, SAV_SOURCES,
+  WARRANTIES, warrantyFor, warrantyDates, SAV_RESERVE_STATUSES, SAV_INTERVENTION_STATUSES,
 };

@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
 import { Link, NavLink, Outlet, useLocation } from 'react-router-dom';
-import { Check, ChevronDown, FileText, HardHat, Home, MessageCircle, Wallet } from 'lucide-react';
+import { Check, ChevronDown, FileText, HardHat, Home, LifeBuoy, MessageCircle, Wallet } from 'lucide-react';
 import { useSession } from '../lib/session';
 import { initials } from '../lib/format';
 
@@ -9,6 +9,7 @@ const NAV = [
   { to: '/chantier', label: 'Chantier', icon: HardHat },
   { to: '/paiements', label: 'Paiements', icon: Wallet },
   { to: '/documents', label: 'Documents', icon: FileText },
+  { to: '/demandes', label: 'SAV', icon: LifeBuoy },
   { to: '/messages', label: 'Messages', icon: MessageCircle, badge: true },
 ];
 

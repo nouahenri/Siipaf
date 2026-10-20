@@ -4,7 +4,7 @@ const express = require('express');
 const helmet = require('helmet');
 const cookieParser = require('cookie-parser');
 const multer = require('multer');
-const { corsOrigins, uploadsDir, isProd, isTest, adminHost } = require('./config');
+const { corsOrigins, uploadsDir, isProd, isTest, adminHost, erpHost } = require('./config');
 const { HttpError } = require('./lib/http');
 const { requireAuth } = require('./auth');
 const { throttledExpiry } = require('./services/lots');
@@ -44,6 +44,7 @@ function createApp(db) {
   app.use('/api/public', require('./routes/public')(db));
   app.use('/api/public', publicTestimonials(db));
   app.use('/api/auth', require('./routes/auth')(db));
+  app.use('/api/client/sav', require('./routes/clientSav')(db));
   app.use('/api/client', require('./routes/client')(db));
 
   const admin = express.Router();
@@ -58,6 +59,7 @@ function createApp(db) {
   admin.use(require('./routes/clientAdmin')(db));
   admin.use(require('./routes/imports')(db));
   admin.use(require('./routes/settings')(db));
+  admin.use('/erp/sav', require('./routes/erp/sav')(db));
   app.use('/api/admin', admin);
   app.use('/api', (req, res) => res.status(404).json({ error: 'Route inconnue.' }));
 
@@ -69,6 +71,8 @@ function createApp(db) {
       res.redirect(301, `/uploads/${m.filename}`);
     } catch (err) { next(err); }
   });
+  // Photos du SAV (intérieur des logements) : servies uniquement par l'API, après contrôle
+  app.use('/uploads/private', (req, res) => res.sendStatus(404));
   // Pièces juridiques jointes à un dossier d'acquisition : jamais publiques. Seule l'équipe autorisée
   // les ouvre ici ; le client passe par /api/client/documents/:id/fichier (contrôle de propriété).
   app.use('/uploads', async (req, res, next) => {
@@ -86,20 +90,22 @@ function createApp(db) {
   app.use('/uploads', express.static(uploadsDir, { maxAge: '30d', immutable: true, index: false }));
 
   // Interfaces compilées, choisies selon l'adresse : admin.siipaf.com → dashboard (admin/dist),
-  // client.siipaf.com → espace client (client/dist). En local : admin.localhost:4000 et localhost:4000.
-  const isAdminHost = req => req.hostname === adminHost;
+  // erp.siipaf.com → ERP (ERP-SIIPAF/dist), client.siipaf.com → espace client (client/dist).
+  // En local : admin.localhost:4000, erp.localhost:4000 et localhost:4000.
+  const appFor = req => (req.hostname === adminHost ? 'admin' : req.hostname === erpHost ? 'erp' : 'client');
   const otherHost = (req, host) => `${req.protocol}://${host}${(req.get('host') || '').replace(/^[^:]*/, '')}`;
   // Anciennes adresses (/admin, /espace-client) → nouvelles
   app.get(/^\/admin(\/|$)/, (req, res) => res.redirect(301, otherHost(req, adminHost) + (req.originalUrl.slice(6) || '/')));
   app.get(/^\/espace-client(\/|$)/, (req, res) => res.redirect(301, req.originalUrl.slice(14) || '/'));
-  const spa = (dist, forAdmin) => {
+  const spa = (dist, name) => {
     if (!fs.existsSync(dist)) return;
     const files = express.static(dist, { index: false, maxAge: '1h' });
-    app.use((req, res, next) => (isAdminHost(req) === forAdmin ? files(req, res, next) : next()));
-    app.get(/^\/(?!api\/|uploads\/)/, (req, res, next) => (isAdminHost(req) === forAdmin ? res.sendFile(path.join(dist, 'index.html')) : next()));
+    app.use((req, res, next) => (appFor(req) === name ? files(req, res, next) : next()));
+    app.get(/^\/(?!api\/|uploads\/)/, (req, res, next) => (appFor(req) === name ? res.sendFile(path.join(dist, 'index.html')) : next()));
   };
-  spa(path.join(__dirname, '..', '..', 'admin', 'dist'), true);
-  spa(path.join(__dirname, '..', '..', 'client', 'dist'), false);
+  spa(path.join(__dirname, '..', '..', 'admin', 'dist'), 'admin');
+  spa(path.join(__dirname, '..', '..', 'ERP-SIIPAF', 'dist'), 'erp');
+  spa(path.join(__dirname, '..', '..', 'client', 'dist'), 'client');
 
   // Erreurs
   // eslint-disable-next-line no-unused-vars

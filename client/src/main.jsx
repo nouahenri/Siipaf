@@ -12,6 +12,7 @@ import Paiements from './pages/Paiements';
 import Receipt from './pages/Receipt';
 import Documents from './pages/Documents';
 import Messages from './pages/Messages';
+import Demandes from './pages/Demandes';
 import Profile from './pages/Profile';
 
 function Splash() {
@@ -49,6 +50,7 @@ function App() {
         <Route path="paiements/recu/:paymentId" element={<Receipt />} />
         <Route path="documents" element={<Documents />} />
         <Route path="messages" element={<Messages />} />
+        <Route path="demandes" element={<Demandes />} />
         <Route path="profil" element={<Profile />} />
       </Route>
       <Route path="*" element={<Navigate to="/" replace />} />
