@@ -132,7 +132,7 @@ Plan détaillé :
 - **Admin** : `Roles.jsx` — bouton « Nouveau rôle » (nom, description, droits cochés, « Partir des droits de… »), crayon pour renommer, corbeille pour supprimer (rôles créés seulement). `Users.jsx` — sélecteur alimenté par `/admin/users/roles` (rôles créés regroupés à part). En-tête et « Mon compte » affichent `role_label`.
 - Tests : `server/test/roles.test.js` (8 tests) ; **50 tests serveur, tous verts**. Admin compilé ; vérifié dans le navigateur sur une copie de la base démo (création d'un rôle, compte affecté, suppression refusée, renommage) ; la grille « Rôles & privilèges » s'affiche correctement.
 
-## 5 quater. Lot du 20/10 (committé sur `plateforme-admin-espace-client`, **pas encore mis en ligne**)
+## 5 quater. Lot du 20/10 (committé sur `plateforme-admin-espace-client`, **en ligne depuis le 20/10**)
 
 - **Admin** : menu Ventes › **Clients** (`pages/Clients.jsx`, route `GET /api/admin/clients`) ; **import CSV / Excel** des prospects et des clients (`components/ImportModal.jsx`, lecture SheetJS dans le navigateur, `POST /api/admin/import` avec essai à blanc ; en mode clients : code client repris, lots créés au besoin, dossier ouvert, versement « Reprise ancienne plateforme ») ; **suppression d'un prospect** (droit `leads:delete`, refusée s'il a un dossier ou une option) ; **vidéos** dans le suivi de chantier (200 Mo max) ; champ **« Type de projet »** dans la fiche projet (`PROJECT_CATEGORIES`, dont `lotissement`).
 - **Conversion d'un plan AutoCAD (DWG/DXF) en carte interactive** : fiche projet › Ajouter un plan › « Convertir un plan AutoCAD ». Le fichier est lu **sur le serveur** (`services/cad.js`, LibreDWG WebAssembly, `POST /api/admin/cad/parse`) ; la détection des parcelles se fait dans l'admin (`admin/src/lib/cadPlan.js`). Sur le DWG d'Ahoutoué : 165 lots numérotés sur 169 (21, 130, 138 restent « à placer ») + 203 parcelles sans numéro proposées en option.
@@ -142,13 +142,17 @@ Plan détaillé :
   `30 2 * * * /home/c2777901c/nodevenv/siipaf-api/server/22/bin/node /home/c2777901c/siipaf-api/server/scripts/backup.js >> /home/c2777901c/sauvegardes/backup.log 2>&1`
 - Tests : **64 tests serveur, tous verts**.
 
-### Mise en ligne de ce lot (à faire, avec l'accord du client et cPanel ouvert dans Chrome)
+### Mise en ligne des lots 5 quater et 5 quater bis — FAITE le 20/10 (accord du client)
+Fait : archives refaites (script de construction : serveur sans node_modules/data/.env/tests + `admin/dist` + `client/dist` ; site : les 7 pages, `css/pages.css`, `css/plans.css`, 5 fichiers `js/`), `npm install --omit=dev`, sauvegarde de la base avant migration (`~/sauvegardes/siipaf-base-20261020-1258.sql.gz`), migration `20261022000000_settings` passée (MySQL), redémarrage OK, site sauvegardé (`~/sauvegarde-site-avant-20261020b.tgz`) puis mis à jour, **tâche cron de sauvegarde nocturne créée (2 h 30)**. Vérifié en ligne : Paramètres dans admin.siipaf.com, nouvelles données de l'API publique, espace client, `img-src … blob:`.
+Reste à faire par le client : convertir le DWG d'Ahoutoué dans admin.siipaf.com (Projets › Ahoutoué › Ajouter un plan) et le publier ; ranger les équipements repris des anciens textes (ex. « 3 écoles » → Commodités) dans Paramètres.
+
+Ancienne liste (pour mémoire) :
 1. `npm run build` dans `admin/` et `client/`, refaire `deploy/siipaf-api.zip` puis la commande de mise à jour du serveur (section 6) — `npm install --omit=dev` est **obligatoire** cette fois (nouvelle dépendance `@mlightcad/libredwg-web`).
 2. Sauvegarder le site, puis `deploy/site-update.zip` : les 5 pages, `lotissements.html`, `plan-interactif.html`, `css/plans.css`, `css/pages.css`, `js/lotissements.js`, `js/plan-interactif.js`, `js/projets.js`, `js/site-content.js`, `js/testimonials.js`.
 3. Créer la tâche cron de sauvegarde.
 4. En production : passer Ahoutoué en « Lotissement » si c'est voulu, convertir le DWG d'Ahoutoué et publier le plan.
 
-## 5 quater bis. Paramètres, gestion des plans, import ZIP/HTML (20/10, committé, **pas encore mis en ligne**)
+## 5 quater bis. Paramètres, gestion des plans, import ZIP/HTML (20/10, committé, **en ligne depuis le 20/10**)
 
 - **Paramètres** (menu Administration › Paramètres, `admin/src/pages/Settings.jsx`) : listes en base (table `ref_items`) — villes, localisations (rattachées à une ville), équipements, commodités à proximité, éléments de viabilisation (avec état prévu / en cours / réalisé par projet, table `project_refs`), types de biens (suggestions de la grille de prix). Règles dans `domain.js` (`REF_KINDS`) et `services/refs.js` : une valeur utilisée ne se supprime pas, elle s'archive ; renommer met à jour les projets ; une case peut changer de liste. Droit `settings:write` (éditeur, resp. exploitation). **Réglages généraux** : durée de pré-réservation par défaut (`app_settings`, utilisée si le projet n'en a pas). **Affichage** : thème clair / sombre / système, enregistré sur le compte (`users.theme`, `PATCH /api/auth/preferences`).
 - **Fiche projet** : Ville et Localisation en menus déroulants (+ « Précision d'accès » libre) ; équipements, commodités, viabilisation en cases à cocher. Les colonnes texte `city`, `location`, `amenities` restent remplies automatiquement (le site et les autres écrans les lisent). L'API publique d'un projet renvoie aussi `commodites` et `viabilisation`.
