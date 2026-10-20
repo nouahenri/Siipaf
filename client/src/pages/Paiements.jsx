@@ -226,6 +226,18 @@ export default function Paiements() {
             <button type="button" aria-pressed={tab === 'versements'} onClick={() => setTab('versements')}>Versements · {d.payments.length}</button>
           </div>
           {tab === 'echeancier' ? <Schedule lines={d.schedule} payments={d.payments} /> : <Payments payments={d.payments} />}
+          {tab === 'echeancier' && d.vefa_upcoming?.length > 0 && (
+            <div className="card" style={{ marginTop: 14 }}>
+              <div className="row-group">Prochains appels de fonds · selon l’avancement du chantier</div>
+              {d.vefa_upcoming.map(c => (
+                <div key={c.seq} className="row">
+                  <span className="row-icon"><Landmark aria-hidden="true" /></span>
+                  <span className="row-main"><span className="row-title">{c.label}</span><span className="row-sub" style={{ display: 'block' }}>{c.pct} % du prix · appelé à l’achèvement de l’étape</span></span>
+                  <span className="row-end row-amount">{fcfa(c.amount_fcfa)}</span>
+                </div>
+              ))}
+            </div>
+          )}
         </div>
       </div>
     </>

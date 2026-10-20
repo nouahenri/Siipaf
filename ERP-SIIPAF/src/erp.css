@@ -91,3 +91,78 @@ a.module-tile .module-foot { color: var(--brand); }
   .agenda-item .badge { grid-column: 2; justify-self: start; }
   .list-row { padding: 12px 16px; }
 }
+
+/* ─── Commercial : pipeline ──────────────────────────────── */
+.pipe-total { padding: 4px 14px 0; }
+.pipe-card .ellipsis { display: block; }
+.act-dot { display: inline-grid; place-items: center; }
+.act-dot svg { width: 15px; height: 15px; }
+.avatar.xs { width: 24px; height: 24px; font-size: 10px; }
+.avatar.xs svg { width: 13px; height: 13px; }
+.pipe-card .stars { color: var(--border-strong); }
+.pipe-card .stars .on { color: #e0a100; fill: currentColor; }
+
+/* Barre d'étapes de la fiche prospect */
+.stagebar { display: flex; flex-wrap: wrap; gap: 4px; }
+.stagebar button { flex: 1 1 auto; border: 1px solid var(--border); background: var(--surface-2); color: var(--ink-2); font-size: 12px; font-weight: 500; padding: 7px 10px; border-radius: 6px; cursor: pointer; white-space: nowrap; }
+.stagebar button:hover:not(:disabled) { border-color: var(--border-strong); color: var(--ink); }
+.stagebar button.on { color: #fff; font-weight: 600; cursor: default; }
+.stagebar button:disabled:not(.on) { cursor: default; }
+.stars-input-sm { display: inline-flex; gap: 2px; }
+.stars-input-sm button { border: none; background: none; padding: 2px; cursor: pointer; color: var(--border-strong); }
+.stars-input-sm button svg { width: 18px; height: 18px; }
+.stars-input-sm button.on { color: #e0a100; }
+.stars-input-sm button.on svg { fill: currentColor; }
+fieldset { border: none; min-width: 0; }
+
+/* Historique (fil chronologique) */
+.timeline { list-style: none; position: relative; display: flex; flex-direction: column; gap: 14px; }
+.timeline::before { content: ''; position: absolute; left: 11px; top: 6px; bottom: 6px; width: 2px; background: var(--border); }
+.timeline li { display: grid; grid-template-columns: 24px minmax(0, 1fr); gap: 10px; position: relative; }
+.tl-dot { width: 24px; height: 24px; border-radius: 50%; display: grid; place-items: center; font-size: 11px; background: var(--surface); border: 2px solid var(--border-strong); color: var(--ink-2); z-index: 1; }
+.tl-etape .tl-dot { border-color: var(--series-1); color: var(--series-1); }
+.tl-vente .tl-dot, .tl-paiement .tl-dot { border-color: var(--ok); color: var(--ok); }
+.tl-note .tl-dot { border-color: var(--gold); color: var(--gold); }
+.tl-sav .tl-dot { border-color: var(--danger); color: var(--danger); }
+
+/* Barre de progression d'objectif */
+.pct-bar { display: flex; align-items: center; gap: 8px; margin-top: 4px; }
+.pct-track { flex: 1; height: 6px; border-radius: 3px; background: var(--bg); overflow: hidden; min-width: 50px; }
+.pct-track > div { height: 100%; border-radius: 3px; transition: width .4s; }
+
+/* ─── Parc immobilier ────────────────────────────────────── */
+.property-layout { display: grid; grid-template-columns: 240px minmax(0, 1fr); gap: 20px; align-items: start; }
+.tree { padding: 8px; display: flex; flex-direction: column; gap: 2px; max-height: 70vh; overflow-y: auto; }
+.tree-item { width: 100%; display: flex; align-items: center; gap: 8px; padding: 8px 10px; border: none; background: none; border-radius: var(--radius-sm); cursor: pointer; text-align: left; color: var(--ink-2); font-weight: 500; }
+.tree-item svg { width: 16px; height: 16px; flex-shrink: 0; }
+.tree-item .muted { margin-left: auto; font-size: 12px; font-weight: 400; }
+.tree-item:hover { background: var(--surface-2); color: var(--ink); }
+.tree-item.on { background: var(--brand-soft); color: var(--brand); }
+.tree-item.sub { padding-left: 30px; font-size: 13px; }
+.floors { display: flex; flex-direction: column; gap: 6px; }
+.floor { display: grid; grid-template-columns: 120px minmax(0, 1fr); gap: 10px; align-items: center; padding: 6px 0; border-top: 1px dashed var(--border); }
+.floor:first-child { border-top: none; }
+.floor-label { color: var(--ink-3); }
+.floor-lots { display: flex; flex-wrap: wrap; gap: 6px; }
+.unit { min-width: 84px; padding: 6px 10px; border-radius: 8px; border: 1px solid var(--border); border-left: 4px solid var(--c); background: var(--surface); cursor: pointer; text-align: left; display: flex; flex-direction: column; }
+.unit b { font-size: 13px; }
+.unit span { font-size: 11px; color: var(--ink-3); }
+.unit:hover { box-shadow: var(--shadow); border-color: var(--border-strong); border-left-color: var(--c); }
+.input.right { text-align: right; }
+
+/* ─── Appels de fonds ────────────────────────────────────── */
+.calls { list-style: none; position: relative; display: flex; flex-direction: column; gap: 12px; }
+.calls::before { content: ''; position: absolute; left: 6px; top: 8px; bottom: 8px; width: 2px; background: var(--border); }
+.calls li { position: relative; padding-left: 24px; }
+.call-dot { position: absolute; left: 0; top: 5px; width: 14px; height: 14px; border-radius: 50%; background: var(--surface); border: 2px solid var(--border-strong); }
+.calls li.called .call-dot { background: var(--series-1); border-color: var(--series-1); }
+.callout-erp { display: flex; gap: 12px; align-items: flex-start; padding: 12px 14px; border-radius: var(--radius-sm); background: var(--gold-soft); color: var(--ink-2); }
+.callout-erp svg { width: 20px; height: 20px; color: var(--gold); flex-shrink: 0; margin-top: 1px; }
+
+@media (max-width: 900px) {
+  .property-layout { grid-template-columns: 1fr; }
+  .tree { max-height: none; flex-direction: row; flex-wrap: wrap; }
+  .tree-item { width: auto; }
+  .tree-item.sub { padding-left: 10px; }
+  .floor { grid-template-columns: 1fr; gap: 4px; }
+}

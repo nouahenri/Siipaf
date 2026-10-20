@@ -17,6 +17,7 @@ export const SOURCE_LABELS = { client: 'Espace client', equipe: 'Saisie équipe'
 
 export const WARRANTY_SHORT = {
   parfait_achevement: 'Parfait achèvement',
+  engagement_lotisseur: 'Engagement du lotisseur',
   biennale: 'Biennale',
   decennale: 'Décennale',
   hors_garantie: 'Hors garantie',

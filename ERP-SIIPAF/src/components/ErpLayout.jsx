@@ -1,6 +1,9 @@
 import { useEffect, useRef, useState } from 'react';
 import { NavLink, Outlet, useLocation } from 'react-router-dom';
-import { LayoutGrid, LifeBuoy, LayoutDashboard, ClipboardList, ClipboardCheck, CalendarClock, LogOut, Menu, ExternalLink } from 'lucide-react';
+import {
+  LayoutGrid, LifeBuoy, LayoutDashboard, ClipboardList, ClipboardCheck, CalendarClock, LogOut, Menu, ExternalLink,
+  Briefcase, Columns3, ListTodo, CalendarDays, Building2, FileSignature, Landmark, Target,
+} from 'lucide-react';
 import { useAuth, useResource } from '@admin/lib/app-context';
 import { useRevealOnScroll } from '@admin/lib/reveal';
 import { ROLE_LABELS } from '@admin/lib/domain';
@@ -8,6 +11,19 @@ import { initials } from '@admin/lib/format';
 
 // Navigation de chaque module ; les modules suivants (comptabilité, RH…) viendront s'ajouter ici
 const MODULES = {
+  commercial: {
+    label: 'Commercial', icon: Briefcase, perm: ['commercial:read', 'vefa:write'],
+    items: [
+      { to: '/commercial', label: 'Tableau de bord', icon: LayoutDashboard, end: true, perm: 'commercial:read' },
+      { to: '/commercial/pipeline', label: 'Pipeline', icon: Columns3, perm: 'leads:read' },
+      { to: '/commercial/activites', label: 'Mes activités', icon: ListTodo, badge: 'late_activities', perm: 'commercial:read' },
+      { to: '/commercial/rendez-vous', label: 'Rendez-vous', icon: CalendarDays, perm: 'appointments:read' },
+      { to: '/commercial/parc', label: 'Parc immobilier', icon: Building2, perm: 'lots:read' },
+      { to: '/commercial/ventes', label: 'Dossiers de vente', icon: FileSignature, perm: 'sales:read' },
+      { to: '/commercial/vefa', label: 'Appels de fonds VEFA', icon: Landmark, perm: ['commercial:read', 'vefa:write'] },
+      { to: '/commercial/objectifs', label: 'Objectifs', icon: Target, perm: 'commercial:read' },
+    ],
+  },
   sav: {
     label: 'Client & SAV', icon: LifeBuoy, perm: 'sav:read',
     items: [
@@ -20,19 +36,23 @@ const MODULES = {
 };
 
 const TITLES = {
-  '/': 'Modules', '/sav': 'Client & SAV', '/sav/reclamations': 'Réclamations', '/sav/reserves': 'Réserves de livraison', '/sav/interventions': 'Interventions',
+  '/': 'Modules', '/commercial': 'Commercial', '/commercial/pipeline': 'Pipeline commercial', '/commercial/activites': 'Mes activités',
+  '/commercial/rendez-vous': 'Rendez-vous', '/commercial/parc': 'Parc immobilier', '/commercial/ventes': 'Dossiers de vente',
+  '/commercial/vefa': 'Appels de fonds VEFA', '/commercial/objectifs': 'Objectifs commerciaux', '/sav': 'Client & SAV', '/sav/reclamations': 'Réclamations', '/sav/reserves': 'Réserves de livraison', '/sav/interventions': 'Interventions',
 };
 
 // Le dashboard est sur admin.siipaf.com quand l'ERP est sur erp.siipaf.com (admin.localhost en local)
 const dashboardUrl = () => `${window.location.protocol}//${window.location.host.replace(/^erp\./, 'admin.')}/`;
 
 export default function ErpLayout() {
-  const { user, logout, can } = useAuth();
+  const { user, logout, can: canOne } = useAuth();
+  const can = perm => (Array.isArray(perm) ? perm.some(canOne) : canOne(perm));
   const { pathname } = useLocation();
   const [open, setOpen] = useState(false);
   const moduleId = pathname.split('/')[1];
   const mod = MODULES[moduleId];
-  const stats = useResource(mod && moduleId === 'sav' ? '/admin/erp/sav/stats' : null, [pathname]);
+  const statsUrl = moduleId === 'sav' ? '/admin/erp/sav/stats' : moduleId === 'commercial' && can('commercial:read') ? '/admin/erp/commercial/dashboard' : null;
+  const stats = useResource(statsUrl, [pathname]);
   const contentRef = useRef(null);
   useRevealOnScroll(contentRef, [pathname]);
 
@@ -51,7 +71,7 @@ export default function ErpLayout() {
         {mod && can(mod.perm) && (
           <div className="nav-group">
             <div className="nav-group-title">{mod.label}</div>
-            {mod.items.map(i => {
+            {mod.items.filter(i => !i.perm || can(i.perm)).map(i => {
               const count = i.badge && stats.data ? stats.data[i.badge] : 0;
               return (
                 <NavLink key={i.to} to={i.to} end={i.end} className={({ isActive }) => `nav-item ${isActive ? 'active' : ''}`}>

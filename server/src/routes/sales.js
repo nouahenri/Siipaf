@@ -73,6 +73,8 @@ module.exports = function salesRoutes(db) {
       price_fcfa: z.number().int().positive().optional(),
       financing: z.enum(['apport', 'diaspora', 'credit', 'comptant']).optional(),
       reserved_at: day.optional(),
+      signed_at: day.optional(),
+      vefa: z.boolean().optional(),
       notes: z.string().max(2000).optional(),
     }), req.body);
     if (!data.lead_id && (!data.name || (!data.phone && !data.email))) {
@@ -90,13 +92,14 @@ module.exports = function salesRoutes(db) {
       financing: z.enum(['apport', 'diaspora', 'credit', 'comptant']).nullable(),
       reserved_at: day.nullable(),
       signed_at: day.nullable(),
+      vefa: z.boolean(),
       notes: z.string().max(2000).nullable(),
     }).partial(), req.body);
     const n = await db('sales').where({ id }).update({ ...data, updated_at: new Date() });
     if (!n) throw new HttpError(404, 'Dossier introuvable.');
     const sale = await db.transaction(async trx => {
       // Prix, financement ou date de départ modifiés : l'échéancier type est recalculé
-      if (['price_fcfa', 'financing', 'reserved_at'].some(k => k in data)) {
+      if (['price_fcfa', 'financing', 'reserved_at', 'vefa'].some(k => k in data)) {
         await regenerateSchedule(trx, await trx('sales').where({ id }).first());
       }
       return refreshSaleStatus(trx, id);
@@ -114,7 +117,7 @@ module.exports = function salesRoutes(db) {
     }), req.body || {});
     const sale = await db('sales').where({ id }).first();
     if (!sale) throw new HttpError(404, 'Dossier introuvable.');
-    if (!sale.financing) throw new HttpError(400, 'Indiquez d’abord le mode de financement du dossier.');
+    if (!sale.financing && !sale.vefa) throw new HttpError(400, 'Indiquez d’abord le mode de financement du dossier.');
     await db.transaction(trx => regenerateSchedule(trx, sale, opts));
     res.json(await saleDetail(sale));
   }));

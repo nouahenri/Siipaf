@@ -94,6 +94,11 @@ module.exports = function crmRoutes(db) {
       throw new HttpError(403, 'Un commercial ne peut assigner un prospect qu’à lui-même.');
     }
     await db('leads').where({ id }).update({ ...data, updated_at: new Date() });
+    // Historique du prospect (ERP · Commercial) : le changement d'étape y est inscrit
+    if (data.stage && data.stage !== lead.stage) {
+      const { logActivity, STAGE_LABELS } = require('../services/commercial');
+      await logActivity(db, id, { kind: 'etape', summary: `Étape : ${STAGE_LABELS[lead.stage]} → ${STAGE_LABELS[data.stage]}`, userId: req.user.id });
+    }
     res.json(await db('leads').where({ id }).first());
   }));
 

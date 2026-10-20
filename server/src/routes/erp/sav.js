@@ -99,7 +99,7 @@ module.exports = function savRoutes(db) {
       category: category.optional(), priority: priority.optional(),
       title: z.string().trim().min(3).max(160).optional(),
       description: optText(5000), location: optText(120),
-      warranty: z.enum([...Object.keys(WARRANTIES), 'hors_garantie']).optional().nullable(),
+      warranty: z.enum([...Object.keys(WARRANTIES), 'engagement_lotisseur', 'hors_garantie']).optional().nullable(),
       assigned_to: z.number().int().positive().optional().nullable(),
     }).partial(), req.body);
     const t = await db('sav_tickets').where({ id }).first();

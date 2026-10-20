@@ -43,7 +43,7 @@ async function refreshSaleStatus(trx, saleId) {
  * Ouvre le dossier d'acquisition d'un lot pour un acquéreur.
  * Un lot disponible, en désistement ou en option passe « réservé » (l'option est confirmée).
  */
-async function openSale(db, { lotId, leadId, leadData, price_fcfa, financing, notes, reserved_at, user }) {
+async function openSale(db, { lotId, leadId, leadData, price_fcfa, financing, notes, reserved_at, signed_at, vefa = false, user }) {
   return db.transaction(async trx => {
     const lot = await trx('lots').where({ id: lotId }).first();
     if (!lot) throw new HttpError(404, 'Lot introuvable.');
@@ -73,15 +73,15 @@ async function openSale(db, { lotId, leadId, leadData, price_fcfa, financing, no
     if (price == null) throw new HttpError(400, 'Indiquez le prix convenu.');
     const [saleId] = await trx('sales').insert({
       lot_id: lot.id, lead_id: lead.id, price_fcfa: price, financing: financing || lead.financing || null,
-      notes: notes || null, reserved_at: reserved_at || new Date(), created_by: user.id,
+      notes: notes || null, reserved_at: reserved_at || new Date(), signed_at: signed_at || null, vefa: !!vefa, created_by: user.id,
     });
     await trx('sale_documents').insert(DEFAULT_DOCUMENTS.map(([type, label, status], sort) => ({
       sale_id: saleId, type, label, status, sort, updated_by: user.id,
     })));
 
-    // Échéancier type selon le financement (modifiable ensuite par le comptable)
+    // Échéancier type selon le financement (modifiable ensuite par le comptable), ou appels de fonds VEFA
     const sale = await trx('sales').where({ id: saleId }).first();
-    await require('./schedule').regenerateSchedule(trx, sale);
+    await require('./schedule').regenerateSchedule(trx, sale, { userId: user.id });
 
     const leadPatch = { lot_id: lot.id, project_id: lot.project_id, updated_at: new Date() };
     if (!lead.client_code) leadPatch.client_code = await nextClientCode(trx);

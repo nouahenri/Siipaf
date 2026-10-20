@@ -1,17 +1,17 @@
 import { Link } from 'react-router-dom';
-import { LifeBuoy, Calculator, Users, Scale, Building, HardHat, Boxes, Target, ArrowRight } from 'lucide-react';
+import { LifeBuoy, Calculator, Users, Scale, Building, HardHat, Boxes, Briefcase, ArrowRight } from 'lucide-react';
 import { useAuth } from '@admin/lib/app-context';
 
 // Feuille de route de l'ERP (passation.md §5 quinquies) : seuls les modules livrés sont ouverts
 const MODULES = [
-  { id: 'sav', to: '/sav', label: 'Client & SAV', text: 'Réclamations, réserves de livraison, interventions, satisfaction.', icon: LifeBuoy, perm: 'sav:read', color: '#2a78d6' },
+  { id: 'commercial', to: '/commercial', label: 'Commercial', text: 'Parc immobilier, pipeline de la prospection au notaire, ventes, appels de fonds VEFA, objectifs.', icon: Briefcase, perm: ['commercial:read', 'vefa:write'], color: '#d2101e' },
+  { id: 'sav', to: '/sav', label: 'Client & SAV', text: 'Après la vente : réserves de livraison, réclamations (maisons et terrains), interventions, satisfaction.', icon: LifeBuoy, perm: 'sav:read', color: '#2a78d6' },
   { id: 'compta', label: 'Comptabilité', text: 'SYSCOHADA : journaux, grand livre, balance, états financiers.', icon: Calculator, color: '#1baf7a' },
   { id: 'rh', label: 'RH & paie', text: 'Dossiers du personnel, congés, paie CNPS / ITS, objectifs.', icon: Users, color: '#eb6834' },
   { id: 'chantiers', label: 'Chantiers', text: 'Planning (Gantt), feuilles de temps, situations de travaux.', icon: HardHat, color: '#eda100' },
   { id: 'achats', label: 'Achats & stocks', text: 'Commandes, sous-traitance, dépôt ↔ chantier.', icon: Boxes, color: '#e87ba4' },
   { id: 'juridique', label: 'Juridique', text: 'Contrats, notaires, actes et échéances.', icon: Scale, color: '#6d28d9' },
   { id: 'admin', label: 'Administration générale', text: 'Courrier, parc, fournisseurs, documents internes.', icon: Building, color: '#5b6170' },
-  { id: 'kpi', label: 'KPI commerciaux', text: 'Objectifs par commercial et indicateurs de vente.', icon: Target, color: '#d2101e' },
 ];
 
 export default function Launcher() {
@@ -24,7 +24,7 @@ export default function Launcher() {
       </div>
       <div className="module-grid">
         {MODULES.map(m => {
-          const ready = m.to && (!m.perm || can(m.perm));
+          const ready = m.to && (!m.perm || [].concat(m.perm).some(can));
           const body = (
             <>
               <span className="module-icon" style={{ '--c': m.color }}><m.icon aria-hidden="true" /></span>

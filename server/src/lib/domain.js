@@ -237,23 +237,23 @@ const PERMISSIONS = {
   commercial: [
     'projects:read', 'lots:read', 'lots:status', 'leads:read', 'leads:write',
     'appointments:read', 'appointments:write', 'contacts:read', 'sales:read', 'sales:write',
-    'client_access:write', 'client_messages', 'sav:read',
+    'client_access:write', 'client_messages', 'sav:read', 'commercial:read',
   ],
   editeur: [
     'projects:read', 'projects:write', 'plans:write', 'lots:read', 'content:write', 'media:write',
-    'newsletter:read', 'newsletter:write', 'contacts:read', 'testimonials:write', 'settings:write',
+    'newsletter:read', 'newsletter:write', 'contacts:read', 'testimonials:write', 'settings:write', 'property:write',
   ],
-  conducteur_travaux: ['projects:read', 'lots:read', 'sales:read', 'documents:write', 'site_updates:write', 'client_messages', 'sav:read', 'sav:write'],
+  conducteur_travaux: ['projects:read', 'lots:read', 'sales:read', 'documents:write', 'site_updates:write', 'client_messages', 'sav:read', 'sav:write', 'vefa:write'],
   comptable: [
     'projects:read', 'lots:read', 'leads:read', 'appointments:read', 'sales:read', 'payments:write',
-    'schedule:write', 'client_messages',
+    'schedule:write', 'client_messages', 'commercial:read',
   ],
   resp_exploitation: [
     'projects:read', 'projects:write', 'plans:write', 'lots:read', 'lots:status', 'leads:read', 'leads:delete',
     'appointments:read', 'contacts:read', 'users:read', 'newsletter:read',
     'sales:read', 'sales:write', 'documents:write', 'testimonials:write',
     'client_access:write', 'client_messages', 'site_updates:write', 'schedule:write', 'settings:write',
-    'sav:read', 'sav:write',
+    'sav:read', 'sav:write', 'commercial:read', 'targets:write', 'vefa:write', 'property:write',
   ],
 };
 
@@ -285,6 +285,12 @@ const PERMISSION_CATALOG = [
     ['site_updates:write', 'Publier l’avancement du chantier', 'Étapes, pourcentages, photos et vidéos'],
     ['schedule:write', 'Gérer les échéanciers', 'Générer et modifier les échéances de paiement'],
   ] },
+  { group: 'ERP · Commercial', items: [
+    ['commercial:read', 'Ouvrir le module Commercial', 'Tableau de bord, pipeline, activités, parc, ventes, appels de fonds, objectifs'],
+    ['targets:write', 'Fixer les objectifs commerciaux', 'Objectifs mensuels par commercial'],
+    ['property:write', 'Structurer le parc immobilier', 'Bâtiments, étages et caractéristiques des lots'],
+    ['vefa:write', 'Gérer les appels de fonds VEFA', 'Plans d’appels de fonds et constat d’avancement des travaux'],
+  ] },
   { group: 'ERP · Client & SAV', items: [
     ['sav:read', 'Voir le SAV', 'Réclamations, réserves à la livraison, interventions, indicateurs'],
     ['sav:write', 'Traiter le SAV', 'Créer et faire avancer les réclamations, lever les réserves, planifier les interventions'],
@@ -312,7 +318,11 @@ const PERMISSION_IDS = PERMISSION_CATALOG.flatMap(g => g.items.map(i => i[0]));
 
 /* ─── ERP · Client & SAV ──────────────────────────────────────────────────── */
 
+// Promotion (maisons livrées) et vente de terrains (lotissements) : SAV_LAND_CATEGORIES concernent les parcelles
 const SAV_CATEGORIES = {
+  bornage: 'Bornage / implantation des limites',
+  foncier: 'ACD, titre foncier, morcellement',
+  viabilisation: 'Viabilisation : eau, électricité',
   plomberie: 'Plomberie',
   electricite: 'Électricité',
   maconnerie: 'Maçonnerie / fissures',
@@ -320,7 +330,7 @@ const SAV_CATEGORIES = {
   menuiserie: 'Menuiserie (portes, fenêtres)',
   revetements: 'Carrelage / peinture',
   equipements: 'Sanitaires / équipements',
-  vrd: 'Voirie, réseaux, clôture',
+  vrd: 'Voirie, assainissement, clôture',
   administratif: 'Administratif / documents',
   autre: 'Autre',
 };
@@ -363,9 +373,13 @@ const WARRANTIES = {
 };
 const DECENNALE_CATEGORIES = ['maconnerie', 'etancheite'];
 const BIENNALE_CATEGORIES = ['plomberie', 'electricite', 'menuiserie', 'equipements'];
+// Terrain : obligations du lotisseur (bornage, documents fonciers, viabilisation promise au cahier des charges),
+// sans délai de garantie de construction
+const SAV_LAND_CATEGORIES = ['bornage', 'foncier', 'viabilisation', 'vrd'];
 
 /** Garantie applicable à un désordre de catégorie donnée, ou « hors_garantie » / null si pas livré. */
 function warrantyFor(category, deliveredAt, today = new Date()) {
+  if (SAV_LAND_CATEGORIES.includes(category)) return 'engagement_lotisseur';
   if (!deliveredAt) return null;
   const d = new Date(deliveredAt);
   const until = years => { const x = new Date(d); x.setFullYear(x.getFullYear() + years); return x; };
@@ -402,6 +416,134 @@ function checkLotTransition(from, to, role) {
   return null;
 }
 
+/* ─── ERP · Commercial ────────────────────────────────────────────────────── */
+
+// Probabilité de conclure par étape du circuit (pipeline pondéré, façon Odoo CRM)
+const STAGE_PROBABILITY = {
+  prospection: 10, visite: 25, decision: 40, choix_bien: 60, paiement: 75, contrat: 90, notaire: 100, livraison: 100, sav: 100, perdu: 0,
+};
+// Colonnes du pipeline : de la prospection à la signature chez le notaire
+const PIPELINE_STAGES = ['prospection', 'visite', 'decision', 'choix_bien', 'paiement', 'contrat', 'notaire'];
+// Étapes où la vente est acquise (contrat signé et au-delà)
+const WON_STAGES = ['contrat', 'notaire', 'livraison', 'sav'];
+
+// Motif obligatoire pour classer un prospect « perdu »
+const LOST_REASONS = {
+  prix: 'Prix ou budget insuffisant',
+  financement: 'Financement refusé ou introuvable',
+  concurrent: 'Achat chez un concurrent',
+  localisation: 'Localisation ne convient pas',
+  produit: 'Type de bien ne convient pas',
+  delai: 'Délai de livraison trop long',
+  injoignable: 'Injoignable / sans réponse',
+  report: 'Projet reporté',
+  autre: 'Autre',
+};
+
+// Activités planifiées ou réalisées avec un prospect
+const ACTIVITY_KINDS = {
+  appel: 'Appel', whatsapp: 'WhatsApp', email: 'E-mail', visite: 'Visite sur site', reunion: 'Rendez-vous au bureau',
+  relance: 'Relance', document: 'Document à obtenir', tache: 'À faire', note: 'Note',
+};
+const LEAD_KINDS = { acquereur: 'Acquéreur (résidence)', investisseur: 'Investisseur', entreprise: 'Entreprise / institution' };
+
+// Parc immobilier : projet › îlot › bâtiment › étage › lot
+const LOT_TYPES = {
+  parcelle: 'Parcelle de terrain', villa: 'Villa', duplex: 'Duplex', appartement: 'Appartement',
+  studio: 'Studio', commerce: 'Local commercial', bureau: 'Bureau', autre: 'Autre',
+};
+const BUILDING_KINDS = { immeuble: 'Immeuble collectif', residence: 'Résidence (villas groupées)', bloc: 'Bloc / rangée', autre: 'Autre' };
+
+// Objectifs mensuels par commercial
+const TARGET_METRICS = {
+  ca_fcfa: 'Chiffre d’affaires signé (FCFA)',
+  ventes: 'Ventes (dossiers ouverts)',
+  rdv: 'Rendez-vous réalisés',
+  encaissements_fcfa: 'Encaissements (FCFA)',
+};
+
+/**
+ * VEFA — Code de la construction et de l'habitat (loi n° 2019-576), art. 121 et 124 : aucun versement avant la
+ * signature (hors dépôt de garantie de réservation), puis plafonds CUMULÉS du prix : 20 % à l'achèvement des
+ * fondations, 60 % à la mise hors d'eau, 90 % à l'achèvement des travaux ; le solde à la mise à disposition.
+ * Les étapes sont celles du journal de chantier (SITE_STAGES) ; « signature » = acte notarié.
+ */
+const VEFA_LEGAL_CAPS = [
+  { upTo: 'fondations', pct: 20, label: 'achèvement des fondations' },
+  { upTo: 'toiture', pct: 60, label: 'mise hors d’eau' },
+  { upTo: 'finitions', pct: 90, label: 'achèvement des travaux' },
+];
+const DEFAULT_VEFA_PLAN = [
+  { stage: 'signature', label: 'Signature de l’acte notarié', pct: 10 },
+  { stage: 'fondations', label: 'Achèvement des fondations', pct: 10 },
+  { stage: 'gros_oeuvre', label: 'Élévation des murs (gros œuvre)', pct: 20 },
+  { stage: 'toiture', label: 'Mise hors d’eau (toiture)', pct: 20 },
+  { stage: 'finitions', label: 'Achèvement des travaux', pct: 30 },
+  { stage: 'livraison', label: 'Remise des clés (solde)', pct: 10 },
+];
+const VEFA_DUE_DAYS = 15;
+
+const vefaOrder = stage => (stage === 'signature' ? -1 : SITE_STAGES.indexOf(stage));
+
+/** Contrôle un plan d'appels de fonds : étapes connues, ordonnées, total 100 %, plafonds légaux, solde à la livraison. */
+function checkVefaPlan(milestones) {
+  const errors = [];
+  if (!Array.isArray(milestones) || !milestones.length) return ['Le plan doit contenir au moins une étape.'];
+  let prev = -2;
+  let cumul = 0;
+  const seen = new Set();
+  for (const m of milestones) {
+    const order = vefaOrder(m.stage);
+    if (order === -1 && m.stage !== 'signature') { errors.push(`Étape inconnue : ${m.stage}.`); continue; }
+    if (order < -1) { errors.push(`Étape inconnue : ${m.stage}.`); continue; }
+    if (seen.has(m.stage)) errors.push(`L’étape « ${m.label || m.stage} » apparaît deux fois.`);
+    seen.add(m.stage);
+    if (order <= prev) errors.push('Les étapes doivent suivre l’ordre du chantier.');
+    prev = order;
+    if (!(m.pct > 0)) errors.push(`Le pourcentage de « ${m.label || m.stage} » doit être positif.`);
+    cumul += Number(m.pct) || 0;
+    for (const cap of VEFA_LEGAL_CAPS) {
+      if (order <= SITE_STAGES.indexOf(cap.upTo) && cumul > cap.pct + 1e-9) {
+        errors.push(`À l’étape « ${m.label || m.stage} », le cumul (${cumul} %) dépasse le plafond légal de ${cap.pct} % à l’${cap.label} (art. 124).`);
+      }
+    }
+  }
+  if (Math.abs(cumul - 100) > 1e-9) errors.push(`Le total des appels doit faire 100 % (actuellement ${cumul} %).`);
+  if (milestones[milestones.length - 1]?.stage !== 'livraison') errors.push('Le dernier appel (le solde) doit tomber à la livraison.');
+  return [...new Set(errors)];
+}
+
+/** Montants des appels de fonds : arrondis au franc, le dernier absorbe l'écart d'arrondi. */
+function splitVefaAmounts(price, milestones) {
+  const p = Number(price);
+  let done = 0;
+  return milestones.map((m, i) => {
+    const amount = i === milestones.length - 1 ? p - done : Math.round((p * m.pct) / 100);
+    done += amount;
+    return { ...m, amount_fcfa: amount };
+  });
+}
+
+/**
+ * Une étape est constatée achevée quand le chantier en est à l'étape suivante (ou au-delà) ;
+ * la livraison, dernière étape, est atteinte dès qu'elle est déclarée. La signature ne dépend pas du chantier.
+ */
+function milestoneReached(milestoneStage, siteStage) {
+  if (milestoneStage === 'signature') return false;
+  const m = SITE_STAGES.indexOf(milestoneStage);
+  const s = SITE_STAGES.indexOf(siteStage);
+  if (m < 0 || s < 0) return false;
+  return milestoneStage === 'livraison' ? s === m : s > m;
+}
+
+/** État d'une activité planifiée : en retard, aujourd'hui, à venir (pastille du pipeline). */
+function activityState(dueAt, today = new Date()) {
+  if (!dueAt) return null;
+  const d = isoDate(new Date(dueAt));
+  const t = isoDate(today);
+  return d < t ? 'retard' : d === t ? 'aujourdhui' : 'a_venir';
+}
+
 module.exports = {
   LOT_STATUSES, LOT_STATUS_LABELS, SELLABLE_STATUSES, LOT_TRANSITIONS,
   LEAD_STAGES, ROLES, ROLE_LABELS, PERMISSIONS, roleKey, can, checkLotTransition,
@@ -412,5 +554,7 @@ module.exports = {
   addMonths, buildSchedule, allocatePayments, phoneKey, looksLikeClientCode, PROTECTED_ROLES, DELETABLE_LOT_STATUSES, NEW_LOT_STATUSES, PROJECT_CATEGORIES,
   REF_KINDS, FEATURE_KINDS, VIABILISATION_STATES, APP_SETTINGS, THEMES,
   SAV_CATEGORIES, SAV_PRIORITIES, SAV_STATUSES, SAV_STATUS_LABELS, SAV_OPEN_STATUSES, SAV_TRANSITIONS, SAV_SOURCES,
-  WARRANTIES, warrantyFor, warrantyDates, SAV_RESERVE_STATUSES, SAV_INTERVENTION_STATUSES,
+  WARRANTIES, warrantyFor, warrantyDates, SAV_LAND_CATEGORIES, SAV_RESERVE_STATUSES, SAV_INTERVENTION_STATUSES,
+  STAGE_PROBABILITY, PIPELINE_STAGES, WON_STAGES, LOST_REASONS, ACTIVITY_KINDS, LEAD_KINDS, LOT_TYPES, BUILDING_KINDS,
+  TARGET_METRICS, VEFA_LEGAL_CAPS, DEFAULT_VEFA_PLAN, VEFA_DUE_DAYS, checkVefaPlan, splitVefaAmounts, milestoneReached, activityState,
 };

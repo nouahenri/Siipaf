@@ -221,6 +221,8 @@ async function clientSaleDetail(db, leadId, saleId) {
   return {
     ...summary,
     schedule: schedule.lines,
+    // VEFA : appels de fonds encore à venir (émis à chaque étape achevée du chantier)
+    vefa_upcoming: schedule.vefa ? schedule.calls.filter(c => c.status === 'a_venir').map(c => ({ seq: c.seq, label: c.label, pct: c.pct, amount_fcfa: c.amount_fcfa })) : null,
     payments: payments.map(p => ({
       id: p.id, receipt_number: receiptNumber(p), amount_fcfa: Number(p.amount_fcfa), paid_at: isoDay(p.paid_at),
       method: PAYMENT_METHODS.includes(p.method) ? p.method : 'autre', reference: p.reference,
