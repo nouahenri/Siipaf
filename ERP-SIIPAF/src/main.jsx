@@ -17,6 +17,12 @@ import Property from './pages/commercial/Property';
 import Sales from './pages/commercial/Sales';
 import Vefa from './pages/commercial/Vefa';
 import Targets from './pages/commercial/Targets';
+import ComptaDashboard from './pages/compta/ComptaDashboard';
+import Entries from './pages/compta/Entries';
+import Purchases from './pages/compta/Purchases';
+import Reports from './pages/compta/Reports';
+import Chart from './pages/compta/Chart';
+import ComptaSettings from './pages/compta/Settings';
 import '@admin/styles.css';
 import './erp.css';
 
@@ -41,6 +47,12 @@ function App() {
         <Route path="commercial/ventes" element={<Guard perm="sales:read"><Sales /></Guard>} />
         <Route path="commercial/vefa" element={<Guard perm={['commercial:read', 'vefa:write']}><Vefa /></Guard>} />
         <Route path="commercial/objectifs" element={<Guard perm="commercial:read"><Targets /></Guard>} />
+        <Route path="compta" element={<Guard perm="compta:read"><ComptaDashboard /></Guard>} />
+        <Route path="compta/ecritures" element={<Guard perm="compta:read"><Entries /></Guard>} />
+        <Route path="compta/achats" element={<Guard perm="compta:read"><Purchases /></Guard>} />
+        <Route path="compta/etats" element={<Guard perm="compta:read"><Reports /></Guard>} />
+        <Route path="compta/plan" element={<Guard perm="compta:read"><Chart /></Guard>} />
+        <Route path="compta/parametres" element={<Guard perm="compta:read"><ComptaSettings /></Guard>} />
         <Route path="sav" element={<Guard perm="sav:read"><SavDashboard /></Guard>} />
         <Route path="sav/reclamations" element={<Guard perm="sav:read"><Tickets /></Guard>} />
         <Route path="sav/reserves" element={<Guard perm="sav:read"><Reserves /></Guard>} />

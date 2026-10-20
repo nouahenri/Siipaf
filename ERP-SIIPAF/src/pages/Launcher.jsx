@@ -6,7 +6,7 @@ import { useAuth } from '@admin/lib/app-context';
 const MODULES = [
   { id: 'commercial', to: '/commercial', label: 'Service commercial', text: 'Parc immobilier, pipeline de la prospection au notaire, ventes, appels de fonds VEFA, objectifs.', icon: Briefcase, perm: ['commercial:read', 'vefa:write'], color: '#d2101e' },
   { id: 'sav', to: '/sav', label: 'Client & SAV', text: 'Après la vente : réserves de livraison, réclamations (maisons et terrains), interventions, satisfaction.', icon: LifeBuoy, perm: 'sav:read', color: '#2a78d6' },
-  { id: 'compta', label: 'Comptabilité', text: 'SYSCOHADA : journaux, grand livre, balance, états financiers.', icon: Calculator, color: '#1baf7a' },
+  { id: 'compta', to: '/compta', label: 'Comptabilité', text: 'SYSCOHADA : écritures automatiques des ventes et versements, achats par programme, trésorerie, états, export Sage.', icon: Calculator, perm: 'compta:read', color: '#1baf7a' },
   { id: 'rh', label: 'RH & paie', text: 'Dossiers du personnel, congés, paie CNPS / ITS, objectifs.', icon: Users, color: '#eb6834' },
   { id: 'chantiers', label: 'Chantiers', text: 'Planning (Gantt), feuilles de temps, situations de travaux.', icon: HardHat, color: '#eda100' },
   { id: 'achats', label: 'Achats & stocks', text: 'Commandes, sous-traitance, dépôt ↔ chantier.', icon: Boxes, color: '#e87ba4' },

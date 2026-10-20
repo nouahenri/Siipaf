@@ -3,6 +3,7 @@ import { NavLink, Outlet, useLocation } from 'react-router-dom';
 import {
   LayoutGrid, LifeBuoy, LayoutDashboard, ClipboardList, ClipboardCheck, CalendarClock, LogOut, Menu, ExternalLink,
   Briefcase, Columns3, ListTodo, CalendarDays, Building2, FileSignature, Landmark, Target,
+  Calculator, BookOpen, ShoppingCart, FileBarChart, ListTree, Settings2,
 } from 'lucide-react';
 import { useAuth, useResource } from '@admin/lib/app-context';
 import { useRevealOnScroll } from '@admin/lib/reveal';
@@ -24,6 +25,17 @@ const MODULES = {
       { to: '/commercial/objectifs', label: 'Objectifs', icon: Target, perm: 'commercial:read' },
     ],
   },
+  compta: {
+    label: 'Comptabilité', icon: Calculator, perm: 'compta:read',
+    items: [
+      { to: '/compta', label: 'Tableau de bord', icon: LayoutDashboard, end: true },
+      { to: '/compta/ecritures', label: 'Écritures', icon: BookOpen, badge: 'drafts' },
+      { to: '/compta/achats', label: 'Achats et fournisseurs', icon: ShoppingCart },
+      { to: '/compta/etats', label: 'États et export', icon: FileBarChart },
+      { to: '/compta/plan', label: 'Plan comptable', icon: ListTree },
+      { to: '/compta/parametres', label: 'Paramètres', icon: Settings2 },
+    ],
+  },
   sav: {
     label: 'Client & SAV', icon: LifeBuoy, perm: 'sav:read',
     items: [
@@ -38,7 +50,9 @@ const MODULES = {
 const TITLES = {
   '/': 'Modules', '/commercial': 'Service commercial', '/commercial/pipeline': 'Pipeline commercial', '/commercial/activites': 'Mes activités',
   '/commercial/rendez-vous': 'Rendez-vous', '/commercial/parc': 'Parc immobilier', '/commercial/ventes': 'Dossiers de vente',
-  '/commercial/vefa': 'Appels de fonds VEFA', '/commercial/objectifs': 'Objectifs commerciaux', '/sav': 'Client & SAV', '/sav/reclamations': 'Réclamations', '/sav/reserves': 'Réserves de livraison', '/sav/interventions': 'Interventions',
+  '/commercial/vefa': 'Appels de fonds VEFA', '/commercial/objectifs': 'Objectifs commerciaux',
+  '/compta': 'Comptabilité', '/compta/ecritures': 'Écritures comptables', '/compta/achats': 'Achats et fournisseurs', '/compta/etats': 'États comptables',
+  '/compta/plan': 'Plan comptable SYSCOHADA', '/compta/parametres': 'Paramètres comptables', '/sav': 'Client & SAV', '/sav/reclamations': 'Réclamations', '/sav/reserves': 'Réserves de livraison', '/sav/interventions': 'Interventions',
 };
 
 // Le dashboard est sur admin.siipaf.com quand l'ERP est sur erp.siipaf.com (admin.localhost en local)
@@ -51,7 +65,7 @@ export default function ErpLayout() {
   const [open, setOpen] = useState(false);
   const moduleId = pathname.split('/')[1];
   const mod = MODULES[moduleId];
-  const statsUrl = moduleId === 'sav' ? '/admin/erp/sav/stats' : moduleId === 'commercial' && can('commercial:read') ? '/admin/erp/commercial/dashboard' : null;
+  const statsUrl = moduleId === 'sav' ? '/admin/erp/sav/stats' : moduleId === 'commercial' && can('commercial:read') ? '/admin/erp/commercial/dashboard' : moduleId === 'compta' && can('compta:read') ? '/admin/erp/compta/dashboard' : null;
   const stats = useResource(statsUrl, [pathname]);
   const contentRef = useRef(null);
   useRevealOnScroll(contentRef, [pathname]);

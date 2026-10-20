@@ -246,14 +246,14 @@ const PERMISSIONS = {
   conducteur_travaux: ['projects:read', 'lots:read', 'sales:read', 'documents:write', 'site_updates:write', 'client_messages', 'sav:read', 'sav:write', 'vefa:write'],
   comptable: [
     'projects:read', 'lots:read', 'leads:read', 'appointments:read', 'sales:read', 'payments:write',
-    'schedule:write', 'client_messages', 'commercial:read',
+    'schedule:write', 'client_messages', 'commercial:read', 'compta:read', 'compta:write', 'compta:validate',
   ],
   resp_exploitation: [
     'projects:read', 'projects:write', 'plans:write', 'lots:read', 'lots:status', 'leads:read', 'leads:delete',
     'appointments:read', 'contacts:read', 'users:read', 'newsletter:read',
     'sales:read', 'sales:write', 'documents:write', 'testimonials:write',
     'client_access:write', 'client_messages', 'site_updates:write', 'schedule:write', 'settings:write',
-    'sav:read', 'sav:write', 'commercial:read', 'targets:write', 'vefa:write', 'property:write',
+    'sav:read', 'sav:write', 'commercial:read', 'targets:write', 'vefa:write', 'property:write', 'compta:read',
   ],
 };
 
@@ -290,6 +290,11 @@ const PERMISSION_CATALOG = [
     ['targets:write', 'Fixer les objectifs commerciaux', 'Objectifs mensuels par commercial'],
     ['property:write', 'Structurer le parc immobilier', 'Bâtiments, étages et caractéristiques des lots'],
     ['vefa:write', 'Gérer les appels de fonds VEFA', 'Plans d’appels de fonds et constat d’avancement des travaux'],
+  ] },
+  { group: 'ERP · Comptabilité', items: [
+    ['compta:read', 'Consulter la comptabilité', 'Écritures, états, trésorerie, achats'],
+    ['compta:write', 'Saisir en comptabilité', 'Écritures manuelles, fournisseurs, factures d’achat et règlements'],
+    ['compta:validate', 'Valider et clôturer', 'Valider les écritures, plan comptable, journaux, exercices, réglages et export'],
   ] },
   { group: 'ERP · Client & SAV', items: [
     ['sav:read', 'Voir le SAV', 'Réclamations, réserves à la livraison, interventions, indicateurs'],

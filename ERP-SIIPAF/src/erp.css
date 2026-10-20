@@ -166,3 +166,11 @@ fieldset { border: none; min-width: 0; }
   .tree-item.sub { padding-left: 10px; }
   .floor { grid-template-columns: 1fr; gap: 4px; }
 }
+
+/* ─── Comptabilité ───────────────────────────────────────── */
+.table .group-row td { background: var(--surface-2); font-size: 12px; font-weight: 600; color: var(--ink-2); text-transform: uppercase; letter-spacing: .03em; }
+.entry-lines td { padding: 6px 8px; }
+.entry-lines .input, .entry-lines .select { height: 36px; }
+.table tfoot td { border-top: 2px solid var(--border-strong); }
+details > summary { list-style-position: inside; }
+.modal:has(.entry-lines), .modal:has(.wide-form) { width: min(980px, calc(100vw - 32px)); max-width: none; }
