@@ -159,13 +159,15 @@ async function entryDetail(db, entryId) {
 
 async function partnerNames(db, lines) {
   const ids = kind => [...new Set(lines.filter(l => l.partner_type === kind && l.partner_id).map(l => l.partner_id))];
-  const [clients, suppliers] = await Promise.all([
+  const [clients, suppliers, employees] = await Promise.all([
     ids('client').length ? db('leads').whereIn('id', ids('client')).select('id', 'name', 'client_code') : [],
     ids('fournisseur').length ? db('suppliers').whereIn('id', ids('fournisseur')).select('id', 'name') : [],
+    ids('employe').length ? db('employees').whereIn('id', ids('employe')).select('id', 'first_name', 'last_name', 'matricule') : [],
   ]);
   return {
     ...Object.fromEntries(clients.map(c => [`client:${c.id}`, `${c.name}${c.client_code ? ` (${c.client_code})` : ''}`])),
     ...Object.fromEntries(suppliers.map(s => [`fournisseur:${s.id}`, s.name])),
+    ...Object.fromEntries(employees.map(e => [`employe:${e.id}`, `${e.last_name} ${e.first_name} (${e.matricule})`])),
   };
 }
 
@@ -453,12 +455,13 @@ async function sageExport(db, { from, to }) {
   const rows = await linesQuery(db, { from, to }).join('acc_journals as j', 'j.id', 'e.journal_id')
     .select('l.*', 'e.date', 'e.number', 'e.label as entry_label', 'e.ref', 'j.code as journal_code', 'a.code as account_code')
     .orderBy([{ column: 'e.date' }, { column: 'e.number' }, { column: 'l.sort' }]);
-  const [clients, suppliers] = await Promise.all([
+  const [clients, employees] = await Promise.all([
     db('leads').whereNotNull('client_code').select('id', 'client_code'),
-    db('suppliers').select('id'),
+    db.schema.hasTable('employees').then(has => (has ? db('employees').select('id', 'matricule') : [])),
   ]);
   const clientCode = Object.fromEntries(clients.map(c => [c.id, c.client_code]));
-  const tiers = l => (l.partner_type === 'client' ? clientCode[l.partner_id] || `C${l.partner_id}` : l.partner_type === 'fournisseur' ? `F${String(l.partner_id).padStart(5, '0')}` : '');
+  const matricule = Object.fromEntries(employees.map(e => [e.id, e.matricule]));
+  const tiers = l => (l.partner_type === 'client' ? clientCode[l.partner_id] || `C${l.partner_id}` : l.partner_type === 'fournisseur' ? `F${String(l.partner_id).padStart(5, '0')}` : l.partner_type === 'employe' ? matricule[l.partner_id] || `E${l.partner_id}` : '');
   const cell = v => { const s = v == null ? '' : String(v); return /[";\n,]/.test(s) || s.includes(sep) ? `"${s.replace(/"/g, '""')}"` : s; };
   const money = n => (n ? String(n).replace('.', decimal) : '');
   const lines = rows.map(l => [l.journal_code, sageDate(day(l.date), fmt), l.number, l.account_code, tiers(l), (l.label || l.entry_label).slice(0, 69), money(Number(l.debit)), money(Number(l.credit)), l.ref || ''].map(cell).join(sep));
@@ -480,8 +483,51 @@ async function openingFromPrevious(db, { fromYearId, toYearId, userId }) {
   }));
 }
 
+// Familles de charges pour le tableau de bord
+const CHARGE_GROUPS = [
+  ['achats', 'Achats et matériaux', ['60']], ['sous_traitance', 'Sous-traitance et services', ['61', '62', '63']],
+  ['personnel', 'Personnel', ['66']], ['impots', 'Impôts et taxes', ['64']], ['financier', 'Frais financiers et dotations', ['65', '67', '68', '69']],
+];
+
+/**
+ * Évolution mois par mois sur les 12 derniers mois : produits, charges, résultat, encaissements et décaissements
+ * de trésorerie, solde de trésorerie en fin de mois ; plus la répartition des charges. Brouillons compris.
+ */
+async function monthlySeries(db, now = new Date()) {
+  const months = [];
+  for (let i = 11; i >= 0; i--) {
+    const d = new Date(Date.UTC(now.getFullYear(), now.getMonth() - i, 1));
+    months.push({ month: d.toISOString().slice(0, 7), produits: 0, charges: 0, resultat: 0, encaissements: 0, decaissements: 0, tresorerie: 0 });
+  }
+  const by = Object.fromEntries(months.map(m => [m.month, m]));
+  const first = `${months[0].month}-01`;
+  const rows = await linesQuery(db, { includeDraft: true }).select('a.code', 'a.class', 'e.date', 'l.debit', 'l.credit', 'e.source');
+  const treasuryCodes = new Set((await db('acc_journals as j').join('acc_accounts as a', 'a.id', 'j.account_id').whereIn('j.kind', ['banque', 'caisse', 'mobile']).pluck('a.code')));
+  const groups = Object.fromEntries(CHARGE_GROUPS.map(([k, label]) => [k, { key: k, label, value: 0 }]));
+  let opening = 0;
+  for (const r of rows) {
+    const date = day(r.date);
+    const debit = Number(r.debit), credit = Number(r.credit);
+    if (treasuryCodes.has(r.code)) {
+      if (date < first) opening += debit - credit;
+      else if (by[date.slice(0, 7)]) { by[date.slice(0, 7)].encaissements += debit; by[date.slice(0, 7)].decaissements += credit; }
+    }
+    const m = by[date.slice(0, 7)];
+    if (!m) continue;
+    if (r.class === 7) m.produits += credit - debit;
+    if (r.class === 6) {
+      m.charges += debit - credit;
+      const g = CHARGE_GROUPS.find(([, , p]) => p.some(x => r.code.startsWith(x)));
+      if (g) groups[g[0]].value += debit - credit;
+    }
+  }
+  let running = opening;
+  for (const m of months) { m.resultat = m.produits - m.charges; running += m.encaissements - m.decaissements; m.tresorerie = running; }
+  return { months, charges: Object.values(groups).filter(g => g.value > 0).sort((a, b) => b.value - a.value) };
+}
+
 module.exports = {
   getSettings, saveSettings, fiscalYearFor, assertWritable, createEntry, validateEntry, updateDraft, deleteDraft, reverseEntry, entryDetail,
   syncAutoEntries, nextPurchaseNumber, validatePurchase, payPurchase,
-  trialBalance, generalLedger, financialStatements, vatReport, projectMargins, partnerBalances, treasury, sageExport, openingFromPrevious, linesQuery,
+  trialBalance, generalLedger, financialStatements, monthlySeries, vatReport, projectMargins, partnerBalances, treasury, sageExport, openingFromPrevious, linesQuery,
 };

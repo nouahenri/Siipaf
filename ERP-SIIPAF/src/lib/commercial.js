@@ -15,6 +15,7 @@ export function useCommercialMeta() {
 // Montants compacts : 12 500 000 → « 12,5 M »
 export const compact = v => {
   const n = Number(v) || 0;
+  if (n < 0) return `−${compact(-n)}`;
   if (n >= 1e9) return `${(n / 1e9).toLocaleString('fr-FR', { maximumFractionDigits: 1 })} Md`;
   if (n >= 1e6) return `${(n / 1e6).toLocaleString('fr-FR', { maximumFractionDigits: 1 })} M`;
   if (n >= 1e3) return `${Math.round(n / 1e3)} k`;

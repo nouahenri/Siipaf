@@ -344,9 +344,9 @@ module.exports = function comptaRoutes(db) {
     const today = isoDay(new Date());
     const fy = await ct.fiscalYearFor(db, today);
     const opts = { includeDraft: true, fiscalYearId: fy?.id || -1 };
-    const [treasury, statements, clients, suppliers, drafts, margins, vat] = await Promise.all([
+    const [treasury, statements, clients, suppliers, drafts, margins, vat, series] = await Promise.all([
       ct.treasury(db, { includeDraft: true }), ct.financialStatements(db, opts), ct.partnerBalances(db, 'client', opts), ct.partnerBalances(db, 'fournisseur', opts),
-      db('acc_entries').where({ status: 'brouillon' }).count({ n: '*' }), ct.projectMargins(db, opts), ct.vatReport(db, opts),
+      db('acc_entries').where({ status: 'brouillon' }).count({ n: '*' }), ct.projectMargins(db, opts), ct.vatReport(db, opts), ct.monthlySeries(db),
     ]);
     res.json({
       fiscal_year: fy ? { ...fy, start_date: isoDay(fy.start_date), end_date: isoDay(fy.end_date) } : null,
@@ -355,7 +355,8 @@ module.exports = function comptaRoutes(db) {
       receivables: clients.filter(c => c.balance > 0).reduce((t, c) => t + c.balance, 0),
       advances: -clients.filter(c => c.balance < 0).reduce((t, c) => t + c.balance, 0),
       payables: -suppliers.filter(s => s.balance < 0).reduce((t, s) => t + s.balance, 0),
-      drafts: Number(drafts[0].n), margins, vat_due: vat.reduce((t, m) => t + m.due, 0),
+      drafts: Number(drafts[0].n), margins, vat_due: vat.reduce((t, m) => t + m.due, 0), vat_months: vat,
+      series: series.months, charges: series.charges,
     });
   }));
 

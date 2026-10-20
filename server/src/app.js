@@ -62,6 +62,7 @@ function createApp(db) {
   admin.use('/erp/sav', require('./routes/erp/sav')(db));
   admin.use('/erp/commercial', require('./routes/erp/commercial')(db));
   admin.use('/erp/compta', require('./routes/erp/compta')(db));
+  admin.use('/erp/paie', require('./routes/erp/paie')(db));
   app.use('/api/admin', admin);
   app.use('/api', (req, res) => res.status(404).json({ error: 'Route inconnue.' }));
 

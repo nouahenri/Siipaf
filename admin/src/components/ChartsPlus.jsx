@@ -30,10 +30,13 @@ export function SmoothAreaChart({ data, xKey, valueKey, label, color = 'var(--se
   const gid = useRef(`g${Math.random().toString(36).slice(2, 8)}`).current;
   const pad = { t: 16, r: 16, b: 28, l: 56 };
   const iw = width - pad.l - pad.r, ih = height - pad.t - pad.b;
-  const ticks = niceTicks(Math.max(...data.map(d => d[valueKey]), 0));
+  // Valeurs négatives possibles (solde de trésorerie) : graduations sous zéro
+  const low = Math.min(...data.map(d => d[valueKey]), 0);
+  const ticks = [...(low < 0 ? niceTicks(-low, 2).filter(t => t > 0).map(t => -t).reverse() : []), ...niceTicks(Math.max(...data.map(d => d[valueKey]), 0))];
   const top = ticks[ticks.length - 1] || 1;
+  const bottom = Math.min(ticks[0], 0);
   const x = i => pad.l + (data.length <= 1 ? iw / 2 : (i / (data.length - 1)) * iw);
-  const y = v => pad.t + ih - (v / top) * ih;
+  const y = v => pad.t + ih - ((v - bottom) / (top - bottom || 1)) * ih;
   const pts = data.map((d, i) => [x(i), y(d[valueKey])]);
   const line = smoothPath(pts);
   const step = Math.ceil(data.length / Math.max(2, Math.floor(iw / 64)));

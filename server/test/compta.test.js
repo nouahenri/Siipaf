@@ -173,6 +173,14 @@ test('états : balance équilibrée, compte de résultat, marge par programme, T
   const gl = (await comptable.get(`${C}/reports/ledger?account=4111&draft=1`)).body;
   assert.equal(gl.closing, 14000000 - 4000000 + 3000000, 'créances : vente moins versement après l’acte, plus l’appel VEFA');
 
+  const dash = (await comptable.get(`${C}/dashboard`)).body;
+  assert.equal(dash.series.length, 12, 'évolution sur 12 mois');
+  const { monthlySeries } = require('../src/services/compta');
+  const june = await monthlySeries(db, new Date(Date.UTC(year, 5, 15)));
+  assert.equal(june.months.reduce((t, m) => t + m.produits, 0), 23000000, 'produits des 12 mois glissants');
+  assert.equal(june.months.at(-1).charges, 1000000, 'achat de juin');
+  assert.deepEqual(june.charges.map(c => c.key), ['sous_traitance']);
+
   const clients = (await comptable.get(`${C}/reports/partners?kind=client&draft=1`)).body;
   assert.ok(clients.some(c => /Moussa Kéita/.test(c.name)));
 

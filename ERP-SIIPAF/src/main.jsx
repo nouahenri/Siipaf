@@ -23,6 +23,8 @@ import Purchases from './pages/compta/Purchases';
 import Reports from './pages/compta/Reports';
 import Chart from './pages/compta/Chart';
 import ComptaSettings from './pages/compta/Settings';
+import Employees from './pages/compta/Employees';
+import Payroll, { PayrollRun } from './pages/compta/Payroll';
 import '@admin/styles.css';
 import './erp.css';
 
@@ -52,6 +54,9 @@ function App() {
         <Route path="compta/achats" element={<Guard perm="compta:read"><Purchases /></Guard>} />
         <Route path="compta/etats" element={<Guard perm="compta:read"><Reports /></Guard>} />
         <Route path="compta/plan" element={<Guard perm="compta:read"><Chart /></Guard>} />
+        <Route path="compta/paie" element={<Guard perm="paie:read"><Payroll /></Guard>} />
+        <Route path="compta/paie/:id" element={<Guard perm="paie:read"><PayrollRun /></Guard>} />
+        <Route path="compta/employes" element={<Guard perm={['paie:read', 'rh:read']}><Employees /></Guard>} />
         <Route path="compta/parametres" element={<Guard perm="compta:read"><ComptaSettings /></Guard>} />
         <Route path="sav" element={<Guard perm="sav:read"><SavDashboard /></Guard>} />
         <Route path="sav/reclamations" element={<Guard perm="sav:read"><Tickets /></Guard>} />

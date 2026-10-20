@@ -3,7 +3,7 @@ import { NavLink, Outlet, useLocation } from 'react-router-dom';
 import {
   LayoutGrid, LifeBuoy, LayoutDashboard, ClipboardList, ClipboardCheck, CalendarClock, LogOut, Menu, ExternalLink,
   Briefcase, Columns3, ListTodo, CalendarDays, Building2, FileSignature, Landmark, Target,
-  Calculator, BookOpen, ShoppingCart, FileBarChart, ListTree, Settings2,
+  Calculator, BookOpen, ShoppingCart, FileBarChart, ListTree, Settings2, Contact, Banknote,
 } from 'lucide-react';
 import { useAuth, useResource } from '@admin/lib/app-context';
 import { useRevealOnScroll } from '@admin/lib/reveal';
@@ -26,14 +26,16 @@ const MODULES = {
     ],
   },
   compta: {
-    label: 'Comptabilité', icon: Calculator, perm: 'compta:read',
+    label: 'Comptabilité', icon: Calculator, perm: ['compta:read', 'paie:read', 'rh:read'],
     items: [
-      { to: '/compta', label: 'Tableau de bord', icon: LayoutDashboard, end: true },
-      { to: '/compta/ecritures', label: 'Écritures', icon: BookOpen, badge: 'drafts' },
-      { to: '/compta/achats', label: 'Achats et fournisseurs', icon: ShoppingCart },
-      { to: '/compta/etats', label: 'États et export', icon: FileBarChart },
-      { to: '/compta/plan', label: 'Plan comptable', icon: ListTree },
-      { to: '/compta/parametres', label: 'Paramètres', icon: Settings2 },
+      { to: '/compta', label: 'Tableau de bord', icon: LayoutDashboard, end: true, perm: 'compta:read' },
+      { to: '/compta/ecritures', label: 'Écritures', icon: BookOpen, badge: 'drafts', perm: 'compta:read' },
+      { to: '/compta/achats', label: 'Achats et fournisseurs', icon: ShoppingCart, perm: 'compta:read' },
+      { to: '/compta/paie', label: 'Paie', icon: Banknote, perm: 'paie:read' },
+      { to: '/compta/employes', label: 'Employés', icon: Contact, perm: ['paie:read', 'rh:read'] },
+      { to: '/compta/etats', label: 'États et export', icon: FileBarChart, perm: 'compta:read' },
+      { to: '/compta/plan', label: 'Plan comptable', icon: ListTree, perm: 'compta:read' },
+      { to: '/compta/parametres', label: 'Paramètres', icon: Settings2, perm: 'compta:read' },
     ],
   },
   sav: {
@@ -52,7 +54,7 @@ const TITLES = {
   '/commercial/rendez-vous': 'Rendez-vous', '/commercial/parc': 'Parc immobilier', '/commercial/ventes': 'Dossiers de vente',
   '/commercial/vefa': 'Appels de fonds VEFA', '/commercial/objectifs': 'Objectifs commerciaux',
   '/compta': 'Comptabilité', '/compta/ecritures': 'Écritures comptables', '/compta/achats': 'Achats et fournisseurs', '/compta/etats': 'États comptables',
-  '/compta/plan': 'Plan comptable SYSCOHADA', '/compta/parametres': 'Paramètres comptables', '/sav': 'Client & SAV', '/sav/reclamations': 'Réclamations', '/sav/reserves': 'Réserves de livraison', '/sav/interventions': 'Interventions',
+  '/compta/plan': 'Plan comptable SYSCOHADA', '/compta/parametres': 'Paramètres comptables', '/compta/paie': 'Paie', '/compta/employes': 'Employés', '/sav': 'Client & SAV', '/sav/reclamations': 'Réclamations', '/sav/reserves': 'Réserves de livraison', '/sav/interventions': 'Interventions',
 };
 
 // Le dashboard est sur admin.siipaf.com quand l'ERP est sur erp.siipaf.com (admin.localhost en local)
