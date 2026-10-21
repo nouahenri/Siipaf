@@ -1,18 +1,33 @@
 /**
- * Conversion d'un plan AutoCAD (DWG / DXF) en carte interactive :
+ * Conversion d'un plan AutoCAD (DWG / DXF) ou d'un PDF vectoriel en carte interactive :
  * lecture → choix des calques → parcelles détectées (aperçu) → image de fond + lots créés.
  */
 import { useEffect, useMemo, useState } from 'react';
-import { FileUp, Wand2, Check, AlertTriangle, Loader2 } from 'lucide-react';
+import { FileUp, Wand2, Check, AlertTriangle, Loader2, FileImage } from 'lucide-react';
 import { savePlan, summaryText } from '../lib/planSave';
 import { useToast } from '../lib/app-context';
 import { Field, ErrorBox, Badge } from './ui';
-import { readDrawing, segmentsOf, textsOf, buildFaces, findParcels, findUnnumbered, defaultAreaRange, extentsOf, renderPlan, toRelative } from '../lib/cadPlan';
+import { readDrawing, segmentsOf, textsOf, buildFaces, findParcels, findUnnumbered, defaultAreaRange, extentsOf, renderPlan, toRelative, ISLAND } from '../lib/cadPlan';
+import { readPdfDrawing, pdfDrawing } from '../lib/pdfPlan';
 
-/** planId : reconversion d'un plan existant ; initialFile : fichier déjà choisi (ex. tiré d'un ZIP). */
-export default function CadImport({ projectId, planId, initialFile, onDone, onCancel }) {
+const PDF_SCALE = 1000; // échelle supposée d'un PDF tant que les surfaces écrites ne l'ont pas donnée
+
+/** Échelle réelle d'un PDF : rapport médian entre surfaces écrites et surfaces mesurées (null si incalculable). */
+function measuredScale(parcels, scale) {
+  const ratios = parcels.filter(p => p.written && p.area > 0).map(p => p.written / p.area).sort((a, b) => a - b);
+  if (ratios.length < 3) return null;
+  return Math.round(scale * Math.sqrt(ratios[Math.floor(ratios.length / 2)]));
+}
+
+/**
+ * planId : reconversion d'un plan existant ; initialFile : fichier déjà choisi (ex. tiré d'un ZIP).
+ * pdf : le fichier est un PDF vectoriel ; onUseImage : repli « PDF comme simple image de fond ».
+ */
+export default function CadImport({ projectId, planId, initialFile, pdf = false, onUseImage, onDone, onCancel }) {
   const toast = useToast();
   const [file, setFile] = useState(null);
+  const [rawPdf, setRawPdf] = useState(null);
+  const [scale, setScale] = useState({ value: PDF_SCALE, measured: false });
   const [drawing, setDrawing] = useState(null);
   const [lineLayers, setLineLayers] = useState(new Set());
   const [numberLayer, setNumberLayer] = useState('');
@@ -25,9 +40,15 @@ export default function CadImport({ projectId, planId, initialFile, onDone, onCa
 
   const open = async f => {
     setError(null); setAnalysis(null); setFile(f); setName(f.name.replace(/\.[^.]+$/, ''));
-    setBusy('Lecture du plan AutoCAD sur le serveur…');
+    setBusy(pdf ? 'Lecture des traits et des textes du PDF…' : 'Lecture du plan AutoCAD sur le serveur…');
     try {
-      const d = await readDrawing(f);
+      let d;
+      if (pdf) {
+        const raw = await readPdfDrawing(f);
+        setRawPdf(raw);
+        setScale({ value: PDF_SCALE, measured: false });
+        d = pdfDrawing(raw, PDF_SCALE);
+      } else d = await readDrawing(f);
       setDrawing(d);
       // Calque des numéros : celui qui porte le plus de numéros ; calques de traits : le plus fourni + celui des numéros
       const num = [...d.layers].sort((a, b) => b.numbers - a.numbers)[0];
@@ -41,16 +62,35 @@ export default function CadImport({ projectId, planId, initialFile, onDone, onCa
   // eslint-disable-next-line react-hooks/exhaustive-deps
   useEffect(() => { if (initialFile) open(initialFile); }, [initialFile]);
 
-  const analyse = () => {
+  const detect = entities => {
+    const segs = segmentsOf(entities, lineLayers);
+    if (!segs.length) throw new Error('Aucun trait sur les calques choisis.');
+    const faces = buildFaces(segs);
+    // PDF : surfaces et îlots écrits peuvent être sur un autre calque de textes que les numéros
+    const texts = textsOf(entities, new Set([numberLayer]));
+    if (pdf) texts.push(...textsOf(entities).filter(t => t.layer !== numberLayer && (/\dm(²|2)?$/i.test(t.t.replace(/\s/g, '')) || ISLAND.test(t.t))));
+    return { ...findParcels(faces, texts), ext: extentsOf(segs), segs, faces };
+  };
+
+  /** fixedScale : échelle saisie à la main (PDF) ; sinon, elle est déduite des surfaces écrites. */
+  const analyse = fixedScale => {
     setError(null); setBusy('Recherche des parcelles…');
     // Laisse le navigateur afficher le message avant le calcul
     setTimeout(() => {
       try {
-        const segs = segmentsOf(drawing.entities, lineLayers);
-        if (!segs.length) throw new Error('Aucun trait sur les calques choisis.');
-        const faces = buildFaces(segs);
-        const res = findParcels(faces, textsOf(drawing.entities, new Set([numberLayer])));
-        setAnalysis({ ...res, ext: extentsOf(segs), segs, faces });
+        let current = drawing, res = detect(drawing.entities);
+        if (pdf) {
+          let value = fixedScale || scale.value, measured = fixedScale ? false : scale.measured;
+          if (fixedScale && fixedScale !== scale.value) current = pdfDrawing(rawPdf, value);
+          else if (!fixedScale) {
+            const found = measuredScale(res.parcels, scale.value);
+            if (found && Math.abs(found / scale.value - 1) > 0.02) { value = found; current = pdfDrawing(rawPdf, value); }
+            if (found) measured = true;
+          }
+          if (current !== drawing) { setDrawing(current); res = detect(current.entities); }
+          setScale({ value, measured });
+        }
+        setAnalysis(res);
         const range = defaultAreaRange(res.parcels);
         setExtra(x => ({ ...x, ...range, on: !res.parcels.length }));
       } catch (e) { setError(e); }
@@ -65,7 +105,7 @@ export default function CadImport({ projectId, planId, initialFile, onDone, onCa
       const textLayers = new Set(drawing.layers.filter(l => l.texts).map(l => l.name));
       const { blob, width, height } = await renderPlan(drawing.entities, lineLayers, analysis.ext, { textLayers });
       const lots = [
-        ...[...analysis.parcels, ...unnumbered].map(p => ({ code: p.code, shape: toRelative(p.pts, analysis.ext), surface_m2: p.surface, status })),
+        ...[...analysis.parcels, ...unnumbered].map(p => ({ code: p.code, ...(p.ilot ? { ilot: p.ilot } : {}), shape: toRelative(p.pts, analysis.ext), surface_m2: p.surface, status })),
         ...analysis.missing.map(code => ({ code, status })),
       ];
       const { plan, summary } = await savePlan({ projectId, planId, name, image: blob, width, height, lots, onStep: setBusy });
@@ -96,19 +136,30 @@ export default function CadImport({ projectId, planId, initialFile, onDone, onCa
       <ErrorBox error={error} />
       {!drawing && !busy && (
         <>
-          <p className="small muted">Déposez le plan de masse au format AutoCAD : les parcelles et leurs numéros sont reconnus automatiquement et deviennent des lots cliquables sur la carte.</p>
+          <p className="small muted">{pdf
+            ? 'Déposez le plan de masse en PDF vectoriel (exporté depuis AutoCAD ou un logiciel de topographie) : les parcelles et leurs numéros sont reconnus automatiquement.'
+            : 'Déposez le plan de masse au format AutoCAD : les parcelles et leurs numéros sont reconnus automatiquement et deviennent des lots cliquables sur la carte.'}</p>
           <label className="btn btn-primary" style={{ alignSelf: 'flex-start' }}>
-            <FileUp />Choisir un fichier DWG ou DXF
-            <input type="file" hidden accept=".dwg,.dxf" onChange={e => e.target.files[0] && open(e.target.files[0])} />
+            <FileUp />{pdf ? 'Choisir un fichier PDF' : 'Choisir un fichier DWG ou DXF'}
+            <input type="file" hidden accept={pdf ? '.pdf' : '.dwg,.dxf'} onChange={e => e.target.files[0] && open(e.target.files[0])} />
           </label>
-          {onCancel && <button className="btn btn-ghost btn-sm" style={{ alignSelf: 'flex-start' }} onClick={onCancel}>← Revenir</button>}
+          <div className="row" style={{ gap: 8 }}>
+            {onCancel && <button className="btn btn-ghost btn-sm" onClick={onCancel}>← Revenir</button>}
+            {pdf && onUseImage && file && <button className="btn btn-sm" onClick={() => onUseImage(file)}><FileImage />Utiliser ce PDF comme simple image de fond</button>}
+          </div>
         </>
       )}
       {busy && <p className="row" style={{ gap: 8 }}><Loader2 className="spin" size={18} />{busy}</p>}
 
       {drawing && !busy && (
         <>
-          <div className="small muted">{file.name} · {drawing.entities.length} éléments · {drawing.layers.length} calques</div>
+          <div className="small muted">{file.name} · {drawing.entities.length} éléments · {drawing.layers.length} calques{pdf && ' (calques du PDF, sinon couleurs des traits et tailles des textes)'}</div>
+          {pdf && !drawing.layers.some(l => l.numbers) && (
+            <div className="card" style={{ padding: 12, background: 'var(--surface-2)' }}>
+              <p className="small"><AlertTriangle size={14} style={{ verticalAlign: '-2px', color: 'var(--warn)' }} /> Aucun numéro de lot lisible dans ce PDF : les textes ont sans doute été exportés en traits (polices AutoCAD SHX). Réexportez le PDF avec des polices TrueType, ou utilisez-le comme image de fond et dessinez les lots à la main.</p>
+              {onUseImage && <button className="btn btn-sm" style={{ marginTop: 8 }} onClick={() => onUseImage(file)}><FileImage />Utiliser comme image de fond</button>}
+            </div>
+          )}
           <div className="form-grid">
             {!planId && <Field label="Nom du plan"><input className="input" value={name} onChange={e => setName(e.target.value)} /></Field>}
             <Field label="Calque des numéros de lots">
@@ -129,7 +180,7 @@ export default function CadImport({ projectId, planId, initialFile, onDone, onCa
             </div>
             <p className="small muted" style={{ marginTop: 6 }}>Astuce : n’ajoutez pas les calques d’axes, de cotes ou de hachures, ils découpent les parcelles.</p>
           </div>
-          {!analysis && <button className="btn btn-primary" style={{ alignSelf: 'flex-start' }} disabled={!lineLayers.size || !numberLayer} onClick={analyse}><Wand2 />Détecter les parcelles</button>}
+          {!analysis && <button className="btn btn-primary" style={{ alignSelf: 'flex-start' }} disabled={!lineLayers.size || !numberLayer} onClick={() => analyse()}><Wand2 />Détecter les parcelles</button>}
         </>
       )}
 
@@ -140,7 +191,17 @@ export default function CadImport({ projectId, planId, initialFile, onDone, onCa
             {unnumbered.length > 0 && <Badge tone="" dot>{unnumbered.length} sans numéro (provisoires)</Badge>}
             {analysis.missing.length > 0 && <Badge tone="warn" dot>{analysis.missing.length} lot(s) à placer à la main</Badge>}
             {analysis.parcels.some(p => p.duplicate) && <Badge tone="danger" dot>Numéros en double</Badge>}
+            {pdf && <Badge tone={scale.measured ? '' : 'warn'}>Échelle 1/{scale.value.toLocaleString('fr-FR')}{scale.measured ? ' (déduite des surfaces écrites)' : ' (à vérifier)'}</Badge>}
           </div>
+          {pdf && (
+            <form className="row" style={{ gap: 8, alignItems: 'flex-end', flexWrap: 'wrap' }}
+              onSubmit={e => { e.preventDefault(); const v = Number(new FormData(e.currentTarget).get('scale')); if (v > 0) analyse(v); }}>
+              <Field label="Échelle du PDF : 1 /" hint={scale.measured ? 'Calculée à partir des surfaces écrites dans les lots.' : 'Aucune surface écrite sur le plan : indiquez l’échelle d’impression pour que les surfaces soient justes.'}>
+                <input name="scale" className="input tabular" inputMode="numeric" defaultValue={scale.value} key={scale.value} style={{ maxWidth: 140 }} />
+              </Field>
+              <button className="btn btn-sm" type="submit">Appliquer</button>
+            </form>
+          )}
           <div style={{ border: '1px solid var(--border)', borderRadius: 10, overflow: 'hidden', background: '#fff' }} className="cad-preview">
             <svg viewBox={`0 0 ${preview.w} ${preview.h}`} style={{ width: '100%', height: 'auto', maxHeight: 420, display: 'block' }} role="img" aria-label="Aperçu des parcelles détectées">
               <path d={preview.lines} stroke="#9ca3af" strokeWidth="0.6" fill="none" />

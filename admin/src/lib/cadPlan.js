@@ -1,7 +1,7 @@
 /**
- * Conversion d'un plan de masse AutoCAD (DWG ou DXF) en carte interactive.
+ * Conversion d'un plan de masse AutoCAD (DWG ou DXF) ou d'un PDF vectoriel en carte interactive.
  *
- * 1. Lecture du fichier dans le navigateur (LibreDWG en WebAssembly, chargé à la demande).
+ * 1. Lecture du fichier : DWG/DXF sur le serveur (LibreDWG), PDF dans le navigateur (pdfPlan.js).
  * 2. Les parcelles sont reconstituées à partir du réseau de traits : découpage aux croisements,
  *    graphe planaire, cellules fermées (« faces »).
  * 3. Chaque cellule reçoit le numéro de lot écrit à l'intérieur et, s'il existe, la surface écrite
@@ -21,6 +21,9 @@ export const cleanText = t => String(t ?? '')
 
 const LOT_NUMBER = /^[A-Za-z]{0,3}[-\s]?\d{1,5}[A-Za-z]?$/;
 const AREA = /^(\d+(?:[.,]\d+)?)\s*m(²|2)?$/i;
+export const ISLAND = /^[ÎîIi]lot\s*(?:n°\s*)?([A-Za-z0-9]{1,6})$/i;
+/** Numéro de lot tel qu'enregistré : « Lot 12 » → « 12 », « A 12 » → « A12 ». */
+const lotCode = t => t.replace(/^(lot|n°)\s*/i, '').replace(/\s+/g, '');
 
 /** Envoie le fichier au serveur (lecture LibreDWG) ; renvoie les entités et un résumé par calque. */
 export async function readDrawing(file) {
@@ -28,6 +31,11 @@ export async function readDrawing(file) {
   const form = new FormData();
   form.append('file', file);
   const { entities } = await api.post('/admin/cad/parse', form);
+  return { entities, layers: summarizeLayers(entities) };
+}
+
+/** Résumé par calque (traits, textes, numéros de lots, surfaces), le plus fourni en premier. */
+export function summarizeLayers(entities) {
   const layers = {};
   for (const e of entities) {
     const l = (layers[e.layer] ||= { name: e.layer, lines: 0, texts: 0, numbers: 0, areas: 0 });
@@ -39,7 +47,7 @@ export async function readDrawing(file) {
       if (AREA.test(t)) l.areas++;
     }
   }
-  return { entities, layers: Object.values(layers).sort((a, b) => b.lines + b.texts - (a.lines + a.texts)) };
+  return Object.values(layers).sort((a, b) => b.lines + b.texts - (a.lines + a.texts));
 }
 
 const arcPoints = (c, r, a0, a1) => {
@@ -170,10 +178,13 @@ export function buildFaces(segs) {
 /**
  * Parcelles : cellules contenant exactement un numéro de lot.
  * Si le plan porte des surfaces écrites, seules les cellules qui en ont une sont retenues.
+ * Un « Îlot 3 » écrit dans la cellule renseigne l'îlot ; si les numéros recommencent à chaque îlot,
+ * le numéro devient « îlot-lot » (3-12) pour rester unique dans le projet.
  */
 export function findParcels(faces, texts) {
   const numbers = texts.filter(x => LOT_NUMBER.test(x.t));
   const areas = texts.filter(x => AREA.test(x.t));
+  const islands = texts.filter(x => ISLAND.test(x.t));
   const requireArea = areas.length >= numbers.length * 0.5;
   const parcels = []; const skipped = { multi: 0, noArea: 0 };
   const placed = new Set(); const islandNumbers = new Set();
@@ -185,9 +196,14 @@ export function findParcels(faces, texts) {
     if (requireArea && !inArea.length) { skipped.noArea++; islandNumbers.add(inNum[0]); continue; }
     placed.add(inNum[0]);
     const written = inArea.length ? Number(AREA.exec(inArea[0].t)[1].replace(',', '.')) : null;
-    parcels.push({ code: inNum[0].t.replace(/\s+/g, ''), pts: f.pts, area: Math.round(f.area), surface: written ?? Math.round(f.area) });
+    const island = islands.find(x => insidePoly(x.p, f.pts));
+    parcels.push({ code: lotCode(inNum[0].t), ilot: island ? ISLAND.exec(island.t)[1] : null, pts: f.pts, area: Math.round(f.area), written, surface: written ?? Math.round(f.area) });
   }
-  // Numéros en double : le second reçoit un suffixe à vérifier
+  // Numérotation par îlot : un numéro répété dans des îlots différents devient « îlot-lot »
+  const count = {};
+  for (const p of parcels) count[p.code] = (count[p.code] || 0) + 1;
+  for (const p of parcels) if (count[p.code] > 1 && p.ilot) p.code = `${p.ilot}-${p.code}`;
+  // Numéros encore en double : le second reçoit un suffixe à vérifier
   const seen = {};
   for (const p of parcels.sort((a, b) => a.code.localeCompare(b.code, 'fr', { numeric: true }))) {
     seen[p.code] = (seen[p.code] || 0) + 1;
@@ -195,7 +211,7 @@ export function findParcels(faces, texts) {
   }
   // Numéros de lots non reconnus (hors numéros d'îlots) : à créer « à placer » et à dessiner à la main
   const taken = new Set(parcels.map(p => p.code));
-  const missing = [...new Set(numbers.filter(n => !placed.has(n) && !islandNumbers.has(n)).map(n => n.t.replace(/\s+/g, '')))]
+  const missing = [...new Set(numbers.filter(n => !placed.has(n) && !islandNumbers.has(n)).map(n => lotCode(n.t)))]
     .filter(c => !taken.has(c)).sort((a, b) => a.localeCompare(b, 'fr', { numeric: true }));
   return { parcels, numbers: numbers.length, missing, skipped, requireArea };
 }

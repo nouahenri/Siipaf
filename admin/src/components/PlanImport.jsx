@@ -28,7 +28,7 @@ export default function PlanImport({ projectId, planId, onDone }) {
 
   const route = (file, assets = null, path = '') => {
     const kind = kindOf(path || file.name);
-    if (kind === 'image' || kind === 'pdf') return saveImage(file, kind);
+    if (kind === 'image') return saveImage(file, kind);
     setStep({ kind, file, assets, path });
   };
 
@@ -81,6 +81,8 @@ export default function PlanImport({ projectId, planId, onDone }) {
   };
 
   if (step?.kind === 'cad') return <CadImport projectId={projectId} planId={planId} initialFile={step.file} onDone={onDone} onCancel={() => setStep(null)} />;
+  // PDF : détection des parcelles s'il est vectoriel, sinon (ou au choix) simple image de fond
+  if (step?.kind === 'pdf') return <CadImport pdf projectId={projectId} planId={planId} initialFile={step.file} onDone={onDone} onCancel={() => setStep(null)} onUseImage={f => { setStep(null); saveImage(f, 'pdf'); }} />;
   if (step?.kind === 'html') return <HtmlImport projectId={projectId} planId={planId} name={name} step={step} onDone={onDone} onCancel={() => setStep(null)} />;
 
   return (
@@ -114,8 +116,8 @@ export default function PlanImport({ projectId, planId, onDone }) {
             <input ref={input} type="file" hidden accept={ACCEPT} onChange={e => { e.target.files[0] && handle(e.target.files[0]); e.target.value = ''; }} />
           </div>
           <ul className="small muted" style={{ paddingLeft: 18, display: 'grid', gap: 4 }}>
-            <li><strong>AutoCAD, HTML/SVG ou ZIP</strong> : les parcelles et leurs numéros sont reconnus automatiquement, la carte et les lots sont créés en une fois.</li>
-            <li><strong>Image ou PDF</strong> : {planId ? 'remplace seulement l’image de fond ; les lots déjà dessinés restent à leur place (même cadrage conseillé).' : 'les lots se dessinent ensuite à la main dans l’éditeur.'}</li>
+            <li><strong>AutoCAD, PDF vectoriel, HTML/SVG ou ZIP</strong> : les parcelles et leurs numéros sont reconnus automatiquement, la carte et les lots sont créés en une fois.</li>
+            <li><strong>Image ou PDF scanné</strong> : {planId ? 'remplace seulement l’image de fond ; les lots déjà dessinés restent à leur place (même cadrage conseillé).' : 'les lots se dessinent ensuite à la main dans l’éditeur.'}</li>
             <li><FileArchive size={13} style={{ verticalAlign: '-2px' }} /> Un ZIP peut contenir la page HTML et ses images : elles sont retrouvées automatiquement.</li>
           </ul>
         </>

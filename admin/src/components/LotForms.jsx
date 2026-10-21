@@ -1,11 +1,76 @@
-/** Formulaires de la gestion des lots : créer ou modifier un lot, modifier un dossier d'acquisition. */
+/** Formulaires de la gestion des lots : créer ou modifier un lot, changer son statut, modifier un dossier d'acquisition. */
 import { useState } from 'react';
 import { Save } from 'lucide-react';
 import { api } from '../lib/api';
-import { useResource, useToast } from '../lib/app-context';
-import { Modal, Field, ErrorBox } from './ui';
-import { FINANCING } from '../lib/domain';
+import { useAuth, useResource, useToast } from '../lib/app-context';
+import { Modal, Field, ErrorBox, StatusBadge } from './ui';
+import { FINANCING, LOT_TRANSITIONS, lotStatus } from '../lib/domain';
 import { fcfa } from '../lib/format';
+
+/**
+ * Changement de statut d'un lot (transitions autorisées, motif conservé dans l'historique).
+ * `onDone` reçoit le nouveau statut. Utilisé par « Lots & disponibilités » et l'éditeur de plan.
+ */
+export function LotStatusModal({ lot, onClose, onDone }) {
+  const { user } = useAuth();
+  const toast = useToast();
+  const options = LOT_TRANSITIONS[lot.status].filter(s => !(lot.status === 'vendu' && user.role !== 'super_admin'));
+  const [to, setTo] = useState(options[0] || '');
+  const [reason, setReason] = useState('');
+  const [lead, setLead] = useState({ name: '', phone: '', email: '' });
+  const [error, setError] = useState(null);
+  const [busy, setBusy] = useState(false);
+
+  const submit = async () => {
+    setBusy(true);
+    setError(null);
+    try {
+      if (to === 'option') {
+        await api.post(`/admin/lots/${lot.id}/option`, { name: lead.name, phone: lead.phone || undefined, email: lead.email || undefined });
+      } else {
+        await api.post(`/admin/lots/${lot.id}/status`, { status: to, reason: reason || undefined });
+      }
+      toast(`Lot ${lot.code} : ${lotStatus(to).label}`);
+      onDone(to);
+    } catch (e) { setError(e); } finally { setBusy(false); }
+  };
+
+  return (
+    <Modal
+      title={`Lot ${lot.code}`}
+      onClose={onClose}
+      footer={<><button className="btn" onClick={onClose}>Annuler</button><button className="btn btn-primary" disabled={busy || !to} onClick={submit}>Valider</button></>}
+    >
+      <p>Statut actuel : <StatusBadge status={lot.status} /></p>
+      {!options.length ? <p className="muted">Aucun changement possible pour votre rôle.</p> : (
+        <>
+          <ErrorBox error={error} />
+          <fieldset style={{ border: 'none' }} className="stack">
+            <legend className="small muted" style={{ marginBottom: 8 }}>Nouveau statut</legend>
+            <div className="row">
+              {options.map(s => (
+                <label key={s} className={`btn btn-sm ${to === s ? '' : 'btn-ghost'}`} style={to === s ? { borderColor: lotStatus(s).color } : undefined}>
+                  <input type="radio" name="status" value={s} checked={to === s} onChange={() => setTo(s)} style={{ position: 'absolute', opacity: 0 }} />
+                  <i style={{ width: 10, height: 10, borderRadius: 3, background: lotStatus(s).color, display: 'inline-block' }} />{lotStatus(s).label}
+                </label>
+              ))}
+            </div>
+          </fieldset>
+          {to === 'option' ? (
+            <div className="form-grid">
+              <Field label="Nom du prospect" className="full"><input className="input" value={lead.name} onChange={e => setLead({ ...lead, name: e.target.value })} /></Field>
+              <Field label="Téléphone"><input className="input" value={lead.phone} onChange={e => setLead({ ...lead, phone: e.target.value })} /></Field>
+              <Field label="E-mail"><input className="input" type="email" value={lead.email} onChange={e => setLead({ ...lead, email: e.target.value })} /></Field>
+              <p className="small muted full">L’option bloque le lot pendant la durée prévue pour le projet, puis le libère automatiquement.</p>
+            </div>
+          ) : (
+            <Field label="Motif (facultatif)" hint="Conservé dans l’historique du lot."><input className="input" value={reason} onChange={e => setReason(e.target.value)} /></Field>
+          )}
+        </>
+      )}
+    </Modal>
+  );
+}
 
 const toNumber = v => (String(v).trim() === '' ? null : Number(String(v).replace(/[\s  ]/g, '').replace(',', '.')));
 // Date « AAAA-MM-JJ » pour un champ date, quel que soit le format reçu (texte, millisecondes)

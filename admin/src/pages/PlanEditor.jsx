@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Link, useNavigate, useParams } from 'react-router-dom';
 import {
-  ArrowLeft, MousePointer2, Pentagon, Square, Hand, ZoomIn, ZoomOut, Maximize, Undo2, Copy, Trash2, Save, Search, Eye, EyeOff,
+  ArrowLeft, MousePointer2, Pentagon, Square, Hand, ZoomIn, ZoomOut, Maximize, Undo2, Copy, Trash2, Save, Search, Eye, EyeOff, ChevronDown,
 } from 'lucide-react';
 import { api } from '../lib/api';
 import { useAuth, useResource, useToast } from '../lib/app-context';
@@ -9,6 +9,7 @@ import { Field, ErrorBox, Skeleton, StatusBadge } from '../components/ui';
 import { LOT_STATUSES, lotStatus } from '../lib/domain';
 import { fcfa } from '../lib/format';
 import PlanManage from '../components/PlanManage';
+import { LotStatusModal } from '../components/LotForms';
 
 /* ─── Géométrie (coordonnées relatives 0–1 du plan) ─────────────────────── */
 const clamp01 = v => Math.min(1, Math.max(0, v));
@@ -61,6 +62,7 @@ export default function PlanEditor() {
   const [q, setQ] = useState('');
   const [error, setError] = useState(null);
   const [saving, setSaving] = useState(false);
+  const [statusLot, setStatusLot] = useState(null);
 
   const viewport = useRef(null);
   const stage = useRef(null);
@@ -454,7 +456,8 @@ export default function PlanEditor() {
 
         <aside className="plan-side">
           {selectedLot ? (
-            <LotPanel lot={selectedLot} offers={plan.data.offers} editable={editable} onChange={patch => updateLot(selectedLot.key, patch)} onRemove={removeFromPlan} onDelete={deleteLot} onClose={() => setSelected(null)} />
+            <LotPanel lot={selectedLot} offers={plan.data.offers} editable={editable} canStatus={can('lots:status')} onStatus={() => setStatusLot(selectedLot)}
+              onChange={patch => updateLot(selectedLot.key, patch)} onRemove={removeFromPlan} onDelete={deleteLot} onClose={() => setSelected(null)} />
           ) : (
             <div className="card card-body small muted">
               Sélectionnez un lot sur le plan ou dans la liste.<br />
@@ -474,6 +477,15 @@ export default function PlanEditor() {
           </div>
         </aside>
       </div>
+      {/* Le statut est enregistré tout de suite (avec son historique), hors du bouton « Enregistrer » */}
+      {statusLot && <LotStatusModal lot={statusLot} onClose={() => setStatusLot(null)}
+        onDone={to => {
+          // Aussi dans l'historique : « Annuler » ne doit pas faire réapparaître l'ancien statut
+          const withStatus = list => list.map(l => (l.key === statusLot.key ? { ...l, status: to } : l));
+          setLots(withStatus);
+          setHistory(h => h.map(e => ({ ...e, lots: withStatus(e.lots) })));
+          setStatusLot(null);
+        }} />}
     </div>
   );
 }
@@ -487,7 +499,7 @@ const LotRow = ({ l, active, dirty, onClick }) => (
   </button>
 );
 
-function LotPanel({ lot, offers, editable, onChange, onRemove, onDelete, onClose }) {
+function LotPanel({ lot, offers, editable, canStatus, onStatus, onChange, onRemove, onDelete, onClose }) {
   const set = k => e => onChange({ [k]: e.target.value });
   const pickOffer = e => {
     const offer = offers.find(o => String(o.id) === e.target.value);
@@ -498,7 +510,11 @@ function LotPanel({ lot, offers, editable, onChange, onRemove, onDelete, onClose
       <div className="card-head" style={{ padding: '12px 16px' }}>
         <h2>Lot {lot.code || '—'}</h2>
         <div className="spacer" />
-        <StatusBadge status={lot.status} />
+        {canStatus && lot.id ? (
+          <button type="button" className="btn btn-ghost btn-sm" style={{ paddingInline: 6 }} onClick={onStatus} title="Changer le statut" aria-label={`Statut : ${lotStatus(lot.status).label} — changer`}>
+            <StatusBadge status={lot.status} /><ChevronDown aria-hidden="true" />
+          </button>
+        ) : <StatusBadge status={lot.status} />}
       </div>
       <fieldset disabled={!editable} className="card-body stack" style={{ gap: 12, border: 'none' }}>
         <div className="form-grid" style={{ gap: 12 }}>
@@ -513,7 +529,7 @@ function LotPanel({ lot, offers, editable, onChange, onRemove, onDelete, onClose
           <Field label="Surface (m²)"><input className="input tabular" inputMode="decimal" value={lot.surface_m2 ?? ''} onChange={set('surface_m2')} /></Field>
           <Field label="Prix (FCFA)" hint={lot.price_fcfa ? fcfa(lot.price_fcfa) : undefined}><input className="input tabular" inputMode="numeric" value={lot.price_fcfa ?? ''} onChange={set('price_fcfa')} /></Field>
         </div>
-        <p className="small muted">Le statut se change depuis « Lots & disponibilités » pour garder l’historique.</p>
+        {canStatus && !lot.id && <p className="small muted">Enregistrez ce nouveau lot pour pouvoir changer son statut.</p>}
         {editable && (
           <div className="row">
             {lot.shape && <button type="button" className="btn btn-sm" onClick={onRemove}>Retirer du plan</button>}

@@ -1,11 +1,11 @@
 import { useEffect, useMemo, useState } from 'react';
 import { Map, Upload, Search, ChevronRight, Plus } from 'lucide-react';
 import LotDrawer from '../components/LotDrawer';
-import { LotFormModal } from '../components/LotForms';
+import { LotFormModal, LotStatusModal } from '../components/LotForms';
 import { api, qs } from '../lib/api';
 import { useAuth, useResource, useToast } from '../lib/app-context';
 import { Card, Modal, Field, StatusBadge, Empty, ErrorBox, Skeleton, DistributionBar, Pagination, naturalCompare } from '../components/ui';
-import { LOT_STATUSES, LOT_TRANSITIONS, lotStatus } from '../lib/domain';
+import { LOT_STATUSES, lotStatus } from '../lib/domain';
 import { fcfa, num, dateTime, relative } from '../lib/format';
 
 export default function Lots() {
@@ -99,72 +99,11 @@ export default function Lots() {
         {rows.length > 0 && <Pagination total={rows.length} page={page} pageSize={pageSize} onPage={setPage} onPageSize={changePageSize} label="lots" />}
       </Card>
 
-      {action?.kind === 'status' && <StatusModal lot={action.lot} onClose={() => setAction(null)} onDone={() => { setAction(null); setOpenLot(null); lots.reload(); }} />}
+      {action?.kind === 'status' && <LotStatusModal lot={action.lot} onClose={() => setAction(null)} onDone={() => { setAction(null); setOpenLot(null); lots.reload(); }} />}
       {openLot && <LotDrawer lotId={openLot} onClose={() => setOpenLot(null)} onChanged={lots.reload} onChangeStatus={lot => setAction({ lot, kind: 'status' })} />}
       {creating && <LotFormModal projectId={project.id} onClose={() => setCreating(false)} onDone={() => { setCreating(false); lots.reload(); projects.reload(); }} />}
       {importing && <ImportModal project={project} onClose={() => setImporting(false)} onDone={() => { setImporting(false); lots.reload(); projects.reload(); }} />}
     </div>
-  );
-}
-
-function StatusModal({ lot, onClose, onDone }) {
-  const { user } = useAuth();
-  const toast = useToast();
-  const options = LOT_TRANSITIONS[lot.status].filter(s => !(lot.status === 'vendu' && user.role !== 'super_admin'));
-  const [to, setTo] = useState(options[0] || '');
-  const [reason, setReason] = useState('');
-  const [lead, setLead] = useState({ name: '', phone: '', email: '' });
-  const [error, setError] = useState(null);
-  const [busy, setBusy] = useState(false);
-
-  const submit = async () => {
-    setBusy(true);
-    setError(null);
-    try {
-      if (to === 'option') {
-        await api.post(`/admin/lots/${lot.id}/option`, { name: lead.name, phone: lead.phone || undefined, email: lead.email || undefined });
-      } else {
-        await api.post(`/admin/lots/${lot.id}/status`, { status: to, reason: reason || undefined });
-      }
-      toast(`Lot ${lot.code} : ${lotStatus(to).label}`);
-      onDone();
-    } catch (e) { setError(e); } finally { setBusy(false); }
-  };
-
-  return (
-    <Modal
-      title={`Lot ${lot.code}`}
-      onClose={onClose}
-      footer={<><button className="btn" onClick={onClose}>Annuler</button><button className="btn btn-primary" disabled={busy || !to} onClick={submit}>Valider</button></>}
-    >
-      <p>Statut actuel : <StatusBadge status={lot.status} /></p>
-      {!options.length ? <p className="muted">Aucun changement possible pour votre rôle.</p> : (
-        <>
-          <ErrorBox error={error} />
-          <fieldset style={{ border: 'none' }} className="stack">
-            <legend className="small muted" style={{ marginBottom: 8 }}>Nouveau statut</legend>
-            <div className="row">
-              {options.map(s => (
-                <label key={s} className={`btn btn-sm ${to === s ? '' : 'btn-ghost'}`} style={to === s ? { borderColor: lotStatus(s).color } : undefined}>
-                  <input type="radio" name="status" value={s} checked={to === s} onChange={() => setTo(s)} style={{ position: 'absolute', opacity: 0 }} />
-                  <i style={{ width: 10, height: 10, borderRadius: 3, background: lotStatus(s).color, display: 'inline-block' }} />{lotStatus(s).label}
-                </label>
-              ))}
-            </div>
-          </fieldset>
-          {to === 'option' ? (
-            <div className="form-grid">
-              <Field label="Nom du prospect" className="full"><input className="input" value={lead.name} onChange={e => setLead({ ...lead, name: e.target.value })} /></Field>
-              <Field label="Téléphone"><input className="input" value={lead.phone} onChange={e => setLead({ ...lead, phone: e.target.value })} /></Field>
-              <Field label="E-mail"><input className="input" type="email" value={lead.email} onChange={e => setLead({ ...lead, email: e.target.value })} /></Field>
-              <p className="small muted full">L’option bloque le lot pendant la durée prévue pour le projet, puis le libère automatiquement.</p>
-            </div>
-          ) : (
-            <Field label="Motif (facultatif)" hint="Conservé dans l’historique du lot."><input className="input" value={reason} onChange={e => setReason(e.target.value)} /></Field>
-          )}
-        </>
-      )}
-    </Modal>
   );
 }
 
