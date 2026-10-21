@@ -274,6 +274,12 @@ Choix du client (20/10) : **l'ERP devient la comptabilité principale** (plan, j
 - Mise en ligne faite le 20/10 (voir « Livraison du 20/10 — commit `54e7a7b` »). **Prochaine étape (choix du client) : le module RH** (congés, absences, dossiers du personnel, objectifs et indicateurs, en réutilisant `employees`).
 - À valider avec le comptable : exercice de départ et soldes d'ouverture, plan de comptes, TVA sur ventes, modes de constatation du chiffre d'affaires, traitement des stocks de programmes (34 / 36 et variations 73 en fin d'exercice, passées en OD pour l'instant), désistements après vente constatée (à traiter à la main).
 
+## Livraison du 21/10 — commit `3b248e4` (pipeline défilant, bouton « Nouveau client »)
+
+- **Pipeline** (dashboard /prospects?vue=pipeline et ERP /commercial/pipeline) : composant partagé `admin/src/components/PipelineBoard.jsx` — tableau à hauteur fixe (`100dvh - 210px`, min 380 px), colonnes qui défilent vers le bas, barre horizontale toujours visible, flèches ‹ ›, glisser le fond à la souris, défilement automatique près d'un bord pendant un glisser-déposer. Avant : la barre horizontale n'apparaissait qu'en bas d'une colonne de 113 fiches.
+- **Clients › « Nouveau client »** : `POST /api/admin/clients` (droit `sales:write`, service `createClient` de `importer.js`, mêmes règles qu'une ligne d'import sans lot, source `admin`) ; 409 si le téléphone ou l'e-mail est déjà celui d'un client ; la fiche s'ouvre sur « Accès client ». Programme facultatif.
+- **Mis en ligne le 21/10 vers 08 h 52 UTC** : `livraison-3b248e4.zip` déposée par le connecteur Chrome, empreinte OK, sauvegardes dans `~/sauvegardes/deploiement-3b248e4-20261021-085139/`, aucune migration, `DEPLOY_OK 3b248e4`. Vérifié en production : pipelines admin et ERP (flèches, barre visible), bouton « Nouveau client » présent (aucun client créé pour le test). 128 tests verts.
+
 ## Livraison du 21/10 — commit `c1f77e0` (import des 112 clients de l'ancienne plateforme)
 
 - L'export de suiviclient-siipaf.com n'a **ni lot, ni prix, ni versements** (vérifié sur l'ancienne plateforme : fiche = nom, prénom, téléphone, e-mail, programme, type de bien ; « Gérer » = étapes de chantier toutes à 0 %). Choix du client : importer **sans dossier** ; **programme, lot et prix seront rattachés à la main** (le client a demandé de ne pas relier le programme à l'import).
