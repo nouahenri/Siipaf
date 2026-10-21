@@ -3,7 +3,7 @@ import { useSearchParams } from 'react-router-dom';
 import { Search, FileSignature, Plus } from 'lucide-react';
 import { api, qs } from '@admin/lib/api';
 import { useAuth, useResource, useToast } from '@admin/lib/app-context';
-import { Card, Empty, Skeleton, ErrorBox, Drawer, Field, Badge, Pagination } from '@admin/components/ui';
+import { Card, Empty, Skeleton, ErrorBox, Drawer, Field, Badge, Pagination, Advance } from '@admin/components/ui';
 import { INSTALLMENT_STATUS } from '@admin/lib/domain';
 import { date, fcfa } from '@admin/lib/format';
 import { useCommercialMeta, compact } from '../../lib/commercial';
@@ -59,7 +59,7 @@ export default function Sales() {
         {!list.data ? <div className="card-body"><Skeleton h={240} /></div> : !rows.length ? <div className="card-body"><Empty icon={FileSignature}>Aucun dossier ne correspond.</Empty></div> : (
           <>
             <div className="table-wrap"><table className="table">
-              <thead><tr><th>Client</th><th>Bien</th><th>Paiement</th><th className="right">Prix</th><th>Payé</th><th>Prochaine échéance</th><th>Statut</th></tr></thead>
+              <thead><tr><th>Client</th><th>Bien</th><th>Paiement</th><th className="right">Prix</th><th>Payé</th><th>Avancement</th><th>Prochaine échéance</th><th>Statut</th></tr></thead>
               <tbody>
                 {rows.slice((page - 1) * pageSize, page * pageSize).map(s => (
                   <tr key={s.id} className="clickable" onClick={() => set('d', String(s.id))}>
@@ -68,6 +68,7 @@ export default function Sales() {
                     <td className="small">{s.vefa ? <Badge tone="brand">VEFA</Badge> : (meta?.financings[s.financing] || '—')}</td>
                     <td className="right tabular small">{compact(s.price_fcfa)}</td>
                     <td style={{ minWidth: 110 }}><div className="progress progress-sm" style={{ marginLeft: 0 }}><div style={{ width: `${s.percent_paid}%` }} /></div><span className="small tabular">{s.percent_paid} %</span></td>
+                    <td>{s.status === 'desiste' ? <span className="muted">—</span> : <Advance value={s.progress_pct} />}</td>
                     <td className="small">{s.overdue_count ? <Badge tone="danger">{fcfa(s.overdue_fcfa)} en retard</Badge> : s.next_due ? `${date(s.next_due.due_date)} · ${compact(s.next_due.remaining_fcfa)}` : '—'}</td>
                     <td><Badge tone={STATUS[s.status][1]}>{STATUS[s.status][0]}</Badge></td>
                   </tr>
@@ -114,6 +115,7 @@ export function SaleDrawer({ id, onClose, onChange }) {
               <dt>Programme</dt><dd>{d.project_name}{d.ilot ? ` · îlot ${d.ilot}` : ''} · lot {d.lot_code}</dd>
               <dt>Prix convenu</dt><dd><b>{fcfa(d.price_fcfa)}</b></dd>
               <dt>Encaissé</dt><dd>{fcfa(d.paid_fcfa)} ({d.percent_paid} %) · reste {fcfa(d.remaining_fcfa)}</dd>
+              <dt>Avancement chantier</dt><dd><Advance value={d.progress_pct} /></dd>
               <dt>Réservation</dt><dd>{date(d.reserved_at)}{d.signed_at ? ` · acte signé le ${date(d.signed_at)}` : ''}</dd>
               {d.overdue_count > 0 && <><dt>Retard</dt><dd style={{ color: 'var(--danger)' }}>{fcfa(d.overdue_fcfa)} sur {d.overdue_count} échéance(s)</dd></>}
             </dl>

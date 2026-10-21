@@ -9,7 +9,7 @@ const { requirePermission } = require('../auth');
 const { sendMail } = require('../lib/mailer');
 const { clientAppUrl } = require('../config');
 const { SITE_STAGES } = require('../lib/domain');
-const { grantAccess, accessStatus, siteUpdatesQuery, serializeUpdate } = require('../services/clients');
+const { grantAccess, accessStatus, siteUpdatesQuery, serializeUpdate, progressIndex } = require('../services/clients');
 const { totals } = require('../services/sales');
 const { scheduleStatus } = require('../services/schedule');
 const vefa = require('../services/vefa');
@@ -24,16 +24,18 @@ module.exports = function clientAdminRoutes(db) {
       db('leads as ld').leftJoin('projects as p', 'p.id', 'ld.project_id').whereNotNull('ld.client_code')
         .select('ld.*', 'p.name as project_name').orderBy('ld.client_code', 'desc'),
       db('sales as s').join('lots as l', 'l.id', 's.lot_id').join('projects as p', 'p.id', 'l.project_id')
-        .select('s.*', 'l.code as lot_code', 'l.ilot', 'p.name as project_name').orderBy('s.id'),
+        .select('s.*', 'l.code as lot_code', 'l.ilot', 'l.project_id', 'p.name as project_name').orderBy('s.id'),
       db('client_accounts').select('lead_id', 'active', 'must_change_password', 'last_login_at'),
       db('client_messages').where({ sender: 'client' }).whereNull('read_at').select('lead_id').count({ n: '*' }).groupBy('lead_id'),
     ]);
+    const progress = await progressIndex(db);
     const salesByLead = {};
     for (const sale of sales) {
       const t = await totals(db, sale);
       const sch = sale.status === 'desiste' ? { overdue_fcfa: 0, overdue_count: 0, next_due: null } : await scheduleStatus(db, sale, t);
       (salesByLead[sale.lead_id] ||= []).push({
-        id: sale.id, lot_id: sale.lot_id, lot_code: sale.lot_code, ilot: sale.ilot, project_name: sale.project_name,
+        id: sale.id, lot_id: sale.lot_id, lot_code: sale.lot_code, ilot: sale.ilot, project_id: sale.project_id, project_name: sale.project_name,
+        progress_pct: progress.lot({ id: sale.lot_id, project_id: sale.project_id, ilot: sale.ilot })?.progress_pct ?? 0,
         status: sale.status, financing: sale.financing, price_fcfa: Number(sale.price_fcfa), ...t,
         overdue_fcfa: sch.overdue_fcfa, overdue_count: sch.overdue_count, next_due: sch.next_due,
       });
@@ -51,6 +53,7 @@ module.exports = function clientAdminRoutes(db) {
         // « sans dossier » : client repris de l'ancienne plateforme, lot et prix pas encore saisis
         status: !ds.length ? 'sans_dossier' : !live.length ? 'desiste' : live.every(d => d.status === 'solde') ? 'solde' : 'en_cours',
         access: accessBy[l.id] || null, unread_messages: unreadBy[l.id] || 0,
+        progress: progress.client(ds, l.project_id), // avancement du chantier, comme sur l'ancienne plateforme
       };
     }));
   }));

@@ -15,6 +15,14 @@ export const Card = ({ title, actions, children, bodyClass = 'card-body', style 
   </section>
 );
 
+/** Avancement du chantier : barre + pourcentage (listes clients et dossiers, dashboard et ERP). */
+export const Advance = ({ value, title }) => (
+  <div className="advance" title={title} role="meter" aria-valuemin={0} aria-valuemax={100} aria-valuenow={value ?? 0} aria-label="Avancement du chantier">
+    <div className="progress"><div style={{ width: `${value ?? 0}%` }} /></div>
+    <span className="small tabular">{value ?? 0} %</span>
+  </div>
+);
+
 export const Field = ({ label, hint, children, className = '' }) => (
   <label className={`field ${className}`}>
     <span>{label}</span>

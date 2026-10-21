@@ -3,7 +3,7 @@ import { useOutletContext } from 'react-router-dom';
 import { Search, UserCheck, Phone, Mail as MailIcon, ExternalLink, Upload, Plus } from 'lucide-react';
 import { useAuth, useResource, useToast } from '../lib/app-context';
 import { api } from '../lib/api';
-import { Card, Drawer, Badge, Empty, ErrorBox, Skeleton, Pagination, Modal, Field } from '../components/ui';
+import { Card, Drawer, Badge, Empty, ErrorBox, Skeleton, Pagination, Modal, Field, Advance } from '../components/ui';
 import { AccessTab, MessageThread } from '../components/ClientSpace';
 import LotDrawer from '../components/LotDrawer';
 import ImportModal from '../components/ImportModal';
@@ -81,7 +81,7 @@ export default function Clients() {
           : !rows.length ? <Empty icon={UserCheck}>{clients.data?.length ? 'Aucun client ne correspond.' : 'Aucun client : un prospect devient client à l’ouverture de son dossier d’acquisition.'}</Empty>
           : (
             <div className="table-wrap"><table className="table">
-              <thead><tr><th>Client</th><th>Bien(s)</th><th className="right">Payé</th><th>Situation</th><th>Espace client</th></tr></thead>
+              <thead><tr><th>Client</th><th>Bien(s)</th><th className="right">Payé</th><th>Situation</th><th>Avancement</th><th>Espace client</th></tr></thead>
               <tbody>
                 {shown.map(c => {
                   const st = STATUS[c.status];
@@ -99,6 +99,7 @@ export default function Clients() {
                         <Badge tone={st.tone} dot>{st.label}</Badge>
                         {c.overdue_count > 0 && <div className="small" style={{ color: 'var(--danger)', marginTop: 4 }}>{c.overdue_count} retard{c.overdue_count > 1 ? 's' : ''} · {fcfa(c.overdue_fcfa)}</div>}
                       </td>
+                      <td>{c.progress ? <Advance value={c.progress.progress_pct} title={c.progress.stage_label || undefined} /> : <span className="muted">—</span>}</td>
                       <td>
                         <Badge tone={acc.tone}>{acc.label}</Badge>
                         {c.unread_messages > 0 && <div className="small" style={{ marginTop: 4 }}><Badge tone="brand">{c.unread_messages} message{c.unread_messages > 1 ? 's' : ''}</Badge></div>}
@@ -150,6 +151,7 @@ function ClientDrawer({ client, initialTab = 'dossiers', onClose, onOpenLot, can
               <dl className="dl small">
                 <dt>Type de bien</dt><dd>{client.property_type || '—'}</dd>
                 <dt>Programme</dt><dd>{client.project_name || '—'}</dd>
+                <dt>Avancement</dt><dd><Advance value={client.progress?.progress_pct} title={client.progress?.stage_label || undefined} /></dd>
               </dl>
               <p className="small muted" style={{ marginTop: 10 }}>Client repris de l’ancienne plateforme. Pour saisir son lot, son prix et son échéancier : Lots › fiche du lot › « Ouvrir le dossier d’acquisition », puis choisissez ce client dans la liste (son code {client.client_code} est conservé).</p>
             </Card>
@@ -158,6 +160,7 @@ function ClientDrawer({ client, initialTab = 'dossiers', onClose, onOpenLot, can
             <Card key={s.id} title={`${s.project_name} · Lot ${s.lot_code}`} actions={<button className="btn btn-sm" onClick={() => onOpenLot(s.lot_id)}><ExternalLink />Ouvrir la fiche</button>}>
               <dl className="dl small">
                 <dt>Situation</dt><dd><Badge tone={STATUS[s.status].tone} dot>{STATUS[s.status].label}</Badge></dd>
+                <dt>Avancement chantier</dt><dd><Advance value={s.progress_pct} /></dd>
                 <dt>Financement</dt><dd>{FINANCING[s.financing] || '—'}</dd>
                 <dt>Prix convenu</dt><dd className="tabular">{fcfa(s.price_fcfa)}</dd>
                 <dt>Payé</dt><dd className="tabular">{fcfa(s.paid_fcfa)} ({s.percent_paid} %)</dd>

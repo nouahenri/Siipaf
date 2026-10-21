@@ -2,7 +2,7 @@ import { useEffect, useState } from 'react';
 import { Phone, Mail, MessageCircle, Star, CheckCircle2, Trash2, CalendarPlus, FileSignature, XCircle, RotateCcw, Send, Clock, Building2 } from 'lucide-react';
 import { api } from '@admin/lib/api';
 import { useAuth, useResource, useToast } from '@admin/lib/app-context';
-import { Drawer, Modal, Field, Skeleton, ErrorBox, Badge, Empty } from '@admin/components/ui';
+import { Drawer, Modal, Field, Skeleton, ErrorBox, Badge, Empty, Advance } from '@admin/components/ui';
 import { dateTime, fcfa, relative, toLocalInput } from '@admin/lib/format';
 import { useCommercialMeta, ACTIVITY_STATE, STAGE_COLORS, compact } from '../../lib/commercial';
 
@@ -62,13 +62,23 @@ export default function LeadDrawer({ id, onClose, onChange }) {
 
           <LeadInfo lead={l} meta={meta} write={write} onSaved={refresh} />
 
+          {l.client_progress && (
+            <section>
+              <h3 className="erp-h3">Avancement du chantier{l.client_code ? <span className="muted small" style={{ fontWeight: 400 }}> · {l.client_code}</span> : null}</h3>
+              <div className="erp-panel row-between">
+                <Advance value={l.client_progress.progress_pct} />
+                <span className="small muted">{l.client_progress.stage_label || (l.sales.length ? 'Aucun point publié' : 'Sans dossier : lot à rattacher')}</span>
+              </div>
+            </section>
+          )}
+
           {l.sales.length > 0 && (
             <section>
               <h3 className="erp-h3">Dossiers de vente</h3>
               <div className="stack" style={{ gap: 8 }}>
                 {l.sales.map(s => (
                   <div key={s.id} className="erp-panel row-between">
-                    <span><b>{s.project_name} · lot {s.lot_code}</b>{s.vefa && <Badge tone="brand"> VEFA</Badge>}<div className="small muted">{fcfa(s.price_fcfa)} · payé {s.percent_paid} %</div></span>
+                    <span><b>{s.project_name} · lot {s.lot_code}</b>{s.vefa && <Badge tone="brand"> VEFA</Badge>}<div className="small muted">{fcfa(s.price_fcfa)} · payé {s.percent_paid} % · chantier {s.progress_pct} %</div></span>
                     <Badge tone={s.status === 'solde' ? 'ok' : s.status === 'desiste' ? 'danger' : 'warn'}>{s.status === 'solde' ? 'Soldé' : s.status === 'desiste' ? 'Désisté' : 'En cours'}</Badge>
                   </div>
                 ))}

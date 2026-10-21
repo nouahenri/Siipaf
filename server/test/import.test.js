@@ -139,6 +139,30 @@ test('nouveau client saisi à la main : code client, sans dossier, pas de doublo
   assert.equal(res.status, 400);
 });
 
+test('avancement du chantier par client : lot, programme rattaché, sans programme', async () => {
+  const project = await db('projects').where({ slug: 'yamoussoukro' }).first();
+  const mk = async body => (await admin.post('/api/admin/clients').send(body)).body.lead_id;
+  const withProject = await mk({ name: 'AVANCE Projet', phone: '+2250711000001', project_id: project.id });
+  const without = await mk({ name: 'AVANCE Rien', phone: '+2250711000002' });
+  // Client avec un dossier sur un lot de l'îlot Q
+  const imp = await admin.post('/api/admin/import').send({ mode: 'clients', dry_run: false, rows: [{ name: 'AVANCE Lot', phone: '+2250711000003', project: 'yamoussoukro', lot: 'AV-1', ilot: 'Q', price: 1000000 }] });
+  assert.equal(imp.body.ok, 1, JSON.stringify(imp.body.report));
+  const lotLead = (await db('leads').where({ phone: '+2250711000003' }).first()).id;
+
+  const post = body => admin.post(`/api/admin/projects/${project.id}/site-updates`).send({ stage: 'fondations', title: 'Point', ...body });
+  assert.equal((await post({ progress_pct: 30 })).status, 201);
+  assert.equal((await post({ progress_pct: 55, ilot: 'Q', stage: 'gros_oeuvre' })).status, 201);
+  assert.equal((await post({ progress_pct: 90, visible_client: false })).status, 201, 'point interne : ignoré');
+
+  const list = (await admin.get('/api/admin/clients')).body;
+  const of = id => list.find(c => c.lead_id === id);
+  assert.equal(of(withProject).progress.progress_pct, 30, 'programme rattaché : point du projet');
+  assert.equal(of(without).progress.progress_pct, 0, 'sans programme : 0 %');
+  assert.equal(of(lotLead).progress.progress_pct, 55, 'lot : dernier point de son îlot');
+  assert.equal(of(lotLead).progress.stage, 'gros_oeuvre');
+  assert.equal(of(lotLead).sales[0].progress_pct, 55);
+});
+
 test('droits : un éditeur ne peut rien importer', async () => {
   const editeur = await login(app, await createUser(db, 'editeur', 'editeur-import@test.ci'), 'motdepasse-test-123');
   const res = await editeur.post('/api/admin/import').send({ mode: 'prospects', rows: [{ name: 'Test', phone: '0700000000' }] });

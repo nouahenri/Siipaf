@@ -23,6 +23,12 @@ export function NoDossier() {
       <Empty icon={FolderOpen} title={bien || 'Aucun dossier actif'}
         text={bien ? 'Le détail de votre dossier (lot, échéancier, documents) apparaîtra ici dès sa mise à jour par nos équipes. Une question ? Écrivez-nous.'
           : 'Votre dossier d’acquisition apparaîtra ici dès son ouverture par nos équipes. Une question ? Écrivez-nous.'}>
+        {bien && client.progress && (
+          <div style={{ display: 'grid', justifyItems: 'center', gap: 4, marginBottom: 12 }}>
+            <Ring value={client.progress.progress_pct} label="chantier" size={84} />
+            <span className="muted" style={{ fontSize: 13 }}>Avancement{client.progress.stage_label ? ` · ${client.progress.stage_label}` : ''}</span>
+          </div>
+        )}
         <Link className="btn btn-dark btn-sm" to="/messages"><MessageCircle aria-hidden="true" /> Nous écrire</Link>
       </Empty>
     </div>

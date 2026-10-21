@@ -14,6 +14,7 @@ const cm = require('../../services/commercial');
 const vefa = require('../../services/vefa');
 const { totals } = require('../../services/sales');
 const { scheduleStatus } = require('../../services/schedule');
+const { progressIndex } = require('../../services/clients');
 
 const optText = max => z.string().trim().max(max).optional().nullable().transform(v => v || null);
 const month = z.string().regex(/^\d{4}-(0[1-9]|1[0-2])$/, 'Mois attendu au format AAAA-MM');
@@ -62,18 +63,23 @@ module.exports = function commercialRoutes(db) {
         .select('a.*', 'u.name as assigned_name').orderBy('a.due_at'),
       cm.leadHistory(db, lead.id),
       db('sales as s').join('lots as l', 'l.id', 's.lot_id').join('projects as p', 'p.id', 'l.project_id').where('s.lead_id', lead.id)
-        .select('s.id', 's.status', 's.price_fcfa', 's.vefa', 's.financing', 'l.code as lot_code', 'l.id as lot_id', 'p.name as project_name').orderBy('s.id', 'desc'),
+        .select('s.id', 's.status', 's.price_fcfa', 's.vefa', 's.financing', 'l.code as lot_code', 'l.id as lot_id', 'l.project_id', 'l.ilot', 'p.name as project_name').orderBy('s.id', 'desc'),
       lead.project_id ? db('projects').where({ id: lead.project_id }).first('id', 'name') : null,
       lead.lot_id ? db('lots').where({ id: lead.lot_id }).first('id', 'code', 'price_fcfa', 'status') : null,
       lead.assigned_to ? db('users').where({ id: lead.assigned_to }).first('id', 'name') : null,
     ]);
+    const progress = await progressIndex(db);
     const salesOut = [];
-    for (const s of sales) salesOut.push({ ...s, vefa: !!s.vefa, price_fcfa: Number(s.price_fcfa), ...(await totals(db, s)) });
+    for (const s of sales) {
+      salesOut.push({ ...s, vefa: !!s.vefa, price_fcfa: Number(s.price_fcfa), ...(await totals(db, s)), progress_pct: progress.lot({ id: s.lot_id, project_id: s.project_id, ilot: s.ilot })?.progress_pct ?? 0 });
+    }
     res.json({
       ...lead, is_diaspora: !!lead.is_diaspora, created_at: isoTime(lead.created_at), lost_at: isoTime(lead.lost_at),
       expected_revenue_fcfa: lead.expected_revenue_fcfa == null ? null : Number(lead.expected_revenue_fcfa),
       probability: STAGE_PROBABILITY[lead.stage], project, lot, assigned_name: assigned?.name || null,
       activities: planned.map(cm.serializeActivity), history, sales: salesOut,
+      // Avancement du chantier pour un client (code client), comme sur l'ancienne plateforme
+      client_progress: lead.client_code ? progress.client(sales, lead.project_id) : null,
     });
   }));
 
@@ -292,7 +298,8 @@ module.exports = function commercialRoutes(db) {
   }));
 
   // ─── Dossiers de vente ────────────────────────────────────
-  async function saleRow(s) {
+  // progress : index d'avancement du chantier (progressIndex), calculé une fois par requête
+  async function saleRow(s, progress) {
     const t = await totals(db, s);
     const st = s.status === 'desiste' ? { overdue_fcfa: 0, overdue_count: 0, next_due: null } : await scheduleStatus(db, s, t);
     return {
@@ -300,6 +307,7 @@ module.exports = function commercialRoutes(db) {
       lot_id: s.lot_id, lot_code: s.lot_code, ilot: s.ilot, project_id: s.project_id, project_name: s.project_name,
       lead_id: s.lead_id, client_name: s.client_name, client_code: s.client_code, assigned_name: s.assigned_name,
       ...t, overdue_fcfa: st.overdue_fcfa, overdue_count: st.overdue_count, next_due: st.next_due,
+      progress_pct: progress.lot({ id: s.lot_id, project_id: s.project_id, ilot: s.ilot })?.progress_pct ?? 0,
     };
   }
 
@@ -317,8 +325,9 @@ module.exports = function commercialRoutes(db) {
       q.where(b => b.where('ld.name', 'like', s).orWhere('ld.client_code', 'like', s).orWhere('l.code', 'like', s));
     }
     const rows = await q.orderBy('s.id', 'desc').limit(1000);
+    const progress = await progressIndex(db);
     const out = [];
-    for (const s of rows) out.push(await saleRow(s));
+    for (const s of rows) out.push(await saleRow(s, progress));
     res.json(req.query.overdue === '1' ? out.filter(s => s.overdue_count > 0) : out);
   }));
 
@@ -331,7 +340,7 @@ module.exports = function commercialRoutes(db) {
         .select('p.*', 'u.name as recorded_by_name').orderBy([{ column: 'p.paid_at', order: 'desc' }, { column: 'p.id', order: 'desc' }]),
       scheduleStatus(db, s, t),
     ]);
-    res.json({ ...(await saleRow(s)), notes: s.notes, schedule, payments: payments.map(p => ({ ...p, paid_at: isoDay(p.paid_at), amount_fcfa: Number(p.amount_fcfa) })) });
+    res.json({ ...(await saleRow(s, await progressIndex(db))), notes: s.notes, schedule, payments: payments.map(p => ({ ...p, paid_at: isoDay(p.paid_at), amount_fcfa: Number(p.amount_fcfa) })) });
   }));
 
   // ─── VEFA : plans et appels de fonds ──────────────────────

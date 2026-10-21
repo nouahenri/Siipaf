@@ -14,7 +14,7 @@ const { notifyTeam } = require('../lib/mailer');
 const { CLIENT_PASSWORD_MIN } = require('../lib/domain');
 const {
   findAccountByLogin, requestReset, resetPassword, clientSales, clientSaleDetail, clientDocumentFile,
-  ownSale, saleContext, siteUpdatesQuery, serializeUpdate,
+  ownSale, saleContext, siteUpdatesQuery, serializeUpdate, progressIndex,
 } = require('../services/clients');
 
 // Ancien nom du champ d'identifiant : « code »
@@ -33,11 +33,16 @@ module.exports = function clientRoutes(db) {
 
   async function profile(account) {
     const lead = await db('leads as l').leftJoin('projects as p', 'p.id', 'l.project_id').where('l.id', account.lead_id).select('l.*', 'p.name as project_name').first();
-    const [{ n }] = await db('client_messages').where({ lead_id: lead.id, sender: 'equipe' }).whereNull('read_at').count({ n: '*' });
+    const [[{ n }], sales, progress] = await Promise.all([
+      db('client_messages').where({ lead_id: lead.id, sender: 'equipe' }).whereNull('read_at').count({ n: '*' }),
+      db('sales as s').join('lots as l', 'l.id', 's.lot_id').where('s.lead_id', lead.id).select('s.status', 's.lot_id', 'l.project_id', 'l.ilot'),
+      progressIndex(db),
+    ]);
     return {
       client_code: lead.client_code, name: lead.name, email: lead.email, phone: lead.phone, country: lead.country,
       // Bien souscrit tant que le dossier d'acquisition n'est pas ouvert (clients repris de l'ancienne plateforme)
       property_type: lead.property_type || null, project_name: lead.project_name || null,
+      progress: progress.client(sales, lead.project_id), // avancement global du chantier
       must_change_password: !!account.must_change_password, unread_messages: Number(n),
     };
   }

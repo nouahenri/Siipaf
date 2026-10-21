@@ -155,6 +155,38 @@ function siteUpdatesQuery(db, lot, { onlyVisible = true } = {}) {
   return q.orderBy([{ column: 'published_at', order: 'desc' }, { column: 'id', order: 'desc' }]);
 }
 
+/**
+ * Avancement du chantier pour toute une liste en une requête : pour un lot, le dernier point publié
+ * (visible du client) qui vise ce lot, son îlot ou le projet entier ; pour un projet, le dernier point du projet entier.
+ */
+async function progressIndex(db) {
+  const rows = await db('site_updates').where('visible_client', true)
+    .orderBy([{ column: 'published_at', order: 'desc' }, { column: 'id', order: 'desc' }])
+    .select('project_id', 'ilot', 'lot_id', 'stage', 'progress_pct');
+  const byProject = {};
+  for (const u of rows) (byProject[u.project_id] ||= []).push(u);
+  const pick = u => (u ? { progress_pct: u.progress_pct, stage: u.stage, stage_label: SITE_STAGE_LABELS[u.stage] } : null);
+  const lot = l => pick((byProject[l.project_id] || []).find(u => u.lot_id === l.id || (u.lot_id == null && (u.ilot == null || u.ilot === l.ilot))));
+  const project = id => pick((byProject[id] || []).find(u => u.lot_id == null && u.ilot == null));
+  return {
+    lot,
+    project,
+    /**
+     * Avancement d'un client (comme sur l'ancienne plateforme) : moyenne de ses lots en cours ;
+     * sans dossier, celui de son programme s'il est rattaché, sinon 0 %. `null` pour un client désisté.
+     */
+    client(sales, projectId) {
+      const live = sales.filter(s => s.status !== 'desiste');
+      if (sales.length && !live.length) return null;
+      if (!live.length) return project(projectId) || { progress_pct: 0, stage: null, stage_label: null };
+      const each = live.map(s => lot({ id: s.lot_id, project_id: s.project_id, ilot: s.ilot }));
+      const pct = Math.round(each.reduce((n, p) => n + (p ? p.progress_pct : 0), 0) / each.length);
+      const one = each.length === 1 ? each[0] : null;
+      return { progress_pct: pct, stage: one?.stage || null, stage_label: one?.stage_label || null };
+    },
+  };
+}
+
 async function serializeUpdate(db, u) {
   return {
     id: u.id, stage: u.stage, stage_label: SITE_STAGE_LABELS[u.stage], progress_pct: u.progress_pct,
@@ -245,6 +277,6 @@ async function clientDocumentFile(db, leadId, docId) {
 
 module.exports = {
   generatePassword, normalizeCode, findAccountByCode, findAccountByLogin, grantAccess, accessStatus, requestReset, resetPassword,
-  mediaList, siteUpdatesQuery, serializeUpdate, ownSale, saleContext, clientSales, clientSaleDetail, clientDocumentFile,
+  mediaList, siteUpdatesQuery, progressIndex, serializeUpdate, ownSale, saleContext, clientSales, clientSaleDetail, clientDocumentFile,
   receiptNumber,
 };

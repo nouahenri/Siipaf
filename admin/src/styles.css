@@ -360,6 +360,11 @@ fieldset { min-width: 0; }
 .progress { height: 8px; border-radius: 4px; background: var(--bg); overflow: hidden; margin: 12px 0 6px; }
 .progress > div { height: 100%; border-radius: 4px; background: var(--ok); transition: width .3s; }
 .progress-sm { height: 4px; margin: 4px 0 0; width: 70px; margin-left: auto; }
+/* Avancement du chantier (bleu, pour ne pas le confondre avec la barre des paiements) */
+.advance { display: flex; align-items: center; gap: 8px; min-width: 120px; }
+.advance .progress { flex: 1; max-width: 90px; height: 6px; margin: 0; }
+.advance .progress > div { background: var(--focus); }
+.advance span { min-width: 34px; text-align: right; }
 .sidebar { scrollbar-width: none; }
 .sidebar::-webkit-scrollbar { display: none; }
 
