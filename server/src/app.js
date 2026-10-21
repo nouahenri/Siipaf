@@ -57,6 +57,7 @@ function createApp(db) {
   admin.use(require('./routes/catalog')(db));
   admin.use(require('./routes/sales')(db));
   admin.use(require('./routes/crm')(db));
+  admin.use(require('./routes/newsletter')(db));
   admin.use(require('./routes/content')(db));
   admin.use(adminTestimonials(db));
   admin.use(require('./routes/clientAdmin')(db));
@@ -135,6 +136,9 @@ function createApp(db) {
   if (!isTest) {
     const expire = throttledExpiry(db, 0);
     setInterval(() => expire().catch(e => console.error('[options]', e.message)), 5 * 60 * 1000).unref();
+    // Envoi progressif des campagnes de newsletter (aussi possible par tâche planifiée : scripts/newsletter-send.js)
+    const newsletter = require('./services/newsletter');
+    setInterval(() => newsletter.tick(db).catch(e => console.error('[newsletter]', e.message)), 60 * 1000).unref();
   }
 
   return app;

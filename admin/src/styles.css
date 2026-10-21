@@ -612,3 +612,11 @@ fieldset { min-width: 0; }
 
 /* Premier accès : choix du mot de passe (mot de passe provisoire) */
 .force-password { min-height: 100vh; display: grid; place-items: center; padding: 24px 16px; background: var(--bg); }
+
+/* Newsletter : rédaction d'une campagne à gauche, aperçu réel de l'e-mail à droite */
+.campaign-grid { grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); align-items: start; }
+.campaign-preview { display: block; width: 100%; height: 760px; border: 0; background: #f3f4f6; border-radius: 0 0 var(--radius) var(--radius); }
+@media (max-width: 1100px) { .campaign-grid { grid-template-columns: 1fr; } .campaign-preview { height: 640px; } }
+.link-btn { background: none; border: 0; padding: 0; font-weight: 600; text-align: left; cursor: pointer; color: inherit; }
+.link-btn:hover { color: var(--brand); }
+.advance-wide .progress { max-width: none; height: 8px; }

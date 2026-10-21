@@ -183,13 +183,23 @@ module.exports = function publicRoutes(db) {
     res.status(201).json({ ok: true });
   }));
 
+  // Désinscription : lien des e-mails (GET) et désinscription en un clic des messageries (POST, RFC 8058)
+  const unsubscribe = async token => token && await db('newsletter_subscribers').where({ unsubscribe_token: token })
+    .update({ status: 'desinscrit', updated_at: new Date() });
+  const page = (title, text) => `<!doctype html><html lang="fr"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>${title} — SIIPAF</title></head>
+<body style="margin:0;background:#f3f4f6;font-family:Arial,Helvetica,sans-serif;color:#1d2230"><div style="max-width:480px;margin:64px auto;padding:32px;background:#fff;border-radius:12px;text-align:center">
+<img src="/logo-siipaf.png" alt="SIIPAF SA" width="160" style="max-width:60%;height:auto"><div style="height:4px;background:#d2101e;margin:20px 0"></div>
+<h1 style="font-size:20px;margin:0 0 12px">${title}</h1><p style="color:#4b5563;line-height:1.6;margin:0 0 20px">${text}</p>
+<a href="https://siipaf.com" style="color:#d2101e">Retour au site siipaf.com</a></div></body></html>`;
   r.get('/newsletter/unsubscribe', ah(async (req, res) => {
-    const token = String(req.query.token || '');
-    const updated = token && await db('newsletter_subscribers').where({ unsubscribe_token: token })
-      .update({ status: 'desinscrit', updated_at: new Date() });
+    const updated = await unsubscribe(String(req.query.token || ''));
     res.type('html').send(updated
-      ? '<p style="font-family:sans-serif">Vous êtes désinscrit(e) de la newsletter SIIPAF.</p>'
-      : '<p style="font-family:sans-serif">Lien de désinscription invalide.</p>');
+      ? page('Vous êtes désinscrit(e)', 'Vous ne recevrez plus la newsletter de SIIPAF. Vous pouvez vous réinscrire à tout moment depuis le site.')
+      : page('Lien de désinscription invalide', 'Ce lien n’est plus valable. Écrivez-nous à info@siipaf.com pour toute demande.'));
+  }));
+  r.post('/newsletter/unsubscribe', ah(async (req, res) => {
+    await unsubscribe(String(req.query.token || ''));
+    res.json({ ok: true });
   }));
 
   return r;

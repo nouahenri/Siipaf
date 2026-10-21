@@ -37,4 +37,15 @@ function notifyTeam(subject, text) {
   return sendMail({ to: smtp.notify, subject: `[SIIPAF] ${subject}`, text });
 }
 
-module.exports = { sendMail, notifyTeam, sent };
+/**
+ * Envoi qui remonte les erreurs (campagnes : chaque échec est noté, une erreur d'authentification met l'envoi en
+ * pause). `message` : from, to, subject, text, html, headers, replyTo.
+ */
+async function deliver(message) {
+  if (isTest) { sent.push(message); return { messageId: `test-${sent.length}` }; }
+  const t = getTransport();
+  if (!t) { const err = new Error('SMTP non configuré (server/.env).'); err.code = 'ENOSMTP'; throw err; }
+  return t.sendMail(message);
+}
+
+module.exports = { sendMail, notifyTeam, deliver, sent, smtp };

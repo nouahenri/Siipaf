@@ -249,7 +249,7 @@ const PERMISSIONS = {
   ],
   editeur: [
     'projects:read', 'projects:write', 'plans:write', 'lots:read', 'content:write', 'media:write',
-    'newsletter:read', 'newsletter:write', 'contacts:read', 'testimonials:write', 'settings:write', 'property:write', ...SELF_SERVICE,
+    'newsletter:read', 'newsletter:write', 'newsletter:send', 'contacts:read', 'testimonials:write', 'settings:write', 'property:write', ...SELF_SERVICE,
   ],
   conducteur_travaux: [
     'projects:read', 'lots:read', 'sales:read', 'documents:write', 'site_updates:write', 'client_messages',
@@ -362,7 +362,8 @@ const PERMISSION_CATALOG = [
     ['contacts:read', 'Traiter les messages de contact', null],
     ['testimonials:write', 'Modérer les témoignages', 'Publier, refuser, mettre en avant'],
     ['newsletter:read', 'Voir les abonnés newsletter', null],
-    ['newsletter:write', 'Gérer les abonnés newsletter', null],
+    ['newsletter:write', 'Gérer la newsletter', 'Abonnés, rédaction des campagnes, e-mail de test'],
+    ['newsletter:send', 'Envoyer les campagnes', 'Lancer, suspendre ou annuler l’envoi d’une campagne à tous les abonnés'],
   ] },
   { group: 'Administration', items: [
     ['users:read', 'Voir les utilisateurs', null],
