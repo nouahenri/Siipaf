@@ -12,6 +12,7 @@ const { findOrCreateLead } = require('./lots');
 const { openSale, refreshSaleStatus, totals, nextClientCode, EARLY_STAGES } = require('./sales');
 const { generatePassword } = require('./clients');
 const { hashPassword } = require('../auth');
+const { syncLead, createImport, seesAllLeads } = require('./portfolio');
 
 const ROLLBACK = Symbol('simulation');
 const text = v => (v == null ? '' : String(v).trim());
@@ -78,6 +79,11 @@ async function importLead(trx, row, ctx) {
   });
   const stage = fold(row.stage);
   if (stage && LEAD_STAGES.includes(stage) && lead.created) await trx('leads').where({ id: lead.id }).update({ stage });
+  // Un nouveau prospect est attribué au commercial choisi pour la liste ; une personne déjà connue garde le sien
+  if (lead.created && ctx.assignTo) {
+    await trx('leads').where({ id: lead.id }).update({ assigned_to: ctx.assignTo });
+    lead.assigned_to = ctx.assignTo;
+  }
   // Reprise de l'ancienne plateforme : type de bien et numéro du client (jamais écrasés)
   const legacy = { property_type: text(row.property_type).slice(0, 160), legacy_number: text(row.legacy_number).slice(0, 20) };
   const patch = Object.fromEntries(Object.entries(legacy).filter(([k, v]) => v && !lead[k]));
@@ -173,9 +179,25 @@ function clientAction(lead, lot, dryRun) {
   return dryRun ? 'Client sans dossier (code attribué à l’import)' : `Client sans dossier · ${lead.client_code}`;
 }
 
-async function runImport(db, { mode, rows, dryRun, createLots, openAccess: withAccess, user }) {
+/**
+ * `list` : liste de prospects (un fichier = une liste) — { id } pour les paquets suivants d'un même fichier, sinon
+ * { name, filename, assigned_to } pour la créer au premier paquet enregistré. Un commercial sans le droit « voir les
+ * prospects de toute l'équipe » s'attribue toujours ses propres nouveaux prospects.
+ */
+async function runImport(db, { mode, rows, dryRun, createLots, openAccess: withAccess, user, list = null }) {
   const projects = await db('projects').select('id', 'name', 'slug');
-  const ctx = { projects, createLots, user };
+  let importId = list?.id || null;
+  let assignTo = list?.assigned_to || null;
+  if (importId) {
+    const existing = await db('lead_imports').where({ id: importId }).first();
+    if (!existing || existing.created_by !== user.id) throw new HttpError(404, 'Liste d’import introuvable.');
+    assignTo = existing.assigned_to;
+  } else if (!seesAllLeads(user)) assignTo = user.id;
+  if (assignTo && !(await db('users').where({ id: assignTo, active: true }).first('id'))) throw new HttpError(400, 'Commercial introuvable ou désactivé.');
+  if (!dryRun && !importId && list) {
+    importId = await createImport(db, { name: list.name || list.filename || `Import du ${new Date().toLocaleDateString('fr-FR')}`, filename: list.filename, mode, assigned_to: assignTo, user });
+  }
+  const ctx = { projects, createLots, user, assignTo };
   const report = [];
   for (const [i, row] of rows.entries()) {
     const line = row._line || i + 2; // ligne 1 = en-têtes
@@ -185,6 +207,10 @@ async function runImport(db, { mode, rows, dryRun, createLots, openAccess: withA
       await db.transaction(async trx => {
         result = mode === 'clients' ? await importClient(trx, row, ctx) : await importLead(trx, row, ctx);
         if (dryRun) throw ROLLBACK;
+        await syncLead(trx, result.lead.id, { by: user.id, reason: 'import', importId });
+        if (importId && !(await trx('lead_import_items').where({ import_id: importId, lead_id: result.lead.id }).first())) {
+          await trx('lead_import_items').insert({ import_id: importId, lead_id: result.lead.id, duplicate: !result.lead.created, line });
+        }
         if (mode === 'clients' && withAccess) access = await openAccess(trx, result.lead.id, user);
       }).catch(e => { if (e !== ROLLBACK) throw e; });
       const { lead, lot } = result;
@@ -197,7 +223,15 @@ async function runImport(db, { mode, rows, dryRun, createLots, openAccess: withA
       report.push({ line, ok: false, name: [text(row.name), text(row.first_name)].filter(Boolean).join(' '), error: e.status ? e.message : `Erreur : ${e.message}` });
     }
   }
-  return { dryRun, total: rows.length, ok: report.filter(r => r.ok).length, errors: report.filter(r => !r.ok).length, report };
+  const ok = report.filter(r => r.ok).length, errors = report.filter(r => !r.ok).length;
+  if (importId && !dryRun) {
+    const items = await db('lead_import_items').where({ import_id: importId }).select('duplicate');
+    await db('lead_imports').where({ id: importId }).update({
+      rows_total: db.raw('rows_total + ?', [rows.length]), error_count: db.raw('error_count + ?', [errors]),
+      created_count: items.filter(i => !i.duplicate).length, duplicate_count: items.filter(i => i.duplicate).length, updated_at: new Date(),
+    });
+  }
+  return { dryRun, total: rows.length, ok, errors, report, import_id: importId };
 }
 
 /**
@@ -207,9 +241,11 @@ async function runImport(db, { mode, rows, dryRun, createLots, openAccess: withA
 async function createClient(db, row, user) {
   const projects = await db('projects').select('id', 'name', 'slug');
   return db.transaction(async trx => {
-    const { lead, project } = await importLead(trx, row, { projects, user, source: 'admin' });
+    const { lead, project } = await importLead(trx, row, { projects, user, source: 'admin', assignTo: seesAllLeads(user) ? null : user.id });
     if (lead.client_code) throw new HttpError(409, `${lead.name} est déjà client (${lead.client_code}).`);
-    return (await importClientWithoutSale(trx, lead, project, row)).lead;
+    const out = (await importClientWithoutSale(trx, lead, project, row)).lead;
+    await syncLead(trx, lead.id, { by: user.id, reason: 'creation' });
+    return out;
   });
 }
 

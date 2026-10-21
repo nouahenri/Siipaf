@@ -5,6 +5,7 @@ const { ah, parse, idParam, HttpError } = require('../lib/http');
 const { requirePermission } = require('../auth');
 const { LEAD_STAGES } = require('../lib/domain');
 const { findOrCreateLead } = require('../services/lots');
+const { syncLead, recordDeletion } = require('../services/portfolio');
 
 const page = req => {
   const limit = Math.min(Number(req.query.limit) || 50, 200);
@@ -39,7 +40,8 @@ module.exports = function crmRoutes(db) {
       .leftJoin('users as u', 'u.id', 'ld.assigned_to');
     if (req.query.stage) q.whereIn('ld.stage', String(req.query.stage).split(','));
     if (req.query.project_id) q.where('ld.project_id', Number(req.query.project_id));
-    if (req.query.assigned_to) q.where('ld.assigned_to', Number(req.query.assigned_to));
+    if (req.query.assigned_to === 'aucun') q.whereNull('ld.assigned_to');
+    else if (req.query.assigned_to) q.where('ld.assigned_to', Number(req.query.assigned_to));
     if (req.query.q) {
       const s = `%${String(req.query.q).trim()}%`;
       q.where(b => b.where('ld.name', 'like', s).orWhere('ld.email', 'like', s).orWhere('ld.phone', 'like', s));
@@ -78,11 +80,19 @@ module.exports = function crmRoutes(db) {
 
   r.post('/leads', requirePermission('leads:write'), ah(async (req, res) => {
     const data = parse(leadSchema, req.body);
-    const lead = await db.transaction(trx => findOrCreateLead(trx, { ...data, source: 'admin' }));
-    const patch = {};
-    if (data.stage) patch.stage = data.stage;
-    patch.assigned_to = data.assigned_to ?? (seesAllLeads(req.user) ? null : req.user.id);
-    await db('leads').where({ id: lead.id }).update(patch);
+    if (!seesAllLeads(req.user) && data.assigned_to && data.assigned_to !== req.user.id) {
+      throw new HttpError(403, 'Un commercial ne peut assigner un prospect qu’à lui-même.');
+    }
+    const lead = await db.transaction(async trx => {
+      const found = await findOrCreateLead(trx, { ...data, source: 'admin' });
+      const patch = {};
+      if (data.stage) patch.stage = data.stage;
+      // Attribué d'office à celui qui a établi le contact ; une personne déjà connue garde son commercial
+      if (found.created || !found.assigned_to) patch.assigned_to = data.assigned_to ?? (seesAllLeads(req.user) ? null : req.user.id);
+      if (Object.keys(patch).length) await trx('leads').where({ id: found.id }).update(patch);
+      await syncLead(trx, found.id, { by: req.user.id, reason: found.created ? 'creation' : 'attribution' });
+      return found;
+    });
     res.status(201).json(await db('leads').where({ id: lead.id }).first());
   }));
 
@@ -94,7 +104,10 @@ module.exports = function crmRoutes(db) {
     if (!seesAllLeads(req.user) && data.assigned_to && data.assigned_to !== req.user.id) {
       throw new HttpError(403, 'Un commercial ne peut assigner un prospect qu’à lui-même.');
     }
-    await db('leads').where({ id }).update({ ...data, updated_at: new Date() });
+    await db.transaction(async trx => {
+      await trx('leads').where({ id }).update({ ...data, updated_at: new Date() });
+      await syncLead(trx, id, { by: req.user.id });
+    });
     // Historique du prospect (ERP · Commercial) : le changement d'étape y est inscrit
     if (data.stage && data.stage !== lead.stage) {
       const { logActivity, STAGE_LABELS } = require('../services/commercial');
@@ -115,7 +128,10 @@ module.exports = function crmRoutes(db) {
     if (await db('lot_options').where({ lead_id: id, state: 'active' }).first()) {
       throw new HttpError(409, 'Cette personne a une option en cours sur un lot : annulez-la d’abord.');
     }
-    await db('leads').where({ id }).del();
+    await db.transaction(async trx => {
+      await recordDeletion(trx, lead, req.user.id); // compte en perte pour son commercial
+      await trx('leads').where({ id }).del();
+    });
     res.json({ ok: true });
   }));
 

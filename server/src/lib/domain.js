@@ -600,7 +600,87 @@ function activityState(dueAt, today = new Date()) {
   return d < t ? 'retard' : d === t ? 'aujourdhui' : 'a_venir';
 }
 
+/*
+ * Portefeuille commercial (choix du client, 21/10) : un prospect est attribué d'office au commercial qui a établi
+ * le contact ; le responsable peut attribuer, répartir ou transférer. Chaque changement est daté et rattaché au
+ * commercial du moment (table lead_portfolio_events) : un transfert A → B retire le prospect à A et l'ajoute à B
+ * à la date du transfert, sans réécrire le passé. Deux compteurs : prospects (à l'attribution) et clients (à la
+ * conversion, pour le commercial attribué ce jour-là). Les pertes sont montrées à part : brut, pertes, net.
+ */
+const PORTFOLIO_EVENTS = {
+  attribution: 'Prospect attribué', retrait: 'Prospect retiré', client: 'Devenu client', desistement: 'Client désisté',
+  perte: 'Prospect perdu', reprise: 'Prospect repris (n’est plus perdu)', suppression: 'Prospect supprimé',
+};
+const PORTFOLIO_REASONS = {
+  creation: 'Création', import: 'Import', attribution: 'Attribution', transfert: 'Transfert', retrait: 'Retrait', reprise: 'Données existantes',
+};
+
+/**
+ * État d'un prospect pour le portefeuille : commercial attribué, client actif (code client ou dossier, hors
+ * désistement de tous ses dossiers), désisté, perdu.
+ */
+function portfolioState(lead, sales = []) {
+  const desiste = sales.length > 0 && sales.every(s => s.status === 'desiste');
+  return {
+    owner: lead.assigned_to || null,
+    client: !!(lead.client_code || sales.length) && !desiste,
+    desiste,
+    lost: lead.stage === 'perdu',
+  };
+}
+
+/** État reconstitué à partir de l'historique (événements dans l'ordre). */
+function replayPortfolio(events) {
+  const s = { owner: null, client: false, desiste: false, lost: false, deleted: false, known: events.length > 0 };
+  for (const e of events) {
+    if (e.kind === 'attribution') s.owner = e.user_id || null;
+    else if (e.kind === 'retrait') s.owner = null;
+    else if (e.kind === 'client') { s.client = true; s.desiste = false; }
+    else if (e.kind === 'desistement') { s.client = false; s.desiste = true; }
+    else if (e.kind === 'perte') s.lost = true;
+    else if (e.kind === 'reprise') s.lost = false;
+    else if (e.kind === 'suppression') s.deleted = true;
+  }
+  return s;
+}
+
+/**
+ * Événements à inscrire pour passer de l'état `prev` (historique) à l'état `cur` (base). L'ordre compte : le
+ * transfert d'abord (le client ou la perte reviennent au nouveau commercial), puis la conversion, puis la perte.
+ * `reason` : motif de l'attribution (creation, import, attribution) ; un changement de commercial est un transfert.
+ */
+function portfolioDiff(prev, cur, reason = 'attribution') {
+  const out = [];
+  if ((prev.owner || null) !== (cur.owner || null)) {
+    if (prev.owner) out.push({ kind: 'retrait', user_id: prev.owner, reason: cur.owner ? 'transfert' : 'retrait' });
+    if (cur.owner) out.push({ kind: 'attribution', user_id: cur.owner, reason: prev.owner ? 'transfert' : reason });
+  }
+  if (cur.client && !prev.client) out.push({ kind: 'client', user_id: cur.owner });
+  if (cur.desiste && !prev.desiste) out.push({ kind: 'desistement', user_id: cur.owner });
+  if (cur.lost !== prev.lost) out.push({ kind: cur.lost ? 'perte' : 'reprise', user_id: cur.owner });
+  return out;
+}
+
+/**
+ * Compteurs d'une liste d'événements (un commercial, une période) :
+ * prospects reçus (brut), transférés à un autre, perdus (pertes − reprises + suppressions), net ;
+ * clients gagnés (brut), désistés, net.
+ */
+function portfolioCounts(events) {
+  const n = k => events.filter(e => e.kind === k).length;
+  const recus = n('attribution');
+  const transferes = events.filter(e => e.kind === 'retrait').length;
+  const pertes = n('perte') - n('reprise') + n('suppression');
+  const clients = n('client');
+  const desistes = n('desistement');
+  return {
+    prospects: { brut: recus, transferes, pertes, net: recus - transferes - pertes },
+    clients: { brut: clients, desistes, net: clients - desistes },
+  };
+}
+
 module.exports = {
+  PORTFOLIO_EVENTS, PORTFOLIO_REASONS, portfolioState, replayPortfolio, portfolioDiff, portfolioCounts,
   SELF_SERVICE, SAV_ACTIONS, COMPTA_ACTIONS, PAIE_ACTIONS, RH_ACTIONS,
   LOT_STATUSES, LOT_STATUS_LABELS, SELLABLE_STATUSES, LOT_TRANSITIONS,
   LEAD_STAGES, ROLES, ROLE_LABELS, PERMISSIONS, roleKey, can, checkLotTransition,

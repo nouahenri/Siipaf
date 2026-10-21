@@ -97,6 +97,7 @@ img { max-width: 100%; display: block; }
 .muted { color: var(--ink-3); }
 .small { font-size: 12px; }
 .right { text-align: right; }
+.center { text-align: center; }
 .nowrap { white-space: nowrap; }
 .tabular { font-variant-numeric: tabular-nums; }
 
@@ -369,7 +370,7 @@ fieldset { min-width: 0; }
 .sidebar::-webkit-scrollbar { display: none; }
 
 /* ─── Graphiques ───────────────────────────────────────── */
-:root { --series-1: #2a78d6; --series-2: #eb6834; }
+:root { --series-1: #2a78d6; --series-2: #eb6834; --series-3: #1baf7a; }
 .chart { position: relative; width: 100%; min-width: 0; overflow: hidden; }
 .card { min-width: 0; }
 .chart svg { display: block; overflow: visible; }

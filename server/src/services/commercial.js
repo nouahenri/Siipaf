@@ -3,7 +3,7 @@
  * objectifs des commerciaux et indicateurs. Regroupements par mois faits en JavaScript (MySQL = SQLite).
  */
 const { isoDay, isoTime, toDate: parseDate } = require('../lib/http');
-const { STAGE_PROBABILITY, PIPELINE_STAGES, WON_STAGES, ACTIVITY_KINDS, LOST_REASONS, activityState } = require('../lib/domain');
+const { STAGE_PROBABILITY, PIPELINE_STAGES, WON_STAGES, ACTIVITY_KINDS, LOST_REASONS, activityState, portfolioCounts } = require('../lib/domain');
 const { totals } = require('./sales');
 const { scheduleStatus } = require('./schedule');
 
@@ -51,6 +51,7 @@ async function changeStage(db, lead, { stage, lost_reason = null, lost_note = nu
     await logActivity(trx, lead.id, { kind: 'etape', summary, note: stage === 'perdu' ? lost_note : null, userId });
     // Un prospect perdu n'a plus d'activités à faire
     if (stage === 'perdu') await trx('lead_activities').where({ lead_id: lead.id }).whereNull('done_at').del();
+    await require('./portfolio').syncLead(trx, lead.id, { by: userId });
     return trx('leads').where({ id: lead.id }).first();
   });
 }
@@ -126,6 +127,9 @@ async function achieved(db, { from, to, userId = null }) {
   // Les dates sont filtrées en JavaScript : SQLite les range tantôt en texte, tantôt en millisecondes
   const inRange = v => { const d = parseDate(v); return d && d >= from && d < to; };
   const byUser = q => (userId ? q.where('ld.assigned_to', userId) : q);
+  const portfolio = (await db('lead_portfolio_events').modify(q => { if (userId) q.where('user_id', userId); else q.whereNotNull('user_id'); }).select('kind', 'at'))
+    .filter(e => inRange(e.at));
+  const pf = portfolioCounts(portfolio);
   const [sales, appts, pays, leads] = await Promise.all([
     byUser(db('sales as s').join('leads as ld', 'ld.id', 's.lead_id').whereNot('s.status', 'desiste')).select('s.price_fcfa', 's.created_at as d'),
     db('appointments').where('status', 'effectue').modify(q => { if (userId) q.where('assigned_to', userId); }).select('starts_at as d'),
@@ -142,6 +146,7 @@ async function achieved(db, { from, to, userId = null }) {
     encaissements_fcfa: pays.filter(r => inRange(r.d)).reduce((s, r) => s + Number(r.amount_fcfa), 0),
     nouveaux_prospects: fresh.length,
     conversion_pct: fresh.length ? Math.round((won / fresh.length) * 1000) / 10 : null,
+    prospects: pf.prospects, clients: pf.clients,
   };
 }
 

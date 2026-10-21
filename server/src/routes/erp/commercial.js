@@ -102,6 +102,7 @@ module.exports = function commercialRoutes(db) {
         const u = data.assigned_to ? await trx('users').where({ id: data.assigned_to }).first('name') : null;
         await cm.logActivity(trx, lead.id, { kind: 'systeme', summary: u ? `Attribué à ${u.name}` : 'Plus de commercial attribué', userId: req.user.id });
       }
+      await require('../../services/portfolio').syncLead(trx, lead.id, { by: req.user.id });
     });
     res.json(await db('leads').where({ id: lead.id }).first());
   }));

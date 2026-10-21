@@ -87,6 +87,7 @@ async function openSale(db, { lotId, leadId, leadData, price_fcfa, financing, no
     if (!lead.client_code) leadPatch.client_code = await nextClientCode(trx);
     if (EARLY_STAGES.includes(lead.stage)) leadPatch.stage = 'paiement';
     await trx('leads').where({ id: lead.id }).update(leadPatch);
+    await require('./portfolio').syncLead(trx, lead.id, { by: user.id });
     return trx('sales').where({ id: saleId }).first();
   });
 }

@@ -23,7 +23,7 @@ const MODULES = {
       { to: '/commercial/parc', label: 'Parc immobilier', icon: Building2, perm: 'lots:read' },
       { to: '/commercial/ventes', label: 'Dossiers de vente', icon: FileSignature, perm: 'sales:read' },
       { to: '/commercial/vefa', label: 'Appels de fonds VEFA', icon: Landmark, perm: ['commercial:read', 'vefa:write'] },
-      { to: '/commercial/objectifs', label: 'Objectifs', icon: Target, perm: 'commercial:read' },
+      { to: '/commercial/objectifs', label: 'Objectifs et performance', icon: Target, perm: 'commercial:read' },
       { to: '/commercial/acces', label: 'Rôles et privilèges', icon: ShieldCheck, perm: 'users:read' },
     ],
   },
@@ -73,7 +73,7 @@ const MODULES = {
 const TITLES = {
   '/': 'Modules', '/commercial': 'Service commercial', '/commercial/pipeline': 'Pipeline commercial', '/commercial/activites': 'Mes activités',
   '/commercial/rendez-vous': 'Rendez-vous', '/commercial/parc': 'Parc immobilier', '/commercial/ventes': 'Dossiers de vente',
-  '/commercial/vefa': 'Appels de fonds VEFA', '/commercial/objectifs': 'Objectifs commerciaux',
+  '/commercial/vefa': 'Appels de fonds VEFA', '/commercial/objectifs': 'Objectifs et performance',
   '/compta': 'Comptabilité', '/compta/ecritures': 'Écritures comptables', '/compta/achats': 'Achats et fournisseurs', '/compta/etats': 'États comptables',
   '/compta/plan': 'Plan comptable SYSCOHADA', '/compta/parametres': 'Paramètres comptables', '/compta/paie': 'Paie', '/compta/employes': 'Employés', '/rh': 'Ressources humaines', '/rh/moi': 'Mon espace', '/rh/personnel': 'Personnel', '/rh/conges': 'Congés et absences', '/rh/presences': 'Présences', '/rh/borne': 'Borne de pointage', '/rh/frais': 'Notes de frais', '/rh/recrutement': 'Recrutement', '/rh/competences': 'Compétences et formations', '/rh/objectifs': 'Performance et entretiens', '/rh/reglages': 'Réglages RH', '/commercial/acces': 'Rôles et privilèges — Service commercial', '/compta/acces': 'Rôles et privilèges — Comptabilité', '/rh/acces': 'Rôles et privilèges — Ressources humaines', '/sav/acces': 'Rôles et privilèges — Client & SAV', '/comptes': 'Comptes utilisateurs', '/sav': 'Client & SAV', '/sav/reclamations': 'Réclamations', '/sav/reserves': 'Réserves de livraison', '/sav/interventions': 'Interventions',
 };

@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react';
 import { useSearchParams } from 'react-router-dom';
 import { Search, Plus, Download, List, Columns3, Users, Phone, Mail as MailIcon, CalendarPlus, Trash2, Upload } from 'lucide-react';
 import ImportModal from '../components/ImportModal';
+import PortfolioHistory from '../components/PortfolioHistory';
 import PipelineBoard from '../components/PipelineBoard';
 import { api, qs } from '../lib/api';
 import { useAuth, useResource, useToast } from '../lib/app-context';
@@ -24,13 +25,17 @@ export default function Leads() {
   const [creating, setCreating] = useState(false);
   const [importing, setImporting] = useState(false);
   const projects = useResource('/admin/projects');
+  const sellers = useResource(can('leads:all') ? '/admin/users/commerciaux' : null);
+  // Commercial : « aucun » = prospects à répartir
+  const seller = params.get('commercial') || '';
+  const setSeller = v => setParams(p => { const n = new URLSearchParams(p); if (v) n.set('commercial', v); else n.delete('commercial'); return n; });
 
   const limit = view === 'pipeline' ? 200 : pageSize;
-  const url = `/admin/leads${qs({ q, stage: view === 'liste' ? stage : '', project_id: projectId, limit, offset: view === 'liste' ? (page - 1) * pageSize : 0 })}`;
+  const url = `/admin/leads${qs({ q, stage: view === 'liste' ? stage : '', project_id: projectId, assigned_to: seller, limit, offset: view === 'liste' ? (page - 1) * pageSize : 0 })}`;
   const leads = useResource(url);
-  useEffect(() => setPage(1), [q, stage, projectId]);
+  useEffect(() => setPage(1), [q, stage, projectId, seller]);
 
-  const setView = v => setParams(v === 'pipeline' ? { vue: 'pipeline' } : {});
+  const setView = v => setParams(p => { const n = new URLSearchParams(p); if (v === 'pipeline') n.set('vue', 'pipeline'); else n.delete('vue'); return n; });
 
   return (
     <div className="stack">
@@ -50,6 +55,11 @@ export default function Leads() {
               {LEAD_STAGES.map(s => <option key={s.id} value={s.id}>{s.label}</option>)}
             </select>
           )}
+          <select className="select" style={{ width: 'auto' }} value={seller} onChange={e => setSeller(e.target.value)} aria-label="Commercial">
+            <option value="">Tous les commerciaux</option>
+            <option value="aucun">Non attribués (à répartir)</option>
+            {sellers.data?.map(u => <option key={u.id} value={u.id}>{u.name}</option>)}
+          </select>
         </div>
         <div className="row">
           <div className="seg" role="tablist" aria-label="Affichage">
@@ -64,7 +74,7 @@ export default function Leads() {
 
       <ErrorBox error={leads.error} />
       {view === 'liste'
-        ? <LeadTable leads={leads} page={page} setPage={setPage} pageSize={pageSize} setPageSize={changePageSize} onOpen={setSelected} />
+        ? <LeadTable leads={leads} page={page} setPage={setPage} pageSize={pageSize} setPageSize={changePageSize} onOpen={setSelected} sellers={sellers.data} />
         : <Pipeline leads={leads} onOpen={setSelected} canWrite={can('leads:write')} />}
 
       {selected && <LeadDrawer id={selected} onClose={() => setSelected(null)} onSaved={leads.reload} projects={projects.data || []} />}
@@ -74,18 +84,56 @@ export default function Leads() {
   );
 }
 
-function LeadTable({ leads, page, setPage, pageSize, setPageSize, onOpen }) {
-  if (leads.loading && !leads.data) return <Card><Skeleton h={200} /></Card>;
+function LeadTable({ leads, page, setPage, pageSize, setPageSize, onOpen, sellers }) {
+  const { can, user } = useAuth();
+  const toast = useToast();
+  const [picked, setPicked] = useState(() => new Set());
+  const [to, setTo] = useState('');
+  const [busy, setBusy] = useState(false);
   const { rows = [], total = 0 } = leads.data || {};
+  useEffect(() => setPicked(new Set()), [leads.data]);
+  if (leads.loading && !leads.data) return <Card><Skeleton h={200} /></Card>;
+  // Le responsable attribue, répartit et transfère ; un commercial peut prendre pour lui des prospects libres
+  const manager = can('leads:all');
+  const selectable = can('leads:write') && (manager || rows.some(l => !l.assigned_to));
+  const pickable = l => manager || !l.assigned_to;
+  const toggle = id => setPicked(s => { const n = new Set(s); if (n.has(id)) n.delete(id); else n.add(id); return n; });
+  const all = rows.filter(pickable);
+  const assign = async () => {
+    const target = manager ? (to === 'aucun' ? null : Number(to)) : user.id;
+    setBusy(true);
+    try {
+      const out = await api.post('/admin/leads/assign', { ids: [...picked], user_id: target });
+      toast(`${out.changed} prospect(s) ${target ? 'attribué(s)' : 'retiré(s)'}`);
+      leads.reload();
+    } catch (e) { toast(e.message, 'err'); } finally { setBusy(false); }
+  };
   return (
     <Card bodyClass="">
+      {selectable && picked.size > 0 && (
+        <div className="card-body row" style={{ borderBottom: '1px solid var(--border)', paddingTop: 12, paddingBottom: 12 }}>
+          <strong className="small">{picked.size} sélectionné(s)</strong>
+          {manager ? (
+            <>
+              <select className="select" style={{ width: 'auto' }} value={to} onChange={e => setTo(e.target.value)} aria-label="Attribuer à">
+                <option value="">Attribuer à…</option>
+                {sellers?.map(u => <option key={u.id} value={u.id}>{u.name}</option>)}
+                <option value="aucun">Retirer le commercial</option>
+              </select>
+              <button className="btn btn-primary btn-sm" disabled={!to || busy} onClick={assign}>Valider</button>
+            </>
+          ) : <button className="btn btn-primary btn-sm" disabled={busy} onClick={assign}>Me les attribuer</button>}
+          <button className="btn btn-ghost btn-sm" onClick={() => setPicked(new Set())}>Annuler</button>
+        </div>
+      )}
       {!rows.length ? <Empty icon={Users}>Aucun prospect ne correspond à ces critères.</Empty> : (
         <div className="table-wrap">
           <table className="table">
-            <thead><tr><th>Prospect</th><th>Projet / lot</th><th>Étape</th><th>Source</th><th>Commercial</th><th>Mis à jour</th></tr></thead>
+            <thead><tr>{selectable && <th style={{ width: 36 }}><input type="checkbox" aria-label="Tout sélectionner" checked={all.length > 0 && all.every(l => picked.has(l.id))} onChange={e => setPicked(e.target.checked ? new Set(all.map(l => l.id)) : new Set())} /></th>}<th>Prospect</th><th>Projet / lot</th><th>Étape</th><th>Source</th><th>Commercial</th><th>Mis à jour</th></tr></thead>
             <tbody>
               {rows.map(l => (
                 <tr key={l.id} className="clickable" onClick={() => onOpen(l.id)} tabIndex={0} onKeyDown={e => e.key === 'Enter' && onOpen(l.id)}>
+                  {selectable && <td onClick={e => e.stopPropagation()}>{pickable(l) && <input type="checkbox" aria-label={`Sélectionner ${l.name}`} checked={picked.has(l.id)} onChange={() => toggle(l.id)} />}</td>}
                   <td><strong>{l.name}</strong>{l.is_diaspora ? <> <Badge tone="warn">Diaspora</Badge></> : null}<div className="small muted">{[l.phone, l.email].filter(Boolean).join(' · ')}</div></td>
                   <td>{l.project_name || '—'}{l.lot_code && <div className="small muted">Lot {l.lot_code}</div>}</td>
                   <td><Badge tone={l.stage === 'perdu' ? 'danger' : ''}>{stageLabel(l.stage)}</Badge></td>
@@ -158,11 +206,12 @@ function Pipeline({ leads, onOpen, canWrite }) {
 const EMPTY = { name: '', email: '', phone: '', country: '', is_diaspora: false, stage: 'prospection', financing: '', project_id: '', assigned_to: '', message: '' };
 
 function LeadDrawer({ id, onClose, onSaved, projects }) {
-  const { can } = useAuth();
+  const { can, user } = useAuth();
   const toast = useToast();
   const detail = useResource(id ? `/admin/leads/${id}` : null);
   const sellers = useResource('/admin/users/commerciaux');
-  const [form, setForm] = useState(id ? null : EMPTY);
+  // Nouveau prospect : attribué d'office à celui qui établit le contact (modifiable)
+  const [form, setForm] = useState(id ? null : { ...EMPTY, assigned_to: String(user.id) });
   const [error, setError] = useState(null);
   const [busy, setBusy] = useState(false);
   const [appt, setAppt] = useState(null);
@@ -272,6 +321,7 @@ function LeadDrawer({ id, onClose, onSaved, projects }) {
               <Field label="Notes / message" className="full"><textarea className="textarea" value={form.message} onChange={set('message')} /></Field>
             </div>
           </fieldset>
+          {id && can('leads:read') && <PortfolioHistory leadId={id} />}
 
           {d && (
             <>

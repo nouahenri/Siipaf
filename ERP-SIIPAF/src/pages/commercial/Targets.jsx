@@ -6,6 +6,7 @@ import { Card, Empty, Skeleton, ErrorBox, Modal, Field } from '@admin/components
 import { fcfa } from '@admin/lib/format';
 import { compact, thisMonth, monthName } from '../../lib/commercial';
 import { Progress } from './CommercialDashboard';
+import { PortfolioCounters, ImportLists } from './Portfolio';
 
 const shift = (m, n) => { const [y, mo] = m.split('-').map(Number); const d = new Date(y, mo - 1 + n, 1); return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`; };
 const METRICS = [
@@ -15,8 +16,28 @@ const METRICS = [
   ['encaissements_fcfa', 'Encaissements', v => compact(v)],
 ];
 
-/** Objectifs mensuels par commercial, comparés au réalisé (dossiers ouverts, RDV effectués, versements reçus). */
+const TABS = [['objectifs', 'Objectifs du mois'], ['portefeuille', 'Prospects et clients'], ['listes', 'Listes importées']];
+
+/**
+ * Objectifs et performance des commerciaux : objectifs du mois comparés au réalisé, portefeuille de prospects et de
+ * clients de chacun (par semaine, mois, trimestre, année) et bilan des listes de prospects importées.
+ */
 export default function Targets() {
+  const [tab, setTab] = useState('objectifs');
+  return (
+    <div className="stack">
+      <div className="tabs" role="tablist">
+        {TABS.map(([k, l]) => <button key={k} role="tab" aria-selected={tab === k} className={`tab ${tab === k ? 'active' : ''}`} onClick={() => setTab(k)}>{l}</button>)}
+      </div>
+      {tab === 'objectifs' && <MonthlyTargets />}
+      {tab === 'portefeuille' && <PortfolioCounters />}
+      {tab === 'listes' && <ImportLists />}
+    </div>
+  );
+}
+
+/** Objectifs mensuels par commercial, comparés au réalisé (dossiers ouverts, RDV effectués, versements reçus). */
+function MonthlyTargets() {
   const { can } = useAuth();
   const [month, setMonth] = useState(thisMonth());
   const [edit, setEdit] = useState(null);

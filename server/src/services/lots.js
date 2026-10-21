@@ -84,7 +84,9 @@ async function changeLotStatus(db, { lotId, to, user, leadId = null, reason = nu
     }
     // Désistement ou annulation d'une réservation : le dossier d'acquisition actif est clos
     if (['reserve', 'vendu'].includes(lot.status) && ['desistement', 'disponible'].includes(to)) {
+      const closing = await trx('sales').where({ lot_id: lot.id }).whereIn('status', ['en_cours', 'solde']).pluck('lead_id');
       await trx('sales').where({ lot_id: lot.id }).whereIn('status', ['en_cours', 'solde']).update({ status: 'desiste', updated_at: new Date() });
+      for (const leadId of closing) await require('./portfolio').syncLead(trx, leadId, { by: user.id });
     }
     await writeStatus(trx, lot, to, { userId: user.id, leadId: lead, reason });
     return trx('lots').where({ id: lot.id }).first();

@@ -1,8 +1,29 @@
 # Passation — Plateforme SIIPAF
 
 > Document de reprise pour continuer le travail dans une nouvelle discussion.
-> Dernière mise à jour : 21 octobre 2026 (campagnes de newsletter faites, non committées — voir « Campagnes de newsletter »).
-> **Prochaine étape** : avec l'accord de l'utilisateur, committer et mettre en ligne les campagnes de newsletter ; puis reprendre la saisie lot / prix / programme des 112 clients importés.
+> Dernière mise à jour : 21 octobre 2026 (portefeuille commercial fait, non committé).
+> Campagnes de newsletter **committées le 21/10 (`cda7d21`), non poussées, non mises en ligne** (l'utilisateur veut attendre).
+> **Portefeuille commercial FAIT le 21/10, non committé, non mis en ligne** — voir ci-dessous. **Prochaine étape** : avec l'accord de l'utilisateur, committer ; mise en ligne groupée avec la newsletter quand il le voudra (2 migrations : `20261031000000_newsletter_campaigns`, `20261101000000_lead_portfolio`).
+
+### Portefeuille commercial et indicateurs (fait le 21/10 — admin et ERP, non committé)
+Choix validés par l'utilisateur :
+- **Rattachement** : un prospect est attribué d'office au commercial qui a établi le contact (celui qui le crée ou l'importe) et le suit jusqu'à la conversion ; le responsable peut attribuer ou répartir les nouveaux prospects (ceux du site notamment) et transférer.
+- **Deux compteurs** par commercial et par période (semaine, mois, année) : prospects comptés à la **date d'attribution**, clients comptés à la **date de conversion** (code client / dossier) pour le commercial attribué ce jour-là.
+- **Transfert A → B** : retiré de A et ajouté à B à la date du transfert, sans réécrire le passé (nécessite un historique des attributions).
+- **Pertes à part** : prospects perdus, supprimés, clients désistés comptés à leur date ; trois chiffres : **brut, pertes, net = brut − pertes**.
+- **Fichiers importés** (« liste de prospects ») : chaque import devient une liste nommée avec son **bilan** (nb de lignes, doublons déjà en base **déduits** et non comptés comme nouveaux, en cours, devenus clients, perdus, taux de conversion).
+- Brancher ces chiffres sur les indicateurs de performance existants (`OBJECTIVE_METRICS` dans `lib/rh.js`, `services/performance.js`) et sur le tableau de bord du Service commercial.
+- Hypothèse validée : les prospects déjà attribués avant la mise en place comptent à leur date de création (pas d'historique antérieur).
+
+**Réalisation** :
+- Règles dans `lib/domain.js` : `PORTFOLIO_EVENTS`, `portfolioState`, `replayPortfolio`, `portfolioDiff` (transfert avant conversion), `portfolioCounts` (prospects : attribués, transférés, pertes = perdus − repris + supprimés, net ; clients : gagnés, désistés, net).
+- Migration `20261101000000_lead_portfolio.js` : `lead_portfolio_events` (sans clé étrangère sur le prospect : l'historique survit à une suppression), `lead_imports`, `lead_import_items` ; reprise de l'existant (démo : 114 attributions, 36 clients, 18 pertes). Bases locale et démo migrées.
+- Service `services/portfolio.js` : `syncLead` appelé à chaque écriture (création et modification d'un prospect au dashboard et dans l'ERP, changement d'étape, ouverture de dossier, désistement d'un lot, import, « Nouveau client »), `recordDeletion` avant suppression, `reconcile` (rattrapage daté au mieux, lancé à chaque lecture des compteurs), `stats`, `assign`, `importReports`. Routes `routes/portfolio.js` (compteurs et listes : droit `commercial:read` ; historique : `leads:read`) : `GET /api/admin/portefeuille?granularite=semaine|mois|trimestre|annee&du&au&commercial`, `POST /api/admin/leads/assign` (responsable : attribuer / répartir / transférer / retirer ; commercial : prendre pour lui des prospects libres), `GET /api/admin/leads/:id/portefeuille`, `GET /api/admin/imports` et `/imports/:id`. Liste des prospects : filtre `assigned_to=aucun`.
+- Corrigé au passage : ressaisir une personne déjà connue (POST /leads) lui retirait son commercial.
+- Indicateurs : `prospects_nets` et `clients_nets` dans `OBJECTIVE_METRICS` (RH › objectifs et courbes de performance) ; `commercial.achieved` renvoie `prospects` et `clients`.
+- Écrans (**révisé à la demande du client** : pas de menu à part ; le pilotage est dans l'ERP, le dashboard ne garde que la saisie) : ERP › Service commercial › **Objectifs et performance** (`/commercial/objectifs`, ex-« Objectifs ») en 3 onglets — Objectifs du mois, **Prospects et clients**, **Listes importées** (`ERP-SIIPAF/src/pages/commercial/Portfolio.jsx`). Onglet Prospects et clients : semaine / mois / trimestre / année, période (cette année, 12 mois, année dernière, 3 ans, dates libres), commercial ; 4 indicateurs, barres par période, courbe du cumul, tableau par commercial (avec portefeuille actuel), détail par période ; onglet Listes importées : bilan, détail ligne par ligne. Dashboard (`admin/src/components/PortfolioHistory.jsx`) — Prospects : filtre par commercial dont « Non attribués », cases à cocher + « Attribuer à… » ; nouveau prospect pré-attribué à son auteur ; historique d'attribution dans la fiche. Import : nom de la liste + commercial attribué aux nouveaux. Couleur `--series-3` (#1baf7a, palette validée) ajoutée.
+- Tests `test/portfolio.test.js` (7) ; **suite complète : 147 tests verts**. Vérifié dans le navigateur sur la démo (dashboard et ERP, y compris après le déplacement dans Objectifs et performance) : compteurs, transfert groupé de 2 prospects, historique dans la fiche, liste importée avec doublon déduit. Les nouveaux champs de la fenêtre d'import n'ont pas été vus à l'écran (il faut choisir un fichier) : couverts par les tests serveur. La démo garde une liste « Salon de l'habitat (démo) » et 2 prospects transférés à Serge Kouadio.
+- Remarque : le dédoublonnage compare le téléphone tel qu'il est saisi : « +225 07 01 01 01 01 » et « 0701010101 » donnent deux prospects (à traiter à part, avec `phoneKey`).
 > Pour reprendre : ouvrir une discussion dans ce dossier et taper `/passation`.
 
 ---
@@ -406,3 +427,4 @@ Demande du client : fonctionnalités de référence d'Odoo, adaptées au droit i
 - Il aime voir le résultat : vérifier visuellement dans le navigateur avant d'annoncer qu'une chose est faite.
 - Il envoie souvent des captures annotées et des inspirations (Pinterest, maquettes) : s'en inspirer sans copier.
 - Ne pas committer, pousser ou mettre en ligne sans son accord explicite.
+- **Pas de menu ni de page en plus** : intégrer chaque fonction dans le module existant qui lui correspond (onglet). Dashboard = saisie au quotidien ; ERP = pilotage, indicateurs, performance. Proposer l'emplacement dans le cadrage avant de coder.

@@ -6,7 +6,7 @@
 import { useMemo, useState } from 'react';
 import { Upload, FileSpreadsheet, Download, CheckCircle2, AlertTriangle } from 'lucide-react';
 import { api } from '../lib/api';
-import { useAuth, useToast } from '../lib/app-context';
+import { useAuth, useResource, useToast } from '../lib/app-context';
 import { clientSpaceUrl } from './ClientSpace';
 import { Modal, Field, ErrorBox, Badge } from './ui';
 
@@ -78,8 +78,13 @@ function accessCsv(report) {
 
 export default function ImportModal({ mode: initialMode = 'prospects', onClose, onDone, allowModes = ['prospects', 'clients'] }) {
   const toast = useToast();
-  const { can } = useAuth();
+  const { can, user } = useAuth();
   const [mode, setMode] = useState(initialMode);
+  // Liste de prospects : un fichier importé = une liste, avec son bilan (Portefeuille commercial)
+  const [listName, setListName] = useState('');
+  const manager = can('leads:all');
+  const [assignTo, setAssignTo] = useState(manager ? '' : String(user.id));
+  const sellers = useResource(manager ? '/admin/users/commerciaux' : null);
   const [file, setFile] = useState(null);
   const [sheet, setSheet] = useState(null); // { headers, rows }
   const [mapping, setMapping] = useState({});
@@ -92,6 +97,7 @@ export default function ImportModal({ mode: initialMode = 'prospects', onClose, 
 
   const read = async f => {
     setError(null); setResult(null); setFile(f);
+    setListName(n => n || f.name.replace(/.(csv|txt|xlsx?|xls)$/i, ''));
     try {
       const XLSX = await import('xlsx');
       // CSV lu tel quel : sinon « +2250708972671 » devient un nombre et perd son « + »
@@ -119,10 +125,13 @@ export default function ImportModal({ mode: initialMode = 'prospects', onClose, 
   const run = async dryRun => {
     setError(null); setBusy(true);
     const merged = { dryRun, total: 0, ok: 0, errors: 0, report: [] };
+    let listId = null;
     try {
       for (let i = 0; i < payloadRows.length; i += CHUNK) {
         setProgress(`${Math.min(i + CHUNK, payloadRows.length)} / ${payloadRows.length}`);
-        const res = await api.post('/admin/import', { mode, rows: payloadRows.slice(i, i + CHUNK), dry_run: dryRun, create_lots: createLots, open_access: mode === 'clients' && openAccess });
+        const list = dryRun ? undefined : listId ? { id: listId } : { name: listName.trim() || file?.name, filename: file?.name, assigned_to: assignTo ? Number(assignTo) : null };
+        const res = await api.post('/admin/import', { mode, rows: payloadRows.slice(i, i + CHUNK), dry_run: dryRun, create_lots: createLots, open_access: mode === 'clients' && openAccess, list });
+        listId = listId || res.import_id || null;
         merged.total += res.total; merged.ok += res.ok; merged.errors += res.errors; merged.report.push(...res.report);
       }
     } catch (e) {
@@ -189,6 +198,17 @@ export default function ImportModal({ mode: initialMode = 'prospects', onClose, 
             ))}
           </div>
           {missing.length > 0 && <p className="small" style={{ color: 'var(--danger)', marginTop: 8 }}>À associer : {missing.join(', ')}.</p>}
+          <div className="form-grid" style={{ marginTop: 12 }}>
+            <Field label="Nom de la liste" hint="Pour suivre son bilan dans Portefeuille commercial"><input className="input" value={listName} maxLength={160} onChange={e => setListName(e.target.value)} /></Field>
+            <Field label="Commercial attribué aux nouveaux" hint="Les personnes déjà connues gardent leur commercial">
+              {manager ? (
+                <select className="select" value={assignTo} onChange={e => setAssignTo(e.target.value)}>
+                  <option value="">Aucun (à répartir ensuite)</option>
+                  {sellers.data?.map(u => <option key={u.id} value={u.id}>{u.name}</option>)}
+                </select>
+              ) : <input className="input" value={user.name} disabled />}
+            </Field>
+          </div>
           {mode === 'clients' && (
             <>
               <p className="small muted" style={{ marginTop: 8 }}>Sans n° de lot, le client est repris « sans dossier » : il reçoit son code client et son type de bien ; le lot et le prix s’ajoutent ensuite depuis sa fiche.</p>

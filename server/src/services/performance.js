@@ -7,6 +7,7 @@
  */
 const { toDate, isoDay } = require('../lib/http');
 const { OBJECTIVE_METRICS, countDays, attainment, LEAVE_TYPES } = require('../lib/rh');
+const { portfolioCounts } = require('../lib/domain');
 const { DEPARTMENTS } = require('../lib/paie');
 
 const UNPLANNED = ['maladie', 'accident_travail', 'sans_solde', 'absence_injustifiee'];
@@ -33,7 +34,7 @@ async function loadRaw(db, e, { settings = null, holidays = null } = {}) {
   const uid = e.user_id || null;
   const raw = {
     e, uid, settings: settings || await rh.getSettings(db), holidays: holidays || await rh.holidays(db),
-    sales: [], rdv: [], payments: [], updates: [], reserves: [], interventions: [], tickets: [], site: [], leaves: [], trainings: [],
+    sales: [], rdv: [], payments: [], updates: [], reserves: [], interventions: [], tickets: [], site: [], leaves: [], trainings: [], portfolio: [],
   };
   const byUser = q => q.where('ld.assigned_to', uid);
   if (uid) {
@@ -46,6 +47,7 @@ async function loadRaw(db, e, { settings = null, holidays = null } = {}) {
       db('sav_interventions').where({ technician_id: uid }).whereNotNull('done_at').select('done_at as d'),
       db('sav_tickets').where({ assigned_to: uid }).whereNotNull('resolved_at').select('created_at', 'resolved_at as d', 'due_at', 'satisfaction'),
     ]);
+    raw.portfolio = await db('lead_portfolio_events').where({ user_id: uid }).select('kind', 'at as d');
   }
   if (e.project_id) raw.site = await db('site_updates').where({ project_id: e.project_id }).select('lot_id', 'ilot', 'progress_pct', 'published_at as d');
   raw.leaves = (await db('hr_leaves').where({ employee_id: e.id, status: 'approuvee' }).whereIn('type', UNPLANNED).select('start_date', 'end_date'))
@@ -53,7 +55,7 @@ async function loadRaw(db, e, { settings = null, holidays = null } = {}) {
   raw.trainings = (await db('hr_training_participants as p').join('hr_trainings as t', 't.id', 'p.training_id')
     .where({ 'p.employee_id': e.id, 'p.status': 'present', 't.status': 'realisee' }).select('t.hours', 't.end_date'))
     .map(t => ({ hours: Number(t.hours) || 0, d: isoDay(t.end_date) }));
-  for (const k of ['sales', 'rdv', 'payments', 'updates', 'reserves', 'interventions', 'tickets', 'site']) for (const r of raw[k]) r.at = toDate(r.d);
+  for (const k of ['sales', 'rdv', 'payments', 'updates', 'reserves', 'interventions', 'tickets', 'site', 'portfolio']) for (const r of raw[k]) r.at = toDate(r.d);
   return raw;
 }
 
@@ -72,6 +74,9 @@ function compute(raw, from, to, now = new Date()) {
     out.ca_fcfa = sold.reduce((t, r) => t + Number(r.v), 0);
     out.encaissements_fcfa = raw.payments.filter(inRange).reduce((t, r) => t + Number(r.v), 0);
     out.rdv = raw.rdv.filter(inRange).length;
+    const pf = portfolioCounts(raw.portfolio.filter(inRange));
+    out.prospects_nets = pf.prospects.net;
+    out.clients_nets = pf.clients.net;
     out.chantier_publications = raw.updates.filter(inRange).length;
     out.reserves_levees = raw.reserves.filter(inRange).length;
     out.interventions_realisees = raw.interventions.filter(inRange).length;

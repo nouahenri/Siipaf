@@ -125,6 +125,9 @@ const OBJECTIVE_METRICS = {
   ca_fcfa: { label: 'Chiffre d’affaires signé', group: 'Commercial', unit: 'fcfa', needs: 'user', cumul: true },
   encaissements_fcfa: { label: 'Encaissements', group: 'Commercial', unit: 'fcfa', needs: 'user', cumul: true },
   rdv: { label: 'Rendez-vous réalisés', group: 'Commercial', unit: 'nombre', needs: 'user', cumul: true },
+  // Portefeuille (lib/domain.js, portfolioCounts) : attribués − transférés − perdus ; clients gagnés − désistés
+  prospects_nets: { label: 'Prospects attribués (nets des pertes et transferts)', group: 'Commercial', unit: 'nombre', needs: 'user', cumul: true },
+  clients_nets: { label: 'Nouveaux clients (nets des désistements)', group: 'Commercial', unit: 'nombre', needs: 'user', cumul: true },
   chantier_avancement: { label: 'Avancement du chantier d’affectation', group: 'Chantier et technique', unit: 'pct', needs: 'project' },
   chantier_publications: { label: 'Points d’avancement publiés aux clients', group: 'Chantier et technique', unit: 'nombre', needs: 'user', cumul: true },
   reserves_levees: { label: 'Réserves de livraison levées', group: 'Chantier et technique', unit: 'nombre', needs: 'user', cumul: true },
