@@ -1,7 +1,7 @@
 # Passation — Plateforme SIIPAF
 
 > Document de reprise pour continuer le travail dans une nouvelle discussion.
-> Dernière mise à jour : 20 octobre 2026 (ERP · Comptabilité).
+> Dernière mise à jour : 21 octobre 2026 (import des 112 clients de l’ancienne plateforme).
 > Pour reprendre : ouvrir une discussion dans ce dossier et taper `/passation`.
 
 ---
@@ -13,7 +13,7 @@ SIIPAF SA, promoteur et aménageur immobilier agréé MCLU (Côte d'Ivoire). Tro
 | Phase | Contenu | État |
 |---|---|---|
 | **1. Site + admin** | Serveur Node, dashboard admin, plan de masse interactif, RDV assistés par IA | **En cours** — étapes 1 à 3 faites |
-| **2. Espace client** | Suivi chantier, documents juridiques, cotisations, messagerie | **En cours** — étapes 1 (serveur), 2 (application client) et 3 (gestion dans l'admin) faites ; prochaine : 4 (import CSV des 112 clients, dès réception du fichier) |
+| **2. Espace client** | Suivi chantier, documents juridiques, cotisations, messagerie | **En cours** — étapes 1 à 3 faites ; étape 4 **faite le 21/10** : 112 clients de l'ancienne plateforme importés en production « sans dossier » (voir « Livraison du 21/10 — commit `c1f77e0` ») ; reste : transmettre les accès, puis saisir lot, prix et programme de chaque client |
 | **3. ERP** | Admin générale, RH, Compta, Client/SAV, Juridique, KPI commerciaux | **En cours** — **Service commercial** (§5 septies) et **Client & SAV** (§5 sexies) et **Comptabilité et paie** (§5 octies) **en ligne sur https://erp.siipaf.com depuis le 20/10** (commit 54e7a7b) ; prochain : **module RH** |
 
 Circuit métier à respecter partout : **Prospection → Visite → Décision → Choix du bien → Paiement → Contrat → Notaire → Livraison → SAV**.
@@ -273,6 +273,14 @@ Choix du client (20/10) : **l'ERP devient la comptabilité principale** (plan, j
 - **Démo** : `DB_FILENAME=./data/demo.sqlite node scripts/demo-compta.js` (déjà passé) — 8 fournisseurs, 30 factures d'achat sur l'année, 10 employés, paies de janvier à septembre validées et payées, octobre en brouillon.
 - Mise en ligne faite le 20/10 (voir « Livraison du 20/10 — commit `54e7a7b` »). **Prochaine étape (choix du client) : le module RH** (congés, absences, dossiers du personnel, objectifs et indicateurs, en réutilisant `employees`).
 - À valider avec le comptable : exercice de départ et soldes d'ouverture, plan de comptes, TVA sur ventes, modes de constatation du chiffre d'affaires, traitement des stocks de programmes (34 / 36 et variations 73 en fin d'exercice, passées en OD pour l'instant), désistements après vente constatée (à traiter à la main).
+
+## Livraison du 21/10 — commit `c1f77e0` (import des 112 clients de l'ancienne plateforme)
+
+- L'export de suiviclient-siipaf.com n'a **ni lot, ni prix, ni versements** (vérifié sur l'ancienne plateforme : fiche = nom, prénom, téléphone, e-mail, programme, type de bien ; « Gérer » = étapes de chantier toutes à 0 %). Choix du client : importer **sans dossier** ; **programme, lot et prix seront rattachés à la main** (le client a demandé de ne pas relier le programme à l'import).
+- Code : un client sans n° de lot reçoit son code client et passe en étape « paiement » ; colonnes `leads.property_type` (type de bien) et `leads.legacy_number` (N° ancienne plateforme), migration `20261027500000_lead_legacy_fields` ; statut et filtre « Sans dossier » sur /clients ; nom + prénom fusionnés ; téléphone gardé avec son « + » (CSV lu sans conversion) ; option « Ouvrir l'espace client » à l'import (mot de passe provisoire, CSV des accès à télécharger) ; envoi par paquets de 20 lignes ; l'espace client affiche le type de bien tant qu'il n'y a pas de dossier. Test ajouté dans `test/import.test.js` (127 tests verts).
+- **Mis en ligne le 21/10 vers 08 h UTC** : archive `deploy/livraison-c1f77e0.zip` déposée par le connecteur Chrome (transfert réussi), `bash update-c1f77e0.sh` → empreinte OK, sauvegardes dans `~/sauvegardes/deploiement-c1f77e0-20261021-080421/`, 1 migration, `/api/health` OK, `DEPLOY_OK c1f77e0`. Le travail RH non commité n'a pas été embarqué.
+- **Import fait en production** sur admin.siipaf.com/clients (fichier sans la ligne de test « Nouama Henri / TEST PROGRAMME », colonne Programme ignorée) : **112 clients**, codes SIIPAF-2026-0001 à 0112, **112 accès ouverts** (mots de passe provisoires dans le CSV des accès, téléchargé par le client depuis la fenêtre d'import).
+- À corriger par l'équipe : numéros suspects (doublons probables) ANET N° 7 (+225101343635) / RANY N° 100 (+2250101343635) et NIAMKE N° 37 (+2250708218818) / SANNY N° 39 (+225708218818) — ces quatre clients doivent se connecter avec leur **code client** (connexion par téléphone ambiguë).
 
 ## Livraison du 20/10 — commit `54e7a7b` (ERP complet, ouverture de erp.siipaf.com)
 
