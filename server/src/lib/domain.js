@@ -266,7 +266,7 @@ const PERMISSIONS = {
     'sales:read', 'sales:write', 'documents:write', 'testimonials:write',
     'client_access:write', 'client_messages', 'site_updates:write', 'schedule:write', 'settings:write',
     'leads:all', 'sav:read', ...SAV_ACTIONS, 'commercial:read', 'targets:write', 'vefa:write', 'property:write', 'compta:read',
-    'rh:read', ...RH_ACTIONS, 'presence:write', ...SELF_SERVICE,
+    'rh:read', ...RH_ACTIONS, 'presence:write', 'direction:read', ...SELF_SERVICE,
   ],
 };
 
@@ -341,6 +341,9 @@ const PERMISSION_CATALOG = [
     ['self:conges', 'Demander des congés', 'Mon espace : demandes de congé et d’absence, justificatifs, auto-évaluation'],
     ['self:pointage', 'Pointer en ligne', 'Mon espace : arrivée et départ, code de la borne de pointage'],
     ['self:frais', 'Saisir des notes de frais', 'Mon espace : dépenses avec reçu, soumission'],
+  ] },
+  { group: 'ERP · Administration générale', items: [
+    ['direction:read', 'Ouvrir l’Administration générale (vue Direction)', 'Synthèse de tous les services : commercial, chantiers, finance, RH et SAV, avancement des chantiers par programme, dossier et client'],
   ] },
   { group: 'ERP · Client & SAV', items: [
     ['sav:read', 'Voir le SAV', 'Réclamations, réserves à la livraison, interventions, indicateurs'],

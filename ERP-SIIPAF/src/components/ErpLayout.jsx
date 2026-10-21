@@ -4,7 +4,7 @@ import {
   LayoutGrid, LifeBuoy, LayoutDashboard, ClipboardList, ClipboardCheck, CalendarClock, LogOut, Menu, ExternalLink,
   Briefcase, Columns3, ListTodo, CalendarDays, Building2, FileSignature, Landmark, Target,
   Calculator, BookOpen, ShoppingCart, FileBarChart, ListTree, Settings2, Contact, Banknote,
-  Users, UserRound, Palmtree, Fingerprint, Receipt, UserPlus, GraduationCap, ShieldCheck, UserCog,
+  Users, UserRound, Palmtree, Fingerprint, Receipt, UserPlus, GraduationCap, ShieldCheck, UserCog, Building,
 } from 'lucide-react';
 import { useAuth, useResource } from '@admin/lib/app-context';
 import { useRevealOnScroll } from '@admin/lib/reveal';
@@ -58,6 +58,14 @@ const MODULES = {
       { to: '/rh/acces', label: 'Rôles et privilèges', icon: ShieldCheck, perm: 'users:read' },
     ],
   },
+  // Administration générale : vue Direction d'abord ; courrier, contrats, parc, documents et demandes viendront ici
+  administration: {
+    label: 'Administration générale', icon: Building, perm: 'direction:read',
+    items: [
+      { to: '/administration', label: 'Vue Direction', icon: LayoutDashboard, end: true, perm: 'direction:read' },
+      { to: '/administration/acces', label: 'Rôles et privilèges', icon: ShieldCheck, perm: 'users:read' },
+    ],
+  },
   sav: {
     label: 'Client & SAV', icon: LifeBuoy, perm: 'sav:read',
     items: [
@@ -73,7 +81,7 @@ const MODULES = {
 const TITLES = {
   '/': 'Modules', '/commercial': 'Service commercial', '/commercial/pipeline': 'Pipeline commercial', '/commercial/activites': 'Mes activités',
   '/commercial/rendez-vous': 'Rendez-vous', '/commercial/parc': 'Parc immobilier', '/commercial/ventes': 'Dossiers de vente',
-  '/commercial/vefa': 'Appels de fonds VEFA', '/commercial/objectifs': 'Objectifs et performance',
+  '/commercial/vefa': 'Appels de fonds VEFA', '/commercial/objectifs': 'Objectifs et performance', '/administration': 'Vue Direction', '/administration/acces': 'Rôles et privilèges — Administration générale',
   '/compta': 'Comptabilité', '/compta/ecritures': 'Écritures comptables', '/compta/achats': 'Achats et fournisseurs', '/compta/etats': 'États comptables',
   '/compta/plan': 'Plan comptable SYSCOHADA', '/compta/parametres': 'Paramètres comptables', '/compta/paie': 'Paie', '/compta/employes': 'Employés', '/rh': 'Ressources humaines', '/rh/moi': 'Mon espace', '/rh/personnel': 'Personnel', '/rh/conges': 'Congés et absences', '/rh/presences': 'Présences', '/rh/borne': 'Borne de pointage', '/rh/frais': 'Notes de frais', '/rh/recrutement': 'Recrutement', '/rh/competences': 'Compétences et formations', '/rh/objectifs': 'Performance et entretiens', '/rh/reglages': 'Réglages RH', '/commercial/acces': 'Rôles et privilèges — Service commercial', '/compta/acces': 'Rôles et privilèges — Comptabilité', '/rh/acces': 'Rôles et privilèges — Ressources humaines', '/sav/acces': 'Rôles et privilèges — Client & SAV', '/comptes': 'Comptes utilisateurs', '/sav': 'Client & SAV', '/sav/reclamations': 'Réclamations', '/sav/reserves': 'Réserves de livraison', '/sav/interventions': 'Interventions',
 };

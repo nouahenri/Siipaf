@@ -15,6 +15,7 @@ const MODULE_GROUPS = {
   compta: ['ERP · Comptabilité', 'ERP · Paie'],
   rh: ['ERP · Ressources humaines', 'ERP · Espace employé'],
   sav: ['ERP · Client & SAV'],
+  administration: ['ERP · Administration générale'],
 };
 
 const dashboardUrl = () => `${window.location.protocol}//${window.location.host.replace(/^erp\./, 'admin.')}/roles`;

@@ -6,14 +6,14 @@ import { LineChart, BarList, useCountUp } from '@admin/components/Charts';
 import { fcfa, num } from '@admin/lib/format';
 import { useCommercialMeta, compact, STAGE_COLORS, monthName } from '../../lib/commercial';
 
-const trendOf = (now, before) => (before ? Math.round(((now - before) / before) * 1000) / 10 : null);
+export const trendOf = (now, before) => (before ? Math.round(((now - before) / before) * 1000) / 10 : null);
 const Trend = ({ value }) => {
   if (value == null) return null;
   const Icon = value > 0 ? TrendingUp : value < 0 ? TrendingDown : Minus;
   return <span className={`trend ${value > 0 ? 'up' : value < 0 ? 'down' : 'flat'}`} title="Par rapport au mois précédent"><Icon aria-hidden="true" />{value > 0 ? '+' : ''}{value.toLocaleString('fr-FR')} %</span>;
 };
 
-function Kpi({ icon: Icon, label, count, format = num, foot, trend, to, tint }) {
+export function Kpi({ icon: Icon, label, count, format = num, foot, trend, to, tint }) {
   const v = useCountUp(count ?? 0);
   const body = (
     <div className={`card kpi ${tint ? `tint-${tint}` : ''}`}>
@@ -99,7 +99,7 @@ export function Progress({ value }) {
   return (
     <div className="pct-bar" title={`${value} %`}>
       <div className="pct-track"><div style={{ width: `${Math.min(100, value)}%`, background: tone }} /></div>
-      <span className="small tabular">{value} %</span>
+      <span className="small tabular">{value.toLocaleString('fr-FR')} %</span>
     </div>
   );
 }

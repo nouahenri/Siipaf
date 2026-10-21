@@ -526,7 +526,29 @@ async function monthlySeries(db, now = new Date()) {
   return { months, charges: Object.values(groups).filter(g => g.value > 0).sort((a, b) => b.value - a.value) };
 }
 
+/** Tableau de bord comptable (ERP › Comptabilité, repris par la vue Direction) : exercice en cours, brouillons compris. */
+async function dashboard(db) {
+  const today = isoDay(new Date());
+  const fy = await fiscalYearFor(db, today);
+  const opts = { includeDraft: true, fiscalYearId: fy?.id || -1 };
+  const [cash, statements, clients, suppliers, drafts, margins, vat, series] = await Promise.all([
+    treasury(db, { includeDraft: true }), financialStatements(db, opts), partnerBalances(db, 'client', opts), partnerBalances(db, 'fournisseur', opts),
+    db('acc_entries').where({ status: 'brouillon' }).count({ n: '*' }), projectMargins(db, opts), vatReport(db, opts), monthlySeries(db),
+  ]);
+  return {
+    fiscal_year: fy ? { ...fy, start_date: isoDay(fy.start_date), end_date: isoDay(fy.end_date) } : null,
+    treasury: cash, treasury_total: cash.reduce((t, j) => t + j.balance, 0),
+    revenue: statements.revenue, result: statements.result,
+    receivables: clients.filter(c => c.balance > 0).reduce((t, c) => t + c.balance, 0),
+    advances: -clients.filter(c => c.balance < 0).reduce((t, c) => t + c.balance, 0),
+    payables: -suppliers.filter(s => s.balance < 0).reduce((t, s) => t + s.balance, 0),
+    drafts: Number(drafts[0].n), margins, vat_due: vat.reduce((t, m) => t + m.due, 0), vat_months: vat,
+    series: series.months, charges: series.charges,
+  };
+}
+
 module.exports = {
+  dashboard,
   getSettings, saveSettings, fiscalYearFor, assertWritable, createEntry, validateEntry, updateDraft, deleteDraft, reverseEntry, entryDetail,
   syncAutoEntries, nextPurchaseNumber, validatePurchase, payPurchase,
   trialBalance, generalLedger, financialStatements, monthlySeries, vatReport, projectMargins, partnerBalances, treasury, sageExport, openingFromPrevious, linesQuery,

@@ -18,6 +18,7 @@ import Property from './pages/commercial/Property';
 import Sales from './pages/commercial/Sales';
 import Vefa from './pages/commercial/Vefa';
 import Targets from './pages/commercial/Targets';
+import Direction from './pages/admin/Direction';
 import ComptaDashboard from './pages/compta/ComptaDashboard';
 import Entries from './pages/compta/Entries';
 import Purchases from './pages/compta/Purchases';
@@ -94,6 +95,8 @@ function App() {
         <Route path="rh/reglages" element={<Guard perm="rh:read"><RhSettings /></Guard>} />
         <Route path="comptes" element={<Guard perm="users:read"><Accounts /></Guard>} />
         <Route path="commercial/acces" element={<Guard perm="users:read"><ModuleAccess module="commercial" label="Service commercial" /></Guard>} />
+        <Route path="administration" element={<Guard perm="direction:read"><Direction /></Guard>} />
+        <Route path="administration/acces" element={<Guard perm="users:read"><ModuleAccess module="administration" label="Administration générale" /></Guard>} />
         <Route path="compta/acces" element={<Guard perm="users:read"><ModuleAccess module="compta" label="Comptabilité et paie" /></Guard>} />
         <Route path="rh/acces" element={<Guard perm="users:read"><ModuleAccess module="rh" label="Ressources humaines" /></Guard>} />
         <Route path="sav/acces" element={<Guard perm="users:read"><ModuleAccess module="sav" label="Client & SAV" /></Guard>} />

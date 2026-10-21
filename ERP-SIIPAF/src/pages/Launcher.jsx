@@ -11,7 +11,7 @@ const MODULES = [
   { id: 'chantiers', label: 'Chantiers', text: 'Planning (Gantt), feuilles de temps, situations de travaux.', icon: HardHat, color: '#eda100' },
   { id: 'achats', label: 'Achats & stocks', text: 'Commandes, sous-traitance, dépôt ↔ chantier.', icon: Boxes, color: '#e87ba4' },
   { id: 'juridique', label: 'Juridique', text: 'Contrats, notaires, actes et échéances.', icon: Scale, color: '#6d28d9' },
-  { id: 'admin', label: 'Administration générale', text: 'Courrier, parc, fournisseurs, documents internes.', icon: Building, color: '#5b6170' },
+  { id: 'admin', to: '/administration', label: 'Administration générale', text: 'Vue Direction de tous les services ; puis courrier, contrats et échéances, parc, documents internes, demandes.', icon: Building, perm: 'direction:read', color: '#5b6170' },
 ];
 
 export default function Launcher() {

@@ -66,6 +66,7 @@ function createApp(db) {
   admin.use(require('./routes/settings')(db));
   admin.use('/erp/sav', require('./routes/erp/sav')(db));
   admin.use('/erp/commercial', require('./routes/erp/commercial')(db));
+  admin.use('/erp/direction', require('./routes/erp/direction')(db));
   admin.use('/erp/compta', require('./routes/erp/compta')(db));
   admin.use('/erp/paie', require('./routes/erp/paie')(db));
   admin.use('/erp/rh', require('./routes/erp/rh')(db));
