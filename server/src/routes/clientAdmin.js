@@ -13,6 +13,7 @@ const { grantAccess, accessStatus, siteUpdatesQuery, serializeUpdate } = require
 const { totals } = require('../services/sales');
 const { scheduleStatus } = require('../services/schedule');
 const vefa = require('../services/vefa');
+const { createClient } = require('../services/importer');
 
 module.exports = function clientAdminRoutes(db) {
   const r = express.Router();
@@ -52,6 +53,24 @@ module.exports = function clientAdminRoutes(db) {
         access: accessBy[l.id] || null, unread_messages: unreadBy[l.id] || 0,
       };
     }));
+  }));
+
+  // Nouveau client sans dossier : lot, prix et programme se rattachent ensuite
+  r.post('/clients', requirePermission('sales:write'), ah(async (req, res) => {
+    const data = parse(z.object({
+      name: z.string().trim().min(2, 'Nom requis.').max(120),
+      first_name: z.string().trim().max(120).optional(),
+      phone: z.string().trim().max(40).optional(),
+      email: z.string().trim().max(190).optional(),
+      country: z.string().trim().max(80).optional(),
+      is_diaspora: z.boolean().default(false),
+      property_type: z.string().trim().max(160).optional(),
+      project_id: z.number().int().positive().nullable().optional(),
+    }), req.body);
+    const project = data.project_id ? await db('projects').where({ id: data.project_id }).select('slug').first() : null;
+    if (data.project_id && !project) throw new HttpError(400, 'Programme introuvable.');
+    const lead = await createClient(db, { ...data, diaspora: data.is_diaspora ? 'oui' : '', project: project?.slug }, req.user);
+    res.status(201).json({ lead_id: lead.id, client_code: lead.client_code, name: lead.name });
   }));
 
   // ─── Accès à l'espace client ──────────────────────────────

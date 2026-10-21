@@ -73,7 +73,7 @@ async function importLead(trx, row, ctx) {
   if (fin === 'invalide') throw new HttpError(400, `Financement inconnu : ${row.financing}`);
   const lead = await findOrCreateLead(trx, {
     name, email, phone: phoneCell(row.phone) || null, country: text(row.country) || null,
-    is_diaspora: yes(row.diaspora) || fin === 'diaspora', source: 'import', financing: fin,
+    is_diaspora: yes(row.diaspora) || fin === 'diaspora', source: ctx.source || 'import', financing: fin,
     project_id: project?.id || null, message: text(row.notes) || null,
   });
   const stage = fold(row.stage);
@@ -200,4 +200,17 @@ async function runImport(db, { mode, rows, dryRun, createLots, openAccess: withA
   return { dryRun, total: rows.length, ok: report.filter(r => r.ok).length, errors: report.filter(r => !r.ok).length, report };
 }
 
-module.exports = { runImport, money, day, financing };
+/**
+ * Nouveau client saisi à la main (bouton « Nouveau client ») : mêmes règles qu'une ligne d'import sans lot.
+ * Une personne déjà connue (même téléphone ou e-mail) est reprise ; si elle est déjà cliente, on le signale.
+ */
+async function createClient(db, row, user) {
+  const projects = await db('projects').select('id', 'name', 'slug');
+  return db.transaction(async trx => {
+    const { lead, project } = await importLead(trx, row, { projects, user, source: 'admin' });
+    if (lead.client_code) throw new HttpError(409, `${lead.name} est déjà client (${lead.client_code}).`);
+    return (await importClientWithoutSale(trx, lead, project, row)).lead;
+  });
+}
+
+module.exports = { runImport, createClient, money, day, financing };

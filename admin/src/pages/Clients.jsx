@@ -1,8 +1,9 @@
 import { useMemo, useState } from 'react';
 import { useOutletContext } from 'react-router-dom';
-import { Search, UserCheck, Phone, Mail as MailIcon, ExternalLink, Upload } from 'lucide-react';
-import { useAuth, useResource } from '../lib/app-context';
-import { Card, Drawer, Badge, Empty, ErrorBox, Skeleton, Pagination } from '../components/ui';
+import { Search, UserCheck, Phone, Mail as MailIcon, ExternalLink, Upload, Plus } from 'lucide-react';
+import { useAuth, useResource, useToast } from '../lib/app-context';
+import { api } from '../lib/api';
+import { Card, Drawer, Badge, Empty, ErrorBox, Skeleton, Pagination, Modal, Field } from '../components/ui';
 import { AccessTab, MessageThread } from '../components/ClientSpace';
 import LotDrawer from '../components/LotDrawer';
 import ImportModal from '../components/ImportModal';
@@ -34,6 +35,8 @@ export default function Clients() {
   const [open, setOpen] = useState(null);
   const [lotId, setLotId] = useState(null);
   const [importing, setImporting] = useState(false);
+  const [creating, setCreating] = useState(false);
+  const [drawerTab, setDrawerTab] = useState('dossiers');
 
   const rows = useMemo(() => {
     const term = q.trim().toLowerCase();
@@ -69,6 +72,7 @@ export default function Clients() {
             <input className="input" placeholder="Nom, code, téléphone, lot…" value={q} onChange={e => { setQ(e.target.value); setPage(1); }} aria-label="Rechercher un client" />
           </div>
           {can('sales:write') && <button className="btn" onClick={() => setImporting(true)}><Upload />Importer</button>}
+          {can('sales:write') && <button className="btn btn-primary" onClick={() => setCreating(true)}><Plus />Nouveau client</button>}
         </div>
       </div>
       <ErrorBox error={clients.error} />
@@ -84,7 +88,7 @@ export default function Clients() {
                   const acc = accessLabel(c.access);
                   const pct = c.price_fcfa ? Math.round((c.paid_fcfa / c.price_fcfa) * 100) : 0;
                   return (
-                    <tr key={c.lead_id} className="clickable" tabIndex={0} onClick={() => setOpen(c.lead_id)} onKeyDown={e => e.key === 'Enter' && setOpen(c.lead_id)}>
+                    <tr key={c.lead_id} className="clickable" tabIndex={0} onClick={() => { setDrawerTab('dossiers'); setOpen(c.lead_id); }} onKeyDown={e => { if (e.key === 'Enter') { setDrawerTab('dossiers'); setOpen(c.lead_id); } }}>
                       <td>
                         <strong>{c.name}</strong>{c.is_diaspora && <> <Badge tone="warn">Diaspora</Badge></>}
                         <div className="small muted tabular">{c.client_code}{c.legacy_number ? ` · N° ${c.legacy_number}` : ''}{c.phone ? ` · ${c.phone}` : ''}</div>
@@ -109,7 +113,11 @@ export default function Clients() {
       </Card>
 
       {current && !lotId && (
-        <ClientDrawer client={current} onClose={() => { setOpen(null); clients.reload(); stats.reload(); }} onOpenLot={setLotId} canMessages={can('client_messages')} />
+        <ClientDrawer key={current.lead_id} client={current} initialTab={drawerTab} onClose={() => { setOpen(null); clients.reload(); stats.reload(); }} onOpenLot={setLotId} canMessages={can('client_messages')} />
+      )}
+      {creating && (
+        <NewClientModal clients={clients.data || []} onClose={() => setCreating(false)}
+          onCreated={c => { setCreating(false); setDrawerTab('acces'); setOpen(c.lead_id); clients.reload(); stats.reload(); }} />
       )}
       {importing && <ImportModal mode="clients" allowModes={can('leads:write') ? ['clients', 'prospects'] : ['clients']} onClose={() => setImporting(false)} onDone={() => clients.reload()} />}
       {lotId && <LotDrawer lotId={lotId} onClose={() => { setLotId(null); clients.reload(); }} onChanged={() => clients.reload()} onChangeStatus={() => {}} />}
@@ -117,8 +125,8 @@ export default function Clients() {
   );
 }
 
-function ClientDrawer({ client, onClose, onOpenLot, canMessages }) {
-  const [tab, setTab] = useState('dossiers');
+function ClientDrawer({ client, initialTab = 'dossiers', onClose, onOpenLot, canMessages }) {
+  const [tab, setTab] = useState(initialTab);
   const live = client.sales.find(s => s.status !== 'desiste') || client.sales[0];
   // AccessTab attend un dossier avec son acquéreur
   const saleForAccess = { ...live, lead: { id: client.lead_id, name: client.name, client_code: client.client_code, phone: client.phone } };
@@ -165,5 +173,62 @@ function ClientDrawer({ client, onClose, onOpenLot, canMessages }) {
       {tab === 'acces' && <AccessTab sale={saleForAccess} />}
       {tab === 'messages' && <MessageThread leadId={client.lead_id} saleId={live?.status !== 'desiste' ? live?.id : undefined} />}
     </Drawer>
+  );
+}
+
+const EMPTY_CLIENT = { name: '', first_name: '', phone: '', email: '', country: '', is_diaspora: false, property_type: '', project_id: '' };
+
+/** Nouveau client sans dossier : son lot, son prix et son programme se rattachent ensuite. */
+function NewClientModal({ clients, onClose, onCreated }) {
+  const toast = useToast();
+  const projects = useResource('/admin/projects');
+  const [f, setF] = useState(EMPTY_CLIENT);
+  const [error, setError] = useState(null);
+  const [busy, setBusy] = useState(false);
+  const set = k => e => setF(v => ({ ...v, [k]: e.target.type === 'checkbox' ? e.target.checked : e.target.value }));
+  // Types de bien déjà utilisés, proposés à la saisie
+  const types = useMemo(() => [...new Set(clients.map(c => c.property_type).filter(Boolean))].sort(), [clients]);
+
+  const submit = async e => {
+    e.preventDefault();
+    setError(null);
+    if (!f.phone.trim() && !f.email.trim()) { setError(new Error('Indiquez un téléphone ou un e-mail.')); return; }
+    setBusy(true);
+    try {
+      const body = Object.fromEntries(Object.entries(f).filter(([, v]) => v !== ''));
+      const out = await api.post('/admin/clients', { ...body, project_id: f.project_id ? Number(f.project_id) : null });
+      toast(`Client créé — ${out.client_code}`);
+      onCreated(out);
+    } catch (err) { setError(err); }
+    setBusy(false);
+  };
+
+  return (
+    <Modal title="Nouveau client" onClose={onClose}
+      footer={<>
+        <button className="btn" type="button" onClick={onClose}>Annuler</button>
+        <button className="btn btn-primary" type="submit" form="new-client" disabled={busy}><Plus />Créer le client</button>
+      </>}>
+      <ErrorBox error={error} />
+      <p className="small muted" style={{ marginBottom: 12 }}>Le client reçoit un code client et apparaît « sans dossier ». Son lot et son prix s’ajoutent ensuite depuis la fiche du lot ; son espace client s’ouvre à l’étape suivante.</p>
+      <form id="new-client" className="form-grid" onSubmit={submit}>
+        <Field label="Nom *"><input className="input" value={f.name} onChange={set('name')} required minLength={2} autoFocus /></Field>
+        <Field label="Prénom(s)"><input className="input" value={f.first_name} onChange={set('first_name')} /></Field>
+        <Field label="Téléphone" hint="Avec l’indicatif, ex. +225 07 08 97 26 71"><input className="input" type="tel" value={f.phone} onChange={set('phone')} /></Field>
+        <Field label="E-mail"><input className="input" type="email" value={f.email} onChange={set('email')} /></Field>
+        <Field label="Type de bien">
+          <input className="input" list="client-types" value={f.property_type} onChange={set('property_type')} placeholder="Villa basse jumelée 4 pièces" />
+          <datalist id="client-types">{types.map(t => <option key={t} value={t} />)}</datalist>
+        </Field>
+        <Field label="Programme">
+          <select className="select" value={f.project_id} onChange={set('project_id')}>
+            <option value="">À rattacher plus tard</option>
+            {projects.data?.map(p => <option key={p.id} value={p.id}>{p.name}</option>)}
+          </select>
+        </Field>
+        <Field label="Pays de résidence"><input className="input" value={f.country} onChange={set('country')} /></Field>
+        <Field label=" "><label className="checkbox small"><input type="checkbox" checked={f.is_diaspora} onChange={set('is_diaspora')} />Client de la diaspora</label></Field>
+      </form>
+    </Modal>
   );
 }

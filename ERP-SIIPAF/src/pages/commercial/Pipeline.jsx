@@ -4,6 +4,7 @@ import { Plus, Search, Star, Clock, UserRound } from 'lucide-react';
 import { api, qs } from '@admin/lib/api';
 import { useAuth, useResource, useToast } from '@admin/lib/app-context';
 import { Skeleton, ErrorBox, Modal, Field } from '@admin/components/ui';
+import PipelineBoard from '@admin/components/PipelineBoard';
 import { initials } from '@admin/lib/format';
 import { useCommercialMeta, compact, ACTIVITY_STATE, STAGE_COLORS } from '../../lib/commercial';
 import LeadDrawer, { LostModal } from './LeadDrawer';
@@ -64,7 +65,7 @@ export default function Pipeline() {
       <ErrorBox error={list.error} />
       {!meta && <Skeleton h={320} />}
 
-      <div className="pipeline">
+      <PipelineBoard>
         {columns.map(st => {
           const col = rows.filter(r => r.stage === st);
           const total = col.reduce((s, r) => s + (r.expected_revenue_fcfa || 0), 0);
@@ -104,7 +105,7 @@ export default function Pipeline() {
             </div>
           );
         })}
-      </div>
+      </PipelineBoard>
 
       {leadId && <LeadDrawer id={leadId} onClose={() => open(null)} onChange={() => list.reload()} />}
       {lost && <LostModal lead={lost} onClose={() => setLost(null)} onDone={() => { setLost(null); list.reload(); }} />}

@@ -176,12 +176,30 @@ table.table { width: 100%; border-collapse: collapse; }
 .legend-item b { color: var(--ink); font-weight: 600; font-variant-numeric: tabular-nums; }
 
 /* Pipeline (kanban) */
-.pipeline { display: grid; grid-auto-flow: column; grid-auto-columns: minmax(240px, 1fr); gap: 14px; overflow-x: auto; padding-bottom: 8px; }
-.pipe-col { background: var(--surface-2); border: 1px solid var(--border); border-radius: var(--radius); display: flex; flex-direction: column; min-height: 200px; }
+/* Hauteur fixe : chaque colonne défile vers le bas et la barre horizontale reste en vue */
+.pipeline-wrap { position: relative; }
+.pipeline {
+  display: grid; grid-auto-flow: column; grid-auto-columns: minmax(240px, 1fr); gap: 14px;
+  height: calc(100dvh - 210px); min-height: 380px; overflow-x: auto; overflow-y: hidden; padding-bottom: 10px;
+  scrollbar-width: auto; scrollbar-color: var(--border-strong) transparent;
+}
+.pipeline::-webkit-scrollbar { height: 12px; }
+.pipeline::-webkit-scrollbar-thumb { background: var(--border-strong); border-radius: 6px; border: 3px solid var(--bg); }
+.pipeline.panning { cursor: grabbing; user-select: none; }
+.pipe-nav {
+  position: absolute; top: 50%; z-index: 3; transform: translateY(-50%); width: 38px; height: 38px; border-radius: 50%;
+  display: grid; place-items: center; cursor: pointer; color: var(--ink);
+  background: var(--surface); border: 1px solid var(--border); box-shadow: var(--shadow-lg);
+}
+.pipe-nav:hover { border-color: var(--border-strong); }
+.pipe-nav svg { width: 20px; height: 20px; }
+.pipe-nav.left { left: -12px; }
+.pipe-nav.right { right: -12px; }
+.pipe-col { background: var(--surface-2); border: 1px solid var(--border); border-radius: var(--radius); display: flex; flex-direction: column; min-height: 0; }
 .pipe-col.drop { border-color: var(--focus); background: #eef4fb; }
 .pipe-head { padding: 12px 14px; display: flex; align-items: center; gap: 8px; font-weight: 600; font-size: 13px; border-bottom: 1px solid var(--border); }
 .pipe-head .n { margin-left: auto; color: var(--ink-3); font-weight: 500; }
-.pipe-list { padding: 10px; display: flex; flex-direction: column; gap: 8px; }
+.pipe-list { padding: 10px; display: flex; flex-direction: column; gap: 8px; flex: 1; min-height: 0; overflow-y: auto; scrollbar-width: thin; }
 .pipe-card { background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius-sm); padding: 10px 12px; cursor: grab; box-shadow: var(--shadow); }
 .pipe-card:active { cursor: grabbing; }
 .pipe-card b { display: block; font-weight: 600; font-size: 13px; }

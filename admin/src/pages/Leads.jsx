@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react';
 import { useSearchParams } from 'react-router-dom';
 import { Search, Plus, Download, List, Columns3, Users, Phone, Mail as MailIcon, CalendarPlus, Trash2, Upload } from 'lucide-react';
 import ImportModal from '../components/ImportModal';
+import PipelineBoard from '../components/PipelineBoard';
 import { api, qs } from '../lib/api';
 import { useAuth, useResource, useToast } from '../lib/app-context';
 import { Card, Drawer, Field, Badge, Empty, ErrorBox, Skeleton, Pagination } from '../components/ui';
@@ -122,7 +123,7 @@ function Pipeline({ leads, onOpen, canWrite }) {
   };
 
   return (
-    <div className="pipeline">
+    <PipelineBoard>
       {LEAD_STAGES.map(st => {
         const items = rows.filter(r => r.stage === st.id);
         return (
@@ -150,7 +151,7 @@ function Pipeline({ leads, onOpen, canWrite }) {
           </div>
         );
       })}
-    </div>
+    </PipelineBoard>
   );
 }
 

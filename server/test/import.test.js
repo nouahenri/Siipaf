@@ -119,6 +119,26 @@ test('import de l’ancienne plateforme : clients sans lot, N°, nom + prénom, 
   assert.equal((await db('leads').where({ id: lead.id }).first()).client_code, lead.client_code);
 });
 
+test('nouveau client saisi à la main : code client, sans dossier, pas de doublon', async () => {
+  const project = await db('projects').where({ slug: 'ahoutoue' }).first();
+  let res = await admin.post('/api/admin/clients').send({ name: 'KOUASSI', first_name: 'Ama', phone: '+2250700112233', property_type: 'Duplex 5 pièces', project_id: project.id });
+  assert.equal(res.status, 201, JSON.stringify(res.body));
+  assert.match(res.body.client_code, /^SIIPAF-\d{4}-\d{4}$/);
+  const lead = await db('leads').where({ id: res.body.lead_id }).first();
+  assert.equal(lead.name, 'KOUASSI Ama');
+  assert.equal(lead.source, 'admin');
+  assert.equal(lead.project_id, project.id);
+  assert.equal(lead.property_type, 'Duplex 5 pièces');
+
+  const list = await admin.get('/api/admin/clients');
+  assert.equal(list.body.find(c => c.lead_id === lead.id).status, 'sans_dossier');
+
+  res = await admin.post('/api/admin/clients').send({ name: 'Autre nom', phone: '+2250700112233' });
+  assert.equal(res.status, 409, 'même téléphone : déjà client');
+  res = await admin.post('/api/admin/clients').send({ name: 'Sans contact' });
+  assert.equal(res.status, 400);
+});
+
 test('droits : un éditeur ne peut rien importer', async () => {
   const editeur = await login(app, await createUser(db, 'editeur', 'editeur-import@test.ci'), 'motdepasse-test-123');
   const res = await editeur.post('/api/admin/import').send({ mode: 'prospects', rows: [{ name: 'Test', phone: '0700000000' }] });
