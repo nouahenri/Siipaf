@@ -57,9 +57,11 @@ export function AppProvider({ children }) {
     setSession({ loading: false, user: null, permissions: [] });
   };
   const can = perm => session.permissions.includes('*') || session.permissions.includes(perm);
+  // Mot de passe provisoire remplacé (écran ForcePassword) : accès ouvert sans recharger la session
+  const markPasswordChanged = () => setSession(s => ({ ...s, user: s.user && { ...s.user, must_change_password: false } }));
 
   return (
-    <AuthContext.Provider value={{ ...session, login, logout, can, theme, setTheme }}>
+    <AuthContext.Provider value={{ ...session, login, logout, can, theme, setTheme, markPasswordChanged }}>
       <ToastContext.Provider value={toast}>
         {children}
         <div className="toasts" role="status" aria-live="polite">

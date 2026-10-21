@@ -25,6 +25,11 @@ export const fullName = e => (e ? `${e.last_name} ${e.first_name}` : '');
 
 export const EXPENSE_TONES = { brouillon: '', soumise: 'warn', approuvee: 'brand', comptabilisee: 'brand', remboursee: 'ok', refusee: 'danger' };
 export const STAGE_COLORS = { nouveau: '#8a8f99', qualification: '#2a78d6', entretien_1: '#0f8fa3', entretien_2: '#6d28d9', proposition: '#eda100', embauche: '#1baf7a' };
+// Couleur de chaque service (organigramme) : teintes sourdes, déclinées en fonds très clairs (clair et sombre)
+export const DEPT_COLORS = {
+  direction: '#4b5a8a', commercial: '#3f8a6e', technique: '#3a72a0', chantier: '#a67a3d',
+  administratif: '#86689a', comptabilite: '#3f8686', juridique: '#9a5c62',
+};
 export const WEEKDAYS = ['Dimanche', 'Lundi', 'Mardi', 'Mercredi', 'Jeudi', 'Vendredi', 'Samedi'];
 
 /** Valeur d'un indicateur selon son unité (nombre, FCFA, %, heures, jours, note sur 5). */

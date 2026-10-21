@@ -609,3 +609,6 @@ fieldset { min-width: 0; }
   /* Sur téléphone, le menu s'ouvre en bas de l'écran pour ne jamais être coupé */
   .menu-pop { position: fixed; left: 12px; right: 12px; top: auto; bottom: 12px; min-width: 0; }
 }
+
+/* Premier accès : choix du mot de passe (mot de passe provisoire) */
+.force-password { min-height: 100vh; display: grid; place-items: center; padding: 24px 16px; background: var(--bg); }

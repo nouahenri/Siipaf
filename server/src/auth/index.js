@@ -58,7 +58,7 @@ async function roleLabel(db, role) {
 }
 
 function publicUser(u) {
-  return { id: u.id, email: u.email, name: u.name, phone: u.phone, role: u.role, active: !!u.active, last_login_at: u.last_login_at, theme: u.theme || 'systeme' };
+  return { id: u.id, email: u.email, name: u.name, phone: u.phone, role: u.role, active: !!u.active, last_login_at: u.last_login_at, theme: u.theme || 'systeme', must_change_password: !!u.must_change_password };
 }
 
 module.exports = { hashPassword, checkPassword, issueSession, clearSession, requireAuth, requirePermission, publicUser, roleLabel, COOKIE };

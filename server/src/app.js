@@ -50,6 +50,8 @@ function createApp(db) {
 
   const admin = express.Router();
   admin.use(requireAuth(db));
+  // Mot de passe provisoire : seul le choix d'un nouveau mot de passe (/api/auth/password) reste possible
+  admin.use((req, res, next) => (req.user.must_change_password ? next(new HttpError(403, 'Choisissez d’abord votre mot de passe.')) : next()));
   admin.use(require('./routes/permissions')(db));
   admin.use('/users', require('./routes/users')(db));
   admin.use(require('./routes/catalog')(db));

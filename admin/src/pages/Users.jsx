@@ -54,7 +54,11 @@ function UserDrawer({ user, roles, roleLabel, onClose, onSaved }) {
     const body = { ...form, phone: form.phone || null };
     if (!body.password) delete body.password;
     try {
-      if (isNew) await api.post('/admin/users', body);
+      if (isNew) {
+        const created = await api.post('/admin/users', body);
+        // Affiché une seule fois : à transmettre à la personne (champ sélectionnable pour le copier)
+        if (created.temporary_password) window.prompt(`Mot de passe provisoire de ${created.name} (affiché une seule fois) :`, created.temporary_password);
+      }
       else await api.patch(`/admin/users/${user.id}`, body);
       toast(isNew ? 'Utilisateur créé' : 'Utilisateur mis à jour');
       onSaved();
@@ -78,7 +82,7 @@ function UserDrawer({ user, roles, roleLabel, onClose, onSaved }) {
             )}
           </select>
         </Field>
-        <Field label={isNew ? 'Mot de passe' : 'Nouveau mot de passe'} hint={isNew ? '10 caractères minimum. Communiquez-le à la personne, qui pourra le changer.' : 'Laisser vide pour ne pas le changer.'} className="full">
+        <Field label={isNew ? 'Mot de passe' : 'Nouveau mot de passe'} hint={isNew ? 'Laisser vide pour générer un mot de passe provisoire. La personne choisira le sien à sa première connexion.' : 'Laisser vide pour ne pas le changer. Un mot de passe fixé ici est provisoire : la personne devra le changer.'} className="full">
           <input className="input" type="password" autoComplete="new-password" value={form.password} onChange={set('password')} />
         </Field>
         {!isNew && <label className="checkbox"><input type="checkbox" checked={form.active} onChange={set('active')} />Compte actif</label>}

@@ -4,6 +4,7 @@ import { BrowserRouter, Navigate, Route, Routes } from 'react-router-dom';
 import { AppProvider, useAuth } from '@admin/lib/app-context';
 import ErpLayout from './components/ErpLayout';
 import Login from './pages/Login';
+import ForcePassword from '@admin/components/ForcePassword';
 import Launcher from './pages/Launcher';
 import SavDashboard from './pages/sav/SavDashboard';
 import Tickets from './pages/sav/Tickets';
@@ -38,6 +39,7 @@ import Skills from './pages/rh/Skills';
 import Reviews from './pages/rh/Reviews';
 import RhSettings from './pages/rh/RhSettings';
 import ModuleAccess from './components/ModuleAccess';
+import Accounts from './pages/Accounts';
 import '@admin/styles.css';
 import './erp.css';
 
@@ -56,6 +58,7 @@ function App() {
   const { loading, user } = useAuth();
   if (loading) return null;
   if (!user) return <Login />;
+  if (user.must_change_password) return <ForcePassword />;
   return (
     <Routes>
       <Route element={<ErpLayout />}>
@@ -89,6 +92,7 @@ function App() {
         <Route path="rh/competences" element={<Guard perm="rh:read"><Skills /></Guard>} />
         <Route path="rh/objectifs" element={<Reviews />} />
         <Route path="rh/reglages" element={<Guard perm="rh:read"><RhSettings /></Guard>} />
+        <Route path="comptes" element={<Guard perm="users:read"><Accounts /></Guard>} />
         <Route path="commercial/acces" element={<Guard perm="users:read"><ModuleAccess module="commercial" label="Service commercial" /></Guard>} />
         <Route path="compta/acces" element={<Guard perm="users:read"><ModuleAccess module="compta" label="Comptabilité et paie" /></Guard>} />
         <Route path="rh/acces" element={<Guard perm="users:read"><ModuleAccess module="rh" label="Ressources humaines" /></Guard>} />

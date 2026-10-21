@@ -4,6 +4,7 @@ import { BrowserRouter, Navigate, Route, Routes } from 'react-router-dom';
 import { AppProvider, useAuth } from './lib/app-context';
 import Layout from './components/Layout';
 import Login from './pages/Login';
+import ForcePassword from './components/ForcePassword';
 import Dashboard from './pages/Dashboard';
 import Leads from './pages/Leads';
 import Clients from './pages/Clients';
@@ -33,6 +34,7 @@ function App() {
   const { loading, user } = useAuth();
   if (loading) return null;
   if (!user) return <Login />;
+  if (user.must_change_password) return <ForcePassword />;
   return (
     <Routes>
       <Route element={<Layout />}>

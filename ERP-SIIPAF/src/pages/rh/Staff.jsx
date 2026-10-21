@@ -5,7 +5,7 @@ import { useAuth, useResource } from '@admin/lib/app-context';
 import { Card, Empty, Skeleton, ErrorBox, Badge } from '@admin/components/ui';
 import { date } from '@admin/lib/format';
 import { initials } from '@admin/lib/format';
-import { RH, useRhMeta } from '../../lib/rh';
+import { RH, useRhMeta, DEPT_COLORS } from '../../lib/rh';
 
 /** Annuaire du personnel (référence : Odoo Employés) et organigramme tiré du responsable direct. */
 export default function Staff() {
@@ -65,9 +65,12 @@ function OrgChart() {
   const org = useResource(`${RH}/orgchart`);
   if (!org.data) return <Skeleton h={260} />;
   if (!org.data.length) return <Card><Empty icon={Network}>Aucun employé.</Empty></Card>;
+  const used = new Set();
+  const walk = n => { used.add(n.department); n.reports.forEach(walk); };
+  org.data.forEach(walk);
   const Node = ({ n }) => (
     <li>
-      <Link to={`/rh/personnel/${n.id}`} className="org-node">
+      <Link to={`/rh/personnel/${n.id}`} className="org-node" style={{ '--c': DEPT_COLORS[n.department] }}>
         <span className="avatar xs">{initials(`${n.first_name} ${n.last_name}`)}</span>
         <span><b>{n.name}</b><small>{n.job_title}</small><small className="muted">{meta?.departments[n.department]}</small></span>
       </Link>
@@ -76,6 +79,9 @@ function OrgChart() {
   );
   return (
     <Card>
+      <div className="org-legend" aria-label="Services">
+        {meta && Object.entries(meta.departments).filter(([k]) => used.has(k)).map(([k, v]) => <span key={k} className="org-chip" style={{ '--c': DEPT_COLORS[k] }}><i />{v}</span>)}
+      </div>
       <p className="small muted" style={{ marginBottom: 12 }}>Établi à partir du « responsable direct » de chaque fiche (dossier › Contrat). Il sert aussi au circuit d’approbation des congés et des notes de frais.</p>
       <div className="org"><ul>{org.data.map(n => <Node key={n.id} n={n} />)}</ul></div>
     </Card>

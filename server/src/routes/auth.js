@@ -43,7 +43,8 @@ module.exports = function authRoutes(db) {
     }), req.body);
     const user = await db('users').where({ id: req.user.id }).first();
     if (!(await checkPassword(current, user.password_hash))) throw new HttpError(400, 'Mot de passe actuel incorrect.');
-    await db('users').where({ id: user.id }).update({ password_hash: await hashPassword(next), updated_at: new Date() });
+    if (next === current) throw new HttpError(400, 'Choisissez un mot de passe différent du mot de passe provisoire.');
+    await db('users').where({ id: user.id }).update({ password_hash: await hashPassword(next), must_change_password: false, updated_at: new Date() });
     res.json({ ok: true });
   }));
 

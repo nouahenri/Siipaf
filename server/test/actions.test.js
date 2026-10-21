@@ -67,3 +67,29 @@ test('migration : les anciens droits larges deviennent les actions qu’ils couv
   assert.ok(!perms.includes('sav:write') && !perms.includes('compta:write'), 'anciens identifiants retirés');
   assert.ok(!perms.includes('compta:validate'), 'aucun droit gagné au passage');
 });
+
+test('comptes créés depuis l’ERP : mot de passe provisoire, fiche employé reliée ou créée, réinitialisation', async () => {
+  let res = await admin.post('/api/admin/users').send({ name: 'Yao Christelle', email: 'christelle@test.ci', role: 'editeur', employee: { job_title: 'Assistante', department: 'administratif', hire_date: '2026-01-05' } });
+  assert.equal(res.status, 201, JSON.stringify(res.body));
+  const temp = res.body.temporary_password;
+  assert.equal(temp.length, 12);
+  assert.equal(res.body.must_change_password, true);
+  const e = await db('employees').where({ user_id: res.body.id }).first();
+  assert.deepEqual([e.first_name, e.last_name, e.department], ['Yao', 'Christelle', 'administratif']);
+
+  const { request } = require('./helpers');
+  const agent = request.agent(app);
+  assert.equal((await agent.post('/api/auth/login').send({ email: 'christelle@test.ci', password: temp })).body.user.must_change_password, true);
+  assert.equal((await agent.get('/api/admin/erp/rh/me')).status, 403, 'bloqué tant que le mot de passe est provisoire');
+  assert.equal((await agent.post('/api/auth/password').send({ current: temp, next: temp })).status, 400, 'nouveau mot de passe différent');
+  await agent.post('/api/auth/password').send({ current: temp, next: 'mon-mot-de-passe-2026' });
+  assert.equal((await agent.get('/api/admin/erp/rh/me')).status, 200);
+
+  res = await admin.post(`/api/admin/users/${e.user_id}/reset-password`);
+  assert.equal(res.body.temporary_password.length, 12);
+  assert.equal((await agent.get('/api/admin/erp/rh/me')).status, 403, 'réinitialisé : à changer de nouveau');
+
+  const list = (await admin.get('/api/admin/users')).body;
+  assert.equal(list.find(u => u.email === 'christelle@test.ci').employee.id, e.id);
+  assert.equal((await conducteur.post('/api/admin/users').send({ name: 'Intrus', email: 'x@test.ci', role: 'commercial' })).status, 403);
+});

@@ -36,7 +36,11 @@ test('créer un rôle avec ses droits, puis lui attribuer un compte qui obtient 
   const created = await newUser(admin, 'assistant_e_commercial', 'assistant@test.ci');
   assert.equal(created.status, 201);
   const agent = await login(app, 'assistant@test.ci', 'motdepasse-long-123');
+  // Mot de passe fixé par l'administrateur : provisoire, à remplacer avant tout accès
+  assert.equal((await agent.get('/api/admin/leads')).status, 403);
+  assert.equal((await agent.post('/api/auth/password').send({ current: 'motdepasse-long-123', next: 'motdepasse-perso-456' })).status, 200);
   const me = await agent.get('/api/auth/me');
+  assert.equal(me.body.user.must_change_password, false);
   assert.equal(me.body.user.role_label, 'Assistant(e) commercial');
   assert.deepEqual([...me.body.permissions].sort(), ['appointments:read', 'leads:read']);
   assert.equal((await agent.get('/api/admin/leads')).status, 200);

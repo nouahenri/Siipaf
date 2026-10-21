@@ -286,3 +286,14 @@ details > summary { list-style-position: inside; }
 .perm-cell.mini svg { width: 12px; height: 12px; }
 
 .perm-table td:first-child { min-width: 220px; }
+.temp-password { font-size: 18px; letter-spacing: .06em; user-select: all; }
+
+/* Organigramme : couleur douce par service */
+.org-node { --c: var(--ink-3); background: color-mix(in srgb, var(--c) 9%, var(--surface)); border-color: color-mix(in srgb, var(--c) 26%, var(--border)); }
+.org-node:hover { border-color: color-mix(in srgb, var(--c) 45%, var(--border)); }
+/* (sélecteur renforcé : le thème sombre du dashboard redéfinit .avatar) */
+.org .org-node .avatar, :root[data-theme] .org .org-node .avatar { background: var(--c); color: #fff; }
+.org-node small.muted { color: color-mix(in srgb, var(--c) 70%, var(--ink-3)); font-weight: 500; }
+.org-legend { display: flex; flex-wrap: wrap; gap: 8px; margin-bottom: 12px; }
+.org-chip { display: inline-flex; align-items: center; gap: 6px; padding: 4px 10px; border-radius: 999px; font-size: 12px; font-weight: 500; background: color-mix(in srgb, var(--c) 10%, var(--surface)); color: color-mix(in srgb, var(--c) 80%, var(--ink)); border: 1px solid color-mix(in srgb, var(--c) 24%, transparent); }
+.org-chip i { width: 8px; height: 8px; border-radius: 50%; background: var(--c); }
