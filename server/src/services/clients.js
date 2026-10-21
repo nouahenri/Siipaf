@@ -187,6 +187,18 @@ async function progressIndex(db) {
   };
 }
 
+/** Avancement de plusieurs clients d'un coup (états comptables) : { [lead_id]: avancement | null }. */
+async function clientsProgress(db, leadIds) {
+  const ids = [...new Set(leadIds.map(Number).filter(Boolean))];
+  if (!ids.length) return {};
+  const [progress, leads, sales] = await Promise.all([
+    progressIndex(db),
+    db('leads').whereIn('id', ids).select('id', 'project_id'),
+    db('sales as s').join('lots as l', 'l.id', 's.lot_id').whereIn('s.lead_id', ids).select('s.lead_id', 's.status', 's.lot_id', 'l.project_id', 'l.ilot'),
+  ]);
+  return Object.fromEntries(leads.map(l => [l.id, progress.client(sales.filter(s => s.lead_id === l.id), l.project_id)]));
+}
+
 async function serializeUpdate(db, u) {
   return {
     id: u.id, stage: u.stage, stage_label: SITE_STAGE_LABELS[u.stage], progress_pct: u.progress_pct,
@@ -277,6 +289,6 @@ async function clientDocumentFile(db, leadId, docId) {
 
 module.exports = {
   generatePassword, normalizeCode, findAccountByCode, findAccountByLogin, grantAccess, accessStatus, requestReset, resetPassword,
-  mediaList, siteUpdatesQuery, progressIndex, serializeUpdate, ownSale, saleContext, clientSales, clientSaleDetail, clientDocumentFile,
+  mediaList, siteUpdatesQuery, progressIndex, clientsProgress, serializeUpdate, ownSale, saleContext, clientSales, clientSaleDetail, clientDocumentFile,
   receiptNumber,
 };

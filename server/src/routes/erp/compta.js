@@ -5,6 +5,7 @@ const { ah, parse, idParam, HttpError, isoDay } = require('../../lib/http');
 const { requirePermission } = require('../../auth');
 const { JOURNAL_KINDS, REVENUE_MODES, accountClass, partnerKindOf, splitVat } = require('../../lib/compta');
 const ct = require('../../services/compta');
+const { progressIndex, clientsProgress } = require('../../services/clients');
 
 const day = z.string().regex(/^\d{4}-\d{2}-\d{2}$/, 'Date attendue au format AAAA-MM-JJ');
 const optText = max => z.string().trim().max(max).optional().nullable().transform(v => v || null);
@@ -333,10 +334,17 @@ module.exports = function comptaRoutes(db) {
   }));
   r.get('/reports/statements', read, ah(async (req, res) => res.json(await ct.financialStatements(db, period(req)))));
   r.get('/reports/vat', read, ah(async (req, res) => res.json(await ct.vatReport(db, period(req)))));
-  r.get('/reports/margins', read, ah(async (req, res) => res.json(await ct.projectMargins(db, period(req)))));
+  // Marges et soldes clients : avec l'avancement du chantier (programme, client), comme sur l'ancienne plateforme
+  r.get('/reports/margins', read, ah(async (req, res) => {
+    const [rows, progress] = await Promise.all([ct.projectMargins(db, period(req)), progressIndex(db)]);
+    res.json(rows.map(m => ({ ...m, progress_pct: m.project_id ? progress.project(m.project_id)?.progress_pct ?? 0 : null })));
+  }));
   r.get('/reports/partners', read, ah(async (req, res) => {
     const kind = req.query.kind === 'fournisseur' ? 'fournisseur' : 'client';
-    res.json(await ct.partnerBalances(db, kind, period(req)));
+    const rows = await ct.partnerBalances(db, kind, period(req));
+    if (kind !== 'client') return res.json(rows);
+    const progress = await clientsProgress(db, rows.map(r => r.partner_id));
+    res.json(rows.map(r => ({ ...r, progress_pct: progress[r.partner_id]?.progress_pct ?? null })));
   }));
   r.get('/reports/treasury', read, ah(async (req, res) => res.json(await ct.treasury(db, { includeDraft: req.query.draft === '1' }))));
 

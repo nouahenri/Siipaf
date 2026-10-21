@@ -161,6 +161,13 @@ test('avancement du chantier par client : lot, programme rattaché, sans program
   assert.equal(of(lotLead).progress.progress_pct, 55, 'lot : dernier point de son îlot');
   assert.equal(of(lotLead).progress.stage, 'gros_oeuvre');
   assert.equal(of(lotLead).sales[0].progress_pct, 55);
+
+  // Même calcul pour les états comptables (soldes clients)
+  const { clientsProgress } = require('../src/services/clients');
+  const byLead = await clientsProgress(db, [withProject, without, lotLead]);
+  assert.deepEqual([withProject, without, lotLead].map(id => byLead[id].progress_pct), [30, 0, 55]);
+  for (const kind of ['client', 'fournisseur']) assert.equal((await admin.get(`/api/admin/erp/compta/reports/partners?kind=${kind}`)).status, 200);
+  assert.equal((await admin.get('/api/admin/erp/compta/reports/margins')).status, 200);
 });
 
 test('droits : un éditeur ne peut rien importer', async () => {
