@@ -25,8 +25,9 @@ module.exports = function crmRoutes(db) {
 
   // ─── Prospects ────────────────────────────────────────────
   // Un commercial ne voit que ses prospects et ceux non assignés
+  const { seesAllLeads } = require('../services/commercial');
   const scopeLeads = (q, user) => {
-    if (user.role === 'commercial') q.where(b => b.where('ld.assigned_to', user.id).orWhereNull('ld.assigned_to'));
+    if (!seesAllLeads(user)) q.where(b => b.where('ld.assigned_to', user.id).orWhereNull('ld.assigned_to'));
     return q;
   };
 
@@ -80,7 +81,7 @@ module.exports = function crmRoutes(db) {
     const lead = await db.transaction(trx => findOrCreateLead(trx, { ...data, source: 'admin' }));
     const patch = {};
     if (data.stage) patch.stage = data.stage;
-    patch.assigned_to = data.assigned_to ?? (req.user.role === 'commercial' ? req.user.id : null);
+    patch.assigned_to = data.assigned_to ?? (seesAllLeads(req.user) ? null : req.user.id);
     await db('leads').where({ id: lead.id }).update(patch);
     res.status(201).json(await db('leads').where({ id: lead.id }).first());
   }));
@@ -90,7 +91,7 @@ module.exports = function crmRoutes(db) {
     const data = parse(leadSchema.partial(), req.body);
     const lead = await scopeLeads(db('leads as ld'), req.user).where('ld.id', id).select('ld.*').first();
     if (!lead) throw new HttpError(404, 'Prospect introuvable.');
-    if (req.user.role === 'commercial' && data.assigned_to && data.assigned_to !== req.user.id) {
+    if (!seesAllLeads(req.user) && data.assigned_to && data.assigned_to !== req.user.id) {
       throw new HttpError(403, 'Un commercial ne peut assigner un prospect qu’à lui-même.');
     }
     await db('leads').where({ id }).update({ ...data, updated_at: new Date() });
@@ -137,7 +138,7 @@ module.exports = function crmRoutes(db) {
     if (req.query.from) q.where('a.starts_at', '>=', new Date(String(req.query.from)));
     if (req.query.to) q.where('a.starts_at', '<', new Date(String(req.query.to)));
     if (req.query.status) q.whereIn('a.status', String(req.query.status).split(','));
-    if (req.user.role === 'commercial') q.where(b => b.where('a.assigned_to', req.user.id).orWhereNull('a.assigned_to'));
+    if (!seesAllLeads(req.user)) q.where(b => b.where('a.assigned_to', req.user.id).orWhereNull('a.assigned_to'));
     res.json(await q);
   }));
 

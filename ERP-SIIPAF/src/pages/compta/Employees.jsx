@@ -29,7 +29,7 @@ export default function Employees() {
           </div>
           {withPay && list.data && <span className="small muted">{rows.length} employé(s) · salaires fixes mensuels : <b>{fcfa(mass)}</b></span>}
         </div>
-        {can('paie:write') && (
+        {can('paie:employees') && (
           <div className="row">
             <button className="btn" onClick={() => setImporting(true)}><Link2 />Depuis les comptes du dashboard</button>
             <button className="btn btn-primary" onClick={() => setEdit({})}><Plus />Employé</button>
@@ -43,7 +43,7 @@ export default function Employees() {
             <thead><tr><th>Matricule</th><th>Nom</th><th>Poste · service</th><th>Contrat</th><th>Entrée</th>{withPay && <th className="right">Salaire de base</th>}<th>Compte</th></tr></thead>
             <tbody>
               {rows.map(e => (
-                <tr key={e.id} className={can('paie:write') ? 'clickable' : ''} onClick={() => can('paie:write') && setEdit(e)}>
+                <tr key={e.id} className={can('paie:employees') ? 'clickable' : ''} onClick={() => can('paie:employees') && setEdit(e)}>
                   <td className="small tabular">{e.matricule}</td>
                   <td><b>{e.last_name} {e.first_name}</b>{e.expatriate && <Badge> Expatrié</Badge>}</td>
                   <td className="small">{e.job_title}<div className="muted">{meta?.departments[e.department]}{e.project_name ? ` · ${e.project_name}` : ''}</div></td>

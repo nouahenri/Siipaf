@@ -25,12 +25,31 @@ import Chart from './pages/compta/Chart';
 import ComptaSettings from './pages/compta/Settings';
 import Employees from './pages/compta/Employees';
 import Payroll, { PayrollRun } from './pages/compta/Payroll';
+import RhDashboard from './pages/rh/RhDashboard';
+import MySpace from './pages/rh/MySpace';
+import Staff from './pages/rh/Staff';
+import EmployeeFile from './pages/rh/EmployeeFile';
+import Leaves from './pages/rh/Leaves';
+import Attendance from './pages/rh/Attendance';
+import Kiosk from './pages/rh/Kiosk';
+import Expenses from './pages/rh/Expenses';
+import Recruitment from './pages/rh/Recruitment';
+import Skills from './pages/rh/Skills';
+import Reviews from './pages/rh/Reviews';
+import RhSettings from './pages/rh/RhSettings';
+import ModuleAccess from './components/ModuleAccess';
 import '@admin/styles.css';
 import './erp.css';
 
 function Guard({ perm, children }) {
   const { can } = useAuth();
   return [].concat(perm).some(can) ? children : <Navigate to="/" replace />;
+}
+
+/** Entrée du module RH : le tableau de bord pour le service RH, « Mon espace » pour les autres. */
+function RhHome() {
+  const { can } = useAuth();
+  return can('rh:read') ? <RhDashboard /> : <Navigate to="/rh/moi" replace />;
 }
 
 function App() {
@@ -58,6 +77,22 @@ function App() {
         <Route path="compta/paie/:id" element={<Guard perm="paie:read"><PayrollRun /></Guard>} />
         <Route path="compta/employes" element={<Guard perm={['paie:read', 'rh:read']}><Employees /></Guard>} />
         <Route path="compta/parametres" element={<Guard perm="compta:read"><ComptaSettings /></Guard>} />
+        <Route path="rh" element={<RhHome />} />
+        <Route path="rh/moi" element={<MySpace />} />
+        <Route path="rh/personnel" element={<Guard perm="rh:read"><Staff /></Guard>} />
+        <Route path="rh/personnel/:id" element={<EmployeeFile />} />
+        <Route path="rh/conges" element={<Leaves />} />
+        <Route path="rh/presences" element={<Guard perm={['rh:read', 'presence:write']}><Attendance /></Guard>} />
+        <Route path="rh/borne" element={<Guard perm="presence:write"><Kiosk /></Guard>} />
+        <Route path="rh/frais" element={<Expenses />} />
+        <Route path="rh/recrutement" element={<Guard perm="rh:read"><Recruitment /></Guard>} />
+        <Route path="rh/competences" element={<Guard perm="rh:read"><Skills /></Guard>} />
+        <Route path="rh/objectifs" element={<Reviews />} />
+        <Route path="rh/reglages" element={<Guard perm="rh:read"><RhSettings /></Guard>} />
+        <Route path="commercial/acces" element={<Guard perm="users:read"><ModuleAccess module="commercial" label="Service commercial" /></Guard>} />
+        <Route path="compta/acces" element={<Guard perm="users:read"><ModuleAccess module="compta" label="Comptabilité et paie" /></Guard>} />
+        <Route path="rh/acces" element={<Guard perm="users:read"><ModuleAccess module="rh" label="Ressources humaines" /></Guard>} />
+        <Route path="sav/acces" element={<Guard perm="users:read"><ModuleAccess module="sav" label="Client & SAV" /></Guard>} />
         <Route path="sav" element={<Guard perm="sav:read"><SavDashboard /></Guard>} />
         <Route path="sav/reclamations" element={<Guard perm="sav:read"><Tickets /></Guard>} />
         <Route path="sav/reserves" element={<Guard perm="sav:read"><Reserves /></Guard>} />

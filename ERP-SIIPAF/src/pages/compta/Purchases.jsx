@@ -48,7 +48,7 @@ function Invoices() {
           </select>
           {list.data && <span className="small muted">Reste à payer : <b>{fcfa(due)}</b></span>}
         </div>
-        {can('compta:write') && <button className="btn btn-primary" onClick={() => setCreating(true)}><Plus />Facture d’achat</button>}
+        {can('achats:write') && <button className="btn btn-primary" onClick={() => setCreating(true)}><Plus />Facture d’achat</button>}
       </div>
       <ErrorBox error={list.error} />
       <Card bodyClass="">
@@ -103,7 +103,7 @@ function InvoiceDrawer({ id, onClose, onChange }) {
             <dt>Montants</dt><dd className="tabular">HT {fcfa(d.amount_ht)} · TVA {d.vat_rate} % {fcfa(d.vat_amount)} · <b>TTC {fcfa(d.amount_ttc)}</b></dd>
             {d.status === 'validee' && <><dt>Réglé</dt><dd className="tabular">{fcfa(d.paid_fcfa)} · reste <b>{fcfa(d.remaining_fcfa)}</b></dd></>}
           </dl>
-          {d.status === 'brouillon' && can('compta:write') && (
+          {d.status === 'brouillon' && can('achats:write') && (
             <div className="row" style={{ gap: 8 }}>
               <button className="btn btn-primary" onClick={() => act(() => api.post(`/admin/erp/compta/purchases/${d.id}/validate`), 'Facture validée : écriture d’achat créée')}><CheckCheck />Valider la facture</button>
               <button className="btn" onClick={() => setEditing(true)}><Pencil />Modifier</button>
@@ -114,7 +114,7 @@ function InvoiceDrawer({ id, onClose, onChange }) {
             <section>
               <div className="row-between">
                 <h3 className="erp-h3">Règlements</h3>
-                {can('compta:write') && d.remaining_fcfa > 0 && !pay && <button className="btn btn-sm" onClick={() => setPay({ date: new Date().toISOString().slice(0, 10), amount: d.remaining_fcfa, journal_id: treasury[0]?.id || '', reference: '' })}><Wallet />Régler</button>}
+                {can('achats:pay') && d.remaining_fcfa > 0 && !pay && <button className="btn btn-sm" onClick={() => setPay({ date: new Date().toISOString().slice(0, 10), amount: d.remaining_fcfa, journal_id: treasury[0]?.id || '', reference: '' })}><Wallet />Régler</button>}
               </div>
               {pay && (
                 <form className="erp-panel form-grid" style={{ marginBottom: 10 }} onSubmit={e => { e.preventDefault(); act(() => api.post(`/admin/erp/compta/purchases/${d.id}/payments`, { ...pay, amount: Number(pay.amount), journal_id: Number(pay.journal_id), reference: pay.reference || null }), 'Règlement enregistré').then(() => setPay(null)); }}>
@@ -204,7 +204,7 @@ function Suppliers() {
     <>
       <div className="row-between">
         <span className="small muted">{rows.length} fournisseur(s) · dettes : <b>{fcfa(rows.reduce((t, s) => t + Math.max(0, s.balance), 0))}</b></span>
-        {can('compta:write') && <button className="btn btn-primary" onClick={() => setEdit({})}><Plus />Fournisseur</button>}
+        {can('achats:write') && <button className="btn btn-primary" onClick={() => setEdit({})}><Plus />Fournisseur</button>}
       </div>
       <Card bodyClass="">
         {!list.data ? <div className="card-body"><Skeleton h={200} /></div> : !rows.length ? <div className="card-body"><Empty icon={Truck}>Aucun fournisseur. Ajoutez vos fournisseurs de matériaux, sous-traitants et prestataires (architectes, notaires…).</Empty></div> : (
@@ -212,7 +212,7 @@ function Suppliers() {
             <thead><tr><th>Nom</th><th>Type</th><th>Contact</th><th>NCC · RCCM</th><th>Charge habituelle</th><th className="right">Solde dû</th></tr></thead>
             <tbody>
               {rows.map(s => (
-                <tr key={s.id} className={can('compta:write') ? 'clickable' : ''} onClick={() => can('compta:write') && setEdit(s)} style={{ opacity: s.active ? 1 : 0.5 }}>
+                <tr key={s.id} className={can('achats:write') ? 'clickable' : ''} onClick={() => can('achats:write') && setEdit(s)} style={{ opacity: s.active ? 1 : 0.5 }}>
                   <td><b>{s.name}</b></td>
                   <td className="small">{KINDS[s.kind]}</td>
                   <td className="small">{s.phone || '—'}{s.email && <div className="muted">{s.email}</div>}</td>

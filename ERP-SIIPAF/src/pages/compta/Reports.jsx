@@ -217,7 +217,7 @@ function SageExport() {
       toast(`${res.headers.get('X-Lines') || 0} ligne(s) exportée(s)`);
     } catch (e) { toast(e.message, 'err'); }
   };
-  if (!can('compta:validate')) return <Card><Empty>L’export est réservé au comptable (droit « Valider et clôturer »).</Empty></Card>;
+  if (!can('compta:export')) return <Card><Empty>L’export demande le droit « Exporter vers Sage ».</Empty></Card>;
   return (
     <Card title="Export des écritures validées vers Sage">
       <div className="stack" style={{ gap: 14 }}>

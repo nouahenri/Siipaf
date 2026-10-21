@@ -45,9 +45,9 @@ function requireAuth(db) {
   };
 }
 
-/** Exige une permission parmi les droits effectifs du compte connecté. */
-const requirePermission = permission => (req, res, next) => {
-  if (!req.user || !req.can || !req.can(permission)) return next(new HttpError(403, 'Droits insuffisants.'));
+/** Exige une permission (ou l'une de plusieurs actions) parmi les droits effectifs du compte connecté. */
+const requirePermission = (...permissions) => (req, res, next) => {
+  if (!req.user || !req.can || !permissions.flat().some(p => req.can(p))) return next(new HttpError(403, 'Droits insuffisants.'));
   next();
 };
 

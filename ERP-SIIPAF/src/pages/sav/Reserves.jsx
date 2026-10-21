@@ -17,7 +17,7 @@ export default function Reserves() {
   const [projectId, setProjectId] = useState('');
   const [pv, setPv] = useState(false);
   const list = useResource(`/admin/erp/sav/reserves?status=${status}${projectId ? `&project_id=${projectId}` : ''}`);
-  const write = can('sav:write');
+  const write = can('sav:reserves');
 
   const act = async (fn, msg) => {
     try { await fn(); toast(msg); list.reload(); } catch (e) { toast(e.message, 'err'); }

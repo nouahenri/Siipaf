@@ -96,7 +96,7 @@ export default function Tickets() {
             <button className={view === 'liste' ? 'active' : ''} onClick={() => setView('liste')} aria-pressed={view === 'liste'}><List aria-hidden="true" />Liste</button>
             <button className={view === 'tableau' ? 'active' : ''} onClick={() => setView('tableau')} aria-pressed={view === 'tableau'}><Columns3 aria-hidden="true" />Tableau</button>
           </div>
-          {can('sav:write') && <button className="btn btn-primary" onClick={() => setCreating(true)}><Plus />Nouvelle réclamation</button>}
+          {can('sav:create') && <button className="btn btn-primary" onClick={() => setCreating(true)}><Plus />Nouvelle réclamation</button>}
         </div>
       </div>
       <ErrorBox error={list.error} />
@@ -142,7 +142,7 @@ export default function Tickets() {
                 <div className="pipe-list">
                   {!list.data && <Skeleton h={60} />}
                   {col.map(t => (
-                    <div key={t.id} className="pipe-card" draggable={can('sav:write')} onDragStart={e => e.dataTransfer.setData('text/plain', String(t.id))}
+                    <div key={t.id} className="pipe-card" draggable={can('sav:handle')} onDragStart={e => e.dataTransfer.setData('text/plain', String(t.id))}
                       onClick={() => openTicket(t.id)} role="button" tabIndex={0} onKeyDown={e => e.key === 'Enter' && openTicket(t.id)}>
                       <b>{t.title}</b>
                       <div className="meta">{t.ref} · {t.client_name || '—'}{t.lot_code ? ` · ${t.lot_code}` : ''}</div>

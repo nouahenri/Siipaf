@@ -63,7 +63,7 @@ export default function ComptaDashboard() {
         <Empty icon={CalendarPlus}>
           <b>Aucun exercice comptable ne couvre la date du jour.</b>
           <p className="small muted" style={{ marginTop: 6 }}>L’exercice de départ est à fixer avec le comptable (reprise des soldes d’ouverture).</p>
-          {can('compta:validate') && <Link className="btn btn-primary" style={{ marginTop: 12 }} to="/compta/parametres">Créer l’exercice</Link>}
+          {can('compta:close') && <Link className="btn btn-primary" style={{ marginTop: 12 }} to="/compta/parametres">Créer l’exercice</Link>}
         </Empty>
       </Card>
     );
@@ -79,7 +79,7 @@ export default function ComptaDashboard() {
     <div className="stack compta-charts">
       <div className="row-between">
         <p className="muted">Exercice {d.fiscal_year.label} · du {date(d.fiscal_year.start_date)} au {date(d.fiscal_year.end_date)} · brouillons compris</p>
-        {can('compta:write') && (
+        {can('compta:entries') && (
           <div className="row" style={{ gap: 8 }}>
             <button className="btn" disabled={busy} onClick={sync} title="Crée les écritures des versements, appels de fonds et ventes saisis dans le dashboard ou l’ERP"><RefreshCw />Synchroniser les ventes et versements</button>
             {d.drafts > 0 && can('compta:validate') && <Link className="btn btn-primary" to="/compta/ecritures?status=brouillon"><CheckCheck />Valider ({d.drafts})</Link>}

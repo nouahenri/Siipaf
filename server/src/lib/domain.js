@@ -231,29 +231,42 @@ function roleKey(label) {
   return key || 'role';
 }
 
+// Actions de l'espace employé de l'ERP (Mon espace), données à tous les rôles
+const SELF_SERVICE = ['self:conges', 'self:pointage', 'self:frais'];
+// Actions détaillées des modules de l'ERP (une ligne du catalogue chacune)
+const SAV_ACTIONS = ['sav:create', 'sav:handle', 'sav:assign', 'sav:reserves', 'sav:interventions'];
+const COMPTA_ACTIONS = ['compta:entries', 'compta:validate', 'achats:write', 'achats:pay', 'frais:post', 'compta:close', 'compta:settings', 'compta:export'];
+const PAIE_ACTIONS = ['paie:employees', 'paie:prepare', 'paie:validate', 'paie:pay', 'paie:settings'];
+const RH_ACTIONS = ['rh:files', 'conges:approve', 'conges:manage', 'rh:overtime', 'frais:approve', 'recrutement:write', 'formation:write', 'evaluation:write', 'rh:settings'];
+
 /** Droits par défaut des rôles d'origine. Le super administrateur a tous les droits. */
 const PERMISSIONS = {
   super_admin: ['*'],
   commercial: [
     'projects:read', 'lots:read', 'lots:status', 'leads:read', 'leads:write',
     'appointments:read', 'appointments:write', 'contacts:read', 'sales:read', 'sales:write',
-    'client_access:write', 'client_messages', 'sav:read', 'commercial:read',
+    'client_access:write', 'client_messages', 'sav:read', 'commercial:read', ...SELF_SERVICE,
   ],
   editeur: [
     'projects:read', 'projects:write', 'plans:write', 'lots:read', 'content:write', 'media:write',
-    'newsletter:read', 'newsletter:write', 'contacts:read', 'testimonials:write', 'settings:write', 'property:write',
+    'newsletter:read', 'newsletter:write', 'contacts:read', 'testimonials:write', 'settings:write', 'property:write', ...SELF_SERVICE,
   ],
-  conducteur_travaux: ['projects:read', 'lots:read', 'sales:read', 'documents:write', 'site_updates:write', 'client_messages', 'sav:read', 'sav:write', 'vefa:write'],
+  conducteur_travaux: [
+    'projects:read', 'lots:read', 'sales:read', 'documents:write', 'site_updates:write', 'client_messages',
+    'sav:read', 'sav:create', 'sav:handle', 'sav:reserves', 'sav:interventions', 'vefa:write', 'presence:write', ...SELF_SERVICE,
+  ],
   comptable: [
     'projects:read', 'lots:read', 'leads:read', 'appointments:read', 'sales:read', 'payments:write',
-    'schedule:write', 'client_messages', 'commercial:read', 'compta:read', 'compta:write', 'compta:validate', 'rh:read', 'paie:read', 'paie:write',
+    'schedule:write', 'client_messages', 'commercial:read', 'leads:all', 'compta:read', ...COMPTA_ACTIONS,
+    'rh:read', ...RH_ACTIONS, 'presence:write', 'paie:read', ...PAIE_ACTIONS, ...SELF_SERVICE,
   ],
   resp_exploitation: [
     'projects:read', 'projects:write', 'plans:write', 'lots:read', 'lots:status', 'leads:read', 'leads:delete',
     'appointments:read', 'contacts:read', 'users:read', 'newsletter:read',
     'sales:read', 'sales:write', 'documents:write', 'testimonials:write',
     'client_access:write', 'client_messages', 'site_updates:write', 'schedule:write', 'settings:write',
-    'sav:read', 'sav:write', 'commercial:read', 'targets:write', 'vefa:write', 'property:write', 'compta:read', 'rh:read',
+    'leads:all', 'sav:read', ...SAV_ACTIONS, 'commercial:read', 'targets:write', 'vefa:write', 'property:write', 'compta:read',
+    'rh:read', ...RH_ACTIONS, 'presence:write', ...SELF_SERVICE,
   ],
 };
 
@@ -266,6 +279,7 @@ const PERMISSIONS = {
 const PERMISSION_CATALOG = [
   { group: 'Ventes', items: [
     ['leads:read', 'Voir les prospects', 'Liste, fiches et export CSV des prospects'],
+    ['leads:all', 'Voir les prospects de toute l’équipe', 'Sans ce droit, on ne voit que ses prospects et ceux qui ne sont pas encore attribués'],
     ['leads:write', 'Gérer les prospects', 'Créer, modifier, faire avancer dans le circuit, assigner'],
     ['leads:delete', 'Supprimer des prospects', 'Doublons ou demande d’effacement ; impossible si la personne a un dossier d’acquisition'],
     ['appointments:read', 'Voir les rendez-vous', null],
@@ -292,18 +306,49 @@ const PERMISSION_CATALOG = [
     ['vefa:write', 'Gérer les appels de fonds VEFA', 'Plans d’appels de fonds et constat d’avancement des travaux'],
   ] },
   { group: 'ERP · Comptabilité', items: [
-    ['compta:read', 'Consulter la comptabilité', 'Écritures, états, trésorerie, achats'],
-    ['compta:write', 'Saisir en comptabilité', 'Écritures manuelles, fournisseurs, factures d’achat et règlements'],
-    ['compta:validate', 'Valider et clôturer', 'Valider les écritures, plan comptable, journaux, exercices, réglages et export'],
+    ['compta:read', 'Consulter la comptabilité', 'Écritures, états, trésorerie, achats, tableau de bord'],
+    ['compta:entries', 'Saisir des écritures', 'Écritures manuelles en brouillon, modification et suppression des brouillons, synchronisation des ventes et versements'],
+    ['compta:validate', 'Valider les écritures', 'Numérotation définitive, contrepassation d’une écriture validée'],
+    ['achats:write', 'Gérer les achats', 'Fournisseurs, factures d’achat, validation des factures'],
+    ['achats:pay', 'Régler les fournisseurs', 'Enregistrer les paiements des factures d’achat'],
+    ['frais:post', 'Comptabiliser les notes de frais', 'Passer les notes approuvées en comptabilité et rembourser les employés'],
+    ['compta:close', 'Exercices et clôture', 'Créer les exercices, verrouiller une période, clôturer, à-nouveaux, soldes d’ouverture'],
+    ['compta:settings', 'Paramétrer la comptabilité', 'Plan comptable, journaux, modes de chiffre d’affaires, TVA, comptes utilisés'],
+    ['compta:export', 'Exporter vers Sage', 'Fichier des écritures validées'],
   ] },
-  { group: 'ERP · RH & paie', items: [
-    ['rh:read', 'Voir le personnel', 'Annuaire des employés, postes, contrats (sans les salaires)'],
+  { group: 'ERP · Paie', items: [
     ['paie:read', 'Consulter la paie', 'Salaires, bulletins, livre de paie, déclarations'],
-    ['paie:write', 'Gérer la paie', 'Fiches employés, éléments variables, validation et paiement des salaires, barèmes'],
+    ['paie:employees', 'Gérer les fiches salariés', 'Création des fiches, contrat, salaire et indemnités, moyen de paiement'],
+    ['paie:prepare', 'Préparer la paie', 'Créer la paie du mois, éléments variables, recalcul, suppression d’un brouillon'],
+    ['paie:validate', 'Valider la paie', 'Bulletins définitifs et écriture de paie'],
+    ['paie:pay', 'Payer les salaires', 'Écritures de paiement (banque, caisse, Mobile Money)'],
+    ['paie:settings', 'Régler le barème de paie', 'Taux CNPS, ITS, CMU, taxes, comptes de paie'],
+  ] },
+  { group: 'ERP · Ressources humaines', items: [
+    ['rh:read', 'Voir le personnel', 'Annuaire, dossiers, absences, présences, recrutement, formations, performance (sans les salaires)'],
+    ['rh:files', 'Gérer les dossiers du personnel', 'Identité, contrat, responsable direct, documents, carrière, code de pointage'],
+    ['conges:approve', 'Approuver les congés', 'Approbation finale ou refus des demandes de tout le personnel'],
+    ['conges:manage', 'Gérer les absences', 'Saisir une absence pour un employé, ajuster les soldes, annuler une absence commencée'],
+    ['presence:write', 'Pointer le personnel', 'Feuilles de présence de chantier, borne de pointage, corrections des pointages'],
+    ['rh:overtime', 'Arrêter les heures supplémentaires', 'Envoi des heures supplémentaires du mois en paie'],
+    ['frais:approve', 'Approuver les notes de frais', 'Notes de frais de tout le personnel (le responsable direct approuve celles de son équipe)'],
+    ['recrutement:write', 'Gérer le recrutement', 'Postes, publication sur le site, candidatures, entretiens, embauche'],
+    ['formation:write', 'Gérer les compétences et formations', 'Référentiel, profils, plan de formation, participants, clôture'],
+    ['evaluation:write', 'Évaluer le personnel', 'Objectifs et entretiens de tout le personnel (le responsable direct évalue son équipe)'],
+    ['rh:settings', 'Régler les RH', 'Règles des congés, heures supplémentaires, catégories de frais, jours fériés'],
+  ] },
+  { group: 'ERP · Espace employé', items: [
+    ['self:conges', 'Demander des congés', 'Mon espace : demandes de congé et d’absence, justificatifs, auto-évaluation'],
+    ['self:pointage', 'Pointer en ligne', 'Mon espace : arrivée et départ, code de la borne de pointage'],
+    ['self:frais', 'Saisir des notes de frais', 'Mon espace : dépenses avec reçu, soumission'],
   ] },
   { group: 'ERP · Client & SAV', items: [
     ['sav:read', 'Voir le SAV', 'Réclamations, réserves à la livraison, interventions, indicateurs'],
-    ['sav:write', 'Traiter le SAV', 'Créer et faire avancer les réclamations, lever les réserves, planifier les interventions'],
+    ['sav:create', 'Créer des réclamations', 'Ouvrir une réclamation pour un client, à partir d’une réserve'],
+    ['sav:handle', 'Traiter les réclamations', 'Modifier, changer de statut, commenter, joindre des photos'],
+    ['sav:assign', 'Attribuer les réclamations', 'Choisir le technicien ou le responsable du dossier'],
+    ['sav:reserves', 'Gérer les réserves de livraison', 'Date de livraison, saisie et levée des réserves'],
+    ['sav:interventions', 'Planifier les interventions', 'Créer, déplacer, clore les interventions'],
   ] },
   { group: 'Catalogue', items: [
     ['projects:read', 'Voir les projets', null],
@@ -555,6 +600,7 @@ function activityState(dueAt, today = new Date()) {
 }
 
 module.exports = {
+  SELF_SERVICE, SAV_ACTIONS, COMPTA_ACTIONS, PAIE_ACTIONS, RH_ACTIONS,
   LOT_STATUSES, LOT_STATUS_LABELS, SELLABLE_STATUSES, LOT_TRANSITIONS,
   LEAD_STAGES, ROLES, ROLE_LABELS, PERMISSIONS, roleKey, can, checkLotTransition,
   SALE_STATUSES, PAYMENT_METHODS, DOCUMENT_STATUSES, DOCUMENT_TYPES, DEFAULT_DOCUMENTS,

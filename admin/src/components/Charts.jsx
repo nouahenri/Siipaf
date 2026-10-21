@@ -51,13 +51,15 @@ export const monthLong = key => { const [y, m] = key.split('-'); return new Date
 /**
  * Courbes d'évolution (une ou plusieurs séries sur la même échelle).
  * Survol : réticule vertical + info-bulle listant toutes les séries du mois.
+ * Par défaut l'axe est mensuel (clé AAAA-MM) ; `labelOf` / `titleOf` permettent semaines, trimestres, années.
+ * Une valeur nulle interrompt la courbe ; `dashed` sur une série la trace en pointillés (cible, trajectoire).
  */
-export function LineChart({ data, xKey, series, format = v => v, area = false, height = 240, ariaLabel }) {
+export function LineChart({ data, xKey, series, format = v => v, area = false, height = 240, ariaLabel, labelOf = monthLabel, titleOf = monthLong }) {
   const [ref, width] = useWidth();
   const [hover, setHover] = useState(null);
   const pad = { t: 16, r: 16, b: 28, l: 56 };
   const iw = width - pad.l - pad.r, ih = height - pad.t - pad.b;
-  const max = Math.max(...data.flatMap(d => series.map(s => d[s.key])), 0);
+  const max = Math.max(...data.flatMap(d => series.map(s => d[s.key] ?? 0)), 0);
   const ticks = niceTicks(max);
   const top = ticks[ticks.length - 1] || 1;
   const x = i => pad.l + (data.length <= 1 ? iw / 2 : (i / (data.length - 1)) * iw);
@@ -81,29 +83,43 @@ export function LineChart({ data, xKey, series, format = v => v, area = false, h
           </g>
         ))}
         {data.map((d, i) => ((i % step === 0 && data.length - 1 - i >= step) || i === data.length - 1) && (
-          <text key={d[xKey]} x={x(i)} y={height - 8} className="axis-label" textAnchor={i === data.length - 1 ? 'end' : 'middle'}>{monthLabel(d[xKey])}</text>
+          <text key={d[xKey]} x={x(i)} y={height - 8} className="axis-label" textAnchor={i === data.length - 1 ? 'end' : 'middle'}>{labelOf(d[xKey])}</text>
         ))}
         {series.map((s, si) => {
-          const pts = data.map((d, i) => `${x(i)},${y(d[s.key])}`);
+          // Segments continus (une valeur nulle coupe la courbe)
+          const segments = [];
+          data.forEach((d, i) => {
+            if (d[s.key] == null) { segments.push([]); return; }
+            if (!segments.length) segments.push([]);
+            segments[segments.length - 1].push([i, d[s.key]]);
+          });
           return (
             <g key={s.key}>
-              {area && <path className="chart-area" d={`M${x(0)},${y(0)} L${pts.join(' L')} L${x(data.length - 1)},${y(0)} Z`} fill={s.color} fillOpacity="0.12" />}
-              <polyline className="chart-line" pathLength="1" style={{ animationDelay: `${si * 0.25}s` }} points={pts.join(' ')} fill="none" stroke={s.color} strokeWidth="2" strokeLinejoin="round" strokeLinecap="round" />
+              {segments.filter(seg => seg.length).map((seg, k) => {
+                const pts = seg.map(([i, v]) => `${x(i)},${y(v)}`);
+                return (
+                  <g key={k}>
+                    {area && !s.dashed && <path className="chart-area" d={`M${x(seg[0][0])},${y(0)} L${pts.join(' L')} L${x(seg[seg.length - 1][0])},${y(0)} Z`} fill={s.color} fillOpacity="0.12" />}
+                    {seg.length === 1 && <circle cx={x(seg[0][0])} cy={y(seg[0][1])} r="3" fill={s.color} />}
+                    <polyline className={s.dashed ? '' : 'chart-line'} pathLength="1" style={{ animationDelay: `${si * 0.25}s` }} points={pts.join(' ')} fill="none" stroke={s.color} strokeWidth="2" strokeDasharray={s.dashed ? '5 4' : undefined} strokeLinejoin="round" strokeLinecap="round" />
+                  </g>
+                );
+              })}
             </g>
           );
         })}
         {hover != null && (
           <g>
             <line x1={x(hover)} x2={x(hover)} y1={pad.t} y2={pad.t + ih} className="crosshair" />
-            {series.map(s => <circle key={s.key} cx={x(hover)} cy={y(data[hover][s.key])} r="4.5" fill={s.color} stroke="var(--surface)" strokeWidth="2" />)}
+            {series.filter(s => data[hover][s.key] != null).map(s => <circle key={s.key} cx={x(hover)} cy={y(data[hover][s.key])} r="4.5" fill={s.color} stroke="var(--surface)" strokeWidth="2" />)}
           </g>
         )}
       </svg>
       {hover != null && (
         <div className="chart-tip" style={{ left: Math.min(Math.max(x(hover), 90), width - 90), top: pad.t }}>
-          <div className="tip-title">{monthLong(data[hover][xKey])}</div>
+          <div className="tip-title">{titleOf(data[hover][xKey])}</div>
           {series.map(s => (
-            <div key={s.key} className="tip-row"><i style={{ background: s.color }} /><strong>{format(data[hover][s.key])}</strong><span>{s.label}</span></div>
+            <div key={s.key} className="tip-row"><i style={{ background: s.color }} /><strong>{data[hover][s.key] == null ? '—' : format(data[hover][s.key])}</strong><span>{s.label}</span></div>
           ))}
         </div>
       )}

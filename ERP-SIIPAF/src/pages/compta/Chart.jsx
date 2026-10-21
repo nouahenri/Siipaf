@@ -28,7 +28,7 @@ export default function Chart() {
             {Object.entries(CLASSES).map(([k, v]) => <option key={k} value={k}>Classe {k} — {v}</option>)}
           </select>
         </div>
-        {can('compta:validate') && <button className="btn btn-primary" onClick={() => setEdit({})}><Plus />Sous-compte</button>}
+        {can('compta:settings') && <button className="btn btn-primary" onClick={() => setEdit({})}><Plus />Sous-compte</button>}
       </div>
       <Card bodyClass="">
         {!list.data ? <div className="card-body"><Skeleton h={300} /></div> : !rows.length ? <div className="card-body"><Empty>Aucun compte.</Empty></div> : (
@@ -40,7 +40,7 @@ export default function Chart() {
                   <td className="tabular" style={{ paddingLeft: 16 + Math.max(0, a.code.length - 2) * 10 }}><b>{a.code}</b></td>
                   <td className={a.code.length <= 2 ? '' : 'small'}>{a.code.length <= 2 ? <b>{a.label}</b> : a.label}{!a.system && <Badge> SIIPAF</Badge>}{!a.active && <Badge> Inactif</Badge>}</td>
                   <td className="small muted">{PARTNER[a.partner_kind] || ''}</td>
-                  <td>{can('compta:validate') && <button className="btn btn-sm btn-ghost btn-icon" onClick={() => setEdit(a)} aria-label={`Modifier ${a.code}`}><Pencil /></button>}</td>
+                  <td>{can('compta:settings') && <button className="btn btn-sm btn-ghost btn-icon" onClick={() => setEdit(a)} aria-label={`Modifier ${a.code}`}><Pencil /></button>}</td>
                 </tr>
               ))}
             </tbody>

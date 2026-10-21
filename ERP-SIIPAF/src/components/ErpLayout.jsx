@@ -4,6 +4,7 @@ import {
   LayoutGrid, LifeBuoy, LayoutDashboard, ClipboardList, ClipboardCheck, CalendarClock, LogOut, Menu, ExternalLink,
   Briefcase, Columns3, ListTodo, CalendarDays, Building2, FileSignature, Landmark, Target,
   Calculator, BookOpen, ShoppingCart, FileBarChart, ListTree, Settings2, Contact, Banknote,
+  Users, UserRound, Palmtree, Fingerprint, Receipt, UserPlus, GraduationCap, ShieldCheck,
 } from 'lucide-react';
 import { useAuth, useResource } from '@admin/lib/app-context';
 import { useRevealOnScroll } from '@admin/lib/reveal';
@@ -23,6 +24,7 @@ const MODULES = {
       { to: '/commercial/ventes', label: 'Dossiers de vente', icon: FileSignature, perm: 'sales:read' },
       { to: '/commercial/vefa', label: 'Appels de fonds VEFA', icon: Landmark, perm: ['commercial:read', 'vefa:write'] },
       { to: '/commercial/objectifs', label: 'Objectifs', icon: Target, perm: 'commercial:read' },
+      { to: '/commercial/acces', label: 'Rôles et privilèges', icon: ShieldCheck, perm: 'users:read' },
     ],
   },
   compta: {
@@ -36,15 +38,34 @@ const MODULES = {
       { to: '/compta/etats', label: 'États et export', icon: FileBarChart, perm: 'compta:read' },
       { to: '/compta/plan', label: 'Plan comptable', icon: ListTree, perm: 'compta:read' },
       { to: '/compta/parametres', label: 'Paramètres', icon: Settings2, perm: 'compta:read' },
+      { to: '/compta/acces', label: 'Rôles et privilèges', icon: ShieldCheck, perm: 'users:read' },
+    ],
+  },
+  // RH : chaque employé relié à un compte y trouve « Mon espace » ; les responsables, leur équipe
+  rh: {
+    label: 'Ressources humaines', icon: Users, perm: null,
+    items: [
+      { to: '/rh', label: 'Tableau de bord', icon: LayoutDashboard, end: true, perm: 'rh:read' },
+      { to: '/rh/moi', label: 'Mon espace', icon: UserRound, show: b => b?.has_employee },
+      { to: '/rh/personnel', label: 'Personnel', icon: Contact, perm: 'rh:read' },
+      { to: '/rh/conges', label: 'Congés et absences', icon: Palmtree, badge: 'approvals', perm: 'rh:read', show: b => b?.team_size > 0 || b?.approvals > 0 },
+      { to: '/rh/presences', label: 'Présences', icon: Fingerprint, perm: ['rh:read', 'presence:write'] },
+      { to: '/rh/frais', label: 'Notes de frais', icon: Receipt, badge: 'expenses', perm: ['rh:read', 'compta:read'], show: b => b?.team_size > 0 || b?.expenses > 0 },
+      { to: '/rh/recrutement', label: 'Recrutement', icon: UserPlus, perm: 'rh:read' },
+      { to: '/rh/competences', label: 'Compétences et formations', icon: GraduationCap, perm: 'rh:read' },
+      { to: '/rh/objectifs', label: 'Performance et entretiens', icon: Target, perm: 'rh:read', show: b => b?.team_size > 0 },
+      { to: '/rh/reglages', label: 'Réglages', icon: Settings2, perm: 'rh:read' },
+      { to: '/rh/acces', label: 'Rôles et privilèges', icon: ShieldCheck, perm: 'users:read' },
     ],
   },
   sav: {
     label: 'Client & SAV', icon: LifeBuoy, perm: 'sav:read',
     items: [
-      { to: '/sav', label: 'Tableau de bord', icon: LayoutDashboard, end: true },
-      { to: '/sav/reclamations', label: 'Réclamations', icon: ClipboardList, badge: 'open' },
-      { to: '/sav/reserves', label: 'Réserves de livraison', icon: ClipboardCheck },
-      { to: '/sav/interventions', label: 'Interventions', icon: CalendarClock },
+      { to: '/sav', label: 'Tableau de bord', icon: LayoutDashboard, end: true, perm: 'sav:read' },
+      { to: '/sav/reclamations', label: 'Réclamations', icon: ClipboardList, badge: 'open', perm: 'sav:read' },
+      { to: '/sav/reserves', label: 'Réserves de livraison', icon: ClipboardCheck, perm: 'sav:read' },
+      { to: '/sav/interventions', label: 'Interventions', icon: CalendarClock, perm: 'sav:read' },
+      { to: '/sav/acces', label: 'Rôles et privilèges', icon: ShieldCheck, perm: 'users:read' },
     ],
   },
 };
@@ -54,7 +75,7 @@ const TITLES = {
   '/commercial/rendez-vous': 'Rendez-vous', '/commercial/parc': 'Parc immobilier', '/commercial/ventes': 'Dossiers de vente',
   '/commercial/vefa': 'Appels de fonds VEFA', '/commercial/objectifs': 'Objectifs commerciaux',
   '/compta': 'Comptabilité', '/compta/ecritures': 'Écritures comptables', '/compta/achats': 'Achats et fournisseurs', '/compta/etats': 'États comptables',
-  '/compta/plan': 'Plan comptable SYSCOHADA', '/compta/parametres': 'Paramètres comptables', '/compta/paie': 'Paie', '/compta/employes': 'Employés', '/sav': 'Client & SAV', '/sav/reclamations': 'Réclamations', '/sav/reserves': 'Réserves de livraison', '/sav/interventions': 'Interventions',
+  '/compta/plan': 'Plan comptable SYSCOHADA', '/compta/parametres': 'Paramètres comptables', '/compta/paie': 'Paie', '/compta/employes': 'Employés', '/rh': 'Ressources humaines', '/rh/moi': 'Mon espace', '/rh/personnel': 'Personnel', '/rh/conges': 'Congés et absences', '/rh/presences': 'Présences', '/rh/borne': 'Borne de pointage', '/rh/frais': 'Notes de frais', '/rh/recrutement': 'Recrutement', '/rh/competences': 'Compétences et formations', '/rh/objectifs': 'Performance et entretiens', '/rh/reglages': 'Réglages RH', '/commercial/acces': 'Rôles et privilèges — Service commercial', '/compta/acces': 'Rôles et privilèges — Comptabilité', '/rh/acces': 'Rôles et privilèges — Ressources humaines', '/sav/acces': 'Rôles et privilèges — Client & SAV', '/sav': 'Client & SAV', '/sav/reclamations': 'Réclamations', '/sav/reserves': 'Réserves de livraison', '/sav/interventions': 'Interventions',
 };
 
 // Le dashboard est sur admin.siipaf.com quand l'ERP est sur erp.siipaf.com (admin.localhost en local)
@@ -62,12 +83,12 @@ const dashboardUrl = () => `${window.location.protocol}//${window.location.host.
 
 export default function ErpLayout() {
   const { user, logout, can: canOne } = useAuth();
-  const can = perm => (Array.isArray(perm) ? perm.some(canOne) : canOne(perm));
+  const can = perm => (perm == null ? true : Array.isArray(perm) ? perm.some(canOne) : canOne(perm));
   const { pathname } = useLocation();
   const [open, setOpen] = useState(false);
   const moduleId = pathname.split('/')[1];
   const mod = MODULES[moduleId];
-  const statsUrl = moduleId === 'sav' ? '/admin/erp/sav/stats' : moduleId === 'commercial' && can('commercial:read') ? '/admin/erp/commercial/dashboard' : moduleId === 'compta' && can('compta:read') ? '/admin/erp/compta/dashboard' : null;
+  const statsUrl = moduleId === 'sav' && can('sav:read') ? '/admin/erp/sav/stats' : moduleId === 'commercial' && can('commercial:read') ? '/admin/erp/commercial/dashboard' : moduleId === 'compta' && can('compta:read') ? '/admin/erp/compta/dashboard' : moduleId === 'rh' ? '/admin/erp/rh/badges' : null;
   const stats = useResource(statsUrl, [pathname]);
   const contentRef = useRef(null);
   useRevealOnScroll(contentRef, [pathname]);
@@ -84,10 +105,10 @@ export default function ErpLayout() {
         <div className="nav-group">
           <NavLink to="/" end className={({ isActive }) => `nav-item ${isActive ? 'active' : ''}`}><LayoutGrid aria-hidden="true" />Tous les modules</NavLink>
         </div>
-        {mod && can(mod.perm) && (
+        {mod && (can(mod.perm) || can('users:read')) && (
           <div className="nav-group">
             <div className="nav-group-title">{mod.label}</div>
-            {mod.items.filter(i => !i.perm || can(i.perm)).map(i => {
+            {mod.items.filter(i => (i.perm && can(i.perm)) || (i.show && i.show(stats.data)) || (!i.perm && !i.show)).map(i => {
               const count = i.badge && stats.data ? stats.data[i.badge] : 0;
               return (
                 <NavLink key={i.to} to={i.to} end={i.end} className={({ isActive }) => `nav-item ${isActive ? 'active' : ''}`}>

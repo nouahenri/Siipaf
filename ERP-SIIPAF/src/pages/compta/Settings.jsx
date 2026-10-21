@@ -16,7 +16,8 @@ export default function Settings() {
   const { can } = useAuth();
   const { meta, reload } = useComptaMeta();
   if (!meta) return <Skeleton h={400} />;
-  const write = can('compta:validate');
+  // Exercices (« Exercices et clôture ») et réglages (« Paramétrer la comptabilité ») : le serveur contrôle chaque action
+  const write = can('compta:settings') || can('compta:close');
   return (
     <div className="stack">
       <FiscalYears meta={meta} write={write} onChange={reload} />

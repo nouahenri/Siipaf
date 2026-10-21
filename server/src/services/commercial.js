@@ -18,9 +18,12 @@ const monthRange = month => {
 };
 const insertedId = r => (typeof r === 'object' ? r.id : r);
 
-/** Un commercial ne voit que ses prospects et ceux qui ne sont pas encore attribués (même règle que le dashboard). */
+/** Droit « Voir les prospects de toute l'équipe » (Rôles & privilèges). */
+const seesAllLeads = user => (user.permissions || []).some(p => p === '*' || p === 'leads:all');
+
+/** Sans ce droit, on ne voit que ses prospects et ceux qui ne sont pas encore attribués (même règle que le dashboard). */
 function scopeLeads(q, user, alias = 'ld') {
-  if (user.role === 'commercial') q.where(b => b.where(`${alias}.assigned_to`, user.id).orWhereNull(`${alias}.assigned_to`));
+  if (!seesAllLeads(user)) q.where(b => b.where(`${alias}.assigned_to`, user.id).orWhereNull(`${alias}.assigned_to`));
   return q;
 }
 
@@ -169,7 +172,7 @@ async function dashboard(db, user, now = new Date()) {
   const month = monthKey(now);
   const { from, to } = monthRange(month);
   const prev = monthRange(monthKey(new Date(now.getFullYear(), now.getMonth() - 1, 1)));
-  const mineOnly = user.role === 'commercial' ? user.id : null;
+  const mineOnly = seesAllLeads(user) ? null : user.id;
   const [cur, before, cards, team] = await Promise.all([
     achieved(db, { from, to, userId: mineOnly }),
     achieved(db, { from: prev.from, to: prev.to, userId: mineOnly }),
@@ -216,4 +219,4 @@ async function dashboard(db, user, now = new Date()) {
   };
 }
 
-module.exports = { STAGE_LABELS, scopeLeads, logActivity, changeStage, serializeActivity, leadHistory, pipeline, achieved, sellers, targetsReport, dashboard, monthKey, monthRange, isoDay };
+module.exports = { STAGE_LABELS, seesAllLeads, scopeLeads, logActivity, changeStage, serializeActivity, leadHistory, pipeline, achieved, sellers, targetsReport, dashboard, monthKey, monthRange, isoDay };

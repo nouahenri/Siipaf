@@ -93,7 +93,7 @@ module.exports = function commercialRoutes(db) {
       project_id: z.number().int().positive().nullable(), lot_id: z.number().int().positive().nullable(),
       assigned_to: z.number().int().positive().nullable(),
     }).partial(), req.body);
-    if (req.user.role === 'commercial' && data.assigned_to && data.assigned_to !== req.user.id) {
+    if (!cm.seesAllLeads(req.user) && data.assigned_to && data.assigned_to !== req.user.id) {
       throw new HttpError(403, 'Un commercial ne peut attribuer un prospect qu’à lui-même.');
     }
     await db.transaction(async trx => {
@@ -411,7 +411,7 @@ module.exports = function commercialRoutes(db) {
   r.get('/targets', read, ah(async (req, res) => {
     const m = parse(month, req.query.month || cm.monthKey(new Date()));
     const report = await cm.targetsReport(db, m);
-    if (req.user.role === 'commercial' && !req.can('targets:write')) report.rows = report.rows.filter(x => x.user_id === req.user.id);
+    if (!cm.seesAllLeads(req.user) && !req.can('targets:write')) report.rows = report.rows.filter(x => x.user_id === req.user.id);
     res.json(report);
   }));
 

@@ -5,6 +5,7 @@
 const { HttpError, isoDay, json } = require('../lib/http');
 const { DEFAULT_PAYROLL, computePayslip, checkPayroll, suggestedParts } = require('../lib/paie');
 const compta = require('./compta');
+const rh = require('./rh');
 
 const insertedId = r => (typeof r === 'object' ? r.id : r);
 const lastDay = period => { const [y, m] = period.split('-').map(Number); return new Date(Date.UTC(y, m, 0)).toISOString().slice(0, 10); };
@@ -34,11 +35,13 @@ async function nextMatricule(trx) {
 /** Fiche employé pour l'affichage ; les éléments de salaire ne sont donnés qu'aux personnes autorisées à voir la paie. */
 function serializeEmployee(e, { withPay }) {
   const out = {
-    ...e, expatriate: !!e.expatriate, active: !!e.active, birth_date: isoDay(e.birth_date), hire_date: isoDay(e.hire_date), end_date: isoDay(e.end_date),
+    ...e, expatriate: !!e.expatriate, active: !!e.active, birth_date: isoDay(e.birth_date), hire_date: isoDay(e.hire_date), end_date: isoDay(e.end_date), trial_end_date: isoDay(e.trial_end_date), leave_opening_date: isoDay(e.leave_opening_date), leave_opening_days: e.leave_opening_days == null ? null : Number(e.leave_opening_days),
     tax_parts: e.tax_parts == null ? null : Number(e.tax_parts), suggested_parts: suggestedParts(e), accident_rate: e.accident_rate == null ? null : Number(e.accident_rate),
   };
   for (const k of ['base_salary', 'housing_allowance', 'transport_allowance', 'other_allowance']) out[k] = withPay ? Number(e[k]) : undefined;
   if (!withPay) { delete out.bank_account; delete out.tax_parts; delete out.accident_rate; }
+  delete out.attendance_pin_hash; // code de pointage : jamais renvoyé
+  out.has_pin = !!e.attendance_pin_hash;
   return out;
 }
 
@@ -50,6 +53,24 @@ function daysInPeriod(e, period) {
   if (hire > start) from = Math.min(30, Number(hire.slice(8, 10)));
   if (leave && leave < end) to = Math.min(30, Number(leave.slice(8, 10)));
   return Math.max(0, to - from + 1);
+}
+
+/**
+ * Éléments repris du module RH : jours payés (présence dans le mois moins les absences non payées approuvées :
+ * congé sans solde, absence injustifiée) et heures supplémentaires arrêtées depuis les pointages. Une valeur saisie
+ * à la main sur le bulletin est conservée.
+ */
+async function autoDays(trx, e, period, previous = null) {
+  const unpaid = await rh.unpaidDays(trx, e.id, period);
+  const auto = Math.max(0, daysInPeriod(e, period) - unpaid);
+  const manual = previous && previous.days_worked !== (previous.days_auto ?? daysInPeriod(e, period));
+  const ot = await trx('hr_overtime').where({ employee_id: e.id, period }).first();
+  const otAuto = ot ? Number(ot.amount) : 0;
+  const otManual = previous && (previous.overtime || 0) !== (previous.overtime_auto ?? 0);
+  return {
+    days_worked: manual ? previous.days_worked : auto, days_auto: auto, unpaid_days: unpaid,
+    overtime: otManual ? previous.overtime : otAuto, overtime_auto: otAuto, overtime_hours: ot ? json(ot.hours, []) : [],
+  };
 }
 
 async function eligibleEmployees(trx, period) {
@@ -68,7 +89,7 @@ async function createRun(db, period, userId) {
     const [id] = await trx('payroll_runs').insert({ period, created_by: userId });
     const runId = insertedId(id);
     for (const e of employees) {
-      const inputs = { days_worked: daysInPeriod(e, period), overtime: 0, bonus: 0, non_taxable: 0, advance: 0 };
+      const inputs = { bonus: 0, non_taxable: 0, advance: 0, ...(await autoDays(trx, e, period)) };
       const result = computePayslip(e, inputs, settings);
       await trx('payslips').insert({
         run_id: runId, employee_id: e.id, inputs: JSON.stringify(inputs), result: JSON.stringify(result),
@@ -120,7 +141,8 @@ async function refreshRun(db, runId) {
     const byEmp = Object.fromEntries(slips.map(s => [s.employee_id, s]));
     for (const e of employees) {
       const s = byEmp[e.id];
-      const inputs = s ? json(s.inputs, {}) : { days_worked: daysInPeriod(e, run.period), overtime: 0, bonus: 0, non_taxable: 0, advance: 0 };
+      const previous = s ? json(s.inputs, {}) : null;
+      const inputs = { overtime: 0, bonus: 0, non_taxable: 0, advance: 0, ...(previous || {}), ...(await autoDays(trx, e, run.period, previous)) };
       const result = computePayslip(e, inputs, settings);
       const row = { inputs: JSON.stringify(inputs), result: JSON.stringify(result), employee: JSON.stringify(snapshot(e)), gross: result.gross, net: result.net, employer_cost: result.employer_cost, updated_at: new Date() };
       if (s) await trx('payslips').where({ id: s.id }).update(row);

@@ -24,11 +24,16 @@ const page = req => ({
 module.exports = function savRoutes(db) {
   const r = express.Router();
   const read = requirePermission('sav:read');
-  const write = requirePermission('sav:write');
+  // Actions du SAV (Rôles & privilèges) : créer, traiter, attribuer, réserves, interventions
+  const create = requirePermission('sav:create');
+  const handle = requirePermission('sav:handle');
+  const reservesRight = requirePermission('sav:reserves');
+  const interventionsRight = requirePermission('sav:interventions');
+  const anyWrite = requirePermission('sav:create', 'sav:handle', 'sav:reserves', 'sav:interventions');
 
   // Référentiels utiles aux écrans (libellés, passages de statut, techniciens)
   r.get('/meta', read, ah(async (req, res) => {
-    const techs = db('role_permissions').where({ permission: 'sav:write' }).select('role');
+    const techs = db('role_permissions').whereIn('permission', ['sav:handle', 'sav:interventions']).select('role');
     const users = await db('users').where({ active: true })
       .where(q => q.whereIn('role', techs).orWhere('role', 'super_admin')).orderBy('name').select('id', 'name', 'role');
     res.json({
@@ -74,7 +79,7 @@ module.exports = function savRoutes(db) {
     });
   }));
 
-  r.post('/tickets', write, ah(async (req, res) => {
+  r.post('/tickets', create, ah(async (req, res) => {
     const data = parse(z.object({
       sale_id: z.number().int().positive().optional(),
       lead_id: z.number().int().positive().optional(),
@@ -85,6 +90,7 @@ module.exports = function savRoutes(db) {
       assigned_to: z.number().int().positive().optional().nullable(),
       media_ids: ids,
     }), req.body);
+    if (data.assigned_to && !req.can('sav:assign')) throw new HttpError(403, 'Attribuer une réclamation demande le droit « Attribuer les réclamations ».');
     data.media_ids = await sav.checkFiles(db, data.media_ids);
     const t = await sav.createTicket(db, data, { userId: req.user.id, source: data.source || 'equipe' });
     await sav.shareFiles(db, data.media_ids, t.lead_id);
@@ -93,7 +99,7 @@ module.exports = function savRoutes(db) {
 
   r.get('/tickets/:id', read, ah(async (req, res) => res.json(await sav.ticketDetail(db, idParam(req)))));
 
-  r.patch('/tickets/:id', write, ah(async (req, res) => {
+  r.patch('/tickets/:id', requirePermission('sav:handle', 'sav:assign'), ah(async (req, res) => {
     const id = idParam(req);
     const data = parse(z.object({
       category: category.optional(), priority: priority.optional(),
@@ -104,6 +110,8 @@ module.exports = function savRoutes(db) {
     }).partial(), req.body);
     const t = await db('sav_tickets').where({ id }).first();
     if (!t) throw new HttpError(404, 'Réclamation introuvable.');
+    if (data.assigned_to !== undefined && data.assigned_to !== t.assigned_to && !req.can('sav:assign')) throw new HttpError(403, 'Attribuer une réclamation demande le droit « Attribuer les réclamations ».');
+    if (Object.keys(data).some(k => k !== 'assigned_to') && !req.can('sav:handle')) throw new HttpError(403, 'Modifier une réclamation demande le droit « Traiter les réclamations ».');
     const patch = { ...data, updated_at: new Date() };
     // Un changement de priorité recalcule l'échéance depuis la date de dépôt
     if (data.priority && data.priority !== t.priority) patch.due_at = sav.dueFrom(data.priority, new Date(t.created_at));
@@ -121,13 +129,13 @@ module.exports = function savRoutes(db) {
     res.json(await sav.ticketDetail(db, id));
   }));
 
-  r.post('/tickets/:id/status', write, ah(async (req, res) => {
+  r.post('/tickets/:id/status', handle, ah(async (req, res) => {
     const { status, note } = parse(z.object({ status: z.enum(SAV_STATUSES), note: optText(1000) }), req.body);
     await sav.changeStatus(db, idParam(req), status, { userId: req.user.id, note });
     res.json(await sav.ticketDetail(db, idParam(req)));
   }));
 
-  r.post('/tickets/:id/comments', write, ah(async (req, res) => {
+  r.post('/tickets/:id/comments', handle, ah(async (req, res) => {
     const data = parse(z.object({
       body: z.string().trim().min(1, 'Message vide.').max(4000), internal: z.boolean().default(false), media_ids: ids,
     }), req.body);
@@ -172,7 +180,7 @@ module.exports = function savRoutes(db) {
   }));
 
   // Date du procès-verbal de livraison : point de départ des garanties
-  r.patch('/sales/:id/delivery', write, ah(async (req, res) => {
+  r.patch('/sales/:id/delivery', reservesRight, ah(async (req, res) => {
     const { delivered_at } = parse(z.object({ delivered_at: day.nullable() }), req.body);
     const n = await db('sales').where({ id: idParam(req) }).update({ delivered_at, updated_at: new Date() });
     if (!n) throw new HttpError(404, 'Dossier introuvable.');
@@ -195,7 +203,7 @@ module.exports = function savRoutes(db) {
     res.json(rows.map(x => ({ ...x, media: json(x.media, []), late: x.status === 'ouverte' && !!x.deadline && day10(x.deadline) < today })));
   }));
 
-  r.post('/sales/:id/reserves', write, ah(async (req, res) => {
+  r.post('/sales/:id/reserves', reservesRight, ah(async (req, res) => {
     const data = parse(z.object({
       label: z.string().trim().min(2, 'Décrivez la réserve.').max(255), location: optText(120),
       category: category.optional().nullable(), noted_at: day.optional(), deadline: day.optional().nullable(),
@@ -208,7 +216,7 @@ module.exports = function savRoutes(db) {
     res.status(201).json(await sav.createReserve(db, idParam(req), data));
   }));
 
-  r.patch('/reserves/:id', write, ah(async (req, res) => {
+  r.patch('/reserves/:id', reservesRight, ah(async (req, res) => {
     const id = idParam(req);
     const data = parse(z.object({
       status: z.enum(['ouverte', 'levee']).optional(), label: z.string().trim().min(2).max(255).optional(),
@@ -226,7 +234,7 @@ module.exports = function savRoutes(db) {
     res.json({ ...row, media: json(row.media, []) });
   }));
 
-  r.post('/reserves/:id/ticket', write, ah(async (req, res) => {
+  r.post('/reserves/:id/ticket', create, ah(async (req, res) => {
     const t = await sav.reserveToTicket(db, idParam(req), { userId: req.user.id });
     res.status(201).json(await sav.ticketDetail(db, t.id));
   }));
@@ -260,7 +268,7 @@ module.exports = function savRoutes(db) {
     cost_fcfa: z.number().int().min(0).nullable(),
   };
 
-  r.post('/interventions', write, ah(async (req, res) => {
+  r.post('/interventions', interventionsRight, ah(async (req, res) => {
     const data = parse(z.object({
       ticket_id: z.number().int().positive().optional(), reserve_id: z.number().int().positive().optional(),
       ...interventionBase, duration_min: interventionBase.duration_min.optional(),
@@ -269,7 +277,7 @@ module.exports = function savRoutes(db) {
     res.status(201).json(await sav.createIntervention(db, data, { userId: req.user.id }));
   }));
 
-  r.patch('/interventions/:id', write, ah(async (req, res) => {
+  r.patch('/interventions/:id', interventionsRight, ah(async (req, res) => {
     const data = parse(z.object({
       ...interventionBase, status: z.enum(SAV_INTERVENTION_STATUSES), report: optText(5000),
       media_before: z.array(z.number().int().positive()).max(12), media_after: z.array(z.number().int().positive()).max(12),
@@ -284,7 +292,7 @@ module.exports = function savRoutes(db) {
   }));
 
   // ─── Photos ───────────────────────────────────────────────
-  r.post('/files', write, sav.photoUpload(), ah(async (req, res) => {
+  r.post('/files', anyWrite, sav.photoUpload(), ah(async (req, res) => {
     const leadId = Number(req.body.lead_id) || null;
     const created = await sav.saveFiles(db, req.files, { leadId, userId: req.user.id });
     res.status(201).json(Object.values(await sav.filesById(db, created, 'equipe')));

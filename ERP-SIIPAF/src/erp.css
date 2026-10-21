@@ -190,3 +190,99 @@ details > summary { list-style-position: inside; }
   body.printing-slip .payslip, body.printing-slip .payslip * { visibility: visible; }
   body.printing-slip .payslip { position: absolute; left: 0; top: 0; width: 100%; color: #000; background: #fff; padding: 24px; }
 }
+
+/* ─── RH ─────────────────────────────────────────────────── */
+.kv { display: flex; justify-content: space-between; gap: 16px; padding: 7px 0; border-bottom: 1px dashed var(--border); font-size: 13px; }
+.kv:last-child { border-bottom: none; }
+.kv > span { color: var(--ink-3); flex-shrink: 0; }
+.kv > b { font-weight: 500; text-align: right; overflow-wrap: anywhere; }
+.type-dot { display: inline-block; width: 9px; height: 9px; border-radius: 3px; margin-right: 7px; vertical-align: 0; flex-shrink: 0; }
+.chip { display: inline-flex; align-items: center; gap: 6px; padding: 4px 6px 4px 10px; border-radius: 999px; background: var(--surface-2); border: 1px solid var(--border); font-size: 13px; }
+.chip button { border: none; background: none; padding: 2px; cursor: pointer; color: var(--ink-3); display: inline-grid; }
+.chip button:hover { color: var(--danger); }
+.chip button svg { width: 13px; height: 13px; }
+.input.mini { width: 56px; height: 28px; padding: 0 6px; }
+.input.time { width: 96px; height: 34px; display: inline-block; }
+.clock-btn { height: 52px; font-size: 16px; justify-content: center; }
+.receipt { max-width: 100%; max-height: 420px; border-radius: var(--radius-sm); border: 1px solid var(--border); object-fit: contain; background: var(--bg); }
+
+/* Planning des absences */
+.planning-wrap { overflow-x: auto; }
+.planning { border-collapse: collapse; font-size: 11px; min-width: 100%; }
+.planning th, .planning td { border: 1px solid var(--border); padding: 0; height: 30px; min-width: 26px; text-align: center; }
+.planning thead th { font-weight: 500; color: var(--ink-3); padding: 4px 0; line-height: 1.2; }
+.planning thead th span { display: block; font-size: 10px; }
+.planning .who { position: sticky; left: 0; z-index: 1; background: var(--surface); text-align: left; padding: 0 10px; min-width: 170px; max-width: 200px; font-size: 12px; }
+.planning .off { background: var(--surface-2); }
+.planning th.now { color: var(--brand); font-weight: 700; }
+.planning td i { display: block; height: 18px; margin: 0 1px; border-radius: 3px; }
+.planning td.pending i { opacity: .45; background-image: repeating-linear-gradient(45deg, transparent 0 3px, rgba(255, 255, 255, .55) 3px 6px) !important; }
+.legend-pending { display: inline-block; width: 18px; height: 10px; border-radius: 3px; background: var(--ink-3); opacity: .45; }
+
+/* Compétences */
+.skill-row { display: grid; grid-template-columns: minmax(0, 1fr) auto auto; gap: 10px; align-items: center; padding: 6px 0; }
+.skill-level { display: inline-flex; align-items: center; gap: 3px; }
+.skill-level button { width: 16px; height: 8px; border-radius: 4px; border: none; background: var(--border); cursor: pointer; padding: 0; }
+.skill-level button.on { background: var(--series-1); }
+.skill-level button:disabled { cursor: default; }
+.skill-level small { margin-left: 6px; color: var(--ink-3); font-size: 11px; min-width: 70px; }
+
+/* Organigramme */
+.org ul { list-style: none; padding-left: 26px; position: relative; }
+.org > ul { padding-left: 0; }
+.org li { position: relative; padding: 6px 0; }
+.org ul ul li::before { content: ''; position: absolute; left: -16px; top: 0; bottom: 50%; width: 14px; border-left: 2px solid var(--border); border-bottom: 2px solid var(--border); border-bottom-left-radius: 6px; }
+.org ul ul li:not(:last-child)::after { content: ''; position: absolute; left: -16px; top: 50%; bottom: -6px; border-left: 2px solid var(--border); }
+.org-node { display: inline-flex; align-items: center; gap: 10px; padding: 8px 12px; border: 1px solid var(--border); border-radius: var(--radius-sm); background: var(--surface); }
+.org-node:hover { border-color: var(--border-strong); box-shadow: var(--shadow); }
+.org-node small { display: block; font-size: 11px; color: var(--ink-3); }
+
+/* Recrutement */
+.recruit-layout { display: grid; grid-template-columns: 280px minmax(0, 1fr); gap: 20px; align-items: start; }
+.job-item { display: flex; align-items: center; gap: 2px; }
+.job-item .tree-item { flex: 1; min-width: 0; }
+@media (max-width: 900px) { .recruit-layout { grid-template-columns: 1fr; } }
+
+/* Borne de pointage */
+.kiosk { min-height: calc(100vh - 120px); display: flex; flex-direction: column; align-items: center; gap: 18px; padding: 8px 0 24px; }
+.kiosk-top { width: 100%; display: flex; justify-content: space-between; gap: 12px; }
+.kiosk-clock { font-size: 56px; font-weight: 600; font-variant-numeric: tabular-nums; text-align: center; line-height: 1; }
+.kiosk-clock small { display: block; font-size: 15px; font-weight: 400; color: var(--ink-3); margin-top: 8px; text-transform: capitalize; }
+.kiosk-pad { display: flex; flex-direction: column; align-items: center; gap: 12px; width: min(360px, 100%); }
+.kiosk-label { color: var(--ink-3); font-weight: 500; }
+.kiosk-display { width: 100%; height: 60px; display: grid; place-items: center; font-size: 30px; font-weight: 600; letter-spacing: .12em; border: 2px solid var(--border); border-radius: var(--radius); background: var(--surface); font-variant-numeric: tabular-nums; }
+.kiosk-keys { width: 100%; display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; }
+.kiosk-key { height: 68px; border-radius: var(--radius); border: 1px solid var(--border); background: var(--surface); font-size: 26px; font-weight: 600; cursor: pointer; color: var(--ink); display: grid; place-items: center; }
+.kiosk-key:active:not(:disabled) { transform: scale(.97); background: var(--surface-2); }
+.kiosk-key svg { width: 26px; height: 26px; }
+.kiosk-key.ok { background: var(--brand); color: #fff; border-color: var(--brand); font-size: 20px; }
+.kiosk-key:disabled { opacity: .4; cursor: default; }
+.kiosk-result { display: flex; flex-direction: column; align-items: center; gap: 10px; text-align: center; padding: 28px; border-radius: var(--radius); width: min(460px, 100%); }
+.kiosk-result svg { width: 54px; height: 54px; }
+.kiosk-result b { font-size: 22px; }
+.kiosk-result.in { background: #e7f5ec; color: var(--ok); }
+.kiosk-result.out { background: var(--surface-2); color: var(--ink); }
+.kiosk-result.err { background: var(--brand-soft); color: var(--danger); }
+.kiosk-result span { color: var(--ink-2); }
+
+/* Performance */
+.indicator-groups { display: grid; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); gap: 8px 24px; }
+.table .sub-row td { background: var(--surface-2); font-size: 13px; }
+.rank { display: inline-grid; place-items: center; width: 22px; height: 22px; border-radius: 50%; background: var(--surface); border: 1px solid var(--border); font-size: 11px; font-weight: 600; margin-right: 8px; }
+.curves-controls { display: flex; flex-wrap: wrap; gap: 12px; align-items: end; }
+.curves-controls .field { margin: 0; }
+
+/* Rôles et privilèges d'un module */
+.perm-table th.perm-col { font-size: 11px; line-height: 1.25; min-width: 92px; max-width: 120px; white-space: normal; text-transform: none; letter-spacing: 0; vertical-align: bottom; }
+.center { text-align: center; }
+.perm-cell { width: 30px; height: 30px; border-radius: 8px; border: 1px solid var(--border-strong); background: var(--surface); display: inline-grid; place-items: center; cursor: pointer; color: #fff; padding: 0; }
+.perm-cell svg { width: 16px; height: 16px; }
+.perm-cell.on { background: var(--series-1); border-color: var(--series-1); }
+.perm-cell.plus { background: var(--ok); border-color: var(--ok); }
+.perm-cell.minus { background: var(--brand-soft); border-color: var(--danger); color: var(--danger); }
+.perm-cell:disabled { cursor: default; opacity: .75; }
+.perm-cell:not(:disabled):hover { box-shadow: 0 0 0 3px color-mix(in srgb, var(--series-1) 25%, transparent); }
+.perm-cell.mini { width: 20px; height: 20px; border-radius: 5px; cursor: default; }
+.perm-cell.mini svg { width: 12px; height: 12px; }
+
+.perm-table td:first-child { min-width: 220px; }

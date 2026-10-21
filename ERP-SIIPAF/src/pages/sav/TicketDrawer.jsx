@@ -21,7 +21,7 @@ export default function TicketDrawer({ id, onClose, onChange }) {
   const t = useResource(`/admin/erp/sav/tickets/${id}`);
   const [error, setError] = useState(null);
   const [busy, setBusy] = useState(false);
-  const write = can('sav:write');
+  const write = can('sav:handle');
 
   const run = async (fn, okMessage) => {
     setBusy(true); setError(null);
@@ -113,7 +113,7 @@ export default function TicketDrawer({ id, onClose, onChange }) {
             </section>
           )}
 
-          <Interventions ticket={d} write={write} onDone={() => run(() => Promise.resolve(), null)} />
+          <Interventions ticket={d} write={can('sav:interventions')} onDone={() => run(() => Promise.resolve(), null)} />
 
           <section>
             <h3 className="erp-h3">Échanges</h3>

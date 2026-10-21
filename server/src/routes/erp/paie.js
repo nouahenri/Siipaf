@@ -5,6 +5,7 @@ const { ah, parse, idParam, HttpError, isoDay } = require('../../lib/http');
 const { requirePermission } = require('../../auth');
 const { CONTRACT_TYPES, DEPARTMENTS, MARITAL, PAY_METHODS, DEFAULT_PAYROLL } = require('../../lib/paie');
 const paie = require('../../services/paie');
+const rh = require('../../services/rh');
 
 const day = z.string().regex(/^\d{4}-\d{2}-\d{2}$/, 'Date attendue au format AAAA-MM-JJ');
 const optText = max => z.string().trim().max(max).optional().nullable().transform(v => v || null);
@@ -15,7 +16,6 @@ module.exports = function paieRoutes(db) {
   const r = express.Router();
   const seeStaff = (req, res, next) => (req.can('rh:read') || req.can('paie:read') ? next() : next(new HttpError(403, 'Droits insuffisants.')));
   const read = requirePermission('paie:read');
-  const write = requirePermission('paie:write');
 
   r.get('/meta', seeStaff, ah(async (req, res) => {
     res.json({
@@ -46,6 +46,9 @@ module.exports = function paieRoutes(db) {
     other_allowance: money.optional(), accident_rate: z.number().min(0).max(10).optional().nullable(), pay_method: z.enum(Object.keys(PAY_METHODS)).optional(),
     bank_account: optText(80), project_id: z.number().int().positive().optional().nullable(), user_id: z.number().int().positive().optional().nullable(),
     active: z.boolean().optional(), notes: optText(500),
+    // Dossier RH (aussi modifiables depuis le module RH, sans les éléments de salaire)
+    manager_id: z.number().int().positive().optional().nullable(), trial_end_date: day.optional().nullable(), birth_place: optText(80),
+    emergency_contact: optText(160), leave_opening_days: z.number().min(-60).max(200).optional().nullable(), leave_opening_date: day.optional().nullable(),
   });
 
   async function checkUser(userId, selfId = null) {
@@ -55,24 +58,33 @@ module.exports = function paieRoutes(db) {
     if (taken) throw new HttpError(409, `Ce compte est déjà relié à ${taken.first_name} ${taken.last_name}.`);
   }
 
-  r.post('/employees', write, ah(async (req, res) => {
+  r.post('/employees', requirePermission('paie:employees'), ah(async (req, res) => {
     const data = parse(employeeSchema, req.body);
     await checkUser(data.user_id);
-    const id = await db.transaction(async trx => insertedId((await trx('employees').insert({ ...data, matricule: await paie.nextMatricule(trx) }))[0]));
+    const id = await db.transaction(async trx => {
+      const newId = insertedId((await trx('employees').insert({ ...data, matricule: await paie.nextMatricule(trx) }))[0]);
+      await trx('hr_career_events').insert({ employee_id: newId, date: data.hire_date, kind: 'embauche', label: `Embauche : ${data.job_title}`, details: JSON.stringify({ contract_type: data.contract_type || 'cdi' }), created_by: req.user.id });
+      return newId;
+    });
     res.status(201).json(paie.serializeEmployee(await db('employees').where({ id }).first(), { withPay: true }));
   }));
 
-  r.patch('/employees/:id', write, ah(async (req, res) => {
+  r.patch('/employees/:id', requirePermission('paie:employees'), ah(async (req, res) => {
     const id = idParam(req);
     const data = parse(employeeSchema.partial(), req.body);
     if (data.user_id !== undefined) await checkUser(data.user_id, id);
-    const n = await db('employees').where({ id }).update({ ...data, updated_at: new Date() });
-    if (!n) throw new HttpError(404, 'Employé introuvable.');
+    if (data.manager_id === id) throw new HttpError(400, 'Un employé ne peut pas être son propre responsable.');
+    const before = await db('employees').where({ id }).first();
+    if (!before) throw new HttpError(404, 'Employé introuvable.');
+    await db.transaction(async trx => {
+      await trx('employees').where({ id }).update({ ...data, updated_at: new Date() });
+      await rh.logChanges(trx, rh.normEmployee(before), data, req.user.id);
+    });
     res.json(paie.serializeEmployee(await db('employees').where({ id }).first(), { withPay: true }));
   }));
 
   // Fiches créées à partir des comptes du dashboard (même personne, aucune ressaisie du nom ni de l'e-mail)
-  r.post('/employees/from-users', write, ah(async (req, res) => {
+  r.post('/employees/from-users', requirePermission('paie:employees'), ah(async (req, res) => {
     const { user_ids, hire_date } = parse(z.object({ user_ids: z.array(z.number().int().positive()).min(1).max(200), hire_date: day }), req.body);
     const ROLE_JOBS = { super_admin: 'Direction', commercial: 'Commercial(e)', editeur: 'Chargé(e) de communication', conducteur_travaux: 'Conducteur de travaux', comptable: 'Comptable', resp_exploitation: 'Responsable des exploitations' };
     const DEPTS = { super_admin: 'direction', commercial: 'commercial', editeur: 'administratif', conducteur_travaux: 'technique', comptable: 'comptabilite', resp_exploitation: 'direction' };
@@ -100,20 +112,20 @@ module.exports = function paieRoutes(db) {
     res.json(runs.map(r2 => ({ ...r2, paid_at: isoDay(r2.paid_at), employees: Number(by[r2.id]?.n || 0), gross: Number(by[r2.id]?.gross || 0), net: Number(by[r2.id]?.net || 0), employer_cost: Number(by[r2.id]?.cost || 0) })));
   }));
 
-  r.post('/runs', write, ah(async (req, res) => {
+  r.post('/runs', requirePermission('paie:prepare'), ah(async (req, res) => {
     const { period } = parse(z.object({ period: z.string().regex(/^\d{4}-(0[1-9]|1[0-2])$/, 'Mois attendu au format AAAA-MM') }), req.body);
     const run = await paie.createRun(db, period, req.user.id);
     res.status(201).json(await paie.runDetail(db, run.id));
   }));
 
   r.get('/runs/:id', read, ah(async (req, res) => res.json(await paie.runDetail(db, idParam(req)))));
-  r.post('/runs/:id/refresh', write, ah(async (req, res) => { await paie.refreshRun(db, idParam(req)); res.json(await paie.runDetail(db, idParam(req))); }));
-  r.post('/runs/:id/validate', write, ah(async (req, res) => res.json(await paie.validateRun(db, idParam(req), req.user.id))));
-  r.post('/runs/:id/pay', write, ah(async (req, res) => {
+  r.post('/runs/:id/refresh', requirePermission('paie:prepare'), ah(async (req, res) => { await paie.refreshRun(db, idParam(req)); res.json(await paie.runDetail(db, idParam(req))); }));
+  r.post('/runs/:id/validate', requirePermission('paie:validate'), ah(async (req, res) => res.json(await paie.validateRun(db, idParam(req), req.user.id))));
+  r.post('/runs/:id/pay', requirePermission('paie:pay'), ah(async (req, res) => {
     const { date } = parse(z.object({ date: day }), req.body);
     res.json(await paie.payRun(db, idParam(req), { date }, req.user.id));
   }));
-  r.delete('/runs/:id', write, ah(async (req, res) => {
+  r.delete('/runs/:id', requirePermission('paie:prepare'), ah(async (req, res) => {
     const run = await db('payroll_runs').where({ id: idParam(req) }).first();
     if (!run) throw new HttpError(404, 'Paie introuvable.');
     if (run.status !== 'brouillon') throw new HttpError(409, 'Une paie validée ne se supprime pas (contrepassez son écriture si besoin).');
@@ -121,7 +133,7 @@ module.exports = function paieRoutes(db) {
     res.json({ ok: true });
   }));
 
-  r.patch('/payslips/:id', write, ah(async (req, res) => {
+  r.patch('/payslips/:id', requirePermission('paie:prepare'), ah(async (req, res) => {
     const inputs = parse(z.object({
       days_worked: z.number().min(0).max(30), overtime: money, bonus: money, non_taxable: money, advance: money,
     }).partial(), req.body);
@@ -131,7 +143,7 @@ module.exports = function paieRoutes(db) {
 
   // ─── Barème ───────────────────────────────────────────────
   r.get('/settings', read, ah(async (req, res) => res.json(await paie.getSettings(db))));
-  r.put('/settings', write, ah(async (req, res) => {
+  r.put('/settings', requirePermission('paie:settings'), ah(async (req, res) => {
     const pct = z.number().min(0).max(100);
     const data = parse(z.object({
       smig: money, cnps_pension_employee: pct, cnps_pension_employer: pct, cnps_pension_ceiling: money, family_rate: pct, maternity_rate: pct,

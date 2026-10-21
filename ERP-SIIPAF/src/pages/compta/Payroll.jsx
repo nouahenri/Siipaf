@@ -35,7 +35,7 @@ function Runs() {
   const rows = list.data || [];
   return (
     <>
-      {can('paie:write') && (
+      {can('paie:prepare') && (
         <div className="row erp-panel" style={{ alignItems: 'flex-end' }}>
           <Field label="Mois de paie"><input className="input" type="month" value={period} onChange={e => setPeriod(e.target.value)} /></Field>
           <button className="btn btn-primary" onClick={create}><Plus />Préparer la paie</button>
@@ -78,7 +78,7 @@ export function PayrollRun() {
   const [recap, setRecap] = useState(false);
   const d = run.data;
   const draft = d?.status === 'brouillon';
-  const write = can('paie:write');
+  const write = can('paie:prepare');
   const act = async (fn, msg) => { try { await fn(); toast(msg); run.reload(); } catch (e) { toast(e.message, 'err'); } };
 
   const patchSlip = async (s, k, v) => {
@@ -132,8 +132,8 @@ export function PayrollRun() {
               return (
                 <tr key={s.id}>
                   <td style={{ minWidth: 180 }}><b className="small">{s.employee.name}</b><div className="small muted">{s.employee.matricule} · {s.employee.job_title}</div></td>
-                  <td className="right" style={{ width: 80 }}>{cell('days_worked', 30)}</td>
-                  <td className="right" style={{ width: 110 }}>{cell('overtime')}</td>
+                  <td className="right" style={{ width: 80 }}>{cell('days_worked', 30)}{s.inputs.unpaid_days > 0 && <div className="small" style={{ color: 'var(--danger)' }} title="Congé sans solde ou absence injustifiée approuvés dans le module RH">−{s.inputs.unpaid_days} j RH</div>}</td>
+                  <td className="right" style={{ width: 110 }}>{cell('overtime')}{s.inputs.overtime_auto > 0 && <div className="small muted" title={(s.inputs.overtime_hours || []).map(h => `${h.label} : ${h.hours} h`).join('\n')}>{(s.inputs.overtime_hours || []).reduce((t, h) => t + h.hours, 0)} h pointées</div>}</td>
                   <td className="right" style={{ width: 110 }}>{cell('bonus')}</td>
                   <td className="right" style={{ width: 110 }}>{cell('non_taxable')}</td>
                   <td className="right" style={{ width: 110 }}>{cell('advance')}</td>
@@ -248,7 +248,7 @@ function Scale() {
   const [error, setError] = useState(null);
   useEffect(() => { if (meta?.settings) setS(structuredClone(meta.settings)); }, [meta]);
   if (!s) return <Skeleton h={400} />;
-  const write = can('paie:write');
+  const write = can('paie:prepare');
   const num = k => ({ value: s[k], onChange: e => setS(x => ({ ...x, [k]: e.target.value })) });
   const save = async e => {
     e.preventDefault(); setError(null);

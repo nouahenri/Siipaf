@@ -43,6 +43,7 @@ function createApp(db) {
   const { publicTestimonials, adminTestimonials } = require('./routes/testimonials');
   app.use('/api/public', require('./routes/public')(db));
   app.use('/api/public', publicTestimonials(db));
+  app.use('/api/public', require('./routes/erp/recrutement').publicCareers(db));
   app.use('/api/auth', require('./routes/auth')(db));
   app.use('/api/client/sav', require('./routes/clientSav')(db));
   app.use('/api/client', require('./routes/client')(db));
@@ -63,6 +64,11 @@ function createApp(db) {
   admin.use('/erp/commercial', require('./routes/erp/commercial')(db));
   admin.use('/erp/compta', require('./routes/erp/compta')(db));
   admin.use('/erp/paie', require('./routes/erp/paie')(db));
+  admin.use('/erp/rh', require('./routes/erp/rh')(db));
+  admin.use('/erp/rh', require('./routes/erp/presences')(db));
+  admin.use('/erp/rh', require('./routes/erp/frais')(db));
+  admin.use('/erp/rh', require('./routes/erp/recrutement')(db));
+  admin.use('/erp/rh', require('./routes/erp/competences')(db));
   app.use('/api/admin', admin);
   app.use('/api', (req, res) => res.status(404).json({ error: 'Route inconnue.' }));
 
@@ -74,7 +80,7 @@ function createApp(db) {
       res.redirect(301, `/uploads/${m.filename}`);
     } catch (err) { next(err); }
   });
-  // Photos du SAV (intérieur des logements) : servies uniquement par l'API, après contrôle
+  // Photos du SAV et dossiers du personnel (RH) : servis uniquement par l'API, après contrôle
   app.use('/uploads/private', (req, res) => res.sendStatus(404));
   // Pièces juridiques jointes à un dossier d'acquisition : jamais publiques. Seule l'équipe autorisée
   // les ouvre ici ; le client passe par /api/client/documents/:id/fichier (contrôle de propriété).

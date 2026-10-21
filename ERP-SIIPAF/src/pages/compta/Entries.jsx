@@ -66,9 +66,9 @@ export default function Entries() {
           <input className="input" type="date" style={{ width: 'auto' }} value={filters.to} onChange={e => set('to', e.target.value)} aria-label="Au" />
         </div>
         <div className="row">
-          {can('compta:write') && <button className="btn" onClick={sync}><RefreshCw />Synchroniser</button>}
+          {can('compta:entries') && <button className="btn" onClick={sync}><RefreshCw />Synchroniser</button>}
           {can('compta:validate') && selected.length > 0 && <button className="btn btn-primary" onClick={() => validate(selected)}><CheckCheck />Valider {selected.length}</button>}
-          {can('compta:write') && <button className="btn btn-primary" onClick={() => setCreating(true)}><Plus />Écriture</button>}
+          {can('compta:entries') && <button className="btn btn-primary" onClick={() => setCreating(true)}><Plus />Écriture</button>}
         </div>
       </div>
       <ErrorBox error={list.error} />
@@ -118,8 +118,8 @@ export function EntryDrawer({ id, onClose, onChange }) {
     <Drawer title={d ? (d.number || 'Écriture en brouillon') : 'Écriture'} onClose={onClose} footer={d && (
       <div className="row" style={{ gap: 8 }}>
         {d.status === 'brouillon' && can('compta:validate') && <button className="btn btn-primary" onClick={() => act(() => api.post('/admin/erp/compta/entries/validate', { ids: [d.id] }), 'Écriture validée')}><CheckCheck />Valider</button>}
-        {d.status === 'brouillon' && can('compta:write') && <button className="btn" onClick={() => setEditing(true)}>Modifier</button>}
-        {d.status === 'brouillon' && can('compta:write') && <button className="btn btn-ghost btn-danger" onClick={() => window.confirm('Supprimer ce brouillon ?') && act(async () => { await api.del(`/admin/erp/compta/entries/${d.id}`); onClose(); }, 'Brouillon supprimé')}><Trash2 />Supprimer</button>}
+        {d.status === 'brouillon' && can('compta:entries') && <button className="btn" onClick={() => setEditing(true)}>Modifier</button>}
+        {d.status === 'brouillon' && can('compta:entries') && <button className="btn btn-ghost btn-danger" onClick={() => window.confirm('Supprimer ce brouillon ?') && act(async () => { await api.del(`/admin/erp/compta/entries/${d.id}`); onClose(); }, 'Brouillon supprimé')}><Trash2 />Supprimer</button>}
         {d.status === 'valide' && !d.reversed_by && can('compta:validate') && <button className="btn" onClick={() => window.confirm('Créer l’écriture inverse (contrepassation) à la date du jour ?') && act(() => api.post(`/admin/erp/compta/entries/${d.id}/reverse`, {}), 'Contrepassation créée (brouillon)')}><RotateCcw />Contrepasser</button>}
       </div>
     )}>
