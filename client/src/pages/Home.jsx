@@ -15,9 +15,14 @@ function greeting() {
 }
 
 export function NoDossier() {
+  const { client } = useSession();
+  // Client repris de l'ancienne plateforme : on connaît déjà le type de bien, pas encore le lot
+  const bien = client?.property_type && [client.property_type, client.project_name].filter(Boolean).join(' · ');
   return (
     <div className="card" style={{ marginTop: 8 }}>
-      <Empty icon={FolderOpen} title="Aucun dossier actif" text="Votre dossier d’acquisition apparaîtra ici dès son ouverture par nos équipes. Une question ? Écrivez-nous.">
+      <Empty icon={FolderOpen} title={bien || 'Aucun dossier actif'}
+        text={bien ? 'Le détail de votre dossier (lot, échéancier, documents) apparaîtra ici dès sa mise à jour par nos équipes. Une question ? Écrivez-nous.'
+          : 'Votre dossier d’acquisition apparaîtra ici dès son ouverture par nos équipes. Une question ? Écrivez-nous.'}>
         <Link className="btn btn-dark btn-sm" to="/messages"><MessageCircle aria-hidden="true" /> Nous écrire</Link>
       </Empty>
     </div>

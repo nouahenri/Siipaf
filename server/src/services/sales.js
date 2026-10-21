@@ -91,4 +91,4 @@ async function openSale(db, { lotId, leadId, leadData, price_fcfa, financing, no
   });
 }
 
-module.exports = { openSale, refreshSaleStatus, totals, nextClientCode, ACTIVE };
+module.exports = { openSale, refreshSaleStatus, totals, nextClientCode, ACTIVE, EARLY_STAGES };

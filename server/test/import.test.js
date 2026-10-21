@@ -73,6 +73,52 @@ test('import de clients : dossier, échéancier, code repris, sommes déjà vers
   assert.equal(Number(paid[0].amount_fcfa), 8000000);
 });
 
+test('import de l’ancienne plateforme : clients sans lot, N°, nom + prénom, type de bien, accès ouverts', async () => {
+  const rows = [
+    { legacy_number: 1, name: 'ABOU ALLIA', first_name: 'SONIA ANGE', phone: '+2250708972671', email: '', project: 'SIIPAF CITY AHOUTOUE', property_type: 'Villa basse jumelée 4 pièces' },
+    { legacy_number: '2', name: 'ACAFFOU', first_name: 'DJORO FRANCK', phone: '+2250787367656', project: 'SIIPAF CITY AHOUTOUE', property_type: 'Villa basse jumelée 3 pièces' },
+    { legacy_number: '115', name: 'Test', first_name: 'Henri', phone: '+2250101078090', project: 'TEST PROGRAMME', property_type: '—' },
+  ];
+  let res = await admin.post('/api/admin/import').send({ mode: 'clients', rows, dry_run: true, open_access: true });
+  assert.equal(res.status, 200, JSON.stringify(res.body));
+  assert.equal(res.body.ok, 2, JSON.stringify(res.body.report));
+  assert.match(res.body.report[0].action, /sans dossier/);
+  assert.equal(res.body.report[0].access, undefined, 'aucun mot de passe en simulation');
+  assert.match(res.body.report[2].error, /Projet inconnu/);
+
+  res = await admin.post('/api/admin/import').send({ mode: 'clients', rows, dry_run: false, open_access: true });
+  assert.equal(res.body.ok, 2);
+  const [a, b] = res.body.report;
+  assert.notEqual(a.access.client_code, b.access.client_code, 'un code client chacun');
+  assert.ok(a.access.temporary_password.length >= 10);
+
+  const lead = await db('leads').where({ phone: '+2250708972671' }).first();
+  assert.equal(lead.name, 'ABOU ALLIA SONIA ANGE');
+  assert.equal(lead.legacy_number, '1');
+  assert.equal(lead.property_type, 'Villa basse jumelée 4 pièces');
+  assert.equal(lead.stage, 'paiement');
+  assert.equal(lead.client_code, a.access.client_code);
+  assert.equal((await db('sales').where({ lead_id: lead.id })).length, 0);
+  assert.ok(await db('client_accounts').where({ lead_id: lead.id, must_change_password: true }).first());
+
+  // Le client se connecte avec son téléphone et le mot de passe provisoire
+  const request = require('supertest');
+  const login = await request(app).post('/api/client/login').send({ login: '0708972671', password: a.access.temporary_password });
+  assert.equal(login.status, 200, JSON.stringify(login.body));
+
+  const list = await admin.get('/api/admin/clients');
+  const row = list.body.find(c => c.lead_id === lead.id);
+  assert.equal(row.status, 'sans_dossier');
+  assert.equal(row.legacy_number, '1');
+  assert.equal(row.project_name, 'SIIPAF CITY AHOUTOUE');
+
+  // Un second import ne réinitialise ni le code ni le mot de passe
+  res = await admin.post('/api/admin/import').send({ mode: 'clients', rows: rows.slice(0, 1), dry_run: false, open_access: true });
+  assert.equal(res.body.ok, 1);
+  assert.equal(res.body.report[0].access, undefined);
+  assert.equal((await db('leads').where({ id: lead.id }).first()).client_code, lead.client_code);
+});
+
 test('droits : un éditeur ne peut rien importer', async () => {
   const editeur = await login(app, await createUser(db, 'editeur', 'editeur-import@test.ci'), 'motdepasse-test-123');
   const res = await editeur.post('/api/admin/import').send({ mode: 'prospects', rows: [{ name: 'Test', phone: '0700000000' }] });

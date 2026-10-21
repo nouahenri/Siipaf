@@ -20,7 +20,8 @@ module.exports = function clientAdminRoutes(db) {
   // ─── Clients (prospects devenus acquéreurs : ils ont un code client) ─────
   r.get('/clients', requirePermission('sales:read'), ah(async (req, res) => {
     const [leads, sales, accounts, unread] = await Promise.all([
-      db('leads').whereNotNull('client_code').orderBy('client_code', 'desc'),
+      db('leads as ld').leftJoin('projects as p', 'p.id', 'ld.project_id').whereNotNull('ld.client_code')
+        .select('ld.*', 'p.name as project_name').orderBy('ld.client_code', 'desc'),
       db('sales as s').join('lots as l', 'l.id', 's.lot_id').join('projects as p', 'p.id', 'l.project_id')
         .select('s.*', 'l.code as lot_code', 'l.ilot', 'p.name as project_name').orderBy('s.id'),
       db('client_accounts').select('lead_id', 'active', 'must_change_password', 'last_login_at'),
@@ -43,10 +44,11 @@ module.exports = function clientAdminRoutes(db) {
       const live = ds.filter(d => d.status !== 'desiste');
       return {
         lead_id: l.id, name: l.name, client_code: l.client_code, phone: l.phone, email: l.email, country: l.country,
-        is_diaspora: !!l.is_diaspora, stage: l.stage, sales: ds,
+        is_diaspora: !!l.is_diaspora, stage: l.stage, sales: ds, property_type: l.property_type || null, legacy_number: l.legacy_number || null, project_name: l.project_name || null,
         price_fcfa: live.reduce((n, d) => n + d.price_fcfa, 0), paid_fcfa: live.reduce((n, d) => n + d.paid_fcfa, 0),
         overdue_fcfa: live.reduce((n, d) => n + d.overdue_fcfa, 0), overdue_count: live.reduce((n, d) => n + d.overdue_count, 0),
-        status: !live.length ? 'desiste' : live.every(d => d.status === 'solde') ? 'solde' : 'en_cours',
+        // « sans dossier » : client repris de l'ancienne plateforme, lot et prix pas encore saisis
+        status: !ds.length ? 'sans_dossier' : !live.length ? 'desiste' : live.every(d => d.status === 'solde') ? 'solde' : 'en_cours',
         access: accessBy[l.id] || null, unread_messages: unreadBy[l.id] || 0,
       };
     }));

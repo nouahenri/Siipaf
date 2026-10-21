@@ -2,13 +2,16 @@
  * Import de prospects et de clients (fichier CSV ou Excel lu dans le dashboard, envoyé ici en lignes JSON).
  * Chaque ligne passe par les mêmes règles que la saisie à la main : dédoublonnage des prospects
  * (e-mail / téléphone), ouverture du dossier d'acquisition (lot réservé, échéancier, pièces),
- * reprise des sommes déjà versées. Une ligne en erreur n'empêche pas les autres.
+ * reprise des sommes déjà versées. Un client sans n° de lot (export de l'ancienne plateforme) reçoit
+ * seulement son code client et son type de bien. Une ligne en erreur n'empêche pas les autres.
  * En simulation (dryRun), tout est vérifié puis annulé : rien n'est enregistré.
  */
 const { HttpError } = require('../lib/http');
 const { FINANCINGS, LEAD_STAGES } = require('../lib/domain');
 const { findOrCreateLead } = require('./lots');
-const { openSale, refreshSaleStatus, totals } = require('./sales');
+const { openSale, refreshSaleStatus, totals, nextClientCode, EARLY_STAGES } = require('./sales');
+const { generatePassword } = require('./clients');
+const { hashPassword } = require('../auth');
 
 const ROLLBACK = Symbol('simulation');
 const text = v => (v == null ? '' : String(v).trim());
@@ -44,7 +47,10 @@ function financing(v) {
   return FINANCINGS.includes(f) ? f : 'invalide';
 }
 
-const yes = v => ['oui', 'yes', 'o', 'x', '1', 'vrai', 'true'].includes(fold(v));
+/** Téléphone lu comme un nombre par Excel (2250708972671) : on lui rend son indicatif « + ». */
+const phoneCell = v => (typeof v === 'number' && v >= 1e10 ? `+${v}` : text(v));
+
+const yes = v =>['oui', 'yes', 'o', 'x', '1', 'vrai', 'true'].includes(fold(v));
 
 async function findProject(trx, value, projects) {
   const f = fold(value);
@@ -55,7 +61,8 @@ async function findProject(trx, value, projects) {
 
 /** Une ligne de prospect. */
 async function importLead(trx, row, ctx) {
-  const name = text(row.name);
+  // Nom et prénom peuvent venir de deux colonnes (export de l'ancienne plateforme)
+  const name = [text(row.name), text(row.first_name)].filter(Boolean).join(' ').replace(/\s+/g, ' ');
   if (name.length < 2) throw new HttpError(400, 'Nom manquant.');
   if (!text(row.phone) && !text(row.email)) throw new HttpError(400, 'Il faut un téléphone ou un e-mail.');
   const email = text(row.email).toLowerCase() || null;
@@ -65,21 +72,47 @@ async function importLead(trx, row, ctx) {
   const fin = financing(row.financing);
   if (fin === 'invalide') throw new HttpError(400, `Financement inconnu : ${row.financing}`);
   const lead = await findOrCreateLead(trx, {
-    name, email, phone: text(row.phone) || null, country: text(row.country) || null,
+    name, email, phone: phoneCell(row.phone) || null, country: text(row.country) || null,
     is_diaspora: yes(row.diaspora) || fin === 'diaspora', source: 'import', financing: fin,
     project_id: project?.id || null, message: text(row.notes) || null,
   });
   const stage = fold(row.stage);
   if (stage && LEAD_STAGES.includes(stage) && lead.created) await trx('leads').where({ id: lead.id }).update({ stage });
+  // Reprise de l'ancienne plateforme : type de bien et numéro du client (jamais écrasés)
+  const legacy = { property_type: text(row.property_type).slice(0, 160), legacy_number: text(row.legacy_number).slice(0, 20) };
+  const patch = Object.fromEntries(Object.entries(legacy).filter(([k, v]) => v && !lead[k]));
+  if (Object.keys(patch).length) {
+    await trx('leads').where({ id: lead.id }).update(patch);
+    Object.assign(lead, patch);
+  }
   return { lead, project };
+}
+
+/**
+ * Client repris sans lot ni prix (l'ancienne plateforme ne connaissait que le type de bien) :
+ * il reçoit son code client et passe en « paiement » ; le dossier d'acquisition sera ouvert plus tard.
+ */
+async function importClientWithoutSale(trx, lead, project, row) {
+  const patch = {};
+  const code = text(row.client_code).toUpperCase().replace(/\s+/g, '');
+  if (!lead.client_code) {
+    if (code && (await trx('leads').where({ client_code: code }).first())) throw new HttpError(400, `Code client déjà utilisé : ${code}`);
+    patch.client_code = code || await nextClientCode(trx);
+  } else if (code && code !== lead.client_code) {
+    throw new HttpError(400, `Ce client a déjà le code ${lead.client_code}.`);
+  }
+  if (project && !lead.project_id) patch.project_id = project.id;
+  if (EARLY_STAGES.includes(lead.stage)) patch.stage = 'paiement';
+  if (Object.keys(patch).length) await trx('leads').where({ id: lead.id }).update({ ...patch, updated_at: new Date() });
+  return { lead: { ...lead, ...patch }, lot: null, sale: null };
 }
 
 /** Une ligne de client : prospect + dossier d'acquisition + sommes déjà versées. */
 async function importClient(trx, row, ctx) {
   const { lead, project } = await importLead(trx, row, ctx);
-  if (!project) throw new HttpError(400, 'Projet manquant pour ce client.');
   const lotCode = text(row.lot);
-  if (!lotCode) throw new HttpError(400, 'N° de lot manquant.');
+  if (!lotCode) return importClientWithoutSale(trx, lead, project, row);
+  if (!project) throw new HttpError(400, 'Projet manquant pour ce client.');
   let lot = await trx('lots').where({ project_id: project.id, code: lotCode }).first();
   if (!lot) {
     if (!ctx.createLots) throw new HttpError(400, `Lot ${lotCode} introuvable dans ${project.name}.`);
@@ -122,7 +155,25 @@ async function importClient(trx, row, ctx) {
   return { lead, lot, sale };
 }
 
-async function runImport(db, { mode, rows, dryRun, createLots, user }) {
+/**
+ * Ouvre l'espace client d'un client importé qui n'a pas encore d'accès (un accès existant n'est jamais
+ * réinitialisé). Le mot de passe provisoire n'est renvoyé qu'une fois, dans le compte rendu de l'import.
+ */
+async function openAccess(trx, leadId, user) {
+  if (await trx('client_accounts').where({ lead_id: leadId }).first()) return null;
+  const lead = await trx('leads').where({ id: leadId }).select('client_code', 'phone').first();
+  const password = generatePassword();
+  await trx('client_accounts').insert({ lead_id: leadId, password_hash: await hashPassword(password), must_change_password: true, active: true, created_by: user.id });
+  return { client_code: lead.client_code, phone: lead.phone, temporary_password: password };
+}
+
+function clientAction(lead, lot, dryRun) {
+  if (lot) return `Dossier ${lot.code}`;
+  // En simulation chaque ligne est annulée : le prochain code calculé serait le même pour toutes
+  return dryRun ? 'Client sans dossier (code attribué à l’import)' : `Client sans dossier · ${lead.client_code}`;
+}
+
+async function runImport(db, { mode, rows, dryRun, createLots, openAccess: withAccess, user }) {
   const projects = await db('projects').select('id', 'name', 'slug');
   const ctx = { projects, createLots, user };
   const report = [];
@@ -130,17 +181,20 @@ async function runImport(db, { mode, rows, dryRun, createLots, user }) {
     const line = row._line || i + 2; // ligne 1 = en-têtes
     try {
       let result;
+      let access = null;
       await db.transaction(async trx => {
         result = mode === 'clients' ? await importClient(trx, row, ctx) : await importLead(trx, row, ctx);
         if (dryRun) throw ROLLBACK;
+        if (mode === 'clients' && withAccess) access = await openAccess(trx, result.lead.id, user);
       }).catch(e => { if (e !== ROLLBACK) throw e; });
       const { lead, lot } = result;
       report.push({
         line, ok: true, name: lead.name,
-        action: mode === 'clients' ? `Dossier ${lot.code}` : lead.created ? 'Nouveau prospect' : 'Prospect existant complété',
+        action: mode === 'clients' ? clientAction(lead, lot, dryRun) : lead.created ? 'Nouveau prospect' : 'Prospect existant complété',
+        ...(access ? { access } : {}),
       });
     } catch (e) {
-      report.push({ line, ok: false, name: text(row.name), error: e.status ? e.message : `Erreur : ${e.message}` });
+      report.push({ line, ok: false, name: [text(row.name), text(row.first_name)].filter(Boolean).join(' '), error: e.status ? e.message : `Erreur : ${e.message}` });
     }
   }
   return { dryRun, total: rows.length, ok: report.filter(r => r.ok).length, errors: report.filter(r => !r.ok).length, report };

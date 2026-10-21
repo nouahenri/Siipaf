@@ -13,8 +13,9 @@ const STATUS = {
   en_cours: { label: 'Paiement en cours', tone: 'warn' },
   solde: { label: 'Soldé', tone: 'ok' },
   desiste: { label: 'Désisté', tone: 'danger' },
+  sans_dossier: { label: 'Sans dossier', tone: '' },
 };
-const FILTERS = [['', 'Tous'], ['retard', 'En retard'], ['en_cours', 'En cours'], ['solde', 'Soldés'], ['sans_acces', 'Sans accès'], ['desiste', 'Désistés']];
+const FILTERS = [['', 'Tous'], ['retard', 'En retard'], ['en_cours', 'En cours'], ['solde', 'Soldés'], ['sans_dossier', 'Sans dossier'], ['sans_acces', 'Sans accès'], ['desiste', 'Désistés']];
 
 const accessLabel = a => (!a ? { label: 'Pas d’accès', tone: '' }
   : !a.active ? { label: 'Suspendu', tone: 'danger' }
@@ -40,16 +41,16 @@ export default function Clients() {
     return (clients.data || []).filter(c => {
       if (filter === 'retard' && !c.overdue_count) return false;
       if (filter === 'sans_acces' && c.access) return false;
-      if (['en_cours', 'solde', 'desiste'].includes(filter) && c.status !== filter) return false;
+      if (['en_cours', 'solde', 'desiste', 'sans_dossier'].includes(filter) && c.status !== filter) return false;
       if (!term) return true;
-      return [c.name, c.client_code, c.email, ...c.sales.map(s => `${s.project_name} ${s.lot_code}`)].some(v => (v || '').toLowerCase().includes(term))
+      return [c.name, c.client_code, c.email, c.property_type, c.legacy_number && `n° ${c.legacy_number}`, ...c.sales.map(s => `${s.project_name} ${s.lot_code}`)].some(v => (v || '').toLowerCase().includes(term))
         || (digits.length >= 4 && (c.phone || '').replace(/\D/g, '').includes(digits));
     });
   }, [clients.data, q, filter]);
   const counts = useMemo(() => {
     const all = clients.data || [];
     return { '': all.length, retard: all.filter(c => c.overdue_count).length, en_cours: all.filter(c => c.status === 'en_cours').length,
-      solde: all.filter(c => c.status === 'solde').length, sans_acces: all.filter(c => !c.access).length, desiste: all.filter(c => c.status === 'desiste').length };
+      solde: all.filter(c => c.status === 'solde').length, sans_dossier: all.filter(c => c.status === 'sans_dossier').length, sans_acces: all.filter(c => !c.access).length, desiste: all.filter(c => c.status === 'desiste').length };
   }, [clients.data]);
   const shown = rows.slice((page - 1) * pageSize, page * pageSize);
   const current = open && clients.data?.find(c => c.lead_id === open);
@@ -86,10 +87,10 @@ export default function Clients() {
                     <tr key={c.lead_id} className="clickable" tabIndex={0} onClick={() => setOpen(c.lead_id)} onKeyDown={e => e.key === 'Enter' && setOpen(c.lead_id)}>
                       <td>
                         <strong>{c.name}</strong>{c.is_diaspora && <> <Badge tone="warn">Diaspora</Badge></>}
-                        <div className="small muted tabular">{c.client_code}{c.phone ? ` · ${c.phone}` : ''}</div>
+                        <div className="small muted tabular">{c.client_code}{c.legacy_number ? ` · N° ${c.legacy_number}` : ''}{c.phone ? ` · ${c.phone}` : ''}</div>
                       </td>
-                      <td className="small">{c.sales.filter(s => s.status !== 'desiste').map(s => <div key={s.id}>{s.project_name} · Lot {s.lot_code}</div>)}{c.status === 'desiste' && <span className="muted">—</span>}</td>
-                      <td className="right tabular nowrap">{c.status === 'desiste' ? '—' : <><strong>{pct} %</strong><div className="small muted">{fcfa(c.paid_fcfa)}</div></>}</td>
+                      <td className="small">{c.sales.filter(s => s.status !== 'desiste').map(s => <div key={s.id}>{s.project_name} · Lot {s.lot_code}</div>)}{c.status === 'desiste' && <span className="muted">—</span>}{c.status === 'sans_dossier' && <span className="muted">{[c.property_type, c.project_name].filter(Boolean).join(' · ') || '—'}</span>}</td>
+                      <td className="right tabular nowrap">{['desiste', 'sans_dossier'].includes(c.status) ? '—' : <><strong>{pct} %</strong><div className="small muted">{fcfa(c.paid_fcfa)}</div></>}</td>
                       <td>
                         <Badge tone={st.tone} dot>{st.label}</Badge>
                         {c.overdue_count > 0 && <div className="small" style={{ color: 'var(--danger)', marginTop: 4 }}>{c.overdue_count} retard{c.overdue_count > 1 ? 's' : ''} · {fcfa(c.overdue_fcfa)}</div>}
@@ -120,7 +121,7 @@ function ClientDrawer({ client, onClose, onOpenLot, canMessages }) {
   const [tab, setTab] = useState('dossiers');
   const live = client.sales.find(s => s.status !== 'desiste') || client.sales[0];
   // AccessTab attend un dossier avec son acquéreur
-  const saleForAccess = live && { ...live, lead: { id: client.lead_id, name: client.name, client_code: client.client_code, phone: client.phone } };
+  const saleForAccess = { ...live, lead: { id: client.lead_id, name: client.name, client_code: client.client_code, phone: client.phone } };
   const tabs = [['dossiers', `Dossiers (${client.sales.length})`], ['acces', 'Accès client'], ...(canMessages ? [['messages', 'Messages']] : [])];
 
   return (
@@ -129,12 +130,22 @@ function ClientDrawer({ client, onClose, onOpenLot, canMessages }) {
         {client.phone && <a className="btn btn-sm" href={`tel:${client.phone}`}><Phone />{client.phone}</a>}
         {client.email && <a className="btn btn-sm" href={`mailto:${client.email}`}><MailIcon />{client.email}</a>}
         {client.country && <Badge>{client.country}</Badge>}
+        {client.legacy_number && <Badge>N° {client.legacy_number} (ancienne plateforme)</Badge>}
       </div>
       <div className="tabs" role="tablist" style={{ marginBottom: 0 }}>
         {tabs.map(([id, label]) => <button key={id} role="tab" aria-selected={tab === id} className={`tab ${tab === id ? 'active' : ''}`} onClick={() => setTab(id)}>{label}</button>)}
       </div>
       {tab === 'dossiers' && (
         <div className="stack">
+          {!client.sales.length && (
+            <Card title="Sans dossier d’acquisition">
+              <dl className="dl small">
+                <dt>Type de bien</dt><dd>{client.property_type || '—'}</dd>
+                <dt>Programme</dt><dd>{client.project_name || '—'}</dd>
+              </dl>
+              <p className="small muted" style={{ marginTop: 10 }}>Client repris de l’ancienne plateforme. Pour saisir son lot, son prix et son échéancier : Lots › fiche du lot › « Ouvrir le dossier d’acquisition », puis choisissez ce client dans la liste (son code {client.client_code} est conservé).</p>
+            </Card>
+          )}
           {client.sales.map(s => (
             <Card key={s.id} title={`${s.project_name} · Lot ${s.lot_code}`} actions={<button className="btn btn-sm" onClick={() => onOpenLot(s.lot_id)}><ExternalLink />Ouvrir la fiche</button>}>
               <dl className="dl small">
@@ -151,7 +162,7 @@ function ClientDrawer({ client, onClose, onOpenLot, canMessages }) {
           {client.access?.last_login_at && <p className="small muted">Dernière connexion à l’espace client : {dateTime(client.access.last_login_at)}</p>}
         </div>
       )}
-      {tab === 'acces' && (saleForAccess ? <AccessTab sale={saleForAccess} /> : <Empty>Aucun dossier.</Empty>)}
+      {tab === 'acces' && <AccessTab sale={saleForAccess} />}
       {tab === 'messages' && <MessageThread leadId={client.lead_id} saleId={live?.status !== 'desiste' ? live?.id : undefined} />}
     </Drawer>
   );

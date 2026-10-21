@@ -32,10 +32,12 @@ module.exports = function clientRoutes(db) {
   const pending = requireClient(db, { allowPending: true });
 
   async function profile(account) {
-    const lead = await db('leads').where({ id: account.lead_id }).first();
+    const lead = await db('leads as l').leftJoin('projects as p', 'p.id', 'l.project_id').where('l.id', account.lead_id).select('l.*', 'p.name as project_name').first();
     const [{ n }] = await db('client_messages').where({ lead_id: lead.id, sender: 'equipe' }).whereNull('read_at').count({ n: '*' });
     return {
       client_code: lead.client_code, name: lead.name, email: lead.email, phone: lead.phone, country: lead.country,
+      // Bien souscrit tant que le dossier d'acquisition n'est pas ouvert (clients repris de l'ancienne plateforme)
+      property_type: lead.property_type || null, project_name: lead.project_name || null,
       must_change_password: !!account.must_change_password, unread_messages: Number(n),
     };
   }
