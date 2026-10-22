@@ -22,6 +22,8 @@ import Direction from './pages/admin/Direction';
 import Courrier from './pages/admin/Courrier';
 import Contrats from './pages/admin/Contrats';
 import Parc from './pages/admin/Parc';
+import Documents from './pages/admin/Documents';
+import Demandes from './pages/admin/Demandes';
 import ComptaDashboard from './pages/compta/ComptaDashboard';
 import Entries from './pages/compta/Entries';
 import Purchases from './pages/compta/Purchases';
@@ -64,7 +66,7 @@ function AdminHome() {
   if (can('direction:read')) return <Direction />;
   const first = [
     [['courrier:read', 'courrier:write', 'courrier:assign'], '/administration/courrier'], [['contrats:read', 'contrats:write'], '/administration/contrats'],
-    [['parc:read', 'parc:write'], '/administration/parc'],
+    [['parc:read', 'parc:write'], '/administration/parc'], [['demandes:handle', 'demandes:dg'], '/administration/demandes'], [['docs:publish'], '/administration/documents'],
   ].find(([perms]) => perms.some(can));
   return <Navigate to={first ? first[1] : '/administration/courrier'} replace />;
 }
@@ -113,6 +115,8 @@ function App() {
         <Route path="administration/courrier" element={<Courrier />} />
         <Route path="administration/contrats" element={<Contrats />} />
         <Route path="administration/parc" element={<Guard perm={['parc:read', 'parc:write']}><Parc /></Guard>} />
+        <Route path="administration/documents" element={<Documents />} />
+        <Route path="administration/demandes" element={<Demandes />} />
         <Route path="administration/acces" element={<Guard perm="users:read"><ModuleAccess module="administration" label="Administration générale" /></Guard>} />
         <Route path="compta/acces" element={<Guard perm="users:read"><ModuleAccess module="compta" label="Comptabilité et paie" /></Guard>} />
         <Route path="rh/acces" element={<Guard perm="users:read"><ModuleAccess module="rh" label="Ressources humaines" /></Guard>} />

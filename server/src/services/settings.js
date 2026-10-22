@@ -1,7 +1,9 @@
 /** Réglages généraux (Paramètres › Général), avec repli sur la configuration du serveur. */
 const { optionDaysDefault } = require('../config');
 
-const FALLBACK = { option_days_default: optionDaysDefault };
+const { REQUEST_DG_THRESHOLD } = require('../lib/domain');
+
+const FALLBACK = { option_days_default: optionDaysDefault, request_dg_threshold: REQUEST_DG_THRESHOLD };
 
 async function getSettings(db) {
   const rows = await db('app_settings').select('key', 'value');

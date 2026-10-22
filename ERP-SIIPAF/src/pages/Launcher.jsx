@@ -2,6 +2,7 @@ import { Link } from 'react-router-dom';
 import { LifeBuoy, Calculator, Users, Scale, Building, HardHat, Boxes, Briefcase, ArrowRight } from 'lucide-react';
 import { useAuth, useResource } from '@admin/lib/app-context';
 import { useErpNotifications } from '../components/NotificationCenter';
+import { ADMIN_SHOW } from '../components/ErpLayout';
 
 // Feuille de route de l'ERP (passation.md §5 quinquies) : seuls les modules livrés sont ouverts
 const MODULES = [
@@ -12,7 +13,7 @@ const MODULES = [
   { id: 'chantiers', label: 'Chantiers', text: 'Planning (Gantt), feuilles de temps, situations de travaux.', icon: HardHat, color: '#eda100' },
   { id: 'achats', label: 'Achats & stocks', text: 'Commandes, sous-traitance, dépôt ↔ chantier.', icon: Boxes, color: '#e87ba4' },
   { id: 'juridique', label: 'Juridique', text: 'Contrats, notaires, actes et échéances.', icon: Scale, color: '#6d28d9' },
-  { id: 'admin', module: 'administration', to: '/administration', label: 'Administration générale', text: 'Vue Direction de tous les services, courrier arrivée et départ ; puis contrats et échéances, parc, documents internes, demandes.', icon: Building, perm: ['direction:read', 'courrier:read', 'courrier:write', 'courrier:assign', 'contrats:read', 'contrats:write', 'parc:read', 'parc:write'], show: b => b?.mine > 0 || b?.contracts_owned > 0, color: '#5b6170' },
+  { id: 'admin', module: 'administration', to: '/administration', label: 'Administration générale', text: 'Vue Direction de tous les services, courrier arrivée et départ, contrats et échéances, parc auto et matériel, documents internes, demandes internes.', icon: Building, perm: ['direction:read', 'courrier:read', 'courrier:write', 'courrier:assign', 'contrats:read', 'contrats:write', 'parc:read', 'parc:write', 'demandes:handle', 'demandes:dg'], show: ADMIN_SHOW, color: '#5b6170' },
 ];
 
 export default function Launcher() {

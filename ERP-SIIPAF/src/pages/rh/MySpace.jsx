@@ -10,6 +10,8 @@ import { LeaveForm, LeaveBadge, TypeDot, ExpenseForm, ExpenseBadge } from '../..
 import { Indicators } from './Reviews';
 import PerformanceCurves from './PerformanceCurves';
 import VehicleRequests from '../../components/VehicleRequests';
+import MyDocuments from '../../components/MyDocuments';
+import MyRequests from '../../components/MyRequests';
 
 /** Libre-service de l'employé (référence : espace « Mon profil » d'Odoo) : pointage, congés, frais, formations, entretien. */
 export default function MySpace() {
@@ -39,6 +41,8 @@ export default function MySpace() {
           {can('self:pointage') && <button className="btn" onClick={() => setPin(true)}><KeyRound />{e.has_pin ? 'Changer mon code de pointage' : 'Choisir mon code de pointage'}</button>}
         </div>
       </div>
+
+      <MyDocuments />
 
       <div className="grid grid-2" style={{ alignItems: 'start' }}>
         {can('self:pointage') ? <Clock att={att} meta={meta} /> : <Card title="Pointage"><p className="small muted">Votre rôle ne prévoit pas le pointage en ligne (borne ou feuille de présence du chantier).</p></Card>}
@@ -92,6 +96,7 @@ export default function MySpace() {
         )}
       </Card>
 
+      {can('self:demandes') && <MyRequests />}
       {can('self:vehicule') && <VehicleRequests />}
 
       <div className="grid grid-2" style={{ alignItems: 'start' }}>

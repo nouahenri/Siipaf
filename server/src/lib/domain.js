@@ -105,6 +105,7 @@ const VIABILISATION_STATES = { prevu: 'Prévu', en_cours: 'En cours', fait: 'Ré
 // Réglages généraux (Paramètres › Général) : clé → valeur par défaut
 const APP_SETTINGS = {
   option_days_default: { label: 'Durée d’une pré-réservation (jours)', min: 1, max: 60 },
+  request_dg_threshold: { label: 'Achat interne validé par la DG à partir de (FCFA)', min: 0, max: 1000000000 },
 };
 const THEMES = ['clair', 'sombre', 'systeme'];
 
@@ -295,7 +296,7 @@ function roleKey(label) {
 }
 
 // Actions de l'espace employé de l'ERP (Mon espace), données à tous les rôles
-const SELF_SERVICE = ['self:conges', 'self:pointage', 'self:frais', 'self:vehicule'];
+const SELF_SERVICE = ['self:conges', 'self:pointage', 'self:frais', 'self:vehicule', 'self:demandes'];
 // Actions détaillées des modules de l'ERP (une ligne du catalogue chacune)
 const SAV_ACTIONS = ['sav:create', 'sav:handle', 'sav:assign', 'sav:reserves', 'sav:interventions'];
 const COMPTA_ACTIONS = ['compta:entries', 'compta:validate', 'achats:write', 'achats:pay', 'frais:post', 'compta:close', 'compta:settings', 'compta:export'];
@@ -303,6 +304,8 @@ const PAIE_ACTIONS = ['paie:employees', 'paie:prepare', 'paie:validate', 'paie:p
 const COURRIER_ACTIONS = ['courrier:read', 'courrier:write', 'courrier:assign'];
 const CONTRACT_ACTIONS = ['contrats:read', 'contrats:write'];
 const PARC_ACTIONS = ['parc:read', 'parc:write'];
+const DOCS_ACTIONS = ['docs:publish'];
+const REQUEST_ACTIONS = ['demandes:handle'];
 const RH_ACTIONS = ['rh:files', 'conges:approve', 'conges:manage', 'rh:overtime', 'frais:approve', 'recrutement:write', 'formation:write', 'evaluation:write', 'rh:settings'];
 
 /** Droits par défaut des rôles d'origine. Le super administrateur a tous les droits. */
@@ -332,7 +335,7 @@ const PERMISSIONS = {
     'sales:read', 'sales:write', 'documents:write', 'testimonials:write',
     'client_access:write', 'client_messages', 'site_updates:write', 'schedule:write', 'settings:write',
     'leads:all', 'sav:read', ...SAV_ACTIONS, 'commercial:read', 'targets:write', 'vefa:write', 'property:write', 'compta:read',
-    'rh:read', ...RH_ACTIONS, 'presence:write', 'direction:read', ...COURRIER_ACTIONS, ...CONTRACT_ACTIONS, ...PARC_ACTIONS, ...SELF_SERVICE,
+    'rh:read', ...RH_ACTIONS, 'presence:write', 'direction:read', ...COURRIER_ACTIONS, ...CONTRACT_ACTIONS, ...PARC_ACTIONS, ...DOCS_ACTIONS, ...REQUEST_ACTIONS, ...SELF_SERVICE,
   ],
 };
 
@@ -408,6 +411,7 @@ const PERMISSION_CATALOG = [
     ['self:pointage', 'Pointer en ligne', 'Mon espace : arrivée et départ, code de la borne de pointage'],
     ['self:frais', 'Saisir des notes de frais', 'Mon espace : dépenses avec reçu, soumission'],
     ['self:vehicule', 'Demander un véhicule', 'Mon espace : réservation d’un véhicule de service, accordée par les services généraux'],
+    ['self:demandes', 'Faire une demande interne', 'Mon espace : achat, équipement, intervention, prêt de matériel ; validée par le responsable puis traitée par les services généraux'],
   ] },
   { group: 'ERP · Administration générale', items: [
     ['direction:read', 'Ouvrir l’Administration générale (vue Direction)', 'Synthèse de tous les services : commercial, chantiers, finance, RH et SAV, avancement des chantiers par programme, dossier et client'],
@@ -418,6 +422,9 @@ const PERMISSION_CATALOG = [
     ['contrats:write', 'Gérer les contrats (services généraux, juridique)', 'Saisir, modifier, résilier ; pièces à renouveler ; reçoit toutes les alertes'],
     ['parc:read', 'Consulter le parc auto et matériel', 'Biens, affectations, échéances, entretien, carburant, coûts par chantier'],
     ['parc:write', 'Gérer le parc (services généraux)', 'Biens, affectations, échéances, entretien, dépenses, réservations de véhicules'],
+    ['docs:publish', 'Publier les documents internes (direction, services généraux)', 'Notes de service, procédures, PV, modèles pour tout le personnel ; suivi des lectures (un chef de service publie pour son service sans ce droit)'],
+    ['demandes:handle', 'Traiter les demandes internes (services généraux)', 'Voir toutes les demandes, les prendre en charge, les clôturer ; un achat traité devient une facture d’achat en brouillon'],
+    ['demandes:dg', 'Valider en direction générale', 'Demandes d’achat dont le montant atteint le plafond réglé dans Paramètres › Général'],
   ] },
   { group: 'ERP · Client & SAV', items: [
     ['sav:read', 'Voir le SAV', 'Réclamations, réserves à la livraison, interventions, indicateurs'],
@@ -952,7 +959,65 @@ function fuelConsumption(fills, meter) {
 /** Deux réservations du même véhicule se chevauchent (début et fin « AAAA-MM-JJTHH:MM »). */
 const reservationsOverlap = (a, b) => a.start_at < b.end_at && b.start_at < a.end_at;
 
+/* ─── ERP · Administration générale › Documents internes ───────────────────── */
+
+// Quatre sortes (choix du client du 22/10) ; seuls les modèles n'appellent pas d'accusé de lecture
+const DOC_KINDS = {
+  note: { label: 'Note de service', prefix: 'NS', ack: true },
+  procedure: { label: 'Procédure / règlement', prefix: 'PR', ack: true },
+  pv: { label: 'PV de réunion', prefix: 'PV', ack: true },
+  modele: { label: 'Modèle / formulaire', prefix: 'MO', ack: false },
+};
+// Diffusion : tout le personnel (comptes reliés à une fiche employé), un ou plusieurs services, des personnes nommées
+const DOC_AUDIENCES = { tous: 'Tout le personnel', services: 'Services', personnes: 'Personnes nommées' };
+const DOC_STATUSES = { brouillon: 'Brouillon', publie: 'Publié', archive: 'Archivé' };
+const DOC_ACTION_STATUSES = { a_faire: 'À faire', fait: 'Fait' };
+const docReference = (kind, year, seq) => `${DOC_KINDS[kind].prefix}-${year}-${String(seq).padStart(4, '0')}`;
+
+/**
+ * Relance d'un accusé de lecture non donné : 'veille' la veille du délai (ou le jour même), 'retard' dès le lendemain.
+ * Sans délai : aucune relance.
+ */
+function readReminder(deadline, today) {
+  if (!deadline) return null;
+  if (today > deadline) return 'retard';
+  if (today >= addDays(deadline, -1)) return 'veille';
+  return null;
+}
+
+/* ─── ERP · Administration générale › Demandes internes ────────────────────── */
+
+const REQUEST_KINDS = {
+  achat: { label: 'Achat / fourniture', purchase: true },
+  equipement: { label: 'Équipement pour le bureau ou le chantier', purchase: true },
+  intervention: { label: 'Intervention / dépannage', purchase: false },
+  materiel: { label: 'Prêt de matériel', purchase: false },
+  autre: { label: 'Autre demande', purchase: false },
+};
+const REQUEST_STATUSES = {
+  attente_responsable: 'En attente du responsable', attente_dg: 'En attente de la DG', attente_sg: 'À traiter (services généraux)',
+  en_cours: 'En cours de traitement', traitee: 'Traitée', refusee: 'Refusée', annulee: 'Annulée',
+};
+const REQUEST_OPEN = ['attente_responsable', 'attente_dg', 'attente_sg', 'en_cours'];
+const REQUEST_DG_THRESHOLD = 500000;
+
+/** La direction générale valide les achats (et équipements) dont le montant estimé atteint le plafond. */
+const requestNeedsDg = (r, threshold) => !!REQUEST_KINDS[r.kind]?.purchase && Number(r.estimated_amount || 0) >= threshold;
+
+/**
+ * Étape suivante d'une demande (choix du client du 22/10) : responsable direct → DG (achat au-delà du plafond) →
+ * services généraux. `from` : l'étape franchie (null à la création). Une étape sans valideur est sautée.
+ */
+function requestNextStep(r, { from = null, hasManager, threshold }) {
+  const steps = ['attente_responsable', 'attente_dg', 'attente_sg'];
+  const applies = { attente_responsable: hasManager, attente_dg: requestNeedsDg(r, threshold), attente_sg: true };
+  const start = from ? steps.indexOf(from) + 1 : 0;
+  return steps.slice(start).find(s => applies[s]);
+}
+
 module.exports = {
+  DOC_KINDS, DOC_AUDIENCES, DOC_STATUSES, DOC_ACTION_STATUSES, docReference, readReminder,
+  REQUEST_KINDS, REQUEST_STATUSES, REQUEST_OPEN, REQUEST_DG_THRESHOLD, requestNeedsDg, requestNextStep, DOCS_ACTIONS, REQUEST_ACTIONS,
   ASSET_KINDS, ASSET_STATUSES, ASSET_ASSIGNMENT_KINDS, ASSET_DOC_KINDS, ASSET_COST_KINDS, RESERVATION_STATUSES, MAINTENANCE_SOON, PARC_ACTIONS,
   assetCode, maintenanceDue, fuelConsumption, reservationsOverlap,
   MAIL_DIRECTIONS, MAIL_SUITES, MAIL_NATURES, MAIL_CHANNELS, MAIL_STATUSES, mailNumber, mailVisibility, mailReminder,
