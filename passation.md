@@ -1,18 +1,21 @@
 # Passation — Plateforme SIIPAF
 
 > Document de reprise pour continuer le travail dans une nouvelle discussion.
-> Dernière mise à jour : 22 octobre 2026 — **release `b392de2` en production** (serveur + site). **Release site `5a14e93` déposée sur le cPanel mais PAS encore lancée** (voir « Journée du 22/10 › Livraison en attente »).
+> Dernière mise à jour : 22 octobre 2026 (fin de journée) — **release `80091fc` en production** (serveur + site).
 > Branche `plateforme-admin-espace-client` **poussée sur GitHub** jusqu'à `5a14e93` (un push déclenche Vercel).
-> **Mise en production ARRÊTÉE à la demande du client (22/10)** : la release `35cfd87` est déposée dans /home/c2777901c mais **ne doit pas être lancée** ; elle n'a pas la correction de la newsletter (non committée, ci-dessous) : à la reprise, committer, refaire un paquet complet et le faire valider avant tout lancement.
-> **À faire en premier** : selon le client, commit de la correction newsletter puis nouvelle release ; puis reprendre le module ERP Administration générale, partie **2. Courrier** (§5 quinquies). La release site `5a14e93` (en attente) peut être remplacée par celle-ci.
+> **Release `80091fc` EN LIGNE depuis le 22/10 vers 15 h 22 UTC** (serveur + site ; contient `35cfd87` et `5a14e93`). Commits `35cfd87` et `80091fc` **non poussés** sur GitHub (un push déclenche Vercel : demander avant).
+> **À faire en premier** : reprendre le module ERP Administration générale, partie **2. Courrier** (§5 quinquies) ; le menu « Actualités » (Facebook) est à cadrer plus tard (voir plus bas).
 
-## Fin du 22/10 — newsletter du site (fait, NON committé, NON en ligne)
+## Fin du 22/10 — newsletter du site (committé `80091fc`, EN LIGNE)
 - **Bug corrigé — l'inscription à la newsletter ne marchait pas** : le formulaire de l'accueil (`#newsletterForm`, `index.html`) n'avait aucun script (la page se rechargeait, le champ n'avait même pas de `name`). Gestionnaire ajouté dans `js/main.js` → `POST /api/public/newsletter` (route existante et testée), champ piège `website`, message de confirmation lisible sur le bandeau rouge (`css/pages.css`). Vérifié sur la démo : l'adresse test `test.newsletter@example.com` est inscrite (actif, source site).
 
 ## Plus tard (demande du client, 22/10) — menu « Actualités » du site
 - Ajouter au site un menu **Actualités** qui republie les publications de la **page Facebook** de SIIPAF. À cadrer avec le client avant de coder : lien de la page Facebook ; reprise automatique (API Graph de Meta : il faut une application Meta et un jeton de page, géré côté serveur, jamais dans le site) ou republication choisie depuis le dashboard (rubrique existante « Contenu du site », pas de nouveau menu admin) ; nombre de publications, photos/vidéos, lien vers la publication d'origine.
 
-## Après-midi du 22/10 — formulaires du site et alertes prospects (committé `35cfd87`, NON en ligne)
+## Après-midi du 22/10 — formulaires du site et alertes prospects (committé `35cfd87`, EN LIGNE via `80091fc`)
+
+**Mise en ligne de `80091fc` le 22/10 vers 15 h 22 UTC** (accord du client : « tu peux mettre en ligne », après un premier arrêt) : `livraison-80091fc.zip` (5 182 161 o) déposée par le connecteur Chrome (copie sans lien physique, taille vérifiée par Fileman `list_files`), commande lancée dans le terminal cPanel : empreintes OK, sauvegardes `~/sauvegardes/deploiement-80091fc-20261022-152212/`, **1 migration (lot 10, lead_alerts)**, redémarrage OK, `{"ok":true}`, `DEPLOY_OK 80091fc`, journal `~/deploiement-80091fc.log`. Vérifié en production : `site-release.json` = 80091fc, scripts horodatés `?v=80091fc`, routes newsletter et contact actives (requêtes invalides refusées en 400, aucune donnée créée), CORS siipaf.com OK, cartes Projets avec chiffres clés, 28 boutons « Infos & réservation », menu Projets sans lien. **Pas encore testé en vrai** : un envoi réel du formulaire et la cloche dans admin.siipaf.com (à faire par le client ou avec son accord). `livraison-35cfd87.zip` reste dans /home/c2777901c, inutilisé.
+
 
 **Release préparée** (copie propre `../siipaf-deploy` sur `35cfd87`, builds admin/client/ERP) : `deploy/livraison-35cfd87.zip` (5 181 115 o, sha256 `b025dffa…`) = `siipaf-api-35cfd87.zip` (sha256 `603d4493…`, migration `20261104000000_lead_alerts`) + `site-update-35cfd87.zip` (sha256 `59105726…`, inclut aussi le site `5a14e93`) + `update-35cfd87.sh` (même déroulé que `update-b392de2.sh` : empreintes, sauvegardes MySQL/code/site, `npm install --omit=dev`, migration, redémarrage, `/api/health`, site, `DEPLOY_OK 35cfd87`). **Déposé le 22/10 vers 15 h UTC** par le connecteur Chrome avec l’accord du client (taille 5 181 115 o vérifiée par l’API Fileman `list_files`). Au feu vert : `cd ~ && unzip -o livraison-35cfd87.zip && bash update-35cfd87.sh`. Ensuite vérifier `https://siipaf.com/site-release.json` = `35cfd87`, envoyer un message test depuis contact.html (navigation privée) et voir la pastille + la cloche dans admin.siipaf.com.
 
