@@ -1,10 +1,10 @@
 /** Paramètres : listes de référence (menus déroulants des projets) et réglages généraux. */
 const express = require('express');
 const { z } = require('zod');
-const { ah, parse, idParam, HttpError } = require('../lib/http');
+const { ah, parse, idParam, HttpError, json } = require('../lib/http');
 const { requirePermission } = require('../auth');
 const { REF_KINDS, FEATURE_KINDS, VIABILISATION_STATES, APP_SETTINGS } = require('../lib/domain');
-const { syncProjectText, projectsUsing, norm, sameLabel } = require('../services/refs');
+const { syncProjectText, projectsUsing, norm, sameLabel, PROJECT_REF_COLUMNS } = require('../services/refs');
 const { getSettings, saveSettings } = require('../services/settings');
 
 module.exports = function settingsRoutes(db) {
@@ -19,15 +19,18 @@ module.exports = function settingsRoutes(db) {
   r.get('/refs', requirePermission('projects:read'), ah(async (req, res) => {
     const [items, direct, linked] = await Promise.all([
       db('ref_items').orderBy(['kind', 'sort', 'label']),
-      db('projects').select('city_id', 'location_id'),
+      db('projects').select(PROJECT_REF_COLUMNS),
       db('project_refs').select('ref_id').count({ n: '*' }).groupBy('ref_id'),
     ]);
     const used = {};
-    for (const p of direct) for (const id of [p.city_id, p.location_id]) if (id) used[id] = (used[id] || 0) + 1;
+    for (const p of direct) for (const c of PROJECT_REF_COLUMNS) if (p[c]) used[p[c]] = (used[p[c]] || 0) + 1;
     for (const l of linked) used[l.ref_id] = (used[l.ref_id] || 0) + Number(l.n);
     res.json({
       kinds: REF_KINDS, states: VIABILISATION_STATES,
-      items: items.map(i => ({ ...i, archived: !!i.archived, used: used[i.id] || 0, children: items.filter(c => c.parent_id === i.id).length })),
+      items: items.map(i => ({
+        ...i, archived: !!i.archived, used: used[i.id] || 0, children: items.filter(c => c.parent_id === i.id).length,
+        project_types: json(i.project_types, null), // type de biens : types de projet concernés (null ou [] = tous)
+      })),
     });
   }));
 
@@ -61,8 +64,17 @@ module.exports = function settingsRoutes(db) {
       parent_id: z.number().int().positive().optional(),
       // Une case à cocher peut changer de liste (ex. « École » : équipement → commodité)
       kind: z.enum(FEATURE_KINDS).optional(),
+      // Type de biens : types de projet auxquels il s'applique
+      project_types: z.array(z.number().int().positive()).max(50).optional(),
     }), req.body);
     const update = {};
+    if (data.project_types) {
+      const scopeKind = REF_KINDS[item.kind].scope;
+      if (!scopeKind) throw new HttpError(400, 'Cette liste ne se rattache pas à des types de projet.');
+      const ok = await db('ref_items').where({ kind: scopeKind }).whereIn('id', data.project_types).pluck('id');
+      if (ok.length !== new Set(data.project_types).size) throw new HttpError(400, 'Type de projet inconnu.');
+      update.project_types = JSON.stringify([...new Set(data.project_types)]);
+    }
     if (data.kind && data.kind !== item.kind) {
       if (!FEATURE_KINDS.includes(item.kind)) throw new HttpError(400, 'Cette valeur ne peut pas changer de liste.');
       if (item.kind === 'viabilisation' || data.kind === 'viabilisation') {

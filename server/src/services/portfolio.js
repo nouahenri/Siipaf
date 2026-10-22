@@ -7,7 +7,7 @@
  * Les dates sont regroupées en JavaScript : SQLite les range tantôt en texte, tantôt en millisecondes.
  */
 const { toDate, isoDay, isoTime, HttpError } = require('../lib/http');
-const { portfolioState, replayPortfolio, portfolioDiff, portfolioCounts, PORTFOLIO_EVENTS, PORTFOLIO_REASONS } = require('../lib/domain');
+const { portfolioState, replayPortfolio, portfolioDiff, portfolioCounts, PORTFOLIO_EVENTS, PORTFOLIO_REASONS, CLIENT_STAGES } = require('../lib/domain');
 const { buckets, GRANULARITIES } = require('./performance');
 
 const seesAllLeads = user => (user.permissions || []).some(p => p === '*' || p === 'leads:all');
@@ -32,6 +32,11 @@ async function insertEvents(trx, lead, list, { at, by, importId }) {
 async function syncLead(trx, leadId, { by = null, at = new Date(), reason = 'attribution', importId = null } = {}) {
   const lead = await trx('leads').where({ id: leadId }).first('id', 'name', 'assigned_to', 'client_code', 'stage');
   if (!lead) return [];
+  // Arrivé au paiement (ou au-delà) : la personne devient client, quel que soit le chemin (admin, ERP, import)
+  if (!lead.client_code && CLIENT_STAGES.includes(lead.stage)) {
+    lead.client_code = await require('./sales').nextClientCode(trx);
+    await trx('leads').where({ id: leadId }).update({ client_code: lead.client_code });
+  }
   const [sales, events] = await Promise.all([
     trx('sales').where({ lead_id: leadId }).select('status'),
     trx('lead_portfolio_events').where({ lead_id: leadId }).select('id', 'kind', 'user_id', 'at'),

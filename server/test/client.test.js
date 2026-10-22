@@ -53,6 +53,12 @@ test('échéancier type : apport 30 % + 36 mensualités, diaspora, comptant, cr�
   assert.deepEqual(buildSchedule({ price_fcfa: 1000, financing: 'comptant', start_date: '2026-10-19' }).map(l => [l.kind, l.amount_fcfa]), [['solde', 1000]]);
   assert.deepEqual(buildSchedule({ price_fcfa: 1000, financing: 'credit', start_date: '2026-10-19' }).map(l => l.amount_fcfa), [300, 700]);
   assert.deepEqual(buildSchedule({ price_fcfa: 1000, financing: null, start_date: '2026-10-19' }), []);
+  // Apport en montant (2 600 000 déjà versés sur 15 000 000) : prime sur le pourcentage, le reste en mensualités
+  const versé = buildSchedule({ price_fcfa: 15000000, financing: 'apport', start_date: '2026-10-22', options: { deposit_fcfa: 2600000, deposit_pct: 30, months: 24 } });
+  assert.deepEqual([versé[0].kind, versé[0].amount_fcfa, versé[0].label], ['apport', 2600000, 'Apport initial (17,3 %)']);
+  assert.equal(versé.length, 25);
+  assert.equal(versé.reduce((s, l) => s + l.amount_fcfa, 0), 15000000);
+  assert.equal(versé[1].amount_fcfa, Math.floor(12400000 / 24));
 });
 
 test('imputation des versements : payée, en retard, partielle, à venir', () => {

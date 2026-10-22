@@ -5,7 +5,7 @@ import { LotFormModal, LotStatusModal } from '../components/LotForms';
 import { api, qs } from '../lib/api';
 import { useAuth, useResource, useToast } from '../lib/app-context';
 import { Card, Modal, Field, StatusBadge, Empty, ErrorBox, Skeleton, DistributionBar, Pagination, naturalCompare } from '../components/ui';
-import { LOT_STATUSES, lotStatus } from '../lib/domain';
+import { LOT_STATUSES, lotStatus, bienKind } from '../lib/domain';
 import { fcfa, num, dateTime, relative } from '../lib/format';
 
 export default function Lots() {
@@ -55,7 +55,7 @@ export default function Lots() {
         {can('plans:write') && project && (
           <div className="row" style={{ gap: 8 }}>
             <button className="btn" onClick={() => setImporting(true)}><Upload />Importer des lots</button>
-            <button className="btn btn-primary" onClick={() => setCreating(true)}><Plus />Nouveau lot</button>
+            <button className="btn btn-primary" onClick={() => setCreating(true)}><Plus />{bienKind(project.property_type).create}</button>
           </div>
         )}
       </div>
@@ -99,8 +99,9 @@ export default function Lots() {
         {rows.length > 0 && <Pagination total={rows.length} page={page} pageSize={pageSize} onPage={setPage} onPageSize={changePageSize} label="lots" />}
       </Card>
 
-      {action?.kind === 'status' && <LotStatusModal lot={action.lot} onClose={() => setAction(null)} onDone={() => { setAction(null); setOpenLot(null); lots.reload(); }} />}
       {openLot && <LotDrawer lotId={openLot} onClose={() => setOpenLot(null)} onChanged={lots.reload} onChangeStatus={lot => setAction({ lot, kind: 'status' })} />}
+      {/* Après la fiche du lot : la fenêtre de statut s'affiche par-dessus */}
+      {action?.kind === 'status' && <LotStatusModal lot={action.lot} onClose={() => setAction(null)} onDone={() => { setAction(null); setOpenLot(null); lots.reload(); }} />}
       {creating && <LotFormModal projectId={project.id} onClose={() => setCreating(false)} onDone={() => { setCreating(false); lots.reload(); projects.reload(); }} />}
       {importing && <ImportModal project={project} onClose={() => setImporting(false)} onDone={() => { setImporting(false); lots.reload(); projects.reload(); }} />}
     </div>

@@ -44,15 +44,24 @@ module.exports = function publicRoutes(db) {
     res.json({ ...Object.fromEntries(rows.map(row => [row.key, json(row.value)])), images: await publicSiteImages(db) });
   }));
 
+  // Position GPS du projet : carte et itinéraire sur le site (null si non renseignée)
+  const geo = p => (p.latitude != null && p.longitude != null ? { lat: Number(p.latitude), lng: Number(p.longitude) } : null);
+
   r.get('/projects', ah(async (req, res) => {
     const projects = await db('projects').where({ published: true }).whereNull('archived_at').orderBy('sort');
-    const [counts, plans] = await Promise.all([
+    const [counts, plans, offers, types] = await Promise.all([
       db('lots').select('project_id', 'status').count({ n: '*' }).groupBy('project_id', 'status'),
       db('site_plans').where({ published: true }).whereNull('archived_at').select('project_id').count({ n: '*' }).groupBy('project_id'),
+      // Grille de prix du dashboard : tableau des prix du site (équivalent en euros et option Diaspora calculés par le site)
+      db('project_offers').select('project_id', 'label', 'designation', 'surface', 'price_fcfa', 'diaspora_price_fcfa').orderBy(['project_id', 'sort']),
+      db('ref_items').where({ kind: 'type_projet' }).select('id', 'label'),
     ]);
+    const typeLabel = id => types.find(t => t.id === id)?.label || null;
     res.json(projects.map(p => ({
       id: p.id, slug: p.slug, name: p.name, city: p.city, location: p.location, tagline: p.tagline,
-      category: p.category, delivery: p.delivery, cover: mediaUrl(p.cover_media_id),
+      description: p.description, amenities: json(p.amenities, []), project_type: typeLabel(p.project_type_id),
+      offers: offers.filter(o => o.project_id === p.id).map(({ project_id, ...o }) => o),
+      category: p.category, delivery: p.delivery, cover: mediaUrl(p.cover_media_id), geo: geo(p),
       lots: Object.fromEntries(counts.filter(c => c.project_id === p.id).map(c => [c.status, Number(c.n)])),
       // Un plan de masse publié = carte interactive consultable sur le site
       has_plan: plans.some(pl => pl.project_id === p.id),
@@ -71,7 +80,7 @@ module.exports = function publicRoutes(db) {
     const features = await projectRefs(db, p.id);
     res.json({
       id: p.id, slug: p.slug, name: p.name, city: p.city, location: p.location, tagline: p.tagline,
-      description: p.description, category: p.category, delivery: p.delivery, amenities: json(p.amenities, []),
+      description: p.description, category: p.category, delivery: p.delivery, amenities: json(p.amenities, []), geo: geo(p),
       // Listes de Paramètres : commodités à proximité et état de la viabilisation (lotissements)
       commodites: features.commodite.map(f => f.label),
       viabilisation: features.viabilisation.map(f => ({ label: f.label, state: f.state, state_label: VIABILISATION_STATES[f.state] })),

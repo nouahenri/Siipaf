@@ -7,7 +7,8 @@ const { LOT_STATUSES, DELETABLE_LOT_STATUSES, NEW_LOT_STATUSES, PROJECT_CATEGORI
 const { changeLotStatus, placeOption, throttledExpiry } = require('../services/lots');
 const multer = require('multer');
 const { parseCad } = require('../services/cad');
-const { applyProjectRefs, projectRefs } = require('../services/refs');
+const { applyProjectRefs, applyProjectTypes, withTypeLabels, projectRefs } = require('../services/refs');
+const { projectOffers, followsGrid, applyPriceGrid } = require('../services/priceGrid');
 
 // Plans AutoCAD lus en mémoire (jamais enregistrés tels quels sur le serveur)
 const cadUpload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 60 * 1024 * 1024, files: 1 } });
@@ -39,18 +40,26 @@ module.exports = function catalogRoutes(db) {
     location_id: z.number().int().positive().nullable().optional(),
     location_detail: z.string().trim().max(255).nullable().optional(),
     refs: z.array(z.object({ id: z.number().int().positive(), state: z.string().max(20).nullable().optional() })).max(200).optional(),
+    // Type de projet et type de biens (listes de Paramètres) ; le type de projet fixe la catégorie
+    project_type_id: z.number().int().positive().nullable().optional(),
+    property_type_id: z.number().int().positive().nullable().optional(),
+    // Position GPS du projet (carte et itinéraire sur le site)
+    latitude: z.number().min(-90).max(90).nullable().optional(),
+    longitude: z.number().min(-180).max(180).nullable().optional(),
   });
   const REF_FIELDS = ['city_id', 'location_id', 'location_detail', 'refs'];
+  const TYPE_FIELDS = ['project_type_id', 'property_type_id'];
   const splitRefs = data => {
-    const fields = { ...data }, refs = {};
+    const fields = { ...data }, refs = {}, types = {};
     for (const k of REF_FIELDS) if (k in fields) { refs[k] = fields[k]; delete fields[k]; }
-    return [fields, refs];
+    for (const k of TYPE_FIELDS) if (k in fields) { types[k] = fields[k]; delete fields[k]; }
+    return [fields, refs, types];
   };
   const encodeProject = d => ('amenities' in d ? { ...d, amenities: JSON.stringify(d.amenities) } : d);
   const decodeProject = p => p && { ...p, amenities: json(p.amenities, []), published: !!p.published };
 
   r.get('/projects', requirePermission('projects:read'), ah(async (req, res) => {
-    const projects = await db('projects').orderBy('sort');
+    const projects = await withTypeLabels(db, await db('projects').orderBy('sort'));
     const counts = await db('lots').select('project_id', 'status').count({ n: '*' }).groupBy('project_id', 'status');
     res.json(projects.map(p => ({
       ...decodeProject(p),
@@ -60,8 +69,9 @@ module.exports = function catalogRoutes(db) {
 
   r.get('/projects/:id', requirePermission('projects:read'), ah(async (req, res) => {
     const id = idParam(req);
-    const p = await db('projects').where({ id }).first();
-    if (!p) throw new HttpError(404, 'Projet introuvable.');
+    const row = await db('projects').where({ id }).first();
+    if (!row) throw new HttpError(404, 'Projet introuvable.');
+    const [p] = await withTypeLabels(db, [row]);
     const [offers, plans, lotCount] = await Promise.all([
       db('project_offers').where({ project_id: id }).orderBy('sort'),
       db('site_plans').where({ project_id: id }).orderBy('id'),
@@ -71,10 +81,11 @@ module.exports = function catalogRoutes(db) {
   }));
 
   r.post('/projects', requirePermission('projects:write'), ah(async (req, res) => {
-    const [data, refs] = splitRefs(parse(projectSchema, req.body));
+    const [data, refs, types] = splitRefs(parse(projectSchema, req.body));
     if (await db('projects').where({ slug: data.slug }).first()) throw new HttpError(409, 'Cet identifiant (slug) est déjà utilisé.');
     const id = await db.transaction(async trx => {
       const [newId] = await trx('projects').insert(encodeProject(data));
+      if (Object.keys(types).length) await applyProjectTypes(trx, newId, types);
       if (Object.keys(refs).length) await applyProjectRefs(trx, newId, refs);
       return newId;
     });
@@ -84,7 +95,7 @@ module.exports = function catalogRoutes(db) {
   r.patch('/projects/:id', requirePermission('projects:write'), ah(async (req, res) => {
     const id = idParam(req);
     const { archived, ...input } = parse(projectSchema.partial().extend({ archived: z.boolean().optional() }), req.body);
-    const [data, refs] = splitRefs(input);
+    const [data, refs, types] = splitRefs(input);
     if (data.slug && await db('projects').where({ slug: data.slug }).whereNot({ id }).first()) {
       throw new HttpError(409, 'Cet identifiant (slug) est déjà utilisé.');
     }
@@ -98,9 +109,10 @@ module.exports = function catalogRoutes(db) {
       }
       const n = await trx('projects').where({ id }).update({ ...encodeProject(data), updated_at: new Date() });
       if (!n) throw new HttpError(404, 'Projet introuvable.');
+      if (Object.keys(types).length) await applyProjectTypes(trx, id, types);
       if (Object.keys(refs).length) await applyProjectRefs(trx, id, refs);
     });
-    res.json(decodeProject(await db('projects').where({ id }).first()));
+    res.json(decodeProject((await withTypeLabels(db, [await db('projects').where({ id }).first()]))[0]));
   }));
 
   r.delete('/projects/:id', requirePermission('projects:write'), ah(async (req, res) => {
@@ -140,6 +152,8 @@ module.exports = function catalogRoutes(db) {
     const offers = parse(z.array(z.object({
       id: z.number().int().positive().optional(),
       label: z.string().trim().min(1).max(160),
+      // Précision affichée sur le site après le type de bien : « 2 pièces », « paiement comptant »
+      designation: z.string().trim().max(120).nullable().optional(),
       surface: z.string().trim().max(80).nullable().optional(),
       price_fcfa: z.number().int().nonnegative().nullable().optional(),
       diaspora_price_fcfa: z.number().int().nonnegative().nullable().optional(),
@@ -148,10 +162,12 @@ module.exports = function catalogRoutes(db) {
       const keep = offers.filter(o => o.id).map(o => o.id);
       await trx('project_offers').where({ project_id: id }).whereNotIn('id', keep.length ? keep : [0]).del();
       for (const [sort, o] of offers.entries()) {
-        const row = { project_id: id, label: o.label, surface: o.surface ?? null, price_fcfa: o.price_fcfa ?? null, diaspora_price_fcfa: o.diaspora_price_fcfa ?? null, sort };
+        const row = { project_id: id, label: o.label, designation: o.designation || null, surface: o.surface ?? null, price_fcfa: o.price_fcfa ?? null, diaspora_price_fcfa: o.diaspora_price_fcfa ?? null, sort };
         if (o.id) await trx('project_offers').where({ id: o.id, project_id: id }).update(row);
         else await trx('project_offers').insert(row);
       }
+      // Grille modifiée : les lots libres qui la suivent (ou sans prix) prennent le prix de leur surface
+      await applyPriceGrid(trx, id);
     });
     res.json(await db('project_offers').where({ project_id: id }).orderBy('sort'));
   }));
@@ -301,15 +317,21 @@ module.exports = function catalogRoutes(db) {
     }
     const summary = await db.transaction(async trx => {
       let created = 0, updated = 0, unplaced = 0;
+      const offers = await projectOffers(trx, projectId);
+      const touched = [];
       for (const l of lots) {
         const { status, ...fields } = l;
         const existing = await trx('lots').where({ project_id: projectId, code: l.code }).first();
         if (existing) {
-          await trx('lots').where({ id: existing.id }).update({ ...encodeLot(fields), updated_at: new Date() });
+          // Prix envoyé : suit la grille s'il est vide ou égal à celui de la grille, sinon prix saisi à la main
+          const origin = 'price_fcfa' in fields ? { price_from_grid: followsGrid(offers, { ...existing, ...fields }) } : {};
+          await trx('lots').where({ id: existing.id }).update({ ...encodeLot(fields), ...origin, updated_at: new Date() });
+          touched.push(existing.id);
           updated++;
         } else {
-          const [lotId] = await trx('lots').insert({ ...encodeLot(fields), project_id: projectId, status: status || 'disponible' });
+          const [lotId] = await trx('lots').insert({ ...encodeLot(fields), price_from_grid: followsGrid(offers, fields), project_id: projectId, status: status || 'disponible' });
           await trx('lot_status_history').insert({ lot_id: lotId, from_status: null, to_status: status || 'disponible', user_id: req.user.id, reason: 'Création' });
+          touched.push(lotId);
           created++;
         }
       }
@@ -317,7 +339,9 @@ module.exports = function catalogRoutes(db) {
         unplaced = await trx('lots').where({ project_id: projectId, plan_id: replacePlan }).whereNotIn('code', [...codes])
           .update({ plan_id: null, shape: null, updated_at: new Date() });
       }
-      return replacePlan ? { created, updated, unplaced } : { created, updated };
+      // Prix tirés de la grille (par surface) pour les lots sans prix ou qui la suivent
+      const priced = await applyPriceGrid(trx, projectId, touched);
+      return { created, updated, ...(replacePlan ? { unplaced } : {}), ...(priced ? { priced } : {}) };
     });
     res.json(summary);
   }));
@@ -331,8 +355,10 @@ module.exports = function catalogRoutes(db) {
       throw new HttpError(409, `Le lot « ${fields.code} » existe déjà dans ce projet.`);
     }
     const lot = await db.transaction(async trx => {
-      const [lotId] = await trx('lots').insert({ ...encodeLot(fields), project_id: projectId, status: status || 'disponible' });
+      const offers = await projectOffers(trx, projectId);
+      const [lotId] = await trx('lots').insert({ ...encodeLot(fields), price_from_grid: followsGrid(offers, fields), project_id: projectId, status: status || 'disponible' });
       await trx('lot_status_history').insert({ lot_id: lotId, from_status: null, to_status: status || 'disponible', user_id: req.user.id, reason: 'Création' });
+      await applyPriceGrid(trx, projectId, [lotId]);
       return trx('lots').where({ id: lotId }).first();
     });
     res.status(201).json(decodeLot(lot));
@@ -346,7 +372,12 @@ module.exports = function catalogRoutes(db) {
     if (data.code && data.code !== lot.code && await db('lots').where({ project_id: lot.project_id, code: data.code }).first()) {
       throw new HttpError(409, `Le lot « ${data.code} » existe déjà dans ce projet.`);
     }
-    await db('lots').where({ id }).update({ ...encodeLot(data), updated_at: new Date() });
+    await db.transaction(async trx => {
+      const origin = 'price_fcfa' in data ? { price_from_grid: followsGrid(await projectOffers(trx, lot.project_id), { ...lot, ...data }) } : {};
+      await trx('lots').where({ id }).update({ ...encodeLot(data), ...origin, updated_at: new Date() });
+      // Surface ou type changé (ou prix vidé) : le prix suit la grille si le lot n'a pas de prix saisi à la main
+      await applyPriceGrid(trx, lot.project_id, [id]);
+    });
     res.json(decodeLot(await db('lots').where({ id }).first()));
   }));
 

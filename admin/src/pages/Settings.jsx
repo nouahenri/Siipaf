@@ -4,19 +4,20 @@
  */
 import { useEffect, useMemo, useState } from 'react';
 import { useSearchParams } from 'react-router-dom';
-import { Plus, Trash2, ArrowUp, ArrowDown, Archive, ArchiveRestore, MapPin, Building, Dumbbell, Store, Construction, Home, SlidersHorizontal, Palette } from 'lucide-react';
+import { Plus, Trash2, ArrowUp, ArrowDown, Archive, ArchiveRestore, MapPin, Building, Building2, Dumbbell, Store, Construction, Home, SlidersHorizontal, Palette } from 'lucide-react';
 import { api } from '../lib/api';
 import { useAuth, useResource, useToast } from '../lib/app-context';
 import { Card, Field, ErrorBox, Skeleton, Badge, Empty } from '../components/ui';
 
-const ICONS = { ville: Building, localisation: MapPin, equipement: Dumbbell, commodite: Store, viabilisation: Construction, type_bien: Home };
+const ICONS = { ville: Building, localisation: MapPin, equipement: Dumbbell, commodite: Store, viabilisation: Construction, type_projet: Building2, type_bien: Home };
 const HELP = {
   ville: 'Villes proposées dans la fiche projet.',
   localisation: 'Quartiers, communes ou sites, rattachés à une ville : la fiche projet ne propose que ceux de la ville choisie.',
   equipement: 'Équipements du programme (cases à cocher dans la fiche projet), affichés sur le site.',
   commodite: 'Commodités à proximité (écoles, marché, santé…), affichées sur le site.',
   viabilisation: 'Travaux de viabilisation d’un lotissement : chaque élément coché porte son état (prévu, en cours, réalisé), visible par les acheteurs.',
-  type_bien: 'Types de biens proposés dans la grille de prix des projets.',
+  type_projet: 'Type de projet affiché sur la fiche projet (informatif). Un type dont le nom contient « lotissement » range le projet dans Projets › Lotissements sur le site.',
+  type_bien: 'Type de biens du projet et de sa grille de prix. Cochez les types de projet concernés : la fiche projet ne propose que ceux-là (lotissement → terrains…). Il donne aussi le libellé du bouton de création dans Biens & disponibilités (villa, appartement, lot…).',
 };
 
 export default function Settings() {
@@ -88,6 +89,13 @@ function RefList({ kind, data, editable, reload }) {
     [ids[a], ids[b]] = [ids[b], ids[a]];
     run(() => api.put('/admin/refs/order', { ids }));
   };
+  // Type de biens : types de projet auxquels il s'applique (la fiche projet ne propose que ceux-là)
+  const scopes = meta.scope ? data.items.filter(i => i.kind === meta.scope && !i.archived) : [];
+  const setScope = (item, scopeId, on) => {
+    const current = item.project_types || [];
+    const next = on ? [...current, scopeId] : current.filter(x => x !== scopeId);
+    run(() => api.patch(`/admin/refs/${item.id}`, { project_types: next }));
+  };
   const remove = item => {
     if (!window.confirm(`Supprimer « ${item.label} » ?`)) return;
     run(() => api.del(`/admin/refs/${item.id}`), 'Supprimé');
@@ -128,6 +136,7 @@ function RefList({ kind, data, editable, reload }) {
               <th>Libellé</th>
               {parentKind && <th>{data.kinds[parentKind].one}</th>}
               {editable && featureKinds.includes(kind) && <th>Liste</th>}
+              {meta.scope && <th>Proposé pour les projets</th>}
               <th>Utilisation</th>
               {editable && <th className="right">Actions</th>}
             </tr></thead>
@@ -148,6 +157,22 @@ function RefList({ kind, data, editable, reload }) {
                         onChange={e => run(() => api.patch(`/admin/refs/${item.id}`, { kind: e.target.value }), `Déplacé vers « ${data.kinds[e.target.value].label} »`)}>
                         {featureKinds.map(k => <option key={k} value={k}>{data.kinds[k].label}</option>)}
                       </select>
+                    </td>
+                  )}
+                  {meta.scope && (
+                    <td>
+                      {/* Types de projet auxquels ce type de biens s'applique (aucune case = tous) */}
+                      <div className="row" style={{ gap: 6, flexWrap: 'wrap' }}>
+                        {scopes.map(s => {
+                          const on = (item.project_types || []).includes(s.id);
+                          return (
+                            <label key={s.id} className="checkbox small" style={{ border: '1px solid var(--border)', borderRadius: 8, padding: '2px 8px' }}>
+                              <input type="checkbox" checked={on} disabled={!editable} onChange={() => setScope(item, s.id, !on)} />{s.label}
+                            </label>
+                          );
+                        })}
+                        {!(item.project_types || []).length && <span className="small muted">Tous les projets</span>}
+                      </div>
                     </td>
                   )}
                   <td className="small muted nowrap">

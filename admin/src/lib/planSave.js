@@ -23,4 +23,5 @@ export async function savePlan({ projectId, planId, name, image, width, height, 
 
 export const summaryText = s => [
   `${s.created} lot(s) créé(s)`, `${s.updated} mis à jour`, s.unplaced ? `${s.unplaced} retiré(s) du plan (à placer)` : null,
+  s.priced ? `${s.priced} prix tiré(s) de la grille` : null,
 ].filter(Boolean).join(', ');

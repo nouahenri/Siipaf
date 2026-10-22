@@ -4,17 +4,35 @@ import { Save } from 'lucide-react';
 import { api } from '../lib/api';
 import { useAuth, useResource, useToast } from '../lib/app-context';
 import { Modal, Field, ErrorBox, StatusBadge } from './ui';
-import { FINANCING, LOT_TRANSITIONS, lotStatus } from '../lib/domain';
+import { FINANCING, LOT_STATUSES, LOT_TRANSITIONS, lotStatus, bienKind, gridOfferFor } from '../lib/domain';
 import { fcfa } from '../lib/format';
+
+/** Ligne de la grille de prix qui s'applique à la surface du lot ; propose de reprendre son prix si un autre a été saisi. */
+export function GridHint({ grid, lot, hasGrid, onApply }) {
+  if (!hasGrid || !lot.surface_m2) return null;
+  if (!grid) return <p className="small muted full">Grille de prix : aucune ligne pour {lot.surface_m2} m².</p>;
+  const same = Number(lot.price_fcfa) === Number(grid.price_fcfa);
+  return (
+    <p className="small full" style={{ display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap' }}>
+      <span className="muted">Grille : {grid.label} · {grid.surface} → <strong>{fcfa(grid.price_fcfa)}</strong>{grid.diaspora_price_fcfa ? ` (diaspora ${fcfa(grid.diaspora_price_fcfa)})` : ''}</span>
+      {!same && <button type="button" className="btn btn-sm btn-ghost" onClick={onApply}>Appliquer le prix de la grille</button>}
+    </p>
+  );
+}
 
 /**
  * Changement de statut d'un lot (transitions autorisées, motif conservé dans l'historique).
- * `onDone` reçoit le nouveau statut. Utilisé par « Lots & disponibilités » et l'éditeur de plan.
+ * `onDone` reçoit le nouveau statut. Utilisé par « Biens & disponibilités » et l'éditeur de plan.
  */
 export function LotStatusModal({ lot, onClose, onDone }) {
   const { user } = useAuth();
   const toast = useToast();
   const options = LOT_TRANSITIONS[lot.status].filter(s => !(lot.status === 'vendu' && user.role !== 'super_admin'));
+  // Les 6 statuts de la légende, dans le même ordre : ceux qui ne sont pas permis depuis le statut actuel restent grisés
+  const why = s => (options.includes(s) ? null
+    : s === lot.status ? 'Statut actuel'
+    : LOT_TRANSITIONS[lot.status].includes(s) ? 'Réservé au super administrateur'
+    : `Pas de passage direct de « ${lotStatus(lot.status).label} » à « ${lotStatus(s).label} »`);
   const [to, setTo] = useState(options[0] || '');
   const [reason, setReason] = useState('');
   const [lead, setLead] = useState({ name: '', phone: '', email: '' });
@@ -47,14 +65,19 @@ export function LotStatusModal({ lot, onClose, onDone }) {
           <ErrorBox error={error} />
           <fieldset style={{ border: 'none' }} className="stack">
             <legend className="small muted" style={{ marginBottom: 8 }}>Nouveau statut</legend>
-            <div className="row">
-              {options.map(s => (
-                <label key={s} className={`btn btn-sm ${to === s ? '' : 'btn-ghost'}`} style={to === s ? { borderColor: lotStatus(s).color } : undefined}>
-                  <input type="radio" name="status" value={s} checked={to === s} onChange={() => setTo(s)} style={{ position: 'absolute', opacity: 0 }} />
-                  <i style={{ width: 10, height: 10, borderRadius: 3, background: lotStatus(s).color, display: 'inline-block' }} />{lotStatus(s).label}
-                </label>
-              ))}
+            <div className="row" style={{ flexWrap: 'wrap', gap: 6 }}>
+              {LOT_STATUSES.map(({ id: s }) => {
+                const blocked = why(s);
+                return (
+                  <label key={s} title={blocked || undefined} className={`btn btn-sm ${to === s ? '' : 'btn-ghost'}`}
+                    style={{ ...(to === s ? { borderColor: lotStatus(s).color } : {}), ...(blocked ? { opacity: 0.45, cursor: 'not-allowed' } : {}) }}>
+                    <input type="radio" name="status" value={s} checked={to === s} disabled={!!blocked} onChange={() => setTo(s)} style={{ position: 'absolute', opacity: 0 }} />
+                    <i style={{ width: 10, height: 10, borderRadius: 3, background: lotStatus(s).color, display: 'inline-block' }} />{lotStatus(s).label}
+                  </label>
+                );
+              })}
             </div>
+            <p className="small muted">Grisé : passage impossible depuis « {lotStatus(lot.status).label} » (circuit de vente). Survolez un statut pour la raison.</p>
           </fieldset>
           {to === 'option' ? (
             <div className="form-grid">
@@ -94,6 +117,20 @@ export function LotFormModal({ projectId, lot, onClose, onDone }) {
   const [busy, setBusy] = useState(false);
   const set = k => e => setF(x => ({ ...x, [k]: e.target.value }));
   const offers = project.data?.offers || [];
+  const kind = bienKind(project.data?.property_type); // « Nouvelle villa », « Nouvel appartement », « Nouveau lot »…
+  // Grille de prix : la surface désigne la ligne ; le prix suit tant qu'il n'a pas été saisi à la main
+  const grid = gridOfferFor(offers, f.surface_m2, f.offer_id);
+  const setSurface = e => {
+    const value = e.target.value;
+    setF(x => {
+      const before = gridOfferFor(offers, x.surface_m2, x.offer_id);
+      const hit = gridOfferFor(offers, value, x.offer_id);
+      const follows = x.price_fcfa === '' || x.price_fcfa == null || (before && Number(x.price_fcfa) === Number(before.price_fcfa));
+      // Prix venu de la grille et plus de ligne pour la nouvelle surface : on le vide plutôt que d'afficher un prix faux
+      const next = !follows ? {} : hit ? { price_fcfa: hit.price_fcfa, offer_id: String(hit.id) } : before ? { price_fcfa: '' } : {};
+      return { ...x, surface_m2: value, ...next };
+    });
+  };
 
   // Choisir un type de bien propose son prix catalogue
   const pickOffer = e => {
@@ -112,7 +149,7 @@ export function LotFormModal({ projectId, lot, onClose, onDone }) {
     try {
       if (isNew) await api.post(`/admin/projects/${projectId}/lots`, { ...body, status: f.status });
       else await api.patch(`/admin/lots/${lot.id}`, body);
-      toast(isNew ? `Lot ${body.code} créé` : 'Lot mis à jour');
+      toast(isNew ? `${kind.noun === 'lot' ? 'Lot' : 'Bien'} ${body.code} créé` : 'Lot mis à jour');
       onDone();
     } catch (e) { setError(e); }
     setBusy(false);
@@ -120,9 +157,9 @@ export function LotFormModal({ projectId, lot, onClose, onDone }) {
 
   return (
     <Modal
-      title={isNew ? `Nouveau lot${project.data ? ` — ${project.data.name}` : ''}` : `Modifier le lot ${lot.code}`}
+      title={isNew ? `${kind.create}${project.data ? ` — ${project.data.name}` : ''}` : `Modifier le lot ${lot.code}`}
       onClose={onClose}
-      footer={<><button className="btn" onClick={onClose}>Annuler</button><button className="btn btn-primary" onClick={submit} disabled={busy || !f.code.trim()}><Save />{isNew ? 'Créer le lot' : 'Enregistrer'}</button></>}
+      footer={<><button className="btn" onClick={onClose}>Annuler</button><button className="btn btn-primary" onClick={submit} disabled={busy || !f.code.trim()}><Save />{isNew ? 'Créer' : 'Enregistrer'}</button></>}
     >
       <ErrorBox error={error} />
       <div className="form-grid">
@@ -134,8 +171,9 @@ export function LotFormModal({ projectId, lot, onClose, onDone }) {
             {offers.map(o => <option key={o.id} value={o.id}>{o.label}{o.surface ? ` · ${o.surface}` : ''}{o.price_fcfa ? ` · ${fcfa(o.price_fcfa)}` : ''}</option>)}
           </select>
         </Field>
-        <Field label="Surface du terrain (m²)"><input className="input tabular" inputMode="decimal" value={f.surface_m2} onChange={set('surface_m2')} /></Field>
-        <Field label="Prix catalogue (FCFA)"><input className="input tabular" inputMode="numeric" value={f.price_fcfa} onChange={set('price_fcfa')} /></Field>
+        <Field label="Surface du terrain (m²)"><input className="input tabular" inputMode="decimal" value={f.surface_m2} onChange={setSurface} /></Field>
+        <Field label="Prix catalogue (FCFA)"><input className="input tabular" inputMode="numeric" value={f.price_fcfa} placeholder={grid ? String(grid.price_fcfa) : undefined} onChange={set('price_fcfa')} /></Field>
+        <GridHint grid={grid} lot={f} hasGrid={offers.length > 0} onApply={() => setF(x => ({ ...x, price_fcfa: grid.price_fcfa, offer_id: String(grid.id) }))} />
         {isNew && (
           <Field label="Statut de départ">
             <select className="select" value={f.status} onChange={set('status')}>

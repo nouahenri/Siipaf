@@ -6,10 +6,10 @@ import {
 import { api } from '../lib/api';
 import { useAuth, useResource, useToast } from '../lib/app-context';
 import { Field, ErrorBox, Skeleton, StatusBadge } from '../components/ui';
-import { LOT_STATUSES, lotStatus } from '../lib/domain';
+import { LOT_STATUSES, lotStatus, gridOfferFor } from '../lib/domain';
 import { fcfa } from '../lib/format';
 import PlanManage from '../components/PlanManage';
-import { LotStatusModal } from '../components/LotForms';
+import { LotStatusModal, GridHint } from '../components/LotForms';
 
 /* ─── Géométrie (coordonnées relatives 0–1 du plan) ─────────────────────── */
 const clamp01 = v => Math.min(1, Math.max(0, v));
@@ -501,6 +501,16 @@ const LotRow = ({ l, active, dirty, onClick }) => (
 
 function LotPanel({ lot, offers, editable, canStatus, onStatus, onChange, onRemove, onDelete, onClose }) {
   const set = k => e => onChange({ [k]: e.target.value });
+  // Grille de prix : la surface désigne la ligne ; le prix suit tant qu'il n'a pas été saisi à la main
+  const grid = gridOfferFor(offers, lot.surface_m2, lot.offer_id);
+  const setSurface = e => {
+    const before = gridOfferFor(offers, lot.surface_m2, lot.offer_id);
+    const hit = gridOfferFor(offers, e.target.value, lot.offer_id);
+    const followsGrid = lot.price_fcfa == null || lot.price_fcfa === '' || (before && Number(lot.price_fcfa) === Number(before.price_fcfa));
+    // Prix venu de la grille et plus de ligne pour la nouvelle surface : on le vide plutôt que d'afficher un prix faux
+    const next = !followsGrid ? {} : hit ? { price_fcfa: hit.price_fcfa, offer_id: hit.id } : before ? { price_fcfa: '' } : {};
+    onChange({ surface_m2: e.target.value, ...next });
+  };
   const pickOffer = e => {
     const offer = offers.find(o => String(o.id) === e.target.value);
     onChange({ offer_id: offer ? offer.id : null, ...(offer && (lot.price_fcfa == null || lot.price_fcfa === '') ? { price_fcfa: offer.price_fcfa } : {}) });
@@ -520,14 +530,15 @@ function LotPanel({ lot, offers, editable, canStatus, onStatus, onChange, onRemo
         <div className="form-grid" style={{ gap: 12 }}>
           <Field label="N° de lot"><input className="input" value={lot.code} onChange={set('code')} /></Field>
           <Field label="Îlot"><input className="input" value={lot.ilot || ''} onChange={set('ilot')} /></Field>
-          <Field label="Type de bien" className="full">
+          <Field label="Type de bien" className="full" hint={!offers.length ? 'Aucune ligne dans la grille de prix du projet : remplissez-la dans la fiche projet pour choisir le type.' : undefined}>
             <select className="select" value={lot.offer_id || ''} onChange={pickOffer}>
               <option value="">Non précisé</option>
-              {offers.map(o => <option key={o.id} value={o.id}>{o.label}</option>)}
+              {offers.map(o => <option key={o.id} value={o.id}>{[o.label, o.surface && (/m/.test(o.surface) ? o.surface : `${o.surface} m²`), o.price_fcfa && fcfa(o.price_fcfa)].filter(Boolean).join(' · ')}</option>)}
             </select>
           </Field>
-          <Field label="Surface (m²)"><input className="input tabular" inputMode="decimal" value={lot.surface_m2 ?? ''} onChange={set('surface_m2')} /></Field>
-          <Field label="Prix (FCFA)" hint={lot.price_fcfa ? fcfa(lot.price_fcfa) : undefined}><input className="input tabular" inputMode="numeric" value={lot.price_fcfa ?? ''} onChange={set('price_fcfa')} /></Field>
+          <Field label="Surface (m²)"><input className="input tabular" inputMode="decimal" value={lot.surface_m2 ?? ''} onChange={setSurface} /></Field>
+          <Field label="Prix (FCFA)" hint={lot.price_fcfa ? fcfa(lot.price_fcfa) : undefined}><input className="input tabular" inputMode="numeric" value={lot.price_fcfa ?? ''} placeholder={grid ? String(grid.price_fcfa) : undefined} onChange={set('price_fcfa')} /></Field>
+          <GridHint grid={grid} lot={lot} hasGrid={offers.length > 0} onApply={() => onChange({ price_fcfa: grid.price_fcfa, offer_id: grid.id })} />
         </div>
         {canStatus && !lot.id && <p className="small muted">Enregistrez ce nouveau lot pour pouvoir changer son statut.</p>}
         {editable && (

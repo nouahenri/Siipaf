@@ -56,8 +56,49 @@ const REF_KINDS = {
   equipement: { label: 'Équipements', one: 'équipement', feature: true },
   commodite: { label: 'Commodités à proximité', one: 'commodité', feature: true },
   viabilisation: { label: 'Éléments de viabilisation', one: 'élément de viabilisation', feature: true, states: true },
-  type_bien: { label: 'Types de biens', one: 'type de bien' },
+  type_projet: { label: 'Types de projet', one: 'type de projet', project: 'project_type_id' },
+  // scope : chaque type de biens indique les types de projet auxquels il s'applique (vide = tous)
+  type_bien: { label: 'Types de biens', one: 'type de bien', project: 'property_type_id', scope: 'type_projet' },
 };
+
+/**
+ * Grille de prix d'un projet : le prix d'un bien dépend de sa surface exacte (pas de fourchette).
+ * La colonne « Surface » est du texte libre : « 400 », « 400 m² », « 1 000 m² » ; pour une villa
+ * « T.125 m² | H.85 m² », c'est la surface du terrain (le premier nombre) qui compte. Renvoie m² ou null.
+ */
+function offerSurface(text) {
+  const m = String(text || '').replace(/(\d)\s(?=\d{3}\b)/g, '$1').replace(',', '.').match(/\d+(?:\.\d+)?/);
+  return m ? Number(m[0]) : null;
+}
+
+/**
+ * Ligne de la grille dont la surface est celle du lot (à l'arrondi du m² près). Si le lot a déjà un type
+ * de bien, seules les lignes de ce type comptent. Renvoie la ligne (avec son prix) ou null.
+ */
+function gridOfferFor(offers, surface, offerId = null) {
+  const s = Number(surface);
+  if (!surface || !Number.isFinite(s)) return null;
+  const current = offerId && offers.find(o => o.id === offerId);
+  const sameKind = o => !current || o.label.trim().toLocaleLowerCase('fr') === current.label.trim().toLocaleLowerCase('fr');
+  return offers.find(o => {
+    const m2 = offerSurface(o.surface);
+    return o.price_fcfa != null && m2 != null && sameKind(o) && Math.abs(s - m2) < 0.5;
+  }) || null;
+}
+// Lots dont le prix suit la grille : libres (pas d'option, de réservation, de vente ni de dossier)
+const GRID_PRICED_STATUSES = ['disponible', 'desistement', 'bloque'];
+
+/**
+ * Le type de projet (liste libre de Paramètres) est informatif ; on en déduit la catégorie technique
+ * qui pilote le site (page Lotissements, carte des lots) et la comptabilité (vente de terrain ou de logement).
+ */
+function categoryForProjectType(label) {
+  const t = String(label || '').toLocaleLowerCase('fr');
+  if (/lotissement|terrain/.test(t)) return 'lotissement';
+  if (/social/.test(t)) return /standing/.test(t) ? 'social_haut_standing' : 'social';
+  if (/standing/.test(t)) return 'haut_standing';
+  return null;
+}
 const FEATURE_KINDS = Object.keys(REF_KINDS).filter(k => REF_KINDS[k].feature);
 const VIABILISATION_STATES = { prevu: 'Prévu', en_cours: 'En cours', fait: 'Réalisé' };
 
@@ -69,6 +110,8 @@ const THEMES = ['clair', 'sombre', 'systeme'];
 
 // Circuit de vente : Prospection → Visite → Décision → Choix du bien → Paiement → Contrat → Notaire → Livraison → SAV
 const LEAD_STAGES = ['prospection', 'visite', 'decision', 'choix_bien', 'paiement', 'contrat', 'notaire', 'livraison', 'sav', 'perdu'];
+// À partir du paiement, la personne est un client (code client attribué d'office) : prospect OU client, jamais les deux
+const CLIENT_STAGES = ['paiement', 'contrat', 'notaire', 'livraison', 'sav'];
 
 // Dossier d'acquisition d'un lot
 const SALE_STATUSES = ['en_cours', 'solde', 'desiste'];
@@ -156,19 +199,24 @@ function split(total, n) {
 
 /**
  * Échéancier d'un dossier : liste ordonnée { seq, kind, label, due_date, amount_fcfa } dont la somme
- * vaut exactement le prix. `options` peut surcharger deposit_pct et months. Sans financement : [].
+ * vaut exactement le prix. `options` peut surcharger deposit_pct et months, ou fixer l'apport en montant
+ * (deposit_fcfa, ex. 2 600 000 déjà versés sur 15 000 000), qui prime alors sur le pourcentage.
+ * Sans financement : [].
  */
 function buildSchedule({ price_fcfa, financing, start_date, options = {} }) {
   const plan = FINANCING_PLANS[financing];
   const price = Number(price_fcfa);
   if (!plan || !price) return [];
-  const pct = options.deposit_pct ?? plan.deposit_pct;
   const months = options.months ?? plan.months;
+  const byAmount = options.deposit_fcfa != null;
+  const pct = byAmount ? Math.round((options.deposit_fcfa / price) * 1000) / 10 : options.deposit_pct ?? plan.deposit_pct;
   const lines = [];
-  const deposit = months || plan.bank_months ? Math.round((price * pct) / 100) : price;
+  const deposit = byAmount ? Math.min(price, Math.round(options.deposit_fcfa))
+    : months || plan.bank_months ? Math.round((price * pct) / 100) : price;
   if (deposit > 0) {
     const kind = deposit === price ? 'solde' : 'apport';
-    lines.push({ kind, label: kind === 'solde' ? 'Paiement comptant' : `Apport initial (${pct} %)`, due_date: start_date, amount_fcfa: deposit });
+    const pctLabel = String(pct).replace('.', ',');
+    lines.push({ kind, label: kind === 'solde' ? 'Paiement comptant' : `Apport initial (${pctLabel} %)`, due_date: start_date, amount_fcfa: deposit });
   }
   const rest = price - deposit;
   if (rest > 0 && months > 0) {
@@ -686,13 +734,14 @@ module.exports = {
   PORTFOLIO_EVENTS, PORTFOLIO_REASONS, portfolioState, replayPortfolio, portfolioDiff, portfolioCounts,
   SELF_SERVICE, SAV_ACTIONS, COMPTA_ACTIONS, PAIE_ACTIONS, RH_ACTIONS,
   LOT_STATUSES, LOT_STATUS_LABELS, SELLABLE_STATUSES, LOT_TRANSITIONS,
-  LEAD_STAGES, ROLES, ROLE_LABELS, PERMISSIONS, roleKey, can, checkLotTransition,
+  LEAD_STAGES, CLIENT_STAGES, ROLES, ROLE_LABELS, PERMISSIONS, roleKey, can, checkLotTransition,
   SALE_STATUSES, PAYMENT_METHODS, DOCUMENT_STATUSES, DOCUMENT_TYPES, DEFAULT_DOCUMENTS,
   PERMISSION_CATALOG, PERMISSION_IDS,
   FINANCING_PLANS, FINANCINGS, SCHEDULE_KINDS, INSTALLMENT_STATUS_LABELS, SITE_STAGES, SITE_STAGE_LABELS,
   MESSAGE_SENDERS, CLIENT_PASSWORD_MIN, CLIENT_RESET_HOURS, CLIENT_VISIBLE_SALE_STATUSES,
   addMonths, buildSchedule, allocatePayments, phoneKey, looksLikeClientCode, PROTECTED_ROLES, DELETABLE_LOT_STATUSES, NEW_LOT_STATUSES, PROJECT_CATEGORIES,
-  REF_KINDS, FEATURE_KINDS, VIABILISATION_STATES, APP_SETTINGS, THEMES,
+  REF_KINDS, FEATURE_KINDS, VIABILISATION_STATES, APP_SETTINGS, THEMES, categoryForProjectType,
+  offerSurface, gridOfferFor, GRID_PRICED_STATUSES,
   SAV_CATEGORIES, SAV_PRIORITIES, SAV_STATUSES, SAV_STATUS_LABELS, SAV_OPEN_STATUSES, SAV_TRANSITIONS, SAV_SOURCES,
   WARRANTIES, warrantyFor, warrantyDates, SAV_LAND_CATEGORIES, SAV_RESERVE_STATUSES, SAV_INTERVENTION_STATUSES,
   STAGE_PROBABILITY, PIPELINE_STAGES, WON_STAGES, LOST_REASONS, ACTIVITY_KINDS, LEAD_KINDS, LOT_TYPES, BUILDING_KINDS,

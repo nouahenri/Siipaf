@@ -4,7 +4,7 @@
  * city, location, amenities) : c'est ce que lisent le site et les autres écrans. Ces textes sont
  * recalculés ici à chaque modification d'un projet ou d'une valeur de liste.
  */
-const { REF_KINDS, FEATURE_KINDS, VIABILISATION_STATES } = require('../lib/domain');
+const { REF_KINDS, FEATURE_KINDS, VIABILISATION_STATES, categoryForProjectType } = require('../lib/domain');
 const { HttpError, json } = require('../lib/http');
 
 // Valeurs proposées au premier lancement (modifiables ensuite dans Paramètres)
@@ -12,8 +12,11 @@ const DEFAULT_REFS = {
   equipement: ['Piscine', 'Salle de sport', 'Parking', 'Ascenseur', 'Surveillance CCTV', 'Groupe électrogène', 'Réserve d’eau', 'Climatisation', 'Cuisine équipée', 'Domotique', 'Aires de jeux', 'Espaces verts'],
   commodite: ['École', 'Centre de santé', 'Marché', 'Centre commercial', 'Transport en commun', 'Lieu de culte', 'Banque', 'Pharmacie'],
   viabilisation: ['Voirie', 'Réseau d’eau potable', 'Réseau électrique', 'Éclairage public', 'Assainissement', 'Bornage des lots', 'Caniveaux / drainage'],
+  type_projet: ['Logement social & haut standing', 'Logement social', 'Haut standing', 'Lotissement'],
   type_bien: ['Terrain nu', 'Villa basse', 'Duplex', 'Appartement', 'Penthouse'],
 };
+// Colonnes de « projects » qui pointent vers une valeur de liste (menus déroulants de la fiche projet)
+const PROJECT_REF_COLUMNS = ['city_id', 'location_id', ...Object.values(REF_KINDS).map(k => k.project).filter(Boolean)];
 
 const norm = s => String(s || '').trim().replace(/\s+/g, ' ');
 const sameLabel = (a, b) => norm(a).toLocaleLowerCase('fr') === norm(b).toLocaleLowerCase('fr');
@@ -28,12 +31,17 @@ async function findOrCreate(knex, kind, label, parentId = null) {
   return id;
 }
 
-/** Remplit les listes par défaut et rattache les projets existants (ville, localisation, équipements en texte). */
-async function backfill(knex) {
+/** Listes encore vides : valeurs par défaut. */
+async function seedDefaultLists(knex) {
   for (const [kind, labels] of Object.entries(DEFAULT_REFS)) {
     if (await knex('ref_items').where({ kind }).first()) continue;
     await knex('ref_items').insert(labels.map((label, sort) => ({ kind, label, sort })));
   }
+}
+
+/** Remplit les listes par défaut et rattache les projets existants (ville, localisation, équipements en texte). */
+async function backfill(knex) {
+  await seedDefaultLists(knex);
   const projects = await knex('projects').whereNull('city_id');
   for (const p of projects) {
     const cityId = p.city ? await findOrCreate(knex, 'ville', p.city) : null;
@@ -51,13 +59,66 @@ async function backfill(knex) {
       }
     }
   }
+  if (await knex.schema.hasColumn('projects', 'project_type_id')) await linkProjectTypes(knex);
+  if (await knex.schema.hasColumn('ref_items', 'project_types')) await scopePropertyTypes(knex);
+}
+
+/**
+ * Types de projet auxquels s'applique un type de biens, d'après son libellé (réglable ensuite dans Paramètres) :
+ * terrain → lotissement ; « social » → logement social ; penthouse, duplex, « standing » → haut standing ;
+ * les autres (appartement, villa, maison…) → tous les projets de logement.
+ */
+function defaultScope(label, projectTypes) {
+  const t = norm(label).toLocaleLowerCase('fr');
+  const cats = /terrain|parcelle|\blot\b/.test(t) ? ['lotissement']
+    : /social/.test(t) ? ['social', 'social_haut_standing']
+    : /penthouse|duplex|standing/.test(t) ? ['haut_standing', 'social_haut_standing']
+    : ['social', 'social_haut_standing', 'haut_standing'];
+  return projectTypes.filter(p => cats.includes(categoryForProjectType(p.label))).map(p => p.id);
+}
+
+/** Types de biens sans réglage : types de projet par défaut (voir defaultScope). */
+async function scopePropertyTypes(knex) {
+  const projectTypes = await knex('ref_items').where({ kind: 'type_projet' });
+  for (const item of await knex('ref_items').where({ kind: 'type_bien' }).whereNull('project_types')) {
+    await knex('ref_items').where({ id: item.id }).update({ project_types: JSON.stringify(defaultScope(item.label, projectTypes)) });
+  }
+}
+
+// Catégorie technique d'avant la liste « Types de projet » → libellé de la liste
+const CATEGORY_TYPE_LABELS = {
+  social_haut_standing: 'Logement social & haut standing', social: 'Logement social', haut_standing: 'Haut standing', lotissement: 'Lotissement',
+};
+
+/**
+ * Projets sans type : type de projet d'après la catégorie ; type de biens d'après la 1re ligne de la
+ * grille de prix qui cite un type connu (« Villa basse F4 » → Villa basse), ou « Terrain nu » pour un lotissement.
+ */
+async function linkProjectTypes(knex) {
+  const projectTypes = await knex('ref_items').where({ kind: 'type_projet' });
+  const propertyTypes = await knex('ref_items').where({ kind: 'type_bien' }).orderBy('sort');
+  const lower = s => norm(s).toLocaleLowerCase('fr');
+  for (const p of await knex('projects').where(q => q.whereNull('project_type_id').orWhereNull('property_type_id'))) {
+    const update = {};
+    if (!p.project_type_id && CATEGORY_TYPE_LABELS[p.category]) {
+      const type = projectTypes.find(r => sameLabel(r.label, CATEGORY_TYPE_LABELS[p.category]));
+      if (type) update.project_type_id = type.id;
+    }
+    if (!p.property_type_id) {
+      const offers = await knex('project_offers').where({ project_id: p.id }).orderBy('sort').pluck('label');
+      const fromOffers = offers.map(o => propertyTypes.find(r => lower(o).includes(lower(r.label)))).find(Boolean);
+      const land = p.category === 'lotissement' && propertyTypes.find(r => sameLabel(r.label, 'Terrain nu'));
+      if (fromOffers || land) update.property_type_id = (fromOffers || land).id;
+    }
+    if (Object.keys(update).length) await knex('projects').where({ id: p.id }).update(update);
+  }
 }
 
 /** Recalcule les textes d'un projet (ville, localisation, équipements) à partir des listes. */
 async function syncProjectText(trx, projectId) {
   const p = await trx('projects').where({ id: projectId }).first();
   if (!p) return;
-  const ids = [p.city_id, p.location_id].filter(Boolean);
+  const ids = [p.city_id, p.location_id, p.project_type_id].filter(Boolean);
   const named = ids.length ? await trx('ref_items').whereIn('id', ids) : [];
   const label = id => named.find(r => r.id === id)?.label || null;
   const place = label(p.location_id);
@@ -68,6 +129,8 @@ async function syncProjectText(trx, projectId) {
     city: p.city_id ? label(p.city_id) : p.city,
     location: p.city_id || p.location_id ? location : p.location,
     amenities: JSON.stringify(equipements),
+    // Type de projet renommé : la catégorie technique suit (ex. « Lotissement » → lotissement)
+    ...(p.project_type_id ? { category: categoryForProjectType(label(p.project_type_id)) } : {}),
   });
 }
 
@@ -133,9 +196,39 @@ async function projectRefs(db, projectId) {
 
 /** Projets qui utilisent une valeur (pour refuser la suppression et recalculer après un renommage). */
 async function projectsUsing(db, refId) {
-  const direct = await db('projects').where({ city_id: refId }).orWhere({ location_id: refId }).pluck('id');
+  const direct = await db('projects').where(q => { for (const c of PROJECT_REF_COLUMNS) q.orWhere(c, refId); }).pluck('id');
   const linked = await db('project_refs').where({ ref_id: refId }).pluck('project_id');
   return [...new Set([...direct, ...linked])];
 }
 
-module.exports = { DEFAULT_REFS, backfill, syncProjectText, applyProjectRefs, projectRefs, projectsUsing, norm, sameLabel };
+/**
+ * Type de projet et type de biens choisis dans la fiche projet (listes de Paramètres).
+ * Le type de projet fixe aussi la catégorie technique (lotissement ou logement).
+ */
+async function applyProjectTypes(trx, projectId, { project_type_id, property_type_id }) {
+  const current = await trx('projects').where({ id: projectId }).first();
+  const update = {};
+  for (const [column, kind, value] of [['project_type_id', 'type_projet', project_type_id], ['property_type_id', 'type_bien', property_type_id]]) {
+    if (value === undefined) continue;
+    if (value) {
+      const item = await trx('ref_items').where({ id: value }).first();
+      if (!item || item.kind !== kind) throw new HttpError(400, 'Valeur de liste inconnue.');
+      if (item.archived && current[column] !== value) throw new HttpError(400, `« ${item.label} » est archivé : il n’est plus proposé.`);
+      if (column === 'project_type_id') update.category = categoryForProjectType(item.label);
+    }
+    update[column] = value || null;
+  }
+  if (Object.keys(update).length) await trx('projects').where({ id: projectId }).update(update);
+}
+
+/** Libellés du type de projet et du type de biens, ajoutés aux projets renvoyés à l'admin. */
+async function withTypeLabels(db, projects) {
+  const ids = [...new Set(projects.flatMap(p => [p.project_type_id, p.property_type_id]).filter(Boolean))];
+  const labels = ids.length ? Object.fromEntries((await db('ref_items').whereIn('id', ids).select('id', 'label')).map(r => [r.id, r.label])) : {};
+  return projects.map(p => ({ ...p, project_type: labels[p.project_type_id] || null, property_type: labels[p.property_type_id] || null }));
+}
+
+module.exports = {
+  DEFAULT_REFS, PROJECT_REF_COLUMNS, backfill, seedDefaultLists, linkProjectTypes, scopePropertyTypes, defaultScope, syncProjectText, applyProjectRefs, applyProjectTypes, withTypeLabels,
+  projectRefs, projectsUsing, norm, sameLabel,
+};

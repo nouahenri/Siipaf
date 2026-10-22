@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import { Link, useNavigate, useParams } from 'react-router-dom';
-import { ArrowLeft, Plus, Trash2, ArrowUp, ArrowDown, ImagePlus, Map, FileText, PenTool } from 'lucide-react';
+import { ArrowLeft, Plus, Trash2, ArrowUp, ArrowDown, ImagePlus, Map, FileText, PenTool, MapPin } from 'lucide-react';
 import { api } from '../lib/api';
 import { useAuth, useResource, useToast } from '../lib/app-context';
 import { Card, Field, ErrorBox, Skeleton, Badge, Empty } from '../components/ui';
@@ -10,10 +10,27 @@ import PlanImport from '../components/PlanImport';
 import PlanManage from '../components/PlanManage';
 import ProjectActions from '../components/ProjectActions';
 import { fcfa } from '../lib/format';
-import { PROJECT_CATEGORIES } from '../lib/domain';
+import { bienKind } from '../lib/domain';
 
-const FIELDS = ['name', 'slug', 'city_id', 'location_id', 'location_detail', 'tagline', 'description', 'category', 'delivery', 'option_days', 'published', 'cover_media_id'];
+const FIELDS = ['name', 'slug', 'city_id', 'location_id', 'location_detail', 'tagline', 'description', 'project_type_id', 'property_type_id', 'delivery', 'option_days', 'published', 'cover_media_id'];
 const FEATURES = ['equipement', 'commodite', 'viabilisation'];
+
+/**
+ * Position GPS saisie librement : « 5.3601, -4.0083 » (copié depuis Google Maps), « 5,3601 ; -4,0083 »
+ * ou un lien Google Maps (…/@5.3601,-4.0083,17z ou ?q=5.3601,-4.0083). Renvoie { lat, lng }, null si vide, false si illisible.
+ */
+function parseGps(text) {
+  const t = String(text || '').trim();
+  if (!t) return null;
+  const m = t.match(/@(-?\d+\.\d+),(-?\d+\.\d+)/) || t.match(/[?&](?:q|query|destination)=(-?\d+\.\d+),\s*(-?\d+\.\d+)/)
+    || t.match(/^(-?\d+(?:[.,]\d+)?)\s*[,;\s]\s*(-?\d+(?:[.,]\d+)?)$/);
+  if (!m) return false;
+  const lat = Number(m[1].replace(',', '.')), lng = Number(m[2].replace(',', '.'));
+  return Math.abs(lat) <= 90 && Math.abs(lng) <= 180 ? { lat, lng } : false;
+}
+const gpsText = p => (p.latitude != null && p.longitude != null ? `${Number(p.latitude)}, ${Number(p.longitude)}` : '');
+// Un type de biens s'applique aux types de projet cochés dans Paramètres (aucun = tous)
+const fitsProject = (t, projectTypeId) => !projectTypeId || !t.project_types?.length || t.project_types.includes(Number(projectTypeId));
 
 export default function ProjectEdit() {
   const { id } = useParams();
@@ -36,7 +53,7 @@ export default function ProjectEdit() {
     // Cases cochées : id → état (l'état ne sert qu'à la viabilisation)
     const checked = {};
     for (const k of FEATURES) for (const r of p.refs?.[k] || []) checked[r.id] = r.state || null;
-    setForm({ ...Object.fromEntries(FIELDS.map(k => [k, p[k] ?? ''])), checked, published: !!p.published });
+    setForm({ ...Object.fromEntries(FIELDS.map(k => [k, p[k] ?? ''])), checked, published: !!p.published, gps: gpsText(p) });
     setOffers(p.offers.map(o => ({ ...o })));
   }, [project.data]);
 
@@ -49,6 +66,26 @@ export default function ProjectEdit() {
   const offered = (kind, keep = []) => items.filter(i => i.kind === kind && (!i.archived || keep.includes(i.id)));
   const cities = offered('ville', [Number(form.city_id)]);
   const places = offered('localisation', [Number(form.location_id)]).filter(i => String(i.parent_id) === String(form.city_id));
+  const projectTypes = offered('type_projet', [Number(form.project_type_id)]);
+  // Types de biens du type de projet choisi (lotissement → terrains, logement social → appartements, villas sociales…)
+  const propertyTypes = offered('type_bien', [Number(form.property_type_id)])
+    .filter(t => fitsProject(t, form.project_type_id) || String(t.id) === String(form.property_type_id));
+  const propertyLabel = propertyTypes.find(t => String(t.id) === String(form.property_type_id))?.label;
+  // Changer de type de projet : le type de biens suit (seul choix possible sélectionné d'office, sinon à choisir)
+  const pickProjectType = e => {
+    const value = e.target.value;
+    setForm(f => {
+      const fit = offered('type_bien').filter(t => fitsProject(t, value));
+      const keep = fit.some(t => String(t.id) === String(f.property_type_id));
+      return { ...f, project_type_id: value, property_type_id: keep ? f.property_type_id : fit.length === 1 ? String(fit[0].id) : '' };
+    });
+  };
+  const gps = parseGps(form.gps);
+  const locate = () => navigator.geolocation?.getCurrentPosition(
+    pos => setForm(f => ({ ...f, gps: `${pos.coords.latitude.toFixed(6)}, ${pos.coords.longitude.toFixed(6)}` })),
+    () => toast('Position indisponible : autorisez la localisation dans le navigateur.', 'err'),
+    { enableHighAccuracy: true, timeout: 15000 },
+  );
   const toggle = (refId, on, state = null) => setForm(f => {
     const checked = { ...f.checked };
     if (on) checked[refId] = state; else delete checked[refId];
@@ -60,24 +97,32 @@ export default function ProjectEdit() {
   const setOffer = (i, k, v) => setOffers(list => list.map((o, j) => (j === i ? { ...o, [k]: v } : o)));
   const moveOffer = (i, d) => setOffers(list => { const l = [...list]; [l[i], l[i + d]] = [l[i + d], l[i]]; return l; });
   const intOrNull = v => (v === '' || v == null ? null : Math.round(Number(String(v).replace(/[\s ]/g, ''))));
+  // Équivalent en euros affiché sur le site : parité fixe du franc CFA (1 € = 655,957 FCFA)
+  const eur = v => { const n = intOrNull(v); return n > 0 ? `≈ ${Math.round(n / 655.957).toLocaleString('fr-FR')} €` : null; };
 
   const save = async () => {
+    if (gps === false) return setError(new Error('Position GPS illisible : collez « latitude, longitude » (ex. 5.3601, -4.0083) ou un lien Google Maps.'));
     setBusy(true);
     setError(null);
     try {
       const body = {
+        latitude: gps ? gps.lat : null,
+        longitude: gps ? gps.lng : null,
         ...form,
         option_days: form.option_days === '' ? null : Number(form.option_days),
         cover_media_id: form.cover_media_id || null,
         city_id: Number(form.city_id) || null,
         location_id: Number(form.location_id) || null,
+        project_type_id: Number(form.project_type_id) || null,
+        property_type_id: Number(form.property_type_id) || null,
         refs: Object.entries(form.checked).map(([refId, state]) => ({ id: Number(refId), state: state || null })),
       };
       delete body.checked;
-      for (const k of ['location_detail', 'tagline', 'description', 'category', 'delivery']) body[k] = body[k] || null;
+      delete body.gps;
+      for (const k of ['location_detail', 'tagline', 'description', 'delivery']) body[k] = body[k] || null;
       await api.patch(`/admin/projects/${id}`, body);
-      await api.put(`/admin/projects/${id}/offers`, offers.filter(o => o.label.trim()).map(o => ({
-        id: o.id, label: o.label, surface: o.surface || null, price_fcfa: intOrNull(o.price_fcfa), diaspora_price_fcfa: intOrNull(o.diaspora_price_fcfa),
+      await api.put(`/admin/projects/${id}/offers`, offers.filter(o => o.label?.trim()).map(o => ({
+        id: o.id, label: o.label, designation: o.designation?.trim() || null, surface: o.surface || null, price_fcfa: intOrNull(o.price_fcfa), diaspora_price_fcfa: intOrNull(o.diaspora_price_fcfa),
       })));
       toast('Projet enregistré');
       project.reload();
@@ -112,10 +157,16 @@ export default function ProjectEdit() {
                   {cities.map(c => <option key={c.id} value={c.id}>{c.label}{c.archived ? ' (archivée)' : ''}</option>)}
                 </select>
               </Field>
-              <Field label="Type de projet" hint="Lotissement ou promotion, chaque projet peut avoir sa carte interactive (Plans de masse, plus bas). « Lotissement » le range dans Projets › Lotissements sur le site.">
-                <select className="select" value={form.category || ''} onChange={set('category')}>
+              <Field label="Type de projet" hint={<>Un type dont le nom contient « lotissement » range le projet dans Projets › Lotissements sur le site.{canLists && <> <Link className="list-link" to="/parametres?section=type_projet">Gérer la liste</Link></>}</>}>
+                <select className="select" value={form.project_type_id || ''} onChange={pickProjectType}>
                   <option value="">— Non précisé —</option>
-                  {Object.entries(PROJECT_CATEGORIES).map(([k, v]) => <option key={k} value={k}>{v}</option>)}
+                  {projectTypes.map(t => <option key={t.id} value={t.id}>{t.label}{t.archived ? ' (archivé)' : ''}</option>)}
+                </select>
+              </Field>
+              <Field label="Type de biens" hint={<>Bouton de création dans Biens & disponibilités : « {bienKind(propertyLabel).create} ».{canLists && <> <Link className="list-link" to="/parametres?section=type_bien">Gérer la liste</Link></>}</>}>
+                <select className="select" value={form.property_type_id || ''} onChange={set('property_type_id')}>
+                  <option value="">— Non précisé —</option>
+                  {propertyTypes.map(t => <option key={t.id} value={t.id}>{t.label}{t.archived ? ' (archivé)' : ''}</option>)}
                 </select>
               </Field>
               <Field label="Localisation" hint={form.city_id ? (canLists && <Link className="list-link" to="/parametres?section=localisation">Gérer les localisations</Link>) : 'Choisissez d’abord la ville.'}>
@@ -125,6 +176,15 @@ export default function ProjectEdit() {
                 </select>
               </Field>
               <Field label="Précision d’accès" className="full" hint="Facultatif, affiché après la localisation : « Axe Abidjan–Alépé, 20 min de Cocody »."><input className="input" value={form.location_detail} onChange={set('location_detail')} maxLength={255} /></Field>
+              <Field label="Position GPS du projet" className="full"
+                hint={gps === false ? <span style={{ color: 'var(--danger)' }}>Illisible : « latitude, longitude » (ex. 5.3601, -4.0083) ou lien Google Maps.</span>
+                  : gps ? <>Sur le site : icône carte et bouton « Itinéraire ». <a className="list-link" href={`https://www.google.com/maps/search/?api=1&query=${gps.lat},${gps.lng}`} target="_blank" rel="noreferrer">Vérifier sur Google Maps</a></>
+                  : 'Dans Google Maps, clic droit sur l’entrée du site → cliquez sur les coordonnées pour les copier, puis collez-les ici (ou collez le lien du lieu).'}>
+                <div className="row" style={{ gap: 8, flexWrap: 'nowrap' }}>
+                  <input className="input tabular" value={form.gps} onChange={set('gps')} placeholder="5.3601, -4.0083" aria-label="Latitude, longitude" />
+                  <button type="button" className="btn" onClick={locate} title="Utiliser la position de cet appareil (sur place)"><MapPin />Ma position</button>
+                </div>
+              </Field>
               <Field label="Accroche" className="full" hint="Phrase courte affichée sous le nom."><input className="input" value={form.tagline} onChange={set('tagline')} /></Field>
               <Field label="Description" className="full"><textarea className="textarea" value={form.description} onChange={set('description')} /></Field>
               <Field label="Délai de livraison"><input className="input" value={form.delivery} onChange={set('delivery')} placeholder="30 mois" /></Field>
@@ -177,18 +237,32 @@ export default function ProjectEdit() {
           })}
         </div>
 
-        <Card title="Grille de prix" bodyClass="" actions={editable && <button type="button" className="btn btn-sm" onClick={() => setOffers(o => [...o, { label: '', surface: '', price_fcfa: '', diaspora_price_fcfa: '' }])}><Plus />Ajouter une ligne</button>}>
+        <Card title="Grille de prix" bodyClass="" actions={editable && <button type="button" className="btn btn-sm" onClick={() => setOffers(o => [...o, { label: propertyLabel || '', designation: '', surface: '', price_fcfa: '', diaspora_price_fcfa: '' }])}><Plus />Ajouter une ligne</button>}>
           {!offers.length ? <Empty>Aucun type de bien.</Empty> : (
             <div className="table-wrap">
               <table className="table">
-                <thead><tr><th>Type de bien</th><th>Surface</th><th className="right">Prix (FCFA)</th><th className="right">Prix Diaspora (FCFA)</th><th /></tr></thead>
+                <thead><tr><th>Type de bien</th><th>Désignation</th><th>Surface</th><th className="right">Prix (FCFA)</th><th className="right">Prix Diaspora (FCFA)</th><th /></tr></thead>
                 <tbody>
                   {offers.map((o, i) => (
                     <tr key={o.id || `new-${i}`}>
-                      <td style={{ minWidth: 220 }}><input className="input" list="types-de-biens" value={o.label} onChange={e => setOffer(i, 'label', e.target.value)} aria-label="Type de bien" /></td>
+                      <td style={{ minWidth: 220 }}>
+                        {/* Types de biens de Paramètres (filtrés par type de projet) ; un libellé ancien hors liste reste proposé */}
+                        <select className="select" value={o.label} onChange={e => setOffer(i, 'label', e.target.value)} aria-label="Type de bien">
+                          <option value="">— Choisir —</option>
+                          {o.label && !propertyTypes.some(t => t.label === o.label) && <option value={o.label}>{o.label} (hors liste)</option>}
+                          {propertyTypes.map(t => <option key={t.id} value={t.label}>{t.label}</option>)}
+                        </select>
+                      </td>
+                      <td style={{ minWidth: 160 }}><input className="input" value={o.designation || ''} onChange={e => setOffer(i, 'designation', e.target.value)} placeholder="2 pièces, comptant…" aria-label="Désignation" maxLength={120} /></td>
                       <td style={{ minWidth: 140 }}><input className="input" value={o.surface || ''} onChange={e => setOffer(i, 'surface', e.target.value)} aria-label="Surface" /></td>
-                      <td style={{ minWidth: 150 }}><input className="input right tabular" inputMode="numeric" value={o.price_fcfa ?? ''} onChange={e => setOffer(i, 'price_fcfa', e.target.value)} aria-label="Prix" title={fcfa(o.price_fcfa)} /></td>
-                      <td style={{ minWidth: 150 }}><input className="input right tabular" inputMode="numeric" value={o.diaspora_price_fcfa ?? ''} onChange={e => setOffer(i, 'diaspora_price_fcfa', e.target.value)} aria-label="Prix Diaspora" /></td>
+                      <td style={{ minWidth: 150 }}>
+                        <input className="input right tabular" inputMode="numeric" value={o.price_fcfa ?? ''} onChange={e => setOffer(i, 'price_fcfa', e.target.value)} aria-label="Prix" title={fcfa(o.price_fcfa)} />
+                        {eur(o.price_fcfa) && <div className="small muted right tabular" style={{ marginTop: 4 }}>{eur(o.price_fcfa)}</div>}
+                      </td>
+                      <td style={{ minWidth: 150 }}>
+                        <input className="input right tabular" inputMode="numeric" value={o.diaspora_price_fcfa ?? ''} onChange={e => setOffer(i, 'diaspora_price_fcfa', e.target.value)} aria-label="Prix Diaspora" />
+                        {intOrNull(o.diaspora_price_fcfa) > 0 && <div className="small muted right tabular" style={{ marginTop: 4 }}>{fcfa(Math.round(intOrNull(o.diaspora_price_fcfa) / 36))} / mois × 36</div>}
+                      </td>
                       <td className="nowrap">
                         <button type="button" className="btn btn-sm btn-ghost btn-icon" disabled={i === 0} onClick={() => moveOffer(i, -1)} aria-label="Monter"><ArrowUp /></button>
                         <button type="button" className="btn btn-sm btn-ghost btn-icon" disabled={i === offers.length - 1} onClick={() => moveOffer(i, 1)} aria-label="Descendre"><ArrowDown /></button>
@@ -198,7 +272,10 @@ export default function ProjectEdit() {
                   ))}
                 </tbody>
               </table>
-              <datalist id="types-de-biens">{offered('type_bien').map(t => <option key={t.id} value={t.label} />)}</datalist>
+              <p className="small muted" style={{ padding: '8px 16px' }}>
+                Cette grille alimente le tableau des prix du site : équivalent en euros calculé automatiquement, ligne « Option Diaspora » avec sa mensualité sur 36 mois.
+                {canLists && <> Types proposés : ceux du type de projet choisi. <Link className="list-link" to="/parametres?section=type_bien">Gérer les types de biens</Link></>}
+              </p>
             </div>
           )}
         </Card>

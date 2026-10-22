@@ -18,7 +18,7 @@ const NAV = [
   ] },
   { group: 'Catalogue', items: [
     { to: '/projets', label: 'Projets', icon: Building2, perm: 'projects:read' },
-    { to: '/lots', label: 'Lots & disponibilités', icon: Map, perm: 'lots:read' },
+    { to: '/lots', label: 'Biens & disponibilités', icon: Map, perm: 'lots:read' },
   ] },
   { group: 'Site web', items: [
     { to: '/contenu', label: 'Contenu du site', icon: PanelsTopLeft, perm: 'content:write' },
@@ -39,7 +39,7 @@ const erpUrl = () => `${window.location.protocol}//${window.location.host.replac
 const ERP_PERMS = ['commercial:read', 'vefa:write', 'sav:read'];
 
 const TITLES = {
-  '/': 'Tableau de bord', '/prospects': 'Prospects', '/clients': 'Clients', '/rendez-vous': 'Rendez-vous', '/lots': 'Lots & disponibilités',
+  '/': 'Tableau de bord', '/prospects': 'Prospects', '/clients': 'Clients', '/rendez-vous': 'Rendez-vous', '/lots': 'Biens & disponibilités',
   '/projets': 'Projets', '/contenu': 'Contenu du site', '/medias': 'Médiathèque', '/messages': 'Messages', '/messagerie-clients': 'Messagerie clients',
   '/newsletter': 'Newsletter', '/temoignages': 'Témoignages', '/plans': 'Plan de masse', '/utilisateurs': 'Utilisateurs', '/roles': 'Rôles & privilèges', '/parametres': 'Paramètres', '/compte': 'Mon compte',
 };

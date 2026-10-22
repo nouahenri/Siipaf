@@ -51,7 +51,7 @@ export default function Dashboard() {
   const s = stats.data;
   const projects = useResource(can('projects:read') ? '/admin/projects' : null);
   const upcoming = useResource(can('appointments:read') ? `/admin/appointments?from=${new Date().toISOString().slice(0, 10)}&status=demande,confirme` : null);
-  const leads = useResource(can('leads:read') ? '/admin/leads?limit=6' : null);
+  const leads = useResource(can('leads:read') ? '/admin/leads?type=prospects&limit=6' : null);
   const timeline = useResource('/admin/stats/timeline?months=12');
   const tl = timeline.data;
 

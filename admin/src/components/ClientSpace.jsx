@@ -22,16 +22,21 @@ export function ScheduleTab({ sale, onChange }) {
   const s = sale.schedule || { lines: [] };
   const editable = can('schedule:write') && sale.status !== 'desiste';
   const [open, setOpen] = useState(false);
-  const [f, setF] = useState({ start_date: '', months: '', deposit_pct: '' });
+  const [f, setF] = useState({ start_date: '', months: '', deposit_pct: '', deposit_fcfa: '' });
   const [error, setError] = useState(null);
   const set = k => e => setF(x => ({ ...x, [k]: e.target.value }));
+  // Apport en montant (ex. 2 600 000 déjà versés) : prime sur le pourcentage
+  const depositAmount = f.deposit_fcfa === '' ? null : Math.round(Number(String(f.deposit_fcfa).replace(/[\s  ]/g, '')));
+  const price = Number(sale.price_fcfa) || 0;
+  const monthsPreview = f.months !== '' ? Number(f.months) : null;
 
   const generate = async () => {
     setError(null);
     const body = {};
     if (f.start_date) body.start_date = f.start_date;
     if (f.months !== '') body.months = Number(f.months);
-    if (f.deposit_pct !== '') body.deposit_pct = Number(f.deposit_pct);
+    if (depositAmount != null && Number.isFinite(depositAmount)) body.deposit_fcfa = depositAmount;
+    else if (f.deposit_pct !== '') body.deposit_pct = Number(f.deposit_pct);
     try {
       onChange(await api.post(`/admin/sales/${sale.id}/schedule/generate`, body));
       setOpen(false);
@@ -55,8 +60,21 @@ export function ScheduleTab({ sale, onChange }) {
             <div className="form-grid">
               <Field label="Date de départ"><input className="input" type="date" value={f.start_date} onChange={set('start_date')} /></Field>
               <Field label="Nombre de mensualités"><input className="input tabular" inputMode="numeric" value={f.months} onChange={set('months')} placeholder="36" /></Field>
-              <Field label="Apport (%)"><input className="input tabular" inputMode="numeric" value={f.deposit_pct} onChange={set('deposit_pct')} placeholder="30" /></Field>
+              <Field label="Apport (%)"><input className="input tabular" inputMode="numeric" value={f.deposit_pct} onChange={set('deposit_pct')} placeholder="30" disabled={depositAmount != null} /></Field>
+              <Field label="Ou apport en montant (FCFA)" hint={sale.paid_fcfa > 0
+                ? <button type="button" className="list-link" style={{ background: 'none', border: 0, padding: 0, cursor: 'pointer' }} onClick={() => setF(x => ({ ...x, deposit_fcfa: String(sale.paid_fcfa) }))}>Reprendre le déjà versé : {fcfa(sale.paid_fcfa)}</button>
+                : 'Prime sur le pourcentage.'}>
+                <input className="input tabular" inputMode="numeric" value={f.deposit_fcfa} onChange={set('deposit_fcfa')} placeholder="Ex. 2 600 000" />
+              </Field>
             </div>
+            {depositAmount != null && price > 0 && (
+              depositAmount > price
+                ? <p className="small" style={{ color: 'var(--danger)', marginTop: 8 }}>L’apport dépasse le prix du bien ({fcfa(price)}).</p>
+                : <p className="small muted" style={{ marginTop: 8 }}>
+                    Apport {fcfa(depositAmount)} ({String(Math.round((depositAmount / price) * 1000) / 10).replace('.', ',')} % de {fcfa(price)}) · reste {fcfa(price - depositAmount)}
+                    {monthsPreview ? ` en ${monthsPreview} mensualités d’environ ${fcfa(Math.round((price - depositAmount) / monthsPreview))}` : ' réparti selon le financement du dossier'}.
+                  </p>
+            )}
             <div className="row" style={{ justifyContent: 'flex-end', marginTop: 12 }}>
               <button className="btn btn-primary btn-sm" onClick={generate}><RefreshCw />Recalculer</button>
             </div>

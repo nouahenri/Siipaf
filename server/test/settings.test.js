@@ -103,6 +103,63 @@ test('une case change de liste (équipement → commodité) et les textes suiven
   assert.ok(pub.commodites.includes('3 écoles'));
 });
 
+test('type de projet et type de biens : listes de Paramètres, catégorie déduite, valeur utilisée protégée', async () => {
+  const p = await db('projects').where({ slug: 'bingerville' }).first();
+  const standing = await find('type_projet', 'Haut standing');
+  assert.equal(p.project_type_id, standing.id, 'projets existants rattachés d’après leur catégorie');
+
+  const lotissement = await find('type_projet', 'Lotissement');
+  const villa = await find('type_bien', 'Villa basse');
+  let res = await admin.patch(`/api/admin/projects/${p.id}`).send({ project_type_id: lotissement.id, property_type_id: villa.id });
+  assert.equal(res.status, 200, JSON.stringify(res.body));
+  assert.equal(res.body.category, 'lotissement', 'le site range le projet dans Lotissements');
+  assert.equal(res.body.project_type, 'Lotissement');
+  assert.equal(res.body.property_type, 'Villa basse');
+  assert.equal((await admin.get('/api/admin/projects')).body.find(x => x.id === p.id).property_type, 'Villa basse');
+
+  assert.equal((await admin.patch(`/api/admin/projects/${p.id}`).send({ property_type_id: lotissement.id })).status, 400, 'mauvaise liste');
+  assert.equal((await admin.delete(`/api/admin/refs/${villa.id}`)).status, 409, 'utilisé par un projet');
+
+  // Nouveau type créé dans Paramètres, puis renommé : la catégorie suit le nom
+  const bureaux = (await admin.post('/api/admin/refs').send({ kind: 'type_projet', label: 'Bureaux' })).body;
+  res = await admin.patch(`/api/admin/projects/${p.id}`).send({ project_type_id: bureaux.id });
+  assert.equal(res.body.category, null);
+  await admin.patch(`/api/admin/refs/${bureaux.id}`).send({ label: 'Lotissement commercial' });
+  assert.equal((await db('projects').where({ id: p.id }).first()).category, 'lotissement');
+  await admin.patch(`/api/admin/projects/${p.id}`).send({ project_type_id: standing.id });
+});
+
+test('types de biens rattachés aux types de projet ; position GPS publiée pour le site', async () => {
+  const lotissement = await find('type_projet', 'Lotissement');
+  const social = await find('type_projet', 'Logement social');
+  const terrain = await find('type_bien', 'Terrain nu');
+  assert.deepEqual(terrain.project_types, [lotissement.id], 'terrain → lotissement par défaut');
+  assert.ok((await find('type_bien', 'Appartement')).project_types.includes(social.id));
+
+  let res = await admin.patch(`/api/admin/refs/${terrain.id}`).send({ project_types: [lotissement.id, social.id] });
+  assert.equal(res.status, 200, JSON.stringify(res.body));
+  assert.deepEqual((await find('type_bien', 'Terrain nu')).project_types, [lotissement.id, social.id]);
+  assert.equal((await admin.patch(`/api/admin/refs/${terrain.id}`).send({ project_types: [terrain.id] })).status, 400, 'pas un type de projet');
+  const ville = await find('ville', 'Abidjan');
+  assert.equal((await admin.patch(`/api/admin/refs/${ville.id}`).send({ project_types: [social.id] })).status, 400, 'liste sans rattachement');
+
+  const p = await db('projects').where({ slug: 'cly' }).first();
+  assert.equal((await admin.patch(`/api/admin/projects/${p.id}`).send({ latitude: 95, longitude: 0 })).status, 400);
+  res = await admin.patch(`/api/admin/projects/${p.id}`).send({ latitude: 5.3912345, longitude: -3.9876543 });
+  assert.equal(res.status, 200, JSON.stringify(res.body));
+  const pub = (await request(app).get('/api/public/projects/cly')).body;
+  assert.deepEqual(pub.geo, { lat: 5.3912345, lng: -3.9876543 });
+  assert.ok((await request(app).get('/api/public/projects')).body.find(x => x.slug === 'cly').geo);
+
+  // Grille de prix du dashboard publiée avec la liste (tableau des prix du site), désignation comprise
+  res = await admin.put(`/api/admin/projects/${p.id}/offers`).send([{ label: 'Appartement', designation: '3 pièces', surface: '114', price_fcfa: 80000000, diaspora_price_fcfa: 90000000 }]);
+  assert.equal(res.status, 200, JSON.stringify(res.body));
+  const listed = (await request(app).get('/api/public/projects')).body.find(x => x.slug === 'cly');
+  assert.deepEqual(listed.offers, [{ label: 'Appartement', designation: '3 pièces', surface: '114', price_fcfa: 80000000, diaspora_price_fcfa: 90000000 }]);
+  assert.equal(listed.project_type, 'Haut standing');
+  assert.equal((await request(app).get('/api/public/projects/riviera')).body.geo, null, 'non renseignée');
+});
+
 test('réglages généraux : durée de pré-réservation par défaut', async () => {
   assert.equal((await admin.put('/api/admin/settings').send({ option_days_default: 0 })).status, 400);
   const res = await admin.put('/api/admin/settings').send({ option_days_default: 10 });

@@ -113,11 +113,16 @@ module.exports = function salesRoutes(db) {
     const opts = parse(z.object({
       start_date: day.optional(),
       deposit_pct: z.number().min(0).max(100).optional(),
+      // Apport en montant (prime sur le pourcentage) : ex. 2 600 000 FCFA déjà versés
+      deposit_fcfa: z.number().int().min(0).optional(),
       months: z.number().int().min(0).max(120).optional(),
     }), req.body || {});
     const sale = await db('sales').where({ id }).first();
     if (!sale) throw new HttpError(404, 'Dossier introuvable.');
     if (!sale.financing && !sale.vefa) throw new HttpError(400, 'Indiquez d’abord le mode de financement du dossier.');
+    if (opts.deposit_fcfa != null && opts.deposit_fcfa > Number(sale.price_fcfa)) {
+      throw new HttpError(400, 'L’apport dépasse le prix du bien.');
+    }
     await db.transaction(trx => regenerateSchedule(trx, sale, opts));
     res.json(await saleDetail(sale));
   }));

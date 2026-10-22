@@ -32,12 +32,20 @@ module.exports = function crmRoutes(db) {
     return q;
   };
 
+  // Prospect OU client, jamais les deux : un client a un code client (page Clients), un prospect n'en a pas
+  const onlyType = (q, type) => {
+    if (type === 'prospects') q.whereNull('ld.client_code');
+    else if (type === 'clients') q.whereNotNull('ld.client_code');
+    return q;
+  };
+
   r.get('/leads', requirePermission('leads:read'), ah(async (req, res) => {
     const { limit, offset } = page(req);
     const q = scopeLeads(db('leads as ld'), req.user)
       .leftJoin('projects as p', 'p.id', 'ld.project_id')
       .leftJoin('lots as l', 'l.id', 'ld.lot_id')
       .leftJoin('users as u', 'u.id', 'ld.assigned_to');
+    onlyType(q, req.query.type);
     if (req.query.stage) q.whereIn('ld.stage', String(req.query.stage).split(','));
     if (req.query.project_id) q.where('ld.project_id', Number(req.query.project_id));
     if (req.query.assigned_to === 'aucun') q.whereNull('ld.assigned_to');
@@ -136,7 +144,7 @@ module.exports = function crmRoutes(db) {
   }));
 
   r.get('/leads.csv', requirePermission('leads:read'), ah(async (req, res) => {
-    const rows = await scopeLeads(db('leads as ld'), req.user)
+    const rows = await onlyType(scopeLeads(db('leads as ld'), req.user), req.query.type)
       .leftJoin('projects as p', 'p.id', 'ld.project_id')
       .select('ld.id', 'ld.name', 'ld.email', 'ld.phone', 'ld.country', 'ld.stage', 'ld.source', 'ld.financing', 'p.name as projet', 'ld.created_at')
       .orderBy('ld.id');

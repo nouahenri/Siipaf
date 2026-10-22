@@ -7,7 +7,7 @@ import PipelineBoard from '../components/PipelineBoard';
 import { api, qs } from '../lib/api';
 import { useAuth, useResource, useToast } from '../lib/app-context';
 import { Card, Drawer, Field, Badge, Empty, ErrorBox, Skeleton, Pagination } from '../components/ui';
-import { LEAD_STAGES, FINANCING, SOURCES, APPT_KINDS, APPT_STATUS, stageLabel } from '../lib/domain';
+import { LEAD_STAGES, PROSPECT_STAGES, CLIENT_STAGES, FINANCING, SOURCES, APPT_KINDS, APPT_STATUS, stageLabel } from '../lib/domain';
 import { date, dateTime, relative, toLocalInput } from '../lib/format';
 
 
@@ -31,7 +31,8 @@ export default function Leads() {
   const setSeller = v => setParams(p => { const n = new URLSearchParams(p); if (v) n.set('commercial', v); else n.delete('commercial'); return n; });
 
   const limit = view === 'pipeline' ? 200 : pageSize;
-  const url = `/admin/leads${qs({ q, stage: view === 'liste' ? stage : '', project_id: projectId, assigned_to: seller, limit, offset: view === 'liste' ? (page - 1) * pageSize : 0 })}`;
+  // Prospects seulement : une personne qui a un code client est dans Clients
+  const url = `/admin/leads${qs({ type: 'prospects', q, stage: view === 'liste' ? stage : '', project_id: projectId, assigned_to: seller, limit, offset: view === 'liste' ? (page - 1) * pageSize : 0 })}`;
   const leads = useResource(url);
   useEffect(() => setPage(1), [q, stage, projectId, seller]);
 
@@ -52,7 +53,7 @@ export default function Leads() {
           {view === 'liste' && (
             <select className="select" style={{ width: 'auto' }} value={stage} onChange={e => setStage(e.target.value)} aria-label="Étape">
               <option value="">Toutes les étapes</option>
-              {LEAD_STAGES.map(s => <option key={s.id} value={s.id}>{s.label}</option>)}
+              {PROSPECT_STAGES.map(s => <option key={s.id} value={s.id}>{s.label}</option>)}
             </select>
           )}
           <select className="select" style={{ width: 'auto' }} value={seller} onChange={e => setSeller(e.target.value)} aria-label="Commercial">
@@ -66,7 +67,7 @@ export default function Leads() {
             <button className={view === 'liste' ? 'active' : ''} onClick={() => setView('liste')}><List />Liste</button>
             <button className={view === 'pipeline' ? 'active' : ''} onClick={() => setView('pipeline')}><Columns3 />Pipeline</button>
           </div>
-          <a className="btn" href="/api/admin/leads.csv"><Download />Exporter</a>
+          <a className="btn" href="/api/admin/leads.csv?type=prospects"><Download />Exporter</a>
           {can('leads:write') && <button className="btn" onClick={() => setImporting(true)}><Upload />Importer</button>}
           {can('leads:write') && <button className="btn btn-primary" onClick={() => setCreating(true)}><Plus />Nouveau prospect</button>}
         </div>
@@ -162,8 +163,12 @@ function Pipeline({ leads, onOpen, canWrite }) {
     if (!lead || lead.stage === stage) return;
     leads.setData(d => ({ ...d, rows: d.rows.map(r => (r.id === id ? { ...r, stage } : r)) }));
     try {
-      await api.patch(`/admin/leads/${id}`, { stage });
-      toast(`${lead.name} → ${stageLabel(stage)}`);
+      const saved = await api.patch(`/admin/leads/${id}`, { stage });
+      // Arrivé au paiement : la personne devient client et quitte la liste des prospects
+      if (saved.client_code) {
+        toast(`${lead.name} devient client (${saved.client_code}) : retrouvez-le dans Clients`);
+        leads.reload();
+      } else toast(`${lead.name} → ${stageLabel(stage)}`);
     } catch (e) {
       toast(e.message, 'err');
       leads.reload();
@@ -172,7 +177,8 @@ function Pipeline({ leads, onOpen, canWrite }) {
 
   return (
     <PipelineBoard>
-      {LEAD_STAGES.map(st => {
+      {/* Étapes du prospect, puis « Paiement » : y déposer une fiche en fait un client (elle passe dans Clients) */}
+      {[...PROSPECT_STAGES.filter(s => s.id !== 'perdu'), { id: 'paiement', label: 'Paiement → client' }, PROSPECT_STAGES.find(s => s.id === 'perdu')].map(st => {
         const items = rows.filter(r => r.stage === st.id);
         return (
           <div
@@ -242,10 +248,14 @@ function LeadDrawer({ id, onClose, onSaved, projects }) {
       assigned_to: form.assigned_to ? Number(form.assigned_to) : null,
     };
     try {
-      if (id) await api.patch(`/admin/leads/${id}`, body);
-      else await api.post('/admin/leads', body);
-      toast(id ? 'Prospect mis à jour' : 'Prospect créé');
+      const saved = id ? await api.patch(`/admin/leads/${id}`, body) : await api.post('/admin/leads', body);
       onSaved();
+      // Étape paiement ou au-delà : la personne est devenue client et quitte les prospects
+      if (saved.client_code && !d?.client_code) {
+        toast(`${saved.name} devient client (${saved.client_code}) : retrouvez-le dans Clients`);
+        return onClose();
+      }
+      toast(id ? 'Prospect mis à jour' : 'Prospect créé');
       if (id) detail.reload();
     } catch (e) { setError(e); } finally { setBusy(false); }
   };
@@ -302,7 +312,7 @@ function LeadDrawer({ id, onClose, onSaved, projects }) {
                   {Object.entries(FINANCING).map(([k, v]) => <option key={k} value={k}>{v}</option>)}
                 </select>
               </Field>
-              <Field label="Étape du circuit">
+              <Field label="Étape du circuit" hint={!d?.client_code && CLIENT_STAGES.includes(form.stage) ? 'À l’enregistrement, cette personne devient client (code client attribué) et passe dans Clients.' : undefined}>
                 <select className="select" value={form.stage} onChange={set('stage')}>{LEAD_STAGES.map(s => <option key={s.id} value={s.id}>{s.label}</option>)}</select>
               </Field>
               <Field label="Projet">

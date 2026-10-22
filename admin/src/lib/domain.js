@@ -9,6 +9,47 @@ export const LOT_STATUSES = [
 ];
 export const lotStatus = id => LOT_STATUSES.find(s => s.id === id) || { id, label: id, color: 'var(--ink-3)' };
 
+/**
+ * Désignation d'un bien selon le type de biens du projet (liste de Paramètres, saisie libre) :
+ * on reconnaît le mot-clé dans le libellé (« Villa basse haut standing » → villa).
+ * Renvoie le nom (« villa ») et le libellé du bouton de création (« Nouvelle villa »).
+ */
+const BIEN_WORDS = [
+  [/appartement|penthouse|studio|loft|\bf\d\b|\bt\d\b/, 'appartement', 'Nouvel appartement'],
+  [/villa|duplex|triplex/, 'villa', 'Nouvelle villa'],
+  [/maison/, 'maison', 'Nouvelle maison'],
+  [/immeuble|r\+\d/, 'immeuble', 'Nouvel immeuble'],
+  [/bureau/, 'bureau', 'Nouveau bureau'],
+  [/magasin|boutique|commerce|local/, 'local', 'Nouveau local'],
+  [/terrain|parcelle|lot\b/, 'lot', 'Nouveau lot'],
+];
+export function bienKind(propertyType) {
+  const t = String(propertyType || '').toLocaleLowerCase('fr');
+  const hit = t && BIEN_WORDS.find(([re]) => re.test(t));
+  if (hit) return { noun: hit[1], create: hit[2] };
+  return propertyType ? { noun: 'bien', create: 'Nouveau bien' } : { noun: 'lot', create: 'Nouveau lot' };
+}
+
+/**
+ * Grille de prix : le prix dépend de la surface exacte du bien (même règle que le serveur,
+ * server/src/lib/domain.js › gridOfferFor). Surface de la grille : « 400 », « 400 m² » ; pour une villa
+ * « T.125 m² | H.85 m² », la surface du terrain (premier nombre).
+ */
+export function offerSurface(text) {
+  const m = String(text || '').replace(/(\d)\s(?=\d{3}\b)/g, '$1').replace(',', '.').match(/\d+(?:\.\d+)?/);
+  return m ? Number(m[0]) : null;
+}
+export function gridOfferFor(offers, surface, offerId = null) {
+  const s = Number(String(surface ?? '').replace(',', '.'));
+  if (!surface || !Number.isFinite(s)) return null;
+  const current = offerId && offers.find(o => String(o.id) === String(offerId));
+  const sameKind = o => !current || o.label.trim().toLocaleLowerCase('fr') === current.label.trim().toLocaleLowerCase('fr');
+  return offers.find(o => {
+    const m2 = offerSurface(o.surface);
+    return o.price_fcfa != null && m2 != null && sameKind(o) && Math.abs(s - m2) < 0.5;
+  }) || null;
+}
+
 // Transitions autorisées (le serveur reste l'arbitre final)
 export const LOT_TRANSITIONS = {
   disponible: ['option', 'reserve', 'bloque'],
@@ -32,6 +73,9 @@ export const LEAD_STAGES = [
   { id: 'perdu', label: 'Perdu' },
 ];
 export const stageLabel = id => LEAD_STAGES.find(s => s.id === id)?.label || id;
+// À partir du paiement, la personne est un client (code client attribué d'office par le serveur)
+export const CLIENT_STAGES = ['paiement', 'contrat', 'notaire', 'livraison', 'sav'];
+export const PROSPECT_STAGES = LEAD_STAGES.filter(s => !CLIENT_STAGES.includes(s.id));
 
 export const PROJECT_CATEGORIES = {
   social: 'Logement social',
