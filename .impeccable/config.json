@@ -1,0 +1,23 @@
+{
+  "detector": {
+    "ignoreRules": [],
+    "ignoreFiles": [],
+    "ignoreValues": [
+      {
+        "rule": "overused-font",
+        "value": "arial",
+        "createdAt": "2026-10-22T13:14:07.465Z",
+        "reason": "assistant decision: page de désinscription newsletter rendue par le serveur, pile Arial/Helvetica identique aux e-mails de campagne (polices sûres en messagerie) ; ligne non modifiée le 22/10"
+      },
+      {
+        "rule": "side-tab",
+        "value": "*",
+        "files": [
+          "ERP-SIIPAF/src/erp.css"
+        ],
+        "createdAt": "2026-10-22T20:02:14.802Z",
+        "reason": "assistant decision: seul liseré restant du fichier = traits de liaison gris de l'organigramme RH (.org li::before/::after), pas un accent de carte ; les vrais liserés (lots, fil SAV) ont été retirés le 22/10"
+      }
+    ]
+  }
+}
