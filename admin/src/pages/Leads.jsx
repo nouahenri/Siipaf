@@ -36,6 +36,14 @@ export default function Leads() {
   const leads = useResource(url);
   useEffect(() => setPage(1), [q, stage, projectId, seller]);
 
+  // Lien de la cloche : /prospects?fiche=ID ouvre la fiche
+  const fiche = Number(params.get('fiche')) || null;
+  useEffect(() => {
+    if (!fiche) return;
+    setSelected(fiche);
+    setParams(p => { const n = new URLSearchParams(p); n.delete('fiche'); return n; }, { replace: true });
+  }, [fiche, setParams]);
+
   const setView = v => setParams(p => { const n = new URLSearchParams(p); if (v === 'pipeline') n.set('vue', 'pipeline'); else n.delete('vue'); return n; });
 
   return (
@@ -135,7 +143,7 @@ function LeadTable({ leads, page, setPage, pageSize, setPageSize, onOpen, seller
               {rows.map(l => (
                 <tr key={l.id} className="clickable" onClick={() => onOpen(l.id)} tabIndex={0} onKeyDown={e => e.key === 'Enter' && onOpen(l.id)}>
                   {selectable && <td onClick={e => e.stopPropagation()}>{pickable(l) && <input type="checkbox" aria-label={`Sélectionner ${l.name}`} checked={picked.has(l.id)} onChange={() => toggle(l.id)} />}</td>}
-                  <td><strong>{l.name}</strong>{l.is_diaspora ? <> <Badge tone="warn">Diaspora</Badge></> : null}<div className="small muted">{[l.phone, l.email].filter(Boolean).join(' · ')}</div></td>
+                  <td><strong>{l.name}</strong>{l.alert_at && !l.seen_at ? <> <Badge tone="brand">Nouveau</Badge></> : null}{l.is_diaspora ? <> <Badge tone="warn">Diaspora</Badge></> : null}<div className="small muted">{[l.phone, l.email].filter(Boolean).join(' · ')}</div></td>
                   <td>{l.project_name || '—'}{l.lot_code && <div className="small muted">Lot {l.lot_code}</div>}</td>
                   <td><Badge tone={l.stage === 'perdu' ? 'danger' : ''}>{stageLabel(l.stage)}</Badge></td>
                   <td className="small">{SOURCES[l.source] || l.source}</td>
@@ -209,13 +217,16 @@ function Pipeline({ leads, onOpen, canWrite }) {
   );
 }
 
-const EMPTY = { name: '', email: '', phone: '', country: '', is_diaspora: false, stage: 'prospection', financing: '', project_id: '', assigned_to: '', message: '' };
+const EMPTY = { name: '', email: '', phone: '', country: '', is_diaspora: false, stage: 'prospection', financing: '', project_id: '', property_type: '', assigned_to: '', message: '' };
 
 function LeadDrawer({ id, onClose, onSaved, projects }) {
   const { can, user } = useAuth();
   const toast = useToast();
   const detail = useResource(id ? `/admin/leads/${id}` : null);
   const sellers = useResource('/admin/users/commerciaux');
+  // Fiche ouverte : le serveur la marque vue → compteur du menu et cloche à jour
+  const wasNew = detail.data && detail.data.alert_at && !detail.data.seen_at;
+  useEffect(() => { if (wasNew) { window.dispatchEvent(new Event('siipaf:notifications')); onSaved?.(); } }, [wasNew]); // eslint-disable-line react-hooks/exhaustive-deps
   // Nouveau prospect : attribué d'office à celui qui établit le contact (modifiable)
   const [form, setForm] = useState(id ? null : { ...EMPTY, assigned_to: String(user.id) });
   const [error, setError] = useState(null);
@@ -243,7 +254,7 @@ function LeadDrawer({ id, onClose, onSaved, projects }) {
     const body = {
       ...form,
       email: form.email || null, phone: form.phone || null, country: form.country || null,
-      financing: form.financing || null, message: form.message || null,
+      financing: form.financing || null, message: form.message || null, property_type: form.property_type || null,
       project_id: form.project_id ? Number(form.project_id) : null,
       assigned_to: form.assigned_to ? Number(form.assigned_to) : null,
     };
@@ -320,6 +331,9 @@ function LeadDrawer({ id, onClose, onSaved, projects }) {
                   <option value="">Non précisé</option>
                   {projects.map(p => <option key={p.id} value={p.id}>{p.name}</option>)}
                 </select>
+              </Field>
+              <Field label="Type de bien" hint={d?.source === 'site' && d?.property_type ? 'Consulté sur le site' : undefined}>
+                <input className="input" value={form.property_type} onChange={set('property_type')} placeholder="Appartement social 3 pièces" />
               </Field>
               <Field label="Commercial assigné">
                 <select className="select" value={form.assigned_to} onChange={set('assigned_to')}>

@@ -29,7 +29,7 @@
       <li><a href="index.html" class="nav-link">Accueil</a></li>
       <li><a href="a-propos.html" class="nav-link">À Propos</a></li>
       <li class="nav-has-sub">
-        <a href="projets.html" class="nav-link" aria-haspopup="true">Projets <i class="fas fa-chevron-down nav-caret" aria-hidden="true"></i></a>
+        <button type="button" class="nav-link nav-sub-toggle" aria-haspopup="true">Projets <i class="fas fa-chevron-down nav-caret" aria-hidden="true"></i></button>
         <ul class="nav-sub">
           <li><a href="projets.html"><i class="fas fa-building"></i><span>Promotions immobilières<small>Appartements, villas, duplex</small></span></a></li>
           <li><a href="lotissements.html"><i class="fas fa-map-marked-alt"></i><span>Lotissements<small>Terrains et plans interactifs</small></span></a></li>
@@ -114,8 +114,8 @@
             <input type="email" name="email" placeholder="votre@email.com"/>
           </div>
           <div class="form-group">
-            <label>Projet d'intérêt *</label>
-            <select name="project" required>
+            <label for="cf-project">Projet d'intérêt *</label>
+            <select name="project" id="cf-project" required>
               <option value="">Sélectionnez un projet</option>
               <option value="YAMOUSSOUKRO">SIIPAF CITY YAMOUSSOUKRO</option>
               <option value="AHOUTOUE">SIIPAF CITY AHOUTOUE</option>
@@ -124,6 +124,11 @@
               <option value="CLY">C & LY COCODY ANGRÉ</option>
               <option value="Autre">Autre / Renseignement général</option>
             </select>
+          </div>
+          <div class="form-group">
+            <label for="cf-property">Type de bien</label>
+            <input type="text" name="property_type" id="cf-property" list="cf-property-list" maxlength="160" placeholder="Ex. Appartement Social 2 pièces" autocomplete="off"/>
+            <datalist id="cf-property-list"></datalist>
           </div>
           <div class="form-group">
             <label>Budget approximatif</label>
@@ -140,9 +145,11 @@
             <label>Votre message *</label>
             <textarea name="message" rows="5" placeholder="Décrivez votre projet ou posez vos questions..." required></textarea>
           </div>
+          <div class="cf-trap" aria-hidden="true"><label>Ne pas remplir <input type="text" name="website" tabindex="-1" autocomplete="off"/></label></div>
           <button type="submit" class="btn btn-primary btn-full" style="padding: 16px;">
             <span>Envoyer ma demande</span><i class="fas fa-paper-plane"></i>
           </button>
+          <p class="cf-status" role="status" aria-live="polite" hidden></p>
           <p class="form-note"><i class="fas fa-lock"></i> Vos informations sont confidentielles et ne seront jamais partagées.</p>
         </form>
       </div>
@@ -223,22 +230,6 @@
 <script src="https://cdnjs.cloudflare.com/ajax/libs/aos/2.3.4/aos.js" defer></script>
 <script src="js/site-content.js" defer></script>
 <script src="js/main.js" defer></script>
-<script>
-  document.addEventListener('DOMContentLoaded', () => {
-    const urlParams = new URLSearchParams(window.location.search);
-    const projet = urlParams.get('projet');
-    if (projet) {
-      const select = document.querySelector('select[name="project"]');
-      if (select) {
-        for (const option of select.options) {
-          if (option.value === projet) {
-              option.selected = true;
-              break;
-          }
-        }
-      }
-    }
-  });
-</script>
+<script src="js/contact.js" defer></script>
 </body>
 </html>

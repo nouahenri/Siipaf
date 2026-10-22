@@ -621,3 +621,26 @@ fieldset { min-width: 0; }
 .link-btn { background: none; border: 0; padding: 0; font-weight: 600; text-align: left; cursor: pointer; color: inherit; }
 .link-btn:hover { color: var(--brand); }
 .advance-wide .progress { max-width: none; height: 8px; }
+
+/* ─── Cloche : nouveaux prospects ───────────────────────── */
+.notif { position: relative; }
+.notif-btn { position: relative; }
+.notif-btn svg { width: 20px; height: 20px; }
+.notif-count { position: absolute; top: 2px; right: 0; min-width: 18px; height: 18px; padding: 0 5px; border-radius: 99px; background: var(--brand); color: #fff; font-size: 11px; font-weight: 700; line-height: 18px; text-align: center; box-shadow: 0 0 0 2px var(--bg); }
+.notif-btn.ringing svg { transform-origin: 50% 2px; animation: notif-ring 2.4s ease-in-out infinite; }
+@keyframes notif-ring { 0%, 70%, 100% { transform: rotate(0); } 74% { transform: rotate(14deg); } 80% { transform: rotate(-12deg); } 86% { transform: rotate(8deg); } 92% { transform: rotate(-4deg); } }
+.notif-panel { position: absolute; right: 0; top: calc(100% + 8px); width: min(360px, calc(100vw - 24px)); background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius); box-shadow: var(--shadow-lg); z-index: 40; overflow: hidden; }
+.notif-head { display: flex; align-items: center; justify-content: space-between; gap: 8px; padding: 10px 10px 10px 16px; border-bottom: 1px solid var(--border); }
+.notif-head .btn { gap: 6px; font-size: 12px; color: var(--ink-3); }
+.notif-list { list-style: none; margin: 0; padding: 4px; max-height: 380px; overflow-y: auto; }
+.notif-list button { display: flex; gap: 10px; width: 100%; padding: 10px 12px; border: 0; border-radius: var(--radius-sm); background: none; color: inherit; text-align: left; cursor: pointer; }
+.notif-list button:hover, .notif-list button:focus-visible { background: var(--bg); }
+.notif-dot { flex: none; width: 8px; height: 8px; margin-top: 6px; border-radius: 50%; background: transparent; }
+.notif-list .unread .notif-dot { background: var(--brand); }
+.notif-list .unread b { color: var(--brand); }
+.notif-body { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
+.notif-body > * { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.notif-empty { padding: 24px 16px; text-align: center; }
+.notif-foot { display: block; width: 100%; padding: 11px; border: 0; border-top: 1px solid var(--border); background: var(--surface-2); color: var(--brand); font-weight: 600; cursor: pointer; }
+.notif-foot:hover { background: var(--bg); }
+@media (prefers-reduced-motion: reduce) { .notif-btn.ringing svg { animation: none; } }

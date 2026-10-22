@@ -41,7 +41,7 @@ export default function Messages() {
               {messages.data.rows.map(m => (
                 <tr key={m.id} className="clickable" onClick={() => setOpen(m)} tabIndex={0} onKeyDown={e => e.key === 'Enter' && setOpen(m)}>
                   <td style={{ width: '30%' }}><strong>{m.name}</strong><div className="small muted">{[m.phone, m.email].filter(Boolean).join(' · ')}</div></td>
-                  <td><div className="small"><strong>{m.subject || m.project_name || 'Message'}</strong></div><div className="small muted" style={{ display: '-webkit-box', WebkitLineClamp: 1, WebkitBoxOrient: 'vertical', overflow: 'hidden' }}>{m.message}</div></td>
+                  <td><div className="small"><strong>{m.subject || [m.project_name, m.property_type].filter(Boolean).join(' · ') || 'Message'}</strong></div><div className="small muted" style={{ display: '-webkit-box', WebkitLineClamp: 1, WebkitBoxOrient: 'vertical', overflow: 'hidden' }}>{m.message}</div></td>
                   <td className="small muted nowrap">{relative(m.created_at)}</td>
                   <td className="right"><Badge tone={STATUS[m.status].tone}>{STATUS[m.status].label}</Badge></td>
                 </tr>
@@ -66,6 +66,7 @@ export default function Messages() {
           <dl className="dl small">
             <dt>Reçu le</dt><dd>{dateTime(open.created_at)}</dd>
             {open.project_name && <><dt>Projet</dt><dd>{open.project_name}</dd></>}
+            {open.property_type && <><dt>Type de bien</dt><dd>{open.property_type}</dd></>}
             {open.subject && <><dt>Objet</dt><dd>{open.subject}</dd></>}
           </dl>
           <p style={{ whiteSpace: 'pre-wrap' }}>{open.message}</p>

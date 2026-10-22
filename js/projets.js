@@ -42,6 +42,33 @@
     return prices.length ? Math.min.apply(null, prices) : null;
   }
 
+  // Chiffres clés de la fiche (Superficie, Livraison, Apport…) : repris en miniature sur la carte
+  function statsOf(b) {
+    return Array.prototype.map.call(b.querySelectorAll('.proj-info-grid .pinfo-card'), function (c) {
+      var i = c.querySelector('i');
+      return { icon: i ? i.className : 'fas fa-info', value: text(c.querySelector('span')), label: text(c.querySelector('small')) };
+    }).filter(function (x) { return x.value; });
+  }
+  // Promotion : délais et conditions d'achat ; lotissement : surface et lots. 3 chiffres au plus.
+  var STAT_ORDER = {
+    promotion: [/livraison/i, /apport/i, /échelonnement|mensualit/i, /surface|superficie/i, /types? de bien/i, /biens|logements/i],
+    lotissement: [/superficie/i, /lots|parcelles/i, /disponible/i, /livraison|viabilisation/i, /apport/i],
+  };
+  function pickStats(p) {
+    var order = STAT_ORDER[p.kind === 'lotissement' ? 'lotissement' : 'promotion'];
+    var rank = function (x) { for (var k = 0; k < order.length; k++) if (order[k].test(x.label)) return k; return order.length; };
+    return p.stats.slice().sort(function (a, b) { return rank(a) - rank(b); }).slice(0, 3);
+  }
+  function miniStats(p) {
+    return pickStats(p).map(function (x) {
+      return '<li><i class="' + esc(x.icon) + '" aria-hidden="true"></i><b>' + esc(x.value) + '</b><small>' + esc(x.label) + '</small></li>';
+    }).join('');
+  }
+  function renderStats(p) {
+    var el = grid.querySelector('.prog-card[data-slug="' + p.slug + '"] .prog-card-stats');
+    if (el) { el.innerHTML = miniStats(p); el.hidden = !el.children.length; }
+  }
+
   // Programmes lus dans les fiches (ordre de la page)
   function fromBlock(b) {
     var marker = b.querySelector('.proj-hero-content .fa-map-marker-alt');
@@ -53,6 +80,7 @@
       place: place,
       city: place.split(/\s[—|-]\s|\||,/)[0].trim(),
       desc: text(b.querySelector('.proj-desc')),
+      stats: statsOf(b),
       from: lowestPrice(b),
       image: imageOf(b),
     };
@@ -70,10 +98,50 @@
       '<div class="lot-card-body">' +
         '<h3><a href="#' + esc(p.slug) + '">' + esc(p.name) + '</a></h3>' +
         (p.desc ? '<p class="prog-card-desc">' + esc(p.desc) + '</p>' : '') +
+        '<ul class="prog-card-stats"' + (p.stats.length ? '' : ' hidden') + '>' + miniStats(p) + '</ul>' +
         '<div class="prog-card-price"' + (p.from ? '' : ' hidden') + '>À partir de <strong>' + (p.from ? fcfa(p.from) : '') + '</strong></div>' +
         '<div class="prog-card-stock"></div>' +
-        '<div class="card-actions"><a class="btn btn-primary" href="#' + esc(p.slug) + '"><span>Découvrir le programme</span><i class="fas fa-arrow-right" aria-hidden="true"></i></a></div>' +
+        '<div class="card-actions"><a class="btn btn-primary btn-sm" href="#' + esc(p.slug) + '"><span>Découvrir</span><i class="fas fa-arrow-right" aria-hidden="true"></i></a>' +
+          '<a class="btn btn-ask btn-sm" href="' + esc(contactHref(p.slug)) + '"><span>Réserver</span></a></div>' +
       '</div></article>';
+  }
+
+  // ── Formulaire de contact pré-rempli : projet et type de bien consulté ──
+  var ASK = 'Infos & réservation';
+  function contactHref(slug, bien) {
+    return 'contact.html?projet=' + encodeURIComponent(slug) + (bien ? '&bien=' + encodeURIComponent(bien) : '');
+  }
+  function askLink(slug, bien) {
+    return '<a class="btn-ask-row" href="' + esc(contactHref(slug, bien)) + '" aria-label="' + esc(ASK + ' : ' + bien) + '">' +
+      '<span>' + ASK + '</span><i class="fas fa-arrow-right" aria-hidden="true"></i></a>';
+  }
+  /** Bouton sur chaque ligne de prix et chaque carte d'option, « Réserver ce projet » ; relancé après les prix du dashboard. */
+  function wireContact(p) {
+    var b = p.block;
+    Array.prototype.forEach.call(b.querySelectorAll('.pricing-table'), function (t) {
+      var head = t.querySelector('thead tr');
+      if (head && !head.querySelector('.th-ask')) head.insertAdjacentHTML('beforeend', '<th class="th-ask"><span class="sr-only">Demande</span></th>');
+      var last = '';
+      Array.prototype.forEach.call(t.querySelectorAll('tbody tr'), function (tr) {
+        if (tr.querySelector('.td-ask')) return;
+        var name = text(tr.cells[0]);
+        // « ↳ Option Diaspora 2p » : rattachée au bien de la ligne précédente
+        var bien = tr.classList.contains('diaspora-row') ? (last ? last + ' — formule Diaspora' : name.replace(/^↳\s*/, '')) : (last = name);
+        tr.insertAdjacentHTML('beforeend', '<td class="td-ask">' + askLink(p.slug, bien) + '</td>');
+      });
+    });
+    Array.prototype.forEach.call(b.querySelectorAll('.pricing-card'), function (c) {
+      var btn = c.querySelector('a.btn');
+      if (!btn) return;
+      btn.href = contactHref(p.slug, text(c.querySelector('.pc-header')));
+      btn.textContent = ASK;
+    });
+    var hero = b.querySelector('.price-hero-card');
+    var heroBtn = hero && hero.querySelector('a.btn');
+    if (heroBtn) heroBtn.href = contactHref(p.slug, text(hero.querySelector('.phc-badge')).split(' — ')[0]);
+    Array.prototype.forEach.call(b.querySelectorAll('.proj-footer-btns a'), function (a) {
+      if (/^contact\.html/.test(a.getAttribute('href') || '')) a.href = contactHref(p.slug);
+    });
   }
 
   // ── Prix de la grille du dashboard ──
@@ -137,6 +205,7 @@
       while (wrap.firstChild) body.insertBefore(wrap.firstChild, before || null);
       if (hero) hero.remove();
     }
+    wireContact(p);
     p.from = lowestPrice(b);
     var priceEl = grid.querySelector('.prog-card[data-slug="' + p.slug + '"] .prog-card-price');
     if (priceEl && p.from) { priceEl.hidden = false; priceEl.querySelector('strong').textContent = fcfa(p.from); }
@@ -174,6 +243,7 @@
     var p = fromBlock(b);
     p.image = { url: cover, slot: '' };
     p.city = api.city || p.city;
+    wireContact(p);
     programs.push(p);
     blocks.push(b);
     grid.insertAdjacentHTML('beforeend', card(p));
@@ -183,7 +253,9 @@
   }
 
   // ── Mise en place : grille visible, fiches en vue détail ──
+  programs.forEach(wireContact);
   grid.innerHTML = programs.map(card).join('');
+  var sideCta = document.querySelector('.sidebar-cta a');
   catalog.hidden = false;
   section.classList.add('prog-enhanced');
   function prepare(b) {
@@ -229,12 +301,14 @@
       z.href = '#' + next.slug; z.setAttribute('aria-label', 'Programme suivant : ' + next.name); z.title = next.name;
       bar.querySelector('.prog-count').textContent = (i + 1) + ' / ' + programs.length;
       document.title = p.name + ' — SIIPAF SA';
+      if (sideCta) sideCta.href = contactHref(p.slug);
       lastSlug = p.slug;
       scrollToEl(section);
       var h2 = p.block.querySelector('.proj-hero-content h2');
       if (h2 && !initial) h2.focus({ preventScroll: true });
     } else {
       document.title = baseTitle;
+      if (sideCta) sideCta.href = 'contact.html';
       // Retour à la grille : on retrouve la carte du programme qu'on quittait
       var from = lastSlug && grid.querySelector('.prog-card[data-slug="' + lastSlug + '"]');
       if (from) {
@@ -269,11 +343,34 @@
         if (api.city && cityEl) cityEl.innerHTML = '<i class="fas fa-map-marker-alt" aria-hidden="true"></i> ' + esc(api.city);
 
         applyOffers(p, api.offers);
+        p.kind = api.category === 'lotissement' ? 'lotissement' : 'promotion';
 
         // Stock : biens disponibles sur le total (lots saisis dans le dashboard)
         var lots = api.lots || {};
         var total = Object.keys(lots).reduce(function (n, k) { return n + lots[k]; }, 0);
         var free = (lots.disponible || 0) + (lots.desistement || 0);
+        // Lotissement : lots et lots disponibles en miniature (s'ils manquent à la fiche)
+        if (p.kind === 'lotissement' && total) {
+          if (!p.stats.some(function (x) { return /lots|parcelles/i.test(x.label); })) p.stats.push({ icon: 'fas fa-th-large', value: String(total), label: 'Lots' });
+          p.stats.push({ icon: 'fas fa-check-circle', value: String(free), label: 'Disponibles' });
+        }
+        var has = function (re) { return p.stats.some(function (x) { return re.test(x.label); }); };
+        if (api.delivery && !has(/livraison/i)) p.stats.push({ icon: 'fas fa-clock', value: api.delivery, label: 'Livraison' });
+        // Fiche sans chiffres clés (Riviera, C & LY) : complétée par la grille de prix et le stock du dashboard
+        var offers = (api.offers || []).filter(function (o) { return o.price_fcfa != null || o.diaspora_price_fcfa; });
+        var kinds = offers.map(offerName).filter(function (n, k, all) { return n && all.indexOf(n) === k; });
+        // « T.250m² | H.175m² » : surface habitable (H.), sinon la première surface écrite
+        var areas = offers.map(function (o) {
+          var m = String(o.surface || '').match(/H\.?\s*(\d+)/i) || String(o.surface || '').match(/(\d+(?:[.,]\d+)?)/);
+          return m ? Math.round(Number(m[1].replace(',', '.'))) : null;
+        }).filter(Boolean);
+        if (areas.length && !has(/surface|superficie/i)) {
+          var lo = Math.min.apply(null, areas), hi = Math.max.apply(null, areas);
+          p.stats.push({ icon: 'fas fa-ruler-combined', value: (lo === hi ? lo : lo + '–' + hi) + ' m²', label: 'Surface' });
+        }
+        if (kinds.length && !has(/types?/i)) p.stats.push({ icon: 'fas fa-home', value: String(kinds.length), label: kinds.length > 1 ? 'Types de biens' : 'Type de bien' });
+        if (p.kind !== 'lotissement' && total && !has(/biens$|logements/i)) p.stats.push({ icon: 'fas fa-th-large', value: String(total), label: 'Biens' });
+        renderStats(p);
         if (total && cardEl) {
           cardEl.querySelector('.prog-card-stock').innerHTML = '<div class="lot-stock"><strong>' + free + '</strong> bien' + (free > 1 ? 's' : '') +
             ' disponible' + (free > 1 ? 's' : '') + ' sur ' + total +

@@ -162,6 +162,7 @@ module.exports = function publicRoutes(db) {
     subject: z.string().trim().max(160).optional(),
     message: z.string().trim().min(5, 'Message trop court').max(4000),
     project: z.string().trim().max(80).optional(),
+    property_type: z.string().trim().max(160).optional(),
   }).refine(needsReach, reachMsg);
 
   r.post('/contact', formLimiter, ah(async (req, res) => {
@@ -171,11 +172,11 @@ module.exports = function publicRoutes(db) {
       const lead = await findOrCreateLead(trx, { ...data, project_id: project && project.id, source: 'site' });
       const [msgId] = await trx('contact_messages').insert({
         name: data.name, email: data.email || null, phone: data.phone || null, subject: data.subject || null,
-        message: data.message, project_id: project ? project.id : null, lead_id: lead.id,
+        message: data.message, project_id: project ? project.id : null, lead_id: lead.id, property_type: data.property_type || null,
       });
       return msgId;
     });
-    notifyTeam('Nouveau message de contact', `${data.name} — ${data.phone || ''} ${data.email || ''}\n${data.subject || ''}\n\n${data.message}`);
+    notifyTeam('Nouveau message de contact', `${data.name} — ${data.phone || ''} ${data.email || ''}\n${[project && project.name, data.property_type, data.subject].filter(Boolean).join(' · ')}\n\n${data.message}`);
     res.status(201).json({ ok: true, message_id: id });
   }));
 

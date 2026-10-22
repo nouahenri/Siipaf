@@ -177,3 +177,6 @@
 .lots-grid[hidden] { display: none; }
 .lots-soon { margin-top: 56px; }
 .lots-grid[hidden] + .lots-other, .lots-intro + .lots-grid[hidden] + .lots-other { margin-top: 0; }
+
+/* « Projets » n'est plus un lien : il ouvre seulement le sous-menu */
+.nav-sub-toggle { background: none; border: 0; font-family: inherit; line-height: inherit; cursor: pointer; }

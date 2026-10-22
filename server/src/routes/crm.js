@@ -64,6 +64,8 @@ module.exports = function crmRoutes(db) {
     const id = idParam(req);
     const lead = await scopeLeads(db('leads as ld'), req.user).where('ld.id', id).select('ld.*').first();
     if (!lead) throw new HttpError(404, 'Prospect introuvable.');
+    // Fiche ouverte par l'équipe : le prospect n'est plus « nouveau » (compteur du menu Prospects)
+    if (!lead.seen_at) await db('leads').where({ id }).whereNull('seen_at').update({ seen_at: new Date() });
     const [options, appointments, messages] = await Promise.all([
       db('lot_options as o').join('lots as l', 'l.id', 'o.lot_id').where('o.lead_id', id).select('o.*', 'l.code as lot_code').orderBy('o.id', 'desc'),
       db('appointments').where({ lead_id: id }).orderBy('starts_at', 'desc'),
@@ -84,6 +86,7 @@ module.exports = function crmRoutes(db) {
     lot_id: z.number().int().positive().nullable().optional(),
     assigned_to: z.number().int().positive().nullable().optional(),
     message: z.string().max(4000).nullable().optional(),
+    property_type: z.string().trim().max(160).nullable().optional(),
   });
 
   r.post('/leads', requirePermission('leads:write'), ah(async (req, res) => {
@@ -92,7 +95,7 @@ module.exports = function crmRoutes(db) {
       throw new HttpError(403, 'Un commercial ne peut assigner un prospect qu’à lui-même.');
     }
     const lead = await db.transaction(async trx => {
-      const found = await findOrCreateLead(trx, { ...data, source: 'admin' });
+      const found = await findOrCreateLead(trx, { ...data, source: 'admin', created_by: req.user.id });
       const patch = {};
       if (data.stage) patch.stage = data.stage;
       // Attribué d'office à celui qui a établi le contact ; une personne déjà connue garde son commercial
@@ -260,7 +263,37 @@ module.exports = function crmRoutes(db) {
       newsletter_active: Number(subscribers[0].n),
       pending_testimonials: pendingTestimonials,
       unread_client_messages: unreadClientMessages,
+      new_leads: req.can('leads:read') ? await countNewLeads(req.user) : 0,
     });
+  }));
+
+  // ─── Notifications « nouveau prospect » (cloche du dashboard) ───
+  // Prospects nouveaux pour l'équipe : demande venue du site dont personne n'a encore ouvert la fiche
+  const countNewLeads = async user => Number((await scopeLeads(db('leads as ld'), user).whereNull('ld.seen_at').whereNotNull('ld.alert_at').count({ n: '*' }))[0].n);
+
+  r.get('/notifications', requirePermission('leads:read'), ah(async (req, res) => {
+    const me = await db('users').where({ id: req.user.id }).first('notifications_seen_at');
+    const since = me && me.notifications_seen_at ? new Date(me.notifications_seen_at) : new Date(0);
+    // Un prospect saisi par soi-même ne sonne pas sa propre cloche
+    const q = scopeLeads(db('leads as ld'), req.user).whereNotNull('ld.alert_at')
+      .where(b => b.whereNull('ld.created_by').orWhereNot('ld.created_by', req.user.id));
+    const [[{ n }], rows, newLeads] = await Promise.all([
+      q.clone().where('ld.alert_at', '>', since).count({ n: '*' }),
+      q.clone().leftJoin('projects as p', 'p.id', 'ld.project_id').leftJoin('users as u', 'u.id', 'ld.created_by')
+        .select('ld.id', 'ld.name', 'ld.phone', 'ld.source', 'ld.property_type', 'ld.alert_at', 'ld.seen_at', 'ld.client_code',
+          'p.name as project_name', 'u.name as created_by_name')
+        .orderBy('ld.alert_at', 'desc').limit(15),
+      countNewLeads(req.user),
+    ]);
+    res.json({
+      unread: Number(n), new_leads: newLeads, seen_until: since,
+      items: rows.map(x => ({ ...x, unread: new Date(x.alert_at) > since })),
+    });
+  }));
+
+  r.post('/notifications/seen', requirePermission('leads:read'), ah(async (req, res) => {
+    await db('users').where({ id: req.user.id }).update({ notifications_seen_at: new Date() });
+    res.json({ ok: true });
   }));
 
   /**

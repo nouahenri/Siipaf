@@ -1,5 +1,5 @@
 const { HttpError } = require('../lib/http');
-const { checkLotTransition, SELLABLE_STATUSES } = require('../lib/domain');
+const { checkLotTransition, SELLABLE_STATUSES, leadAlert } = require('../lib/domain');
 const { getSetting } = require('./settings');
 
 const DAY_MS = 24 * 60 * 60 * 1000;
@@ -32,6 +32,8 @@ async function findOrCreateLead(trx, data) {
     if (!existing.project_id && data.project_id) patch.project_id = data.project_id;
     if (!existing.lot_id && data.lot_id) patch.lot_id = data.lot_id;
     if (data.message) patch.message = [existing.message, data.message].filter(Boolean).join('\n---\n');
+    if (!existing.property_type && data.property_type) patch.property_type = data.property_type;
+    Object.assign(patch, leadAlert({ source: data.source, isNew: false }));
     if (Object.keys(patch).length) {
       await trx('leads').where({ id: existing.id }).update({ ...patch, updated_at: new Date() });
     }
@@ -49,6 +51,9 @@ async function findOrCreateLead(trx, data) {
     project_id: data.project_id || null,
     lot_id: data.lot_id || null,
     message: data.message || null,
+    property_type: data.property_type || null,
+    created_by: data.created_by || null,
+    ...leadAlert({ source: data.source || 'site', isNew: true }),
   };
   const [id] = await trx('leads').insert(row);
   return { id: typeof id === 'object' ? id.id : id, ...row, stage: 'prospection', created: true };

@@ -113,6 +113,21 @@ const LEAD_STAGES = ['prospection', 'visite', 'decision', 'choix_bien', 'paiemen
 // À partir du paiement, la personne est un client (code client attribué d'office) : prospect OU client, jamais les deux
 const CLIENT_STAGES = ['paiement', 'contrat', 'notaire', 'livraison', 'sav'];
 
+// Prospects venus d'eux-mêmes (formulaires du site, plan interactif, assistant IA) : signalés à l'équipe
+const PUBLIC_LEAD_SOURCES = ['site', 'plan', 'ia'];
+
+/**
+ * Alerte posée sur un prospect à sa création ou à une nouvelle demande. Une demande publique (même d'une personne
+ * déjà connue) est « nouvelle » jusqu'à ce qu'un membre de l'équipe ouvre la fiche (`seen_at` nul : compteur du
+ * menu Prospects) et sonne la cloche. Un prospect saisi par un collègue sonne la cloche des autres, déjà vu ;
+ * un import n'alerte pas (des centaines de lignes d'un coup).
+ */
+function leadAlert({ source, isNew }, now = new Date()) {
+  if (PUBLIC_LEAD_SOURCES.includes(source)) return { seen_at: null, alert_at: now };
+  if (!isNew) return {};
+  return source === 'import' ? { seen_at: now, alert_at: null } : { seen_at: now, alert_at: now };
+}
+
 // Dossier d'acquisition d'un lot
 const SALE_STATUSES = ['en_cours', 'solde', 'desiste'];
 const PAYMENT_METHODS = ['virement', 'mobile_money', 'especes', 'cheque', 'autre'];
@@ -734,7 +749,7 @@ module.exports = {
   PORTFOLIO_EVENTS, PORTFOLIO_REASONS, portfolioState, replayPortfolio, portfolioDiff, portfolioCounts,
   SELF_SERVICE, SAV_ACTIONS, COMPTA_ACTIONS, PAIE_ACTIONS, RH_ACTIONS,
   LOT_STATUSES, LOT_STATUS_LABELS, SELLABLE_STATUSES, LOT_TRANSITIONS,
-  LEAD_STAGES, CLIENT_STAGES, ROLES, ROLE_LABELS, PERMISSIONS, roleKey, can, checkLotTransition,
+  LEAD_STAGES, CLIENT_STAGES, PUBLIC_LEAD_SOURCES, leadAlert, ROLES, ROLE_LABELS, PERMISSIONS, roleKey, can, checkLotTransition,
   SALE_STATUSES, PAYMENT_METHODS, DOCUMENT_STATUSES, DOCUMENT_TYPES, DEFAULT_DOCUMENTS,
   PERMISSION_CATALOG, PERMISSION_IDS,
   FINANCING_PLANS, FINANCINGS, SCHEDULE_KINDS, INSTALLMENT_STATUS_LABELS, SITE_STAGES, SITE_STAGE_LABELS,

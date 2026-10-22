@@ -7,11 +7,12 @@ import {
 import { useAuth, useResource } from '../lib/app-context';
 import { ROLE_LABELS } from '../lib/domain';
 import { initials } from '../lib/format';
+import NotificationBell, { useNotifications } from './NotificationBell';
 
 const NAV = [
   { group: null, items: [{ to: '/', label: 'Tableau de bord', icon: LayoutDashboard, end: true }] },
   { group: 'Ventes', items: [
-    { to: '/prospects', label: 'Prospects', icon: Users, perm: 'leads:read' },
+    { to: '/prospects', label: 'Prospects', icon: Users, perm: 'leads:read', badge: 'new_leads' },
     { to: '/clients', label: 'Clients', icon: UserCheck, perm: 'sales:read' },
     { to: '/rendez-vous', label: 'Rendez-vous', icon: CalendarDays, perm: 'appointments:read' },
     { to: '/messagerie-clients', label: 'Messagerie clients', icon: MessagesSquare, perm: 'client_messages', badge: 'unread_client_messages' },
@@ -49,12 +50,14 @@ export default function Layout() {
   const { pathname } = useLocation();
   const [open, setOpen] = useState(false);
   const stats = useResource('/admin/stats', [pathname]);
+  const notif = useNotifications(can('leads:read'));
   const contentRef = useRef(null);
   useRevealOnScroll(contentRef, [pathname]);
 
   useEffect(() => setOpen(false), [pathname]);
   const title = TITLES[pathname] || TITLES['/' + pathname.split('/')[1]] || 'Administration';
-  useEffect(() => { document.title = `${title} — SIIPAF Admin`; }, [title]);
+  const unread = notif.data?.unread || 0;
+  useEffect(() => { document.title = `${unread ? `(${unread}) ` : ''}${title} — SIIPAF Admin`; }, [title, unread]);
 
   return (
     <div className="shell">
@@ -68,7 +71,8 @@ export default function Layout() {
             <div className="nav-group" key={g.group || 'main'}>
               {g.group && <div className="nav-group-title">{g.group}</div>}
               {items.map(i => {
-                const count = i.badge && stats.data ? stats.data[i.badge] : 0;
+                // Prospects : compteur rafraîchi avec la cloche (toutes les 30 s), les autres au changement de page
+                const count = i.badge === 'new_leads' && notif.data ? notif.data.new_leads : i.badge && stats.data ? stats.data[i.badge] : 0;
                 return (
                   <NavLink key={i.to} to={i.to} end={i.end} className={({ isActive }) => `nav-item ${isActive ? 'active' : ''}`}>
                     <i.icon aria-hidden="true" />{i.label}
@@ -93,6 +97,7 @@ export default function Layout() {
           <button className="btn btn-ghost btn-icon menu-btn" onClick={() => setOpen(true)} aria-label="Ouvrir le menu"><Menu /></button>
           <h1>{title}</h1>
           <div className="spacer" />
+          {can('leads:read') && <NotificationBell notif={notif} />}
           <div className="user-chip">
             <div className="right">
               <strong>{user.name}</strong>

@@ -24,22 +24,35 @@
       ? '<div class="lot-stock"><strong>' + free + '</strong> lot' + (free > 1 ? 's' : '') + ' disponible' + (free > 1 ? 's' : '') + ' sur ' + total +
         '<div class="lot-stock-bar" aria-hidden="true"><span style="width:' + Math.round((free / total) * 100) + '%"></span></div></div>'
       : '';
+    // Chiffres clés d'un lotissement, en miniature : lots, disponibles, livraison ou prix d'entrée
+    var prices = (p.offers || []).map(function (o) { return o.price_fcfa; }).filter(Boolean);
+    var stats = [
+      total && ['fas fa-th-large', String(total), 'Lots'],
+      total && ['fas fa-check-circle', String(free), 'Disponibles'],
+      p.delivery ? ['fas fa-clock', p.delivery, 'Livraison']
+        : prices.length && ['fas fa-tag', Math.round(Math.min.apply(null, prices) / 1e6 * 10) / 10 + ' M', 'FCFA dès'],
+    ].filter(Boolean);
+    var mini = stats.length ? '<ul class="prog-card-stats">' + stats.map(function (x) {
+      return '<li><i class="' + x[0] + '" aria-hidden="true"></i><b>' + esc(x[1]) + '</b><small>' + x[2] + '</small></li>';
+    }).join('') + '</ul>' : '';
     var action = p.has_plan
-      ? '<a class="btn btn-primary" href="plan-interactif.html?projet=' + encodeURIComponent(p.slug) + '"><span>Voir le plan interactif</span><i class="fas fa-map-marked-alt"></i></a>'
-      : '<a class="btn-plan-soon" href="contact.html?projet=' + encodeURIComponent(p.name) + '"><i class="fas fa-clock"></i> Plan bientôt en ligne — être informé</a>';
-    return '<article class="lot-card">' +
+      ? '<a class="btn btn-primary btn-sm" href="plan-interactif.html?projet=' + encodeURIComponent(p.slug) + '"><span>Plan interactif</span><i class="fas fa-map-marked-alt"></i></a>'
+      : '<a class="btn-plan-soon" href="contact.html?projet=' + encodeURIComponent(p.slug) + '"><i class="fas fa-clock"></i> Plan bientôt en ligne — être informé</a>';
+    return '<article class="lot-card prog-card">' +
       '<div class="lot-card-img" style="background-image:url(\'' + esc(cover(p)) + '\')">' +
         '<span class="lot-card-tag">' + esc(tag) + '</span>' +
         (p.city ? '<span class="lot-card-city"><i class="fas fa-map-marker-alt"></i> ' + esc(p.city) + '</span>' : '') +
       '</div>' +
       '<div class="lot-card-body">' +
         '<h3>' + esc(p.name) + '</h3>' +
-        (p.tagline ? '<p>' + esc(p.tagline) + '</p>' : (p.location ? '<p>' + esc(p.location) + '</p>' : '')) +
+        (p.tagline ? '<p class="prog-card-desc">' + esc(p.tagline) + '</p>' : (p.location ? '<p class="prog-card-desc">' + esc(p.location) + '</p>' : '')) +
+        mini +
         stock +
         // Projet localisé (GPS) : « Localiser le site » ajouté après l'affichage (js/project-map.js)
         '<div class="card-actions" data-locate="' + esc(p.slug) + '">' + action +
           // Détail du programme (prix, prestations) sur la page Projets
-          '<a class="btn btn-ghost-dark" href="projets.html#' + encodeURIComponent(p.slug) + '"><span>Découvrir le programme</span><i class="fas fa-arrow-right" aria-hidden="true"></i></a>' +
+          '<a class="btn btn-ghost-dark btn-sm" href="projets.html#' + encodeURIComponent(p.slug) + '"><span>Découvrir</span><i class="fas fa-arrow-right" aria-hidden="true"></i></a>' +
+          '<a class="btn btn-ask btn-sm" href="contact.html?projet=' + encodeURIComponent(p.slug) + '"><span>Réserver</span></a>' +
         '</div>' +
       '</div></article>';
   }

@@ -237,28 +237,7 @@ document.addEventListener('DOMContentLoaded', function () {
     });
   }, 2400);
 
-  /* ── CONTACT FORM ─────────────────────────────────────── */
-  const form = document.getElementById('contactForm');
-  if (form) {
-    form.addEventListener('submit', function (e) {
-      e.preventDefault();
-      const btn = form.querySelector('button[type="submit"]');
-      const originalHTML = btn.innerHTML;
-      btn.innerHTML = '<span>Envoi en cours...</span><i class="fas fa-spinner fa-spin"></i>';
-      btn.disabled = true;
-
-      setTimeout(() => {
-        btn.innerHTML = '<span>Message envoyé !</span><i class="fas fa-check"></i>';
-        btn.style.background = 'linear-gradient(135deg,#25D366,#128C7E)';
-        form.reset();
-        setTimeout(() => {
-          btn.innerHTML = originalHTML;
-          btn.disabled = false;
-          btn.style.background = '';
-        }, 3000);
-      }, 1800);
-    });
-  }
+  /* Formulaire de contact : js/contact.js (envoi réel à l'API) */
 
   /* ── ACTIVE NAV ON SCROLL ─────────────────────────────── */
   const sections = document.querySelectorAll('section[id], div[id]');

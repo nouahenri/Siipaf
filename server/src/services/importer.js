@@ -74,7 +74,7 @@ async function importLead(trx, row, ctx) {
   if (fin === 'invalide') throw new HttpError(400, `Financement inconnu : ${row.financing}`);
   const lead = await findOrCreateLead(trx, {
     name, email, phone: phoneCell(row.phone) || null, country: text(row.country) || null,
-    is_diaspora: yes(row.diaspora) || fin === 'diaspora', source: ctx.source || 'import', financing: fin,
+    is_diaspora: yes(row.diaspora) || fin === 'diaspora', source: ctx.source || 'import', financing: fin, created_by: ctx.user?.id || null,
     project_id: project?.id || null, message: text(row.notes) || null,
   });
   const stage = fold(row.stage);

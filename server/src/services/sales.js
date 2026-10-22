@@ -57,7 +57,7 @@ async function openSale(db, { lotId, leadId, leadData, price_fcfa, financing, no
       lead = await trx('leads').where({ id: leadId }).first();
       if (!lead) throw new HttpError(404, 'Prospect introuvable.');
     } else {
-      lead = await findOrCreateLead(trx, { ...leadData, project_id: lot.project_id, lot_id: lot.id, source: 'admin' });
+      lead = await findOrCreateLead(trx, { ...leadData, project_id: lot.project_id, lot_id: lot.id, source: 'admin', created_by: user.id });
     }
 
     // Le lot passe « réservé »

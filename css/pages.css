@@ -1188,3 +1188,10 @@ body.temo-modal-open { overflow: hidden; }
 .fin-plans.has-reveal .fin-plan { opacity: 0; translate: 0 28px; transition: opacity 0.7s ease calc(var(--i, 0) * 0.12s), translate 0.9s cubic-bezier(0.16, 1, 0.3, 1) calc(var(--i, 0) * 0.12s), transform 0.5s cubic-bezier(0.16, 1, 0.3, 1), box-shadow 0.5s cubic-bezier(0.16, 1, 0.3, 1); }
 .fin-plans.has-reveal .fin-plan.is-in { opacity: 1; translate: 0 0; }
 @media (prefers-reduced-motion: reduce) { .fin-plans.has-reveal .fin-plan { opacity: 1; translate: none; transition: none; } }
+
+/* ─── Formulaire de contact : envoi réel ─────────────────── */
+.cf-trap { position: absolute; left: -9999px; width: 1px; height: 1px; overflow: hidden; }
+.cf-status { margin: 0; padding: 12px 14px; border-radius: var(--radius-sm); font-size: .88rem; line-height: 1.5; }
+.cf-status.ok { background: rgba(37, 211, 102, .1); color: #0f7a3d; }
+.cf-status.err { background: rgba(227, 6, 19, .07); color: var(--red); }
+.btn.is-sent { background: linear-gradient(135deg, #25D366, #128C7E); }
