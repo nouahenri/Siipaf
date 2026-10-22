@@ -68,6 +68,7 @@ function createApp(db) {
   admin.use('/erp/commercial', require('./routes/erp/commercial')(db));
   admin.use('/erp/direction', require('./routes/erp/direction')(db));
   admin.use('/erp/courrier', require('./routes/erp/courrier')(db));
+  admin.use('/erp/contrats', require('./routes/erp/contracts')(db));
   admin.use('/erp/compta', require('./routes/erp/compta')(db));
   admin.use('/erp/paie', require('./routes/erp/paie')(db));
   admin.use('/erp/rh', require('./routes/erp/rh')(db));
@@ -145,6 +146,9 @@ function createApp(db) {
     // Relances du courrier (veille de l'échéance, jour du dépassement) : une fois par étape, vérifiées chaque heure
     const courrier = require('./services/courrier');
     setInterval(() => courrier.tick(db).catch(e => console.error('[courrier]', e.message)), 60 * 60 * 1000).unref();
+    // Contrats : renouvellements, factures des paiements à venir, alertes 30 puis 7 jours avant (chaque heure, sans doublon)
+    const contracts = require('./services/contracts');
+    setInterval(() => contracts.tick(db).catch(e => console.error('[contrats]', e.message)), 60 * 60 * 1000).unref();
   }
 
   return app;

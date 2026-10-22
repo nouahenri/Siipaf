@@ -301,6 +301,7 @@ const SAV_ACTIONS = ['sav:create', 'sav:handle', 'sav:assign', 'sav:reserves', '
 const COMPTA_ACTIONS = ['compta:entries', 'compta:validate', 'achats:write', 'achats:pay', 'frais:post', 'compta:close', 'compta:settings', 'compta:export'];
 const PAIE_ACTIONS = ['paie:employees', 'paie:prepare', 'paie:validate', 'paie:pay', 'paie:settings'];
 const COURRIER_ACTIONS = ['courrier:read', 'courrier:write', 'courrier:assign'];
+const CONTRACT_ACTIONS = ['contrats:read', 'contrats:write'];
 const RH_ACTIONS = ['rh:files', 'conges:approve', 'conges:manage', 'rh:overtime', 'frais:approve', 'recrutement:write', 'formation:write', 'evaluation:write', 'rh:settings'];
 
 /** Droits par défaut des rôles d'origine. Le super administrateur a tous les droits. */
@@ -317,12 +318,12 @@ const PERMISSIONS = {
   ],
   conducteur_travaux: [
     'projects:read', 'lots:read', 'sales:read', 'documents:write', 'site_updates:write', 'client_messages',
-    'sav:read', 'sav:create', 'sav:handle', 'sav:reserves', 'sav:interventions', 'vefa:write', 'presence:write', ...SELF_SERVICE,
+    'sav:read', 'sav:create', 'sav:handle', 'sav:reserves', 'sav:interventions', 'vefa:write', 'presence:write', ...CONTRACT_ACTIONS, ...SELF_SERVICE,
   ],
   comptable: [
     'projects:read', 'lots:read', 'leads:read', 'appointments:read', 'sales:read', 'payments:write',
     'schedule:write', 'client_messages', 'commercial:read', 'leads:all', 'compta:read', ...COMPTA_ACTIONS,
-    'rh:read', ...RH_ACTIONS, 'presence:write', 'paie:read', ...PAIE_ACTIONS, ...SELF_SERVICE,
+    'rh:read', ...RH_ACTIONS, 'presence:write', 'paie:read', ...PAIE_ACTIONS, 'contrats:read', ...SELF_SERVICE,
   ],
   resp_exploitation: [
     'projects:read', 'projects:write', 'plans:write', 'lots:read', 'lots:status', 'leads:read', 'leads:delete',
@@ -330,7 +331,7 @@ const PERMISSIONS = {
     'sales:read', 'sales:write', 'documents:write', 'testimonials:write',
     'client_access:write', 'client_messages', 'site_updates:write', 'schedule:write', 'settings:write',
     'leads:all', 'sav:read', ...SAV_ACTIONS, 'commercial:read', 'targets:write', 'vefa:write', 'property:write', 'compta:read',
-    'rh:read', ...RH_ACTIONS, 'presence:write', 'direction:read', ...COURRIER_ACTIONS, ...SELF_SERVICE,
+    'rh:read', ...RH_ACTIONS, 'presence:write', 'direction:read', ...COURRIER_ACTIONS, ...CONTRACT_ACTIONS, ...SELF_SERVICE,
   ],
 };
 
@@ -411,6 +412,8 @@ const PERMISSION_CATALOG = [
     ['courrier:read', 'Consulter le registre du courrier', 'Arrivée et départ ; d’un courrier confidentiel, seul le n° d’ordre est visible'],
     ['courrier:write', 'Enregistrer le courrier (secrétariat)', 'Arrivée et départ, scan joint, correction d’un enregistrement'],
     ['courrier:assign', 'Affecter le courrier (direction)', 'Destinataire, suite à donner et délai ; voit les courriers confidentiels ; relances'],
+    ['contrats:read', 'Consulter les contrats et échéances', 'Contrats, pièces, échéances et factures préparées'],
+    ['contrats:write', 'Gérer les contrats (services généraux, juridique)', 'Saisir, modifier, résilier ; pièces à renouveler ; reçoit toutes les alertes'],
   ] },
   { group: 'ERP · Client & SAV', items: [
     ['sav:read', 'Voir le SAV', 'Réclamations, réserves à la livraison, interventions, indicateurs'],
@@ -814,9 +817,80 @@ function addDays(day, n) {
   d.setUTCDate(d.getUTCDate() + n);
   return d.toISOString().slice(0, 10);
 }
+const daysBetween = (from, to) => Math.round((Date.parse(`${to}T00:00:00Z`) - Date.parse(`${from}T00:00:00Z`)) / 86400000);
+
+/* ─── ERP · Administration générale › Contrats et échéances ────────────────── */
+
+// Tous les contrats de l'entreprise (choix du client du 22/10) ; « autre » + libellé libre pour le reste
+const CONTRACT_KINDS = {
+  fournisseur: 'Fournisseur / prestataire', sous_traitance: 'Sous-traitance de chantier', bail: 'Bail / location',
+  assurance: 'Assurance', abonnement: 'Abonnement (internet, téléphonie, énergie, logiciels…)', autre: 'Autre',
+};
+// Périodicité des paiements (en mois) : chacun prépare une facture d'achat en brouillon en Comptabilité
+const CONTRACT_FREQUENCIES = { mensuel: { label: 'Mensuel', months: 1 }, trimestriel: { label: 'Trimestriel', months: 3 }, semestriel: { label: 'Semestriel', months: 6 }, annuel: { label: 'Annuel', months: 12 } };
+const CONTRACT_STATUSES = { actif: 'En cours', termine: 'Terminé', resilie: 'Résilié' };
+const CONTRACT_DOC_KINDS = {
+  attestation_assurance: 'Attestation d’assurance', caution: 'Caution bancaire', attestation_fiscale: 'Attestation de régularité fiscale',
+  attestation_cnps: 'Attestation CNPS', autre: 'Autre pièce',
+};
+// Alertes 30 puis 7 jours avant (cadrage du 21/10) ; la facture d'un paiement est préparée 7 jours avant
+const CONTRACT_ALERT_STAGES = [30, 7];
+const CONTRACT_INVOICE_LEAD_DAYS = 7;
+
+/**
+ * Échéances suivies d'un contrat en cours : fin (ou renouvellement tacite), date limite du préavis, révision de prix,
+ * prochain paiement, et pièces à renouveler. `docs` : [{ id, label, expires_on }].
+ */
+function contractDeadlines(c, docs = []) {
+  if (c.status !== 'actif') return [];
+  const out = [];
+  if (c.end_date) {
+    out.push({ key: 'fin', kind: 'fin', date: c.end_date, label: c.tacit_renewal ? 'Renouvellement tacite' : 'Fin du contrat' });
+    if (c.notice_days) out.push({ key: 'preavis', kind: 'preavis', date: addDays(c.end_date, -c.notice_days), label: `Date limite du préavis (${c.notice_days} j)` });
+  }
+  if (c.revision_date) out.push({ key: 'revision', kind: 'revision', date: c.revision_date, label: 'Révision de prix' });
+  if (c.next_payment_date && c.frequency) out.push({ key: 'paiement', kind: 'paiement', date: c.next_payment_date, label: `Paiement ${CONTRACT_FREQUENCIES[c.frequency]?.label.toLowerCase() || ''}`.trim() });
+  for (const d of docs) if (d.expires_on) out.push({ key: `piece:${d.id}`, kind: 'piece', date: d.expires_on, label: `${d.label} à renouveler`, doc_id: d.id });
+  return out.sort((a, b) => a.date.localeCompare(b.date));
+}
+
+/** Palier d'alerte atteint pour une échéance (30 puis 7 jours avant ; 7 aussi une fois l'échéance passée). */
+function contractAlertStage(date, today) {
+  const left = daysBetween(today, date);
+  if (left <= 7) return 7;
+  if (left <= 30) return 30;
+  return null;
+}
+
+/** Fin d'un contrat à tacite reconduction une fois la date passée : prolongée de `renewal_months` (12 par défaut). */
+function renewedEnd(c, today) {
+  if (!c.tacit_renewal || !c.end_date || c.end_date >= today) return null;
+  let end = c.end_date;
+  while (end < today) end = addMonths(end, c.renewal_months || 12);
+  return end;
+}
+
+/**
+ * Paiements à préparer à `today` : chaque échéance dès 7 jours avant, sans dépasser la fin du contrat (une facture
+ * par échéance). Renvoie les dates et la prochaine échéance restante.
+ */
+function contractPaymentsDue(c, today) {
+  const step = CONTRACT_FREQUENCIES[c.frequency]?.months;
+  if (c.status !== 'actif' || !step || !c.next_payment_date || !c.amount_ttc) return { dates: [], next: c.next_payment_date || null };
+  const dates = [];
+  let next = c.next_payment_date;
+  const limit = addDays(today, CONTRACT_INVOICE_LEAD_DAYS);
+  while (next <= limit && (!c.end_date || next <= c.end_date || c.tacit_renewal) && dates.length < 24) {
+    dates.push(next);
+    next = addMonths(next, step);
+  }
+  return { dates, next: c.end_date && !c.tacit_renewal && next > c.end_date ? null : next };
+}
 
 module.exports = {
   MAIL_DIRECTIONS, MAIL_SUITES, MAIL_NATURES, MAIL_CHANNELS, MAIL_STATUSES, mailNumber, mailVisibility, mailReminder,
+  CONTRACT_KINDS, CONTRACT_FREQUENCIES, CONTRACT_STATUSES, CONTRACT_DOC_KINDS, CONTRACT_ALERT_STAGES, CONTRACT_INVOICE_LEAD_DAYS, CONTRACT_ACTIONS,
+  contractDeadlines, contractAlertStage, renewedEnd, contractPaymentsDue, daysBetween,
   PORTFOLIO_EVENTS, PORTFOLIO_REASONS, portfolioState, replayPortfolio, portfolioDiff, portfolioCounts,
   SELF_SERVICE, SAV_ACTIONS, COURRIER_ACTIONS, COMPTA_ACTIONS, PAIE_ACTIONS, RH_ACTIONS,
   LOT_STATUSES, LOT_STATUS_LABELS, SELLABLE_STATUSES, LOT_TRANSITIONS,
