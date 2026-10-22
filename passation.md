@@ -1,10 +1,41 @@
 # Passation — Plateforme SIIPAF
 
 > Document de reprise pour continuer le travail dans une nouvelle discussion.
-> Dernière mise à jour : 21 octobre 2026 — **release `1a2ffe9` en production** (newsletter, portefeuille commercial, import PDF des plans).
-> **En cours : module ERP Administration générale** (cadrage validé, §5 quinquies). **Partie 1 « Vue Direction » faite, non committée** (voir « Administration générale › Vue Direction ») ; prochaine partie : **2. Courrier**.
+> Dernière mise à jour : 22 octobre 2026 — **release `b392de2` en production** (serveur + site). **Release site `5a14e93` déposée sur le cPanel mais PAS encore lancée** (voir « Journée du 22/10 › Livraison en attente »).
+> Branche `plateforme-admin-espace-client` **poussée sur GitHub** jusqu'à `5a14e93` (un push déclenche Vercel).
+> **À faire en premier** : lancer la mise à jour du site `5a14e93` ; puis reprendre le module ERP Administration générale, partie **2. Courrier** (§5 quinquies).
 
-### Administration générale › Vue Direction (fait le 21/10 — non committé, non mis en ligne)
+## Journée du 22/10 — releases `b392de2` (en ligne) et `5a14e93` (site, en attente)
+
+### Ce qui est fait (commits `454299a`, `b392de2`, `5a14e93`, poussés)
+- **Biens & disponibilités** (ex « Lots & disponibilités ») ; bouton de création selon le type de biens du projet : `bienKind()` dans `admin/src/lib/domain.js` (villa/duplex → « Nouvelle villa », appartement/penthouse → « Nouvel appartement », maison, terrain/aucun → « Nouveau lot », autre → « Nouveau bien »).
+- **Fenêtre de statut d'un lot** (`LotStatusModal` dans `admin/src/components/LotForms.jsx`, partagée avec l'éditeur de plan) : les 6 statuts dans l'ordre et les couleurs de la légende, grisés avec la raison quand la transition n'est pas permise ; affichée au-dessus de la fiche du lot. Statut modifiable aussi depuis l'éditeur de plan.
+- **Paramètres** : nouvelle liste **Types de projet** (`type_projet`, informative ; la catégorie technique `category` en est déduite par `categoryForProjectType()` dans `server/src/lib/domain.js` : « lotissement/terrain » → lotissement, « social » → social…) ; **Types de biens** rattachés aux types de projet (`ref_items.project_types`, cases à cocher ; défaut par mots-clés `defaultScope()` dans `services/refs.js`). Fiche projet : « Type de projet » et « Type de biens » (filtré, présélection si un seul choix).
+- **Grille de prix** (fiche projet) : type de bien en liste déroulante, **désignation** libre (« 2 pièces »), équivalent en euros (parité 655,957) et mensualité Diaspora (÷ 36) affichés ; **prix des lots tiré de la grille par surface EXACTE** (choix du client : pas de fourchette ; « T.125 m² | H.85 m² » = terrain 125 m²) — `services/priceGrid.js`, `lots.price_from_grid` ; jamais un prix saisi à la main, ni un lot en option / réservé / vendu / avec dossier ; un prix de grille sans ligne correspondante est retiré.
+- **Position GPS du projet** (fiche projet : coordonnées ou lien Google Maps, bouton « Ma position ») → `geo` dans l'API publique.
+- **Échéancier** : apport en montant FCFA (`deposit_fcfa`, prime sur le %), lien « Reprendre le déjà versé ».
+- **Prospect OU client** : à l'étape Paiement et au-delà (`CLIENT_STAGES`), code client attribué d'office dans `portfolio.syncLead` (tous les chemins) ; page Prospects filtrée `type=prospects` (étapes jusqu'à Choix du bien + Perdu ; colonne « Paiement → client » dans le pipeline) ; un client ramené en arrière reste client.
+- **Plans** : import d'un **PDF vectoriel** (`admin/src/lib/pdfPlan.js`, même détection que le DWG, échelle déduite des surfaces écrites, numérotation « îlot-lot »).
+- **Site** : page **Nos projets** refaite (grille de cartes puis détail `projets.html#slug`, précédent/suivant ; projets du dashboard sans fiche écrite générés) — `js/projets.js` ; bouton **« Localiser le site »** partout (`js/project-map.js` : carte + Itinéraire, GPS sinon adresse) ; **prix du site tirés de la grille du dashboard** (tableau / cartes d'options / prix vedette selon la fiche, € et Diaspora calculés ; sans grille, les prix écrits restent) ; Lotissements : programmes en haut, « Nos prochains lotissements arrivent » en bas ; **favicon** (`favicon.svg`, `favicon.png`, `apple-touch-icon.png`) ; **tuiles de financement redessinées** (jauges de paiement animées, `js/financement.js`).
+- Migrations : `20261103000000_project_types`, `…01_lot_grid_price`, `…02_client_stages`, `…03_property_scope_gps`, `…04_offer_designation` (+ `20261102000000_direction_access` de la vue Direction). **156 tests verts.** Base démo migrée (sauvegardes dans le dossier temporaire de la session, non conservées).
+
+### Production
+- **`b392de2` mise en ligne le 22/10 vers 10 h 22 UTC** (accord explicite : « commit, mise en ligne et push ») : paquet déposé par le connecteur Chrome (taille vérifiée par l'API Fileman), commande lancée par l'assistant dans le terminal cPanel, empreintes OK, sauvegardes `~/sauvegardes/deploiement-b392de2-20261022-102151/`, **6 migrations (lot 9)**, `{"ok":true}`, `DEPLOY_OK b392de2`, journal `~/deploiement-b392de2.log`. Bundles admin/ERP servis = ceux de la release ; l'API publique publie grilles et types (TEST SITE GRAND-BASSAM, publié, a une carte générée).
+- **Problème constaté** : les navigateurs gardaient l'ancien `projets.js` (LWS n'envoie aucun Cache-Control) → la nouvelle page Projets ne s'affichait pas. **Correctif** : `deploy/package-site.cjs` ajoute `?v=<commit>` à chaque style/script des pages livrées (le dépôt n'est pas modifié). **À utiliser pour toute livraison du site.**
+
+### Livraison en attente — site `5a14e93`
+- `livraison-5a14e93.zip` (108 279 o) **déposé et vérifié** dans `/home/c2777901c`. La commande n'a pas pu s'exécuter (fenêtre Chrome réduite → terminal figé). Production encore en `b392de2` (`https://siipaf.com/site-release.json`).
+- À lancer dans le terminal cPanel : `cd ~ && unzip -o livraison-5a14e93.zip && bash update-5a14e93.sh` (site seul : empreinte, sauvegarde du site, dépaquetage, `DEPLOY_OK 5a14e93`). Relançable sans risque. Puis vérifier `site-release.json` = `5a14e93`, le favicon, et que la page Projets montre les cartes (navigation privée).
+
+### Points ouverts du 22/10
+- [ ] Saisir les **vraies positions GPS** des projets en production (aucune pour l'instant : « Localiser le site » utilise l'adresse). En démo, Ahoutoué et Bingerville ont des positions **de test**.
+- [ ] Vérifier en production la **grille de prix** de chaque projet (désignations, prix Diaspora) : elle remplace désormais les prix écrits du site.
+- [ ] **Jeton GitHub en clair** dans `.git/config` (URL du remote) : le révoquer et passer au gestionnaire d'identifiants (voir Sécurité).
+- [ ] ModSecurity : vérifier qu'il est revenu sur **On** pour admin.siipaf.com (coupé le 21/10 pour un test, sans effet).
+- [ ] Dossier `Img illustration/` (non suivi, images du client) : demander s'il doit entrer dans le site.
+- Remarque : une copie de livraison partage des fichiers par liens physiques avec le dépôt (`siipaf-deploy`) ; un fichier du dépôt est revenu une fois à une version antérieure pendant une session parallèle. Vérifier le disque (`grep`) après une modification importante.
+
+### Administration générale › Vue Direction (fait le 21/10 — committé `da28e71`, **en ligne** depuis la release `b392de2`)
 - ERP : tuile « Administration générale » ouverte (`/administration`), menu « Vue Direction » + « Rôles et privilèges » (`ModuleAccess` groupe « ERP · Administration générale »). Page `ERP-SIIPAF/src/pages/admin/Direction.jsx` (réutilise `Kpi`, `Progress`, `trendOf` exportés de `CommercialDashboard.jsx`, `Advance` et `LineChart` du dashboard).
 - Serveur : `services/direction.js` (`overview`) assemble les services existants sans recalcul : `commercial.dashboard` / `achieved` / portefeuille, `clients.progressIndex` (programme, îlots, moyenne des dossiers ; « à relancer » = programme avec dossiers sans point publié depuis 60 jours — il n'existe pas encore de planning prévisionnel pour mesurer un vrai retard), appels de fonds VEFA, échéances en retard (`scheduleStatus` sur tous les dossiers), `compta.dashboard` (extrait de la route Comptabilité, même résultat), `rh.dashboard`, masse salariale (paies validées ou payées, 12 mois), `performance.departmentReport`, `sav.savStats`. Route `GET /api/admin/erp/direction/overview` (droit `direction:read`).
 - Droit `direction:read` « Ouvrir l'Administration générale (vue Direction) » : responsable d'exploitation par défaut (migration `20261102000000_direction_access.js`, base démo migrée) ; super admin toujours.
@@ -323,7 +354,7 @@ Choix du client (20/10) : **l'ERP devient la comptabilité principale** (plan, j
 - Builds admin, client et ERP faits depuis une copie propre (`C:/Users/NOUAMA/Desktop/siipaf-deploy`, 136 tests verts). Archive `deploy/livraison-7536a90.zip` déposée par le connecteur Chrome dans le gestionnaire de fichiers cPanel, puis `unzip -o livraison-7536a90.zip && bash update-7536a90.sh`.
 - **Mis en ligne le 21/10/2026 vers 15 h 55 UTC** : empreinte OK, sauvegardes MySQL et code dans `~/sauvegardes/deploiement-7536a90-20261021-155429/`, **3 migrations** (lot 7 : RH, droits par action, mot de passe provisoire), redémarrage réussi, `{"ok":true}`, `DEPLOY_OK 7536a90`. Les bundles servis par erp, admin et client correspondent à la release. Toujours 1 vulnérabilité haute signalée par npm (déjà présente).
 - **SMTP configuré** dans `~/siipaf-api/server/.env` (droits 600) : `mail.siipaf.com`, port 465 SSL, compte et expéditeur `info@siipaf.com`, `MAIL_NOTIFY=info@siipaf.com`. Le mot de passe a été **tapé par l'utilisateur** dans le terminal cPanel (saisie masquée), jamais affiché. Un premier essai a échoué (`535`, caractère invisible dû à un collage) ; la saisie retire maintenant les caractères invisibles. Test : `node scripts/mail-test.js info@siipaf.com` → `MAIL_TEST_OK`. Toutes les notifications (formulaires du site, rendez-vous, messages et SAV des clients, accès clients, candidatures) partent désormais par ce compte.
-- Envoi de newsletter : voir « Campagnes de newsletter » ci-dessous (fait le 21/10, non committé).
+- Envoi de newsletter : voir « Campagnes de newsletter » ci-dessous (fait le 21/10, en ligne depuis `1a2ffe9`).
 - À faire en production : le comptable crée l'exercice de départ ; relier les fiches employés aux comptes (ERP › Comptes utilisateurs) ; vérifier les « Rôles et privilèges » de chaque module ; saisir les jours fériés musulmans de l'année (RH › Réglages).
 
 ## Livraison du 21/10 — commits `4cb609b` + `5a95af2` (avancement du chantier en % par client)
@@ -414,7 +445,7 @@ Demande du client : fonctionnalités de référence d'Odoo, adaptées au droit i
 - [x] Rôles personnalisés en ligne (19/10, migration `20261020020000_roles.js` passée sur cPanel).
 
 - [x] (fait le 20/10) **E-mail du site** : remplacer `info@siipaf.ci` par `info@siipaf.com` dans les pages HTML (le client a dit oui ; la commande a été interrompue avant exécution — redemander confirmation puis l'appliquer).
-- [x] **Git** : commits sur la branche `plateforme-admin-espace-client` (non poussée : un push déclenche Vercel). Demander avant de pousser.
+- [x] **Git** : branche `plateforme-admin-espace-client` poussée sur GitHub le 22/10 jusqu'à `5a14e93` (accord du client). Un push déclenche Vercel : toujours demander avant de pousser.
 - [x] (convertisseur fait le 20/10, reste à l'utiliser en production) **Plan de masse d'Ahoutoué reçu le 19/10 : `PLAN DE MASSE AHOUTOUE.dwg`** (à la racine du projet ; à exclure de Git et de Vercel). Prochain chantier possible : le convertir en DXF pour importer les parcelles dans l'éditeur de plan. Contexte précédent : : le client a fourni le périmètre (PDF + DWG AutoCAD 2018, coordonnées UTM ~zone 30N, X≈409 000, Y≈604 000). Il faut le plan des parcelles exporté en DXF pour l'import automatique.
 - [x] **Étape 4 de la phase 1** : carte interactive publique (`plan-interactif.html`, 20/10, non mise en ligne).
 - [ ] **Étape 5 de la phase 1** : RDV assistés par IA (chat site + WhatsApp + rappels + Google Agenda) — nécessite une clé API Anthropic, un compte WhatsApp Business API, des comptes Google.
@@ -423,14 +454,16 @@ Demande du client : fonctionnalités de référence d'Odoo, adaptées au droit i
   - **Mettre à jour le serveur** : relancer `deploy/siipaf-api.zip` (serveur sans node_modules/data/.env/uploads/test + `admin/dist` + `client/dist`), l'envoyer dans `/home/c2777901c` avec « Écraser » coché, puis dans le terminal : `cd ~ && unzip -oq siipaf-api.zip && source /home/c2777901c/nodevenv/siipaf-api/server/22/bin/activate && cd ~/siipaf-api/server && npm install --omit=dev && npx knex migrate:latest && cloudlinux-selector restart --json --interpreter nodejs --app-root siipaf-api/server`. Ne jamais faire `npm ci` (il casse le lien node_modules de CloudLinux).
 - [ ] **Audit du 19/10 : voir `AUDIT.md`.** P1 fait : lots (création / modification / suppression à l'unité), modification du dossier d'acquisition, documents juridiques protégés, contenu du site branché sur le site public (`js/site-content.js`, migration `20261021000000`). Menu : Lots déplacé dans Catalogue. Rôles : tableau compact, tous les rôles se suppriment sauf super administrateur (`PROTECTED_ROLES`) s'ils n'ont plus de compte. P2 fait le 20/10 (sauf suppression d'un projet) ; reste P3, plus deux règles à faire valider par SIIPAF (passage à « Vendu », frais et pénalités).
 - [x] **E-mails** : SMTP configuré en production le 21/10 (info@siipaf.com). En local, pas de SMTP : les e-mails sont seulement journalisés.
-- [ ] **Campagnes de newsletter** : faites, à committer et mettre en ligne (accord de l'utilisateur).
+- [x] **Campagnes de newsletter** : en ligne depuis la release `1a2ffe9` (21/10).
+- [ ] **Site `5a14e93`** (favicon, financement, correctif de cache) : déposé sur le cPanel, commande à lancer (voir « Journée du 22/10 »).
 - [x] **Site public mis à jour le 20/10** (accord du client) : les 5 pages, `js/site-content.js`, `js/testimonials.js` et `css/pages.css` sont en ligne dans `public_html/siipaf.com`. Sauvegarde de l'ancienne version : `~/sauvegarde-site-avant-20261020.tgz`. Le site lit maintenant « Contenu du site » et les témoignages ; l'adresse e-mail est passée à info@siipaf.com partout. Pour une prochaine mise à jour : refaire `deploy/site-update.zip` et le décompresser dans `public_html/siipaf.com`.
 - [x] **`.vercelignore`** exclut aussi `client/` et `deploy/`.
 
 ### Sécurité (signalé au client, à suivre)
 - `public_html/siipaf.com/SIIPAF_WEB.zip` (142 Mo) est **téléchargeable publiquement** et contient sans doute le dossier `.git`. Le supprimer depuis le gestionnaire de fichiers cPanel (la suppression par l'assistant a été bloquée).
 - Le dépôt Git local contient un **jeton GitHub en clair** dans l'URL du remote : le révoquer sur GitHub et faire `git remote set-url origin https://github.com/nouahenri/Siipaf.git`.
-- Hébergement : le site public est servi depuis `public_html/siipaf.com` (cache Varnish LWS).
+- Hébergement : le site public est servi depuis `public_html/siipaf.com` (cache Varnish LWS ; aucun en-tête Cache-Control : livrer le site avec `deploy/package-site.cjs`, qui versionne styles et scripts).
+- 22/10 : les envois de fichiers (multipart) vers admin.siipaf.com étaient refusés par le relais LWS « Portail » (403.4) le 21/10 ; ni LWS Protect ni ModSecurity n'en étaient la cause. Le client a depuis importé un plan en production : à recontrôler si un envoi de fichier échoue de nouveau (message prêt pour le support LWS dans la discussion du 21/10).
 
 ---
 
@@ -441,3 +474,5 @@ Demande du client : fonctionnalités de référence d'Odoo, adaptées au droit i
 - Il envoie souvent des captures annotées et des inspirations (Pinterest, maquettes) : s'en inspirer sans copier.
 - Ne pas committer, pousser ou mettre en ligne sans son accord explicite.
 - **Pas de menu ni de page en plus** : intégrer chaque fonction dans le module existant qui lui correspond (onglet). Dashboard = saisie au quotidien ; ERP = pilotage, indicateurs, performance. Proposer l'emplacement dans le cadrage avant de coder.
+- Prix immobiliers : **surface exacte**, jamais de fourchette (Côte d'Ivoire). Libellé validé du bouton de carte : **« Localiser le site »**. Prospect **ou** client, jamais les deux.
+- Il apprécie un design moderne, animé et bien lisible pour le site public (refontes faites avec la compétence `/impeccable`).
