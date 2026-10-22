@@ -33,7 +33,8 @@
   // Types de bien proposés : la grille de prix du projet choisi
   function fillProperties() {
     var p = projects.filter(function (x) { return x.slug === select.value; })[0];
-    var names = p ? (p.offers || []).map(offerName).filter(Boolean) : [];
+    var lineName = window.SiipafOffers ? window.SiipafOffers.lineName : offerName;
+    var names = p ? (p.offers || []).map(function (o) { return lineName(o, p.offers); }).filter(Boolean) : [];
     datalist.innerHTML = names.filter(function (n, i) { return names.indexOf(n) === i; })
       .map(function (n) { var o = document.createElement('option'); o.value = n; return o.outerHTML; }).join('');
     fillBudget();

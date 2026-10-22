@@ -16,6 +16,15 @@
   function eur(n) { return num(n / EUR) + ' €'; }
   function surface(s) { s = String(s || '').trim(); return /^\d+(?:[.,]\d+)?$/.test(s) ? s + ' m²' : s; }
   function offerName(o) { return [o.label, o.designation].filter(Boolean).join(' '); }
+  /**
+   * Nom d'une ligne tel qu'il part dans le formulaire : plusieurs lignes du même nom (« Terrain nu » en
+   * 400, 500 et 600 m²) se distinguent par leur surface : « Terrain nu 600 m² ».
+   */
+  function lineName(o, offers) {
+    var name = offerName(o);
+    var twins = (offers || []).filter(function (x) { return offerName(x) === name; }).length;
+    return twins > 1 && o.surface ? name + ' ' + surface(o.surface) : name;
+  }
   function contactHref(slug, bien) {
     return 'contact.html?projet=' + encodeURIComponent(slug) + (bien ? '&bien=' + encodeURIComponent(bien) : '');
   }
@@ -29,16 +38,16 @@
     return '<div class="pricing-table-wrap"><table class="pricing-table">' +
       '<thead><tr><th>Type de bien</th><th>Surface</th><th>Prix FCFA</th><th>Prix EUR</th><th class="th-ask"><span class="sr-only">Demande</span></th></tr></thead><tbody>' +
       offers.map(function (o) {
-        var name = offerName(o);
+        var name = offerName(o), line = lineName(o, offers);
         var premium = /haut standing|duplex|penthouse|prestige/i.test(name);
         var row = o.price_fcfa != null
           ? '<tr' + (premium ? ' class="hs-row"' : '') + '><td>' + esc(name) + '</td><td>' + esc(surface(o.surface) || '—') + '</td>' +
-            '<td class="price-cell">' + num(o.price_fcfa) + '</td><td>' + eur(o.price_fcfa) + '</td><td class="td-ask">' + askLink(slug, name) + '</td></tr>'
+            '<td class="price-cell">' + num(o.price_fcfa) + '</td><td>' + eur(o.price_fcfa) + '</td><td class="td-ask">' + askLink(slug, line) + '</td></tr>'
           : '';
         if (o.diaspora_price_fcfa) {
           row += '<tr class="diaspora-row"><td>↳ Option Diaspora' + (o.designation ? ' ' + esc(o.designation) : '') + '</td><td>—</td>' +
             '<td class="price-cell">' + num(o.diaspora_price_fcfa) + '</td><td>' + num(o.diaspora_price_fcfa / DIASPORA_MONTHS) + ' F/mois</td>' +
-            '<td class="td-ask">' + askLink(slug, name + DIASPORA_SUFFIX) + '</td></tr>';
+            '<td class="td-ask">' + askLink(slug, line + DIASPORA_SUFFIX) + '</td></tr>';
         }
         return row;
       }).join('') +
@@ -55,7 +64,8 @@
     if (!b) return '';
     var diaspora = b.slice(-DIASPORA_SUFFIX.length) === DIASPORA_SUFFIX;
     var name = (diaspora ? b.slice(0, -DIASPORA_SUFFIX.length) : b).toLowerCase();
-    var o = (offers || []).filter(function (x) { return offerName(x).toLowerCase() === name; })[0];
+    var o = (offers || []).filter(function (x) { return lineName(x, offers).toLowerCase() === name; })[0]
+      || (offers || []).filter(function (x) { return offerName(x).toLowerCase() === name; })[0];
     if (!o) return '';
     if (diaspora) {
       return o.diaspora_price_fcfa
@@ -67,7 +77,7 @@
 
   window.SiipafOffers = {
     ASK: ASK, DIASPORA_MONTHS: DIASPORA_MONTHS, DIASPORA_SUFFIX: DIASPORA_SUFFIX,
-    esc: esc, num: num, fcfa: fcfa, eur: eur, surface: surface, offerName: offerName,
+    esc: esc, num: num, fcfa: fcfa, eur: eur, surface: surface, offerName: offerName, lineName: lineName,
     contactHref: contactHref, askLink: askLink, priceTable: priceTable, budgetFor: budgetFor,
   };
 })();
