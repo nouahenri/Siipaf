@@ -165,7 +165,44 @@ async function createLeave(db, e, data, { user, asHr = false, approve = false })
   const ownLeave = e.user_id === user.id;
   if ((approve && asHr && !ownLeave) || LEAVE_TYPES[data.type].hr_only) Object.assign(row, { status: 'approuvee', decided_by: user.id, decided_at: new Date() });
   const [id] = await db('hr_leaves').insert(row);
-  return { leave: await leaveDetail(db, insertedId(id)), warnings };
+  const leave = await leaveDetail(db, insertedId(id));
+  if (row.status === 'en_attente') await notifyLeave(db, leave, e, { user });
+  return { leave, warnings };
+}
+
+/**
+ * Circuit des congés dans la cloche : le responsable direct puis le service RH (droit conges:approve) sont prévenus
+ * de ce qu'ils ont à approuver ; l'employé, de la décision. Une demande close n'est plus « à traiter » chez personne.
+ */
+async function notifyLeave(db, l, e, { user }) {
+  const { notify, usersWith, employeeUser, resolve } = require('./notifications');
+  const who = `${e.last_name} ${e.first_name}`;
+  const period = `du ${l.start_date.split('-').reverse().join('/')} au ${l.end_date.split('-').reverse().join('/')} (${l.days} j)`;
+  const toRh = async () => notify(db, {
+    to: await usersWith(db, 'conges:approve'), except: user.id, module: 'rh', event: 'conge.a_approuver',
+    title: `Congé à approuver : ${who}`, body: `${l.label} ${period}`, link: '/rh/conges', priority: 'action', key: `conge:${l.id}:rh`,
+  });
+  if (l.status === 'en_attente') {
+    const manager = await employeeUser(db, e.manager_id);
+    if (manager && manager.id !== e.user_id) {
+      await notify(db, { to: manager, except: user.id, module: 'rh', event: 'conge.demande', title: `Demande de congé : ${who}`, body: `${l.label} ${period}`, link: '/rh/conges', priority: 'action', key: `conge:${l.id}:manager` });
+    } else await toRh();
+    return;
+  }
+  if (l.status === 'approuve_manager') {
+    await resolve(db, `conge:${l.id}:manager`);
+    await toRh();
+    return;
+  }
+  await resolve(db, `conge:${l.id}:`);
+  const labels = { approuvee: 'approuvée', refusee: 'refusée', annulee: 'annulée' };
+  if (labels[l.status] && e.user_id) {
+    await notify(db, {
+      to: e.user_id, except: user.id, module: 'rh', event: `conge.${l.status}`, title: `Votre demande de congé est ${labels[l.status]}`,
+      body: [`${l.label} ${period}`, l.status === 'refusee' && l.decision_note ? `Motif : ${l.decision_note}` : null].filter(Boolean).join(' — '),
+      link: '/rh/moi', key: `conge:${l.id}:decision:${l.status}`,
+    });
+  }
 }
 
 /**
@@ -204,7 +241,9 @@ async function decideLeave(db, leaveId, { action, note = null }, { user, can }) 
     } else throw new HttpError(400, 'Action inconnue.');
   }
   await db('hr_leaves').where({ id: l.id }).update(patch);
-  return leaveDetail(db, l.id);
+  const detail = await leaveDetail(db, l.id);
+  await notifyLeave(db, detail, e, { user });
+  return detail;
 }
 
 function leaveQuery(db) {

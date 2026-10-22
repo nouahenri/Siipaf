@@ -1,6 +1,7 @@
 import { Link } from 'react-router-dom';
 import { LifeBuoy, Calculator, Users, Scale, Building, HardHat, Boxes, Briefcase, ArrowRight } from 'lucide-react';
 import { useAuth, useResource } from '@admin/lib/app-context';
+import { useErpNotifications } from '../components/NotificationCenter';
 
 // Feuille de route de l'ERP (passation.md §5 quinquies) : seuls les modules livrés sont ouverts
 const MODULES = [
@@ -11,13 +12,15 @@ const MODULES = [
   { id: 'chantiers', label: 'Chantiers', text: 'Planning (Gantt), feuilles de temps, situations de travaux.', icon: HardHat, color: '#eda100' },
   { id: 'achats', label: 'Achats & stocks', text: 'Commandes, sous-traitance, dépôt ↔ chantier.', icon: Boxes, color: '#e87ba4' },
   { id: 'juridique', label: 'Juridique', text: 'Contrats, notaires, actes et échéances.', icon: Scale, color: '#6d28d9' },
-  { id: 'admin', to: '/administration', label: 'Administration générale', text: 'Vue Direction de tous les services, courrier arrivée et départ ; puis contrats et échéances, parc, documents internes, demandes.', icon: Building, perm: ['direction:read', 'courrier:read', 'courrier:write', 'courrier:assign', 'contrats:read', 'contrats:write', 'parc:read', 'parc:write'], show: b => b?.mine > 0 || b?.contracts_owned > 0, color: '#5b6170' },
+  { id: 'admin', module: 'administration', to: '/administration', label: 'Administration générale', text: 'Vue Direction de tous les services, courrier arrivée et départ ; puis contrats et échéances, parc, documents internes, demandes.', icon: Building, perm: ['direction:read', 'courrier:read', 'courrier:write', 'courrier:assign', 'contrats:read', 'contrats:write', 'parc:read', 'parc:write'], show: b => b?.mine > 0 || b?.contracts_owned > 0, color: '#5b6170' },
 ];
 
 export default function Launcher() {
   const { can, user } = useAuth();
   // Le destinataire d'un courrier ou le responsable d'un contrat entre dans l'Administration générale pour les siens
   const mail = useResource('/admin/erp/direction/badges');
+  // Pastille : notifications non lues du module (centre de notifications commun)
+  const unread = useErpNotifications().data?.by_module || {};
   return (
     <div className="stack">
       <div>
@@ -27,8 +30,10 @@ export default function Launcher() {
       <div className="module-grid">
         {MODULES.map(m => {
           const ready = m.to && (!m.perm || [].concat(m.perm).some(can) || !!m.show?.(mail.data));
+          const count = ready ? unread[m.module || m.id] || 0 : 0;
           const body = (
             <>
+              {count > 0 && <span className="module-badge" aria-label={`${count} notification${count > 1 ? 's' : ''} non lue${count > 1 ? 's' : ''}`}>{count > 99 ? '99+' : count}</span>}
               <span className="module-icon" style={{ '--c': m.color }}><m.icon aria-hidden="true" /></span>
               <span className="module-name">{m.label}</span>
               <span className="module-text">{m.text}</span>

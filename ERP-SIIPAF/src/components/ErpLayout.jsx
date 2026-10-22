@@ -10,6 +10,7 @@ import { useAuth, useResource } from '@admin/lib/app-context';
 import { useRevealOnScroll } from '@admin/lib/reveal';
 import { ROLE_LABELS } from '@admin/lib/domain';
 import { initials } from '@admin/lib/format';
+import NotificationCenter from './NotificationCenter';
 
 const COURRIER = ['courrier:read', 'courrier:write', 'courrier:assign'];
 const CONTRATS = ['contrats:read', 'contrats:write'];
@@ -149,6 +150,7 @@ export default function ErpLayout() {
           <button className="btn btn-ghost btn-icon menu-btn" onClick={() => setOpen(true)} aria-label="Ouvrir le menu"><Menu /></button>
           <h1>{title}</h1>
           <div className="spacer" />
+          <NotificationCenter />
           <div className="user-chip">
             <div className="right">
               <strong>{user.name}</strong>

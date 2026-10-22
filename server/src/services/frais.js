@@ -133,7 +133,30 @@ async function transition(db, id, action, { user, can, note = null, journal = nu
     if (!(own || can('frais:approve')) || !['soumise', 'refusee'].includes(raw.status)) throw new HttpError(409, 'Note non modifiable.');
     await set({ status: 'brouillon' });
   } else throw new HttpError(400, 'Action inconnue.');
+  await notifyExpense(db, raw, action, { user, note });
   return detail(db, id);
+}
+
+/** Circuit des notes de frais dans la cloche : responsable (ou service RH), puis comptable, et l'employé à chaque décision. */
+async function notifyExpense(db, x, action, { user, note }) {
+  const { notify, usersWith, employeeUser, resolve } = require('./notifications');
+  const what = `${x.reference} — ${x.last_name} ${x.first_name} · ${Number(x.amount).toLocaleString('fr-FR')} F CFA`;
+  if (action === 'submit') {
+    const manager = await employeeUser(db, x.manager_id);
+    const to = manager && manager.id !== x.employee_user_id ? manager : await usersWith(db, 'frais:approve');
+    await notify(db, { to, except: user.id, module: 'rh', event: 'frais.soumise', title: 'Note de frais à approuver', body: what, link: '/rh/frais', priority: 'action', key: `frais:${x.id}:approve:${Date.now()}` });
+  } else if (action === 'approve' || action === 'refuse') {
+    await resolve(db, `frais:${x.id}:approve`);
+    await notify(db, {
+      to: x.employee_user_id, except: user.id, module: 'rh', event: action === 'approve' ? 'frais.approuvee' : 'frais.refusee',
+      title: `Votre note de frais est ${action === 'approve' ? 'approuvée' : 'refusée'}`, body: action === 'refuse' && note ? `${x.reference} — Motif : ${note}` : what, link: '/rh/moi',
+    });
+    if (action === 'approve') {
+      await notify(db, { to: await usersWith(db, 'frais:post'), except: user.id, module: 'compta', event: 'frais.a_comptabiliser', title: 'Note de frais à comptabiliser', body: what, link: '/rh/frais', priority: 'action', key: `frais:${x.id}:post` });
+    }
+  } else if (action === 'post') {
+    await resolve(db, `frais:${x.id}:post`);
+  }
 }
 
 /** Remboursement groupé des notes comptabilisées d'un employé : une écriture de trésorerie (422100 / banque…). */

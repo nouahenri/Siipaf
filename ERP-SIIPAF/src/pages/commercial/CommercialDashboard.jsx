@@ -98,7 +98,7 @@ export function Progress({ value }) {
   const tone = value >= 100 ? 'var(--ok)' : value >= 60 ? 'var(--series-1)' : 'var(--warn)';
   return (
     <div className="pct-bar" title={`${value} %`}>
-      <div className="pct-track"><div style={{ width: `${Math.min(100, value)}%`, background: tone }} /></div>
+      <div className="pct-track"><div style={{ '--p': Math.min(100, value) / 100, background: tone }} /></div>
       <span className="small tabular">{value.toLocaleString('fr-FR')} %</span>
     </div>
   );

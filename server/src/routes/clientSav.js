@@ -13,6 +13,7 @@ const { notifyTeam } = require('../lib/mailer');
 const { SAV_CATEGORIES, SAV_STATUS_LABELS, SAV_OPEN_STATUSES, WARRANTIES } = require('../lib/domain');
 const { ownSale } = require('../services/clients');
 const sav = require('../services/sav');
+const { notify, usersWith } = require('../services/notifications');
 
 const ids = z.array(z.number().int().positive()).max(6).optional();
 
@@ -59,6 +60,10 @@ module.exports = function clientSavRoutes(db) {
     const t = await sav.createTicket(db, { ...data, priority: 'normale' }, { source: 'client' });
     const lead = await db('leads').where({ id: req.client.lead_id }).first();
     notifyTeam(`Réclamation ${t.ref} — ${lead.client_code}`, `${lead.name} (${lead.client_code}) a signalé un problème depuis l’espace client :\n\n${t.title}\n${t.description || ''}`).catch(() => {});
+    await notify(db, {
+      to: await usersWith(db, 'sav:assign'), module: 'sav', event: 'reclamation.ouverte', title: `Nouvelle réclamation ${t.ref} — ${lead.name}`,
+      body: t.title, link: `/sav/reclamations?t=${t.id}`, priority: 'action', key: `sav:${t.id}:ouverte`,
+    });
     res.status(201).json(await sav.ticketDetail(db, t.id, { forClient: true }));
   }));
 
@@ -74,6 +79,10 @@ module.exports = function clientSavRoutes(db) {
     const media = await sav.checkFiles(db, data.media_ids, { leadId: req.client.lead_id });
     await sav.addComment(db, t.id, { author: 'client', body: data.body, media });
     notifyTeam(`Réclamation ${t.ref} : réponse du client`, data.body).catch(() => {});
+    await notify(db, {
+      to: t.assigned_to || await usersWith(db, 'sav:assign'), module: 'sav', event: 'reclamation.reponse_client',
+      title: `Réclamation ${t.ref} : réponse du client`, body: data.body, link: `/sav/reclamations?t=${t.id}`, priority: 'action',
+    });
     res.status(201).json(await sav.ticketDetail(db, t.id, { forClient: true }));
   }));
 

@@ -13,7 +13,7 @@ const { uploadsDir, erpUrl } = require('../config');
 const { MAIL_DIRECTIONS, MAIL_SUITES, MAIL_NATURES, MAIL_CHANNELS, MAIL_STATUSES, mailNumber, mailVisibility, mailReminder } = require('../lib/domain');
 const { DEPARTMENTS } = require('../lib/paie');
 const { effectivePermissions, hasPermission } = require('./permissions');
-const { sendMail } = require('../lib/mailer');
+const { notify, resolve } = require('./notifications');
 
 const insertedId = r => (typeof r === 'object' ? r.id : r);
 const scansDir = path.join(uploadsDir, 'private', 'courrier');
@@ -133,6 +133,15 @@ async function create(db, data, { file, user, can }) {
     await db('mail_items').where({ id: replyTo.id }).update({
       status: 'traite', done_note: [replyTo.done_note, `Réponse envoyée : ${number}`].filter(Boolean).join('\n'), done_by: user.id, done_at: new Date(), updated_at: new Date(),
     });
+    await resolve(db, `courrier:${replyTo.id}:`);
+  }
+  if (row.direction === 'arrivee') {
+    const m = await load(db, id);
+    await notify(db, {
+      to: await directionUsers(db), except: user.id, module: 'administration', event: 'courrier.a_affecter',
+      title: `Courrier ${m.number} à affecter${m.urgent ? ' (urgent)' : ''}`, body: m.confidential ? 'Courrier confidentiel' : `${m.correspondent} — ${m.subject}`,
+      link: `/administration/courrier?fiche=${m.id}`, priority: m.urgent ? 'urgent' : 'action', key: `courrier:${m.id}:a_affecter`,
+    });
   }
   return id;
 }
@@ -173,6 +182,7 @@ async function assign(db, m, data, { user }) {
     status: classement ? 'traite' : 'affecte', ...(classement ? { done_note: 'Classé', done_by: user.id, done_at: now } : { done_note: null, done_by: null, done_at: null }),
     reminded_eve_at: null, reminded_late_at: null, updated_at: now,
   });
+  await resolve(db, `courrier:${m.id}:a_affecter`);
   if (!classement) await notifyAssignment(db, m.id);
 }
 
@@ -183,6 +193,7 @@ async function done(db, m, note, { v, user }) {
   if (!recipient && !v.can('courrier:assign')) throw new HttpError(403, 'Seuls le destinataire et la direction donnent la suite.');
   if (m.suite === 'avis' && !note) throw new HttpError(400, 'Écrivez votre avis.');
   await db('mail_items').where({ id: m.id }).update({ status: 'traite', done_note: note || MAIL_SUITES[m.suite]?.done || 'Traité', done_by: user.id, done_at: new Date(), updated_at: new Date() });
+  await resolve(db, `courrier:${m.id}:`);
 }
 
 async function reopen(db, m) {
@@ -224,9 +235,13 @@ const describe = m => [
 
 async function notifyAssignment(db, id) {
   const m = await load(db, id);
-  for (const u of await recipientsOf(db, m)) {
-    await sendMail({ to: u.email, subject: `[SIIPAF] Courrier ${m.number} à traiter${m.urgent ? ' (urgent)' : ''}`, text: `Bonjour ${u.name},\n\nUn courrier vous est affecté.\n\n${describe(m)}` });
-  }
+  const title = `Courrier ${m.number} à traiter${m.urgent ? ' (urgent)' : ''}`;
+  await notify(db, {
+    to: await recipientsOf(db, m), except: m.assigned_by, module: 'administration', event: 'courrier.affecte',
+    title, body: m.confidential ? 'Courrier confidentiel' : m.subject, link: `/administration/courrier?fiche=${m.id}`,
+    priority: m.urgent ? 'urgent' : 'action', key: `courrier:${m.id}:affecte:${isoTime(m.assigned_at) || ''}`,
+    email: { subject: `[SIIPAF] ${title}`, text: u => `Bonjour ${u.name},\n\nUn courrier vous est affecté.\n\n${describe(m)}` },
+  });
 }
 
 /** Relances du jour (ERP : compteurs ; e-mail : destinataire + direction), une seule fois par étape. */
@@ -239,12 +254,13 @@ async function tick(db, day = today()) {
     const kind = mailReminder(m, day);
     if (!kind) continue;
     direction ||= await directionUsers(db);
-    const to = new Map();
-    for (const u of [...await recipientsOf(db, m), ...direction]) if (u.email) to.set(u.email, u);
-    const subject = kind === 'veille' ? `[SIIPAF] Rappel : courrier ${m.number} à traiter pour le ${m.due_date.split('-').reverse().join('/')}` : `[SIIPAF] Retard : courrier ${m.number} non traité`;
-    for (const u of to.values()) {
-      await sendMail({ to: u.email, subject, text: `Bonjour ${u.name},\n\n${kind === 'veille' ? 'Le délai de ce courrier arrive à échéance.' : 'Le délai de ce courrier est dépassé.'}\n\n${describe(m)}` });
-    }
+    const title = kind === 'veille' ? `Rappel : courrier ${m.number} à traiter pour le ${m.due_date.split('-').reverse().join('/')}` : `Retard : courrier ${m.number} non traité`;
+    await notify(db, {
+      to: [...await recipientsOf(db, m), ...direction], module: 'administration', event: kind === 'veille' ? 'courrier.rappel' : 'courrier.retard',
+      title, body: m.confidential ? 'Courrier confidentiel' : m.subject, link: `/administration/courrier?fiche=${m.id}`,
+      priority: kind === 'veille' ? 'action' : 'urgent', key: `courrier:${m.id}:${kind}:${m.due_date}`,
+      email: { subject: `[SIIPAF] ${title}`, text: u => `Bonjour ${u.name},\n\n${kind === 'veille' ? 'Le délai de ce courrier arrive à échéance.' : 'Le délai de ce courrier est dépassé.'}\n\n${describe(m)}` },
+    });
     await db('mail_items').where({ id: m.id }).update(kind === 'veille' ? { reminded_eve_at: new Date() } : { reminded_late_at: new Date() });
     sent++;
   }

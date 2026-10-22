@@ -195,7 +195,7 @@ function SelfReview({ year, objectives, review, onSaved }) {
           {objectives.map(o => (
             <li key={o.id}>
               <div className="row-between"><b className="small">{o.title}</b><span className="small muted">{o.auto ? `${metricValue(o.unit, o.actual)} / ${metricValue(o.unit, o.target_value)}` : ''}</span></div>
-              <div className="pct-bar"><div className="pct-track"><div style={{ width: `${o.progress}%`, background: o.progress >= 100 ? 'var(--ok)' : 'var(--series-1)' }} /></div><span className="small tabular">{o.progress} %</span></div>
+              <div className="pct-bar"><div className="pct-track"><div style={{ '--p': Math.min(100, o.progress) / 100, background: o.progress >= 100 ? 'var(--ok)' : 'var(--series-1)' }} /></div><span className="small tabular">{o.progress} %</span></div>
             </li>
           ))}
         </ul>

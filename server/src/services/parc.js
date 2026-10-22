@@ -14,7 +14,7 @@ const {
   ASSET_KINDS, ASSET_STATUSES, ASSET_ASSIGNMENT_KINDS, ASSET_DOC_KINDS, ASSET_COST_KINDS, RESERVATION_STATUSES,
   assetCode, maintenanceDue, fuelConsumption, reservationsOverlap, contractAlertStage, daysBetween, addMonths,
 } = require('../lib/domain');
-const { sendMail } = require('../lib/mailer');
+const { notify, usersWith, resolve } = require('./notifications');
 
 const insertedId = r => (typeof r === 'object' ? r.id : r);
 const filesDir = path.join(uploadsDir, 'private', 'parc');
@@ -319,7 +319,14 @@ async function request(db, data, { user }) {
   if (data.end_at <= data.start_at) throw new HttpError(400, 'La fin doit suivre le début.');
   if (data.start_at.slice(0, 10) < today()) throw new HttpError(400, 'La réservation ne peut pas commencer dans le passé.');
   const [i] = await db('asset_reservations').insert({ ...data, requested_by: user.id });
-  return insertedId(i);
+  const id = insertedId(i);
+  // Lien RH (Mon espace) → services généraux
+  await notify(db, {
+    to: await usersWith(db, 'parc:write'), except: user.id, module: 'administration', event: 'vehicule.demande',
+    title: `Demande de véhicule de ${user.name}`, body: `Du ${fr(data.start_at.slice(0, 10))} ${data.start_at.slice(11)} au ${fr(data.end_at.slice(0, 10))} ${data.end_at.slice(11)} — ${data.purpose}`,
+    link: '/administration/parc?onglet=reservations', priority: 'action', key: `vehicule:${id}:demande`,
+  });
+  return id;
 }
 
 /**
@@ -346,21 +353,26 @@ async function decide(db, r, { status, asset_id, note }, { user }) {
     status, asset_id: status === 'accordee' ? asset_id : null, decided_by: user.id, decided_at: new Date(), decision_note: note || null, updated_at: new Date(),
   });
   const row = await resaQuery(db).where('r.id', r.id).first();
-  const to = await db('users').where({ id: r.requested_by }).first('name', 'email');
   const when = `du ${fr(r.start_at.slice(0, 10))} ${r.start_at.slice(11)} au ${fr(r.end_at.slice(0, 10))} ${r.end_at.slice(11)}`;
-  await sendMail({
-    to: to?.email, subject: `[SIIPAF] Véhicule ${status === 'accordee' ? 'accordé' : 'refusé'} ${when}`,
-    text: status === 'accordee'
-      ? `Bonjour ${to?.name},\n\nVotre demande de véhicule ${when} (${r.purpose}) est accordée : ${row.asset_name}${row.asset_plate ? ` (${row.asset_plate})` : ''}.${note ? `\n${note}` : ''}`
-      : `Bonjour ${to?.name},\n\nVotre demande de véhicule ${when} (${r.purpose}) est refusée.\nMotif : ${note}`,
+  const title = `Véhicule ${status === 'accordee' ? 'accordé' : 'refusé'} ${when}`;
+  await resolve(db, `vehicule:${r.id}:demande`);
+  await notify(db, {
+    to: r.requested_by, except: user.id, module: 'rh', event: status === 'accordee' ? 'vehicule.accorde' : 'vehicule.refuse',
+    title, body: status === 'accordee' ? `${row.asset_name}${row.asset_plate ? ` (${row.asset_plate})` : ''} — ${r.purpose}` : `Motif : ${note}`,
+    link: '/rh/moi', key: `vehicule:${r.id}:${status}:${row.asset_id || ''}`,
+    email: {
+      subject: `[SIIPAF] ${title}`,
+      text: u => (status === 'accordee'
+        ? `Bonjour ${u.name},\n\nVotre demande de véhicule ${when} (${r.purpose}) est accordée : ${row.asset_name}${row.asset_plate ? ` (${row.asset_plate})` : ''}.${note ? `\n${note}` : ''}`
+        : `Bonjour ${u.name},\n\nVotre demande de véhicule ${when} (${r.purpose}) est refusée.\nMotif : ${note}`),
+    },
   });
   return resaRow(row);
 }
 
 // ─── Alertes ────────────────────────────────────────────────
 async function alertRecipients(db, a) {
-  const users = await db('users').where({ active: true }).where(w => { w.where('role', 'resp_exploitation'); if (a.manager_id) w.orWhere('id', a.manager_id); }).select('name', 'email');
-  return new Map(users.filter(u => u.email).map(u => [u.email, u]));
+  return db('users').where({ active: true }).where(w => { w.where('role', 'resp_exploitation'); if (a.manager_id) w.orWhere('id', a.manager_id); }).select('id', 'name', 'email');
 }
 
 /**
@@ -393,12 +405,16 @@ async function tick(db, day = today()) {
     await db('asset_alerts').insert({ asset_id: it.asset.id, deadline_key: it.key, due, stage });
     const left = it.date ? daysBetween(day, it.date) : null;
     const when = left == null ? 'à faire maintenant' : left < 0 ? `dépassée depuis ${-left} jour(s)` : left === 0 ? 'aujourd’hui' : `dans ${left} jour(s)`;
-    for (const u of (await alertRecipients(db, it.asset)).values()) {
-      await sendMail({
-        to: u.email, subject: `[SIIPAF] Parc ${it.asset.code}${it.asset.plate ? ` (${it.asset.plate})` : ''} : ${it.label}`,
-        text: `Bonjour ${u.name},\n\n${it.label} — ${when}${it.date ? ` (${fr(it.date)})` : ''}\nBien : ${it.asset.code} · ${it.asset.name}\n\nOuvrir dans l’ERP : ${erpUrl}/administration/parc?fiche=${it.asset.id}`,
-      });
-    }
+    const title = `Parc ${it.asset.code}${it.asset.plate ? ` (${it.asset.plate})` : ''} : ${it.label}`;
+    await notify(db, {
+      to: await alertRecipients(db, it.asset), module: 'administration', event: 'parc.echeance',
+      title, body: `${it.asset.name} — ${when}${it.date ? ` (${fr(it.date)})` : ''}`, link: `/administration/parc?fiche=${it.asset.id}`,
+      priority: left != null && left > 7 ? 'action' : 'urgent', key: `parc:${it.asset.id}:${it.key}:${due}:${stage}`,
+      email: {
+        subject: `[SIIPAF] ${title}`,
+        text: u => `Bonjour ${u.name},\n\n${it.label} — ${when}${it.date ? ` (${fr(it.date)})` : ''}\nBien : ${it.asset.code} · ${it.asset.name}\n\nOuvrir dans l’ERP : ${erpUrl}/administration/parc?fiche=${it.asset.id}`,
+      },
+    });
     alerts++;
   }
   return { alerts };

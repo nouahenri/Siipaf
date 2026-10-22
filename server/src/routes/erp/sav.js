@@ -9,6 +9,7 @@ const {
   WARRANTIES, SAV_INTERVENTION_STATUSES, warrantyDates,
 } = require('../../lib/domain');
 const sav = require('../../services/sav');
+const { notify, resolve } = require('../../services/notifications');
 
 const category = z.enum(Object.keys(SAV_CATEGORIES));
 const priority = z.enum(Object.keys(SAV_PRIORITIES));
@@ -126,6 +127,13 @@ module.exports = function savRoutes(db) {
         await sav.addEvent(trx, id, { kind: 'system', author: 'equipe', userId: req.user.id, body: `Priorité : ${SAV_PRIORITIES[data.priority].label}.`, internal: true });
       }
     });
+    if (data.assigned_to && data.assigned_to !== t.assigned_to) {
+      await resolve(db, `sav:${id}:ouverte`);
+      await notify(db, {
+        to: data.assigned_to, except: req.user.id, module: 'sav', event: 'reclamation.confiee', title: `Réclamation ${t.ref} vous est confiée`,
+        body: data.title || t.title, link: `/sav/reclamations?t=${id}`, priority: t.priority === 'urgente' ? 'urgent' : 'action', key: `sav:${id}:confiee:${data.assigned_to}`,
+      });
+    }
     res.json(await sav.ticketDetail(db, id));
   }));
 

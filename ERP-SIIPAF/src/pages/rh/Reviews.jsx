@@ -10,7 +10,7 @@ import { RH, useRhMeta, metricValue } from '../../lib/rh';
 import PerformanceCurves from './PerformanceCurves';
 
 const thisYear = new Date().getFullYear();
-const Pct = ({ v }) => <div className="pct-bar"><div className="pct-track"><div style={{ width: `${v ?? 0}%`, background: v >= 100 ? 'var(--ok)' : v >= 50 ? 'var(--series-1)' : 'var(--warn)' }} /></div><span className="small tabular">{v == null ? '—' : `${v} %`}</span></div>;
+const Pct = ({ v }) => <div className="pct-bar"><div className="pct-track"><div style={{ '--p': Math.min(100, v ?? 0) / 100, background: v >= 100 ? 'var(--ok)' : v >= 50 ? 'var(--series-1)' : 'var(--warn)' }} /></div><span className="small tabular">{v == null ? '—' : `${v} %`}</span></div>;
 
 /**
  * Performance et évaluations (référence : Odoo Évaluations) : tableau par service, puis objectifs pondérés et

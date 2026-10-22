@@ -26,6 +26,23 @@ a.module-tile:hover { border-color: var(--border-strong); box-shadow: var(--shad
 .module-foot { display: inline-flex; align-items: center; gap: 6px; font-size: 13px; font-weight: 500; color: var(--ink-2); }
 a.module-tile .module-foot { color: var(--brand); }
 .module-foot svg { width: 15px; height: 15px; }
+.module-tile { position: relative; }
+.module-badge { position: absolute; top: 16px; right: 16px; min-width: 22px; height: 22px; padding: 0 7px; border-radius: 99px; background: var(--brand); color: #fff; font-size: 12px; font-weight: 700; line-height: 22px; text-align: center; font-variant-numeric: tabular-nums; }
+
+/* ─── Centre de notifications (cloche de la barre du haut) ── */
+.erp-notif-panel { width: min(400px, calc(100vw - 24px)); }
+.erp-notif-panel .notif-list { max-height: min(460px, 70vh); }
+.erp-notif-panel .notif-body > b, .erp-notif-panel .notif-body > .small:not(.muted) { white-space: normal; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; }
+.erp-notif-tools { display: flex; align-items: center; gap: 6px; }
+.erp-notif-seg { display: inline-flex; padding: 2px; border: 1px solid var(--border); border-radius: 99px; }
+.erp-notif-seg button { white-space: nowrap; padding: 3px 10px; border: 0; border-radius: 99px; background: none; color: var(--ink-3); font-size: 12px; font-weight: 500; cursor: pointer; }
+.erp-notif-seg button[aria-pressed="true"] { background: var(--bg); color: var(--ink); }
+.erp-notif-urgent { color: var(--brand); font-weight: 600; }
+/* Téléphone : la cloche n'est pas au bord de l'écran, le panneau prend toute la largeur sous la barre du haut */
+@media (max-width: 480px) {
+  .erp-notif-panel { position: fixed; top: 60px; left: 12px; right: 12px; width: auto; }
+  .erp-notif-panel .notif-list { max-height: calc(100dvh - 140px); }
+}
 
 /* ─── Listes compactes (tableau de bord) ─────────────────── */
 .list { list-style: none; }
@@ -43,8 +60,8 @@ a.module-tile .module-foot { color: var(--brand); }
 .ev { border: 1px solid var(--border); border-radius: var(--radius-sm); padding: 10px 12px; background: var(--surface); }
 .ev-head { display: flex; align-items: center; gap: 8px; margin-bottom: 2px; }
 .ev-head b { font-size: 13px; }
-.ev-client { border-left: 3px solid var(--series-1); }
-.ev-equipe:not(.ev-system):not(.ev-internal) { border-left: 3px solid var(--brand); }
+/* Le client se repère à son fond teinté, l'équipe reste sur la surface neutre (l'en-tête nomme l'auteur) */
+.ev-client { background: color-mix(in srgb, var(--series-1) 8%, var(--surface)); border-color: color-mix(in srgb, var(--series-1) 30%, var(--border)); }
 .ev-internal { background: var(--gold-soft); border-color: transparent; }
 .ev-internal .ev-head .ico { color: var(--warn); }
 .ev-system { background: transparent; border-style: dashed; color: var(--ink-2); font-size: 13px; }
@@ -128,7 +145,9 @@ fieldset { border: none; min-width: 0; }
 /* Barre de progression d'objectif */
 .pct-bar { display: flex; align-items: center; gap: 8px; margin-top: 4px; }
 .pct-track { flex: 1; height: 6px; border-radius: 3px; background: var(--bg); overflow: hidden; min-width: 50px; }
-.pct-track > div { height: 100%; border-radius: 3px; transition: width .4s; }
+/* Remplissage par mise à l'échelle (--p entre 0 et 1) : la piste arrondit et coupe les bords */
+.pct-track > div { height: 100%; transform: scaleX(var(--p, 0)); transform-origin: left; transition: transform .4s; }
+@media (prefers-reduced-motion: reduce) { .pct-track > div { transition: none; } }
 
 /* ─── Parc immobilier ────────────────────────────────────── */
 .property-layout { display: grid; grid-template-columns: 240px minmax(0, 1fr); gap: 20px; align-items: start; }
@@ -144,10 +163,11 @@ fieldset { border: none; min-width: 0; }
 .floor:first-child { border-top: none; }
 .floor-label { color: var(--ink-3); }
 .floor-lots { display: flex; flex-wrap: wrap; gap: 6px; }
-.unit { min-width: 84px; padding: 6px 10px; border-radius: 8px; border: 1px solid var(--border); border-left: 4px solid var(--c); background: var(--surface); cursor: pointer; text-align: left; display: flex; flex-direction: column; }
+/* Lot : toute la tuile prend la teinte de son statut (libre, optionné, vendu…), lisible d'un coup d'œil dans la grille */
+.unit { min-width: 84px; padding: 6px 10px; border-radius: 8px; border: 1px solid color-mix(in srgb, var(--c) 45%, var(--border)); background: color-mix(in srgb, var(--c) 12%, var(--surface)); color: var(--ink); cursor: pointer; text-align: left; display: flex; flex-direction: column; transition: background .15s, box-shadow .15s; }
 .unit b { font-size: 13px; }
-.unit span { font-size: 11px; color: var(--ink-3); }
-.unit:hover { box-shadow: var(--shadow); border-color: var(--border-strong); border-left-color: var(--c); }
+.unit span { font-size: 11px; color: var(--ink-2); }
+.unit:hover { box-shadow: var(--shadow); background: color-mix(in srgb, var(--c) 20%, var(--surface)); border-color: var(--c); }
 .input.right { text-align: right; }
 
 /* ─── Appels de fonds ────────────────────────────────────── */
