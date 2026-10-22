@@ -69,6 +69,8 @@
       document.getElementById('planTitle').textContent = p.name;
       document.getElementById('planCrumb').textContent = p.name;
       document.getElementById('planSub').textContent = [p.city, p.location].filter(Boolean).join(' · ');
+      // Projet localisé (GPS) : carte et itinéraire sous le titre (js/project-map.js)
+      if (window.SiipafMap && window.SiipafMap.canLocate(p)) document.getElementById('planSub').insertAdjacentElement('afterend', window.SiipafMap.button(p));
       var back = backLink(), crumb = document.querySelector('.plan-breadcrumb a[href="lotissements.html"]');
       if (crumb) { crumb.href = back.href; crumb.textContent = back.label; }
       if (!p.plans || !p.plans.length) return fail('Plan bientôt en ligne', 'Le plan de masse de ce projet n’est pas encore publié. Contactez-nous pour connaître les lots disponibles.');

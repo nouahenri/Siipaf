@@ -174,3 +174,6 @@
 .viab-prevu i { color: #8A8F98; }
 .feature-tags { list-style: none; margin: 0; padding: 0; display: flex; flex-wrap: wrap; gap: 6px; }
 .feature-tags li { font-size: .78rem; padding: 5px 11px; border-radius: 50px; background: var(--light); color: #444; }
+.lots-grid[hidden] { display: none; }
+.lots-soon { margin-top: 56px; }
+.lots-grid[hidden] + .lots-other, .lots-intro + .lots-grid[hidden] + .lots-other { margin-top: 0; }

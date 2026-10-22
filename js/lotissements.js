@@ -35,7 +35,12 @@
       '<div class="lot-card-body">' +
         '<h3>' + esc(p.name) + '</h3>' +
         (p.tagline ? '<p>' + esc(p.tagline) + '</p>' : (p.location ? '<p>' + esc(p.location) + '</p>' : '')) +
-        stock + action +
+        stock +
+        // Projet localisé (GPS) : « Localiser le site » ajouté après l'affichage (js/project-map.js)
+        '<div class="card-actions" data-locate="' + esc(p.slug) + '">' + action +
+          // Détail du programme (prix, prestations) sur la page Projets
+          '<a class="btn btn-ghost-dark" href="projets.html#' + encodeURIComponent(p.slug) + '"><span>Découvrir le programme</span><i class="fas fa-arrow-right" aria-hidden="true"></i></a>' +
+        '</div>' +
       '</div></article>';
   }
 
@@ -44,14 +49,25 @@
     .then(function (projects) {
       var lotissements = projects.filter(function (p) { return p.category === 'lotissement'; });
       var others = projects.filter(function (p) { return p.category !== 'lotissement' && p.has_plan; });
-      list.innerHTML = lotissements.length
-        ? lotissements.map(function (p) { return card(p, 'Lotissement'); }).join('')
-        : '<div class="lots-empty"><i class="fas fa-map-marked-alt"></i><h3>Nos prochains lotissements arrivent</h3>' +
-          '<p>Laissez-nous vos coordonnées : vous serez parmi les premiers informés de l’ouverture des lots et de leur plan interactif.</p>' +
-          '<a class="btn btn-primary" href="contact.html?projet=Lotissement"><span>Être informé en priorité</span><i class="fas fa-arrow-right"></i></a></div>';
+      // Les programmes d'abord ; l'invitation « Nos prochains lotissements arrivent » ferme la page
+      list.innerHTML = lotissements.map(function (p) { return card(p, 'Lotissement'); }).join('');
+      list.hidden = !lotissements.length;
       if (others.length && otherWrap) {
         otherList.innerHTML = others.map(function (p) { return card(p, 'Promotion immobilière'); }).join('');
         otherWrap.hidden = false;
+      }
+      var soon = document.getElementById('lotsSoon');
+      if (soon && !lotissements.length) {
+        soon.innerHTML = '<div class="lots-empty"><i class="fas fa-map-marked-alt"></i><h3>Nos prochains lotissements arrivent</h3>' +
+          '<p>Laissez-nous vos coordonnées : vous serez parmi les premiers informés de l’ouverture des lots et de leur plan interactif.</p>' +
+          '<a class="btn btn-primary" href="contact.html?projet=Lotissement"><span>Être informé en priorité</span><i class="fas fa-arrow-right"></i></a></div>';
+        soon.hidden = false;
+      }
+      if (window.SiipafMap) {
+        document.querySelectorAll('.card-actions[data-locate]').forEach(function (row) {
+          var p = projects.find(function (x) { return x.slug === row.getAttribute('data-locate'); });
+          if (p && window.SiipafMap.canLocate(p)) row.appendChild(window.SiipafMap.button(p));
+        });
       }
     })
     .catch(function () {
