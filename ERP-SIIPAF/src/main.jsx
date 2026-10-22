@@ -19,6 +19,7 @@ import Sales from './pages/commercial/Sales';
 import Vefa from './pages/commercial/Vefa';
 import Targets from './pages/commercial/Targets';
 import Direction from './pages/admin/Direction';
+import Courrier from './pages/admin/Courrier';
 import ComptaDashboard from './pages/compta/ComptaDashboard';
 import Entries from './pages/compta/Entries';
 import Purchases from './pages/compta/Purchases';
@@ -53,6 +54,12 @@ function Guard({ perm, children }) {
 function RhHome() {
   const { can } = useAuth();
   return can('rh:read') ? <RhDashboard /> : <Navigate to="/rh/moi" replace />;
+}
+
+/** Entrée de l'Administration générale : la vue Direction, sinon le courrier (secrétariat, destinataires). */
+function AdminHome() {
+  const { can } = useAuth();
+  return can('direction:read') ? <Direction /> : <Navigate to="/administration/courrier" replace />;
 }
 
 function App() {
@@ -95,7 +102,8 @@ function App() {
         <Route path="rh/reglages" element={<Guard perm="rh:read"><RhSettings /></Guard>} />
         <Route path="comptes" element={<Guard perm="users:read"><Accounts /></Guard>} />
         <Route path="commercial/acces" element={<Guard perm="users:read"><ModuleAccess module="commercial" label="Service commercial" /></Guard>} />
-        <Route path="administration" element={<Guard perm="direction:read"><Direction /></Guard>} />
+        <Route path="administration" element={<AdminHome />} />
+        <Route path="administration/courrier" element={<Courrier />} />
         <Route path="administration/acces" element={<Guard perm="users:read"><ModuleAccess module="administration" label="Administration générale" /></Guard>} />
         <Route path="compta/acces" element={<Guard perm="users:read"><ModuleAccess module="compta" label="Comptabilité et paie" /></Guard>} />
         <Route path="rh/acces" element={<Guard perm="users:read"><ModuleAccess module="rh" label="Ressources humaines" /></Guard>} />

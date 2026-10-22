@@ -297,3 +297,6 @@ details > summary { list-style-position: inside; }
 .org-legend { display: flex; flex-wrap: wrap; gap: 8px; margin-bottom: 12px; }
 .org-chip { display: inline-flex; align-items: center; gap: 6px; padding: 4px 10px; border-radius: 999px; font-size: 12px; font-weight: 500; background: color-mix(in srgb, var(--c) 10%, var(--surface)); color: color-mix(in srgb, var(--c) 80%, var(--ink)); border: 1px solid color-mix(in srgb, var(--c) 24%, transparent); }
 .org-chip i { width: 8px; height: 8px; border-radius: 50%; background: var(--c); }
+
+/* Courrier : délai dépassé */
+.text-danger { color: var(--danger); font-weight: 500; }

@@ -300,6 +300,7 @@ const SELF_SERVICE = ['self:conges', 'self:pointage', 'self:frais'];
 const SAV_ACTIONS = ['sav:create', 'sav:handle', 'sav:assign', 'sav:reserves', 'sav:interventions'];
 const COMPTA_ACTIONS = ['compta:entries', 'compta:validate', 'achats:write', 'achats:pay', 'frais:post', 'compta:close', 'compta:settings', 'compta:export'];
 const PAIE_ACTIONS = ['paie:employees', 'paie:prepare', 'paie:validate', 'paie:pay', 'paie:settings'];
+const COURRIER_ACTIONS = ['courrier:read', 'courrier:write', 'courrier:assign'];
 const RH_ACTIONS = ['rh:files', 'conges:approve', 'conges:manage', 'rh:overtime', 'frais:approve', 'recrutement:write', 'formation:write', 'evaluation:write', 'rh:settings'];
 
 /** Droits par défaut des rôles d'origine. Le super administrateur a tous les droits. */
@@ -329,7 +330,7 @@ const PERMISSIONS = {
     'sales:read', 'sales:write', 'documents:write', 'testimonials:write',
     'client_access:write', 'client_messages', 'site_updates:write', 'schedule:write', 'settings:write',
     'leads:all', 'sav:read', ...SAV_ACTIONS, 'commercial:read', 'targets:write', 'vefa:write', 'property:write', 'compta:read',
-    'rh:read', ...RH_ACTIONS, 'presence:write', 'direction:read', ...SELF_SERVICE,
+    'rh:read', ...RH_ACTIONS, 'presence:write', 'direction:read', ...COURRIER_ACTIONS, ...SELF_SERVICE,
   ],
 };
 
@@ -407,6 +408,9 @@ const PERMISSION_CATALOG = [
   ] },
   { group: 'ERP · Administration générale', items: [
     ['direction:read', 'Ouvrir l’Administration générale (vue Direction)', 'Synthèse de tous les services : commercial, chantiers, finance, RH et SAV, avancement des chantiers par programme, dossier et client'],
+    ['courrier:read', 'Consulter le registre du courrier', 'Arrivée et départ ; d’un courrier confidentiel, seul le n° d’ordre est visible'],
+    ['courrier:write', 'Enregistrer le courrier (secrétariat)', 'Arrivée et départ, scan joint, correction d’un enregistrement'],
+    ['courrier:assign', 'Affecter le courrier (direction)', 'Destinataire, suite à donner et délai ; voit les courriers confidentiels ; relances'],
   ] },
   { group: 'ERP · Client & SAV', items: [
     ['sav:read', 'Voir le SAV', 'Réclamations, réserves à la livraison, interventions, indicateurs'],
@@ -745,9 +749,76 @@ function portfolioCounts(events) {
   };
 }
 
+/* ─── ERP · Administration générale › Courrier ─────────────────────────────── */
+
+// N° d'ordre par sens et par an (choix du client du 22/10) : A-2026-0001 à l'arrivée, D-2026-0001 au départ
+const MAIL_DIRECTIONS = { arrivee: { label: 'Arrivée', prefix: 'A' }, depart: { label: 'Départ', prefix: 'D' } };
+const mailNumber = (direction, year, seq) => `${MAIL_DIRECTIONS[direction].prefix}-${year}-${String(seq).padStart(4, '0')}`;
+
+/** Suite à donner, choisie par la direction selon la nature du courrier ; `days` : délai proposé (0 = sans délai). */
+const MAIL_SUITES = {
+  information: { label: 'Pour information', days: 0, done: 'Pris connaissance' },
+  traitement: { label: 'Pour traitement / réponse', days: 7, done: 'Traité' },
+  avis: { label: 'Pour avis', days: 3, done: 'Avis donné' },
+  classement: { label: 'Pour classement', days: 0, done: 'Classé' },
+};
+
+/** Nature du courrier et suite proposée par défaut (la direction peut en choisir une autre). */
+const MAIL_NATURES = {
+  lettre: { label: 'Lettre', suite: 'traitement' },
+  demande: { label: 'Demande / sollicitation', suite: 'traitement' },
+  reclamation: { label: 'Réclamation', suite: 'traitement' },
+  facture: { label: 'Facture / devis', suite: 'traitement' },
+  administratif: { label: 'Courrier administratif (impôts, mairie, ministère…)', suite: 'traitement' },
+  juridique: { label: 'Juridique (huissier, mise en demeure, notaire…)', suite: 'traitement' },
+  convocation: { label: 'Convocation / invitation', suite: 'information' },
+  circulaire: { label: 'Note, circulaire, information', suite: 'information' },
+  rapport: { label: 'Rapport / document pour avis', suite: 'avis' },
+  publicite: { label: 'Publicité / prospectus', suite: 'classement' },
+  autre: { label: 'Autre', suite: 'information' },
+};
+
+const MAIL_CHANNELS = { poste: 'Poste', porteur: 'Dépôt / porteur', email: 'E-mail', huissier: 'Huissier', coursier: 'Coursier', autre: 'Autre' };
+
+// enregistre → (affectation par la direction) affecte → traite ; classement à l'affectation ; départ : envoye
+const MAIL_STATUSES = {
+  enregistre: 'À affecter', affecte: 'En cours', traite: 'Traité', envoye: 'Envoyé', annule: 'Annulé',
+};
+
+/**
+ * Ce qu'un compte voit d'un courrier : 'full', 'number' (n° d'ordre seul) ou 'none'.
+ * Confidentiel (choix du client) : visible du destinataire et de la direction (droit courrier:assign) ;
+ * les autres comptes du registre ne voient que le n° d'ordre. Le destinataire voit toujours son courrier.
+ */
+function mailVisibility(m, { userId, can, department = null }) {
+  const recipient = m.assigned_to ? m.assigned_to === userId : !!(m.assigned_department && m.assigned_department === department);
+  if (recipient || can('courrier:assign')) return 'full';
+  const registry = can('courrier:read') || can('courrier:write');
+  if (!registry) return 'none';
+  return m.confidential ? 'number' : 'full';
+}
+
+/**
+ * Relance due ce jour pour un courrier en cours : 'veille' la veille de l'échéance, 'retard' dès le lendemain de
+ * l'échéance (une fois chacune). `today` et `due` au format AAAA-MM-JJ.
+ */
+function mailReminder(m, today) {
+  if (m.status !== 'affecte' || !m.due_date) return null;
+  const eve = addDays(m.due_date, -1);
+  if (today > m.due_date) return m.reminded_late_at ? null : 'retard';
+  if (today >= eve) return m.reminded_eve_at ? null : 'veille';
+  return null;
+}
+function addDays(day, n) {
+  const d = new Date(`${day}T00:00:00Z`);
+  d.setUTCDate(d.getUTCDate() + n);
+  return d.toISOString().slice(0, 10);
+}
+
 module.exports = {
+  MAIL_DIRECTIONS, MAIL_SUITES, MAIL_NATURES, MAIL_CHANNELS, MAIL_STATUSES, mailNumber, mailVisibility, mailReminder,
   PORTFOLIO_EVENTS, PORTFOLIO_REASONS, portfolioState, replayPortfolio, portfolioDiff, portfolioCounts,
-  SELF_SERVICE, SAV_ACTIONS, COMPTA_ACTIONS, PAIE_ACTIONS, RH_ACTIONS,
+  SELF_SERVICE, SAV_ACTIONS, COURRIER_ACTIONS, COMPTA_ACTIONS, PAIE_ACTIONS, RH_ACTIONS,
   LOT_STATUSES, LOT_STATUS_LABELS, SELLABLE_STATUSES, LOT_TRANSITIONS,
   LEAD_STAGES, CLIENT_STAGES, PUBLIC_LEAD_SOURCES, leadAlert, ROLES, ROLE_LABELS, PERMISSIONS, roleKey, can, checkLotTransition,
   SALE_STATUSES, PAYMENT_METHODS, DOCUMENT_STATUSES, DOCUMENT_TYPES, DEFAULT_DOCUMENTS,

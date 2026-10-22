@@ -67,6 +67,7 @@ function createApp(db) {
   admin.use('/erp/sav', require('./routes/erp/sav')(db));
   admin.use('/erp/commercial', require('./routes/erp/commercial')(db));
   admin.use('/erp/direction', require('./routes/erp/direction')(db));
+  admin.use('/erp/courrier', require('./routes/erp/courrier')(db));
   admin.use('/erp/compta', require('./routes/erp/compta')(db));
   admin.use('/erp/paie', require('./routes/erp/paie')(db));
   admin.use('/erp/rh', require('./routes/erp/rh')(db));
@@ -141,6 +142,9 @@ function createApp(db) {
     // Envoi progressif des campagnes de newsletter (aussi possible par tâche planifiée : scripts/newsletter-send.js)
     const newsletter = require('./services/newsletter');
     setInterval(() => newsletter.tick(db).catch(e => console.error('[newsletter]', e.message)), 60 * 1000).unref();
+    // Relances du courrier (veille de l'échéance, jour du dépassement) : une fois par étape, vérifiées chaque heure
+    const courrier = require('./services/courrier');
+    setInterval(() => courrier.tick(db).catch(e => console.error('[courrier]', e.message)), 60 * 60 * 1000).unref();
   }
 
   return app;

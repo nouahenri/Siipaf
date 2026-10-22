@@ -23,6 +23,8 @@ module.exports = {
   adminHost: env.ADMIN_HOST || 'admin.localhost',
   // Adresse de l'ERP (ERP-SIIPAF/dist), même serveur et même base
   erpHost: env.ERP_HOST || 'erp.localhost',
+  // Adresse publique de l'ERP (liens des e-mails d'alerte)
+  erpUrl: (env.ERP_URL || (isProd ? 'https://erp.siipaf.com' : 'http://erp.localhost:4000')).replace(/\/$/, ''),
   smtp: {
     host: env.SMTP_HOST,
     port: Number(env.SMTP_PORT) || 465,

@@ -1,6 +1,6 @@
 import { Link } from 'react-router-dom';
 import { LifeBuoy, Calculator, Users, Scale, Building, HardHat, Boxes, Briefcase, ArrowRight } from 'lucide-react';
-import { useAuth } from '@admin/lib/app-context';
+import { useAuth, useResource } from '@admin/lib/app-context';
 
 // Feuille de route de l'ERP (passation.md §5 quinquies) : seuls les modules livrés sont ouverts
 const MODULES = [
@@ -11,11 +11,13 @@ const MODULES = [
   { id: 'chantiers', label: 'Chantiers', text: 'Planning (Gantt), feuilles de temps, situations de travaux.', icon: HardHat, color: '#eda100' },
   { id: 'achats', label: 'Achats & stocks', text: 'Commandes, sous-traitance, dépôt ↔ chantier.', icon: Boxes, color: '#e87ba4' },
   { id: 'juridique', label: 'Juridique', text: 'Contrats, notaires, actes et échéances.', icon: Scale, color: '#6d28d9' },
-  { id: 'admin', to: '/administration', label: 'Administration générale', text: 'Vue Direction de tous les services ; puis courrier, contrats et échéances, parc, documents internes, demandes.', icon: Building, perm: 'direction:read', color: '#5b6170' },
+  { id: 'admin', to: '/administration', label: 'Administration générale', text: 'Vue Direction de tous les services, courrier arrivée et départ ; puis contrats et échéances, parc, documents internes, demandes.', icon: Building, perm: ['direction:read', 'courrier:read', 'courrier:write', 'courrier:assign'], show: b => b?.mine > 0, color: '#5b6170' },
 ];
 
 export default function Launcher() {
   const { can, user } = useAuth();
+  // Le destinataire d'un courrier entre dans l'Administration générale par ses courriers à traiter
+  const mail = useResource('/admin/erp/courrier/badges');
   return (
     <div className="stack">
       <div>
@@ -24,7 +26,7 @@ export default function Launcher() {
       </div>
       <div className="module-grid">
         {MODULES.map(m => {
-          const ready = m.to && (!m.perm || [].concat(m.perm).some(can));
+          const ready = m.to && (!m.perm || [].concat(m.perm).some(can) || !!m.show?.(mail.data));
           const body = (
             <>
               <span className="module-icon" style={{ '--c': m.color }}><m.icon aria-hidden="true" /></span>

@@ -4,12 +4,14 @@ import {
   LayoutGrid, LifeBuoy, LayoutDashboard, ClipboardList, ClipboardCheck, CalendarClock, LogOut, Menu, ExternalLink,
   Briefcase, Columns3, ListTodo, CalendarDays, Building2, FileSignature, Landmark, Target,
   Calculator, BookOpen, ShoppingCart, FileBarChart, ListTree, Settings2, Contact, Banknote,
-  Users, UserRound, Palmtree, Fingerprint, Receipt, UserPlus, GraduationCap, ShieldCheck, UserCog, Building,
+  Users, UserRound, Palmtree, Fingerprint, Receipt, UserPlus, GraduationCap, ShieldCheck, UserCog, Building, Mail,
 } from 'lucide-react';
 import { useAuth, useResource } from '@admin/lib/app-context';
 import { useRevealOnScroll } from '@admin/lib/reveal';
 import { ROLE_LABELS } from '@admin/lib/domain';
 import { initials } from '@admin/lib/format';
+
+const COURRIER = ['courrier:read', 'courrier:write', 'courrier:assign'];
 
 // Navigation de chaque module ; les modules suivants (comptabilité, RH…) viendront s'ajouter ici
 const MODULES = {
@@ -58,11 +60,13 @@ const MODULES = {
       { to: '/rh/acces', label: 'Rôles et privilèges', icon: ShieldCheck, perm: 'users:read' },
     ],
   },
-  // Administration générale : vue Direction d'abord ; courrier, contrats, parc, documents et demandes viendront ici
+  // Administration générale : vue Direction, courrier ; contrats, parc, documents et demandes viendront ici.
+  // Le destinataire d'un courrier y accède pour ses seuls courriers à traiter.
   administration: {
-    label: 'Administration générale', icon: Building, perm: 'direction:read',
+    label: 'Administration générale', icon: Building, perm: ['direction:read', ...COURRIER], show: b => b?.mine > 0,
     items: [
       { to: '/administration', label: 'Vue Direction', icon: LayoutDashboard, end: true, perm: 'direction:read' },
+      { to: '/administration/courrier', label: 'Courrier', icon: Mail, badge: 'count', perm: COURRIER, show: b => b?.mine > 0 },
       { to: '/administration/acces', label: 'Rôles et privilèges', icon: ShieldCheck, perm: 'users:read' },
     ],
   },
@@ -81,7 +85,7 @@ const MODULES = {
 const TITLES = {
   '/': 'Modules', '/commercial': 'Service commercial', '/commercial/pipeline': 'Pipeline commercial', '/commercial/activites': 'Mes activités',
   '/commercial/rendez-vous': 'Rendez-vous', '/commercial/parc': 'Parc immobilier', '/commercial/ventes': 'Dossiers de vente',
-  '/commercial/vefa': 'Appels de fonds VEFA', '/commercial/objectifs': 'Objectifs et performance', '/administration': 'Vue Direction', '/administration/acces': 'Rôles et privilèges — Administration générale',
+  '/commercial/vefa': 'Appels de fonds VEFA', '/commercial/objectifs': 'Objectifs et performance', '/administration': 'Vue Direction', '/administration/courrier': 'Courrier arrivée et départ', '/administration/acces': 'Rôles et privilèges — Administration générale',
   '/compta': 'Comptabilité', '/compta/ecritures': 'Écritures comptables', '/compta/achats': 'Achats et fournisseurs', '/compta/etats': 'États comptables',
   '/compta/plan': 'Plan comptable SYSCOHADA', '/compta/parametres': 'Paramètres comptables', '/compta/paie': 'Paie', '/compta/employes': 'Employés', '/rh': 'Ressources humaines', '/rh/moi': 'Mon espace', '/rh/personnel': 'Personnel', '/rh/conges': 'Congés et absences', '/rh/presences': 'Présences', '/rh/borne': 'Borne de pointage', '/rh/frais': 'Notes de frais', '/rh/recrutement': 'Recrutement', '/rh/competences': 'Compétences et formations', '/rh/objectifs': 'Performance et entretiens', '/rh/reglages': 'Réglages RH', '/commercial/acces': 'Rôles et privilèges — Service commercial', '/compta/acces': 'Rôles et privilèges — Comptabilité', '/rh/acces': 'Rôles et privilèges — Ressources humaines', '/sav/acces': 'Rôles et privilèges — Client & SAV', '/comptes': 'Comptes utilisateurs', '/sav': 'Client & SAV', '/sav/reclamations': 'Réclamations', '/sav/reserves': 'Réserves de livraison', '/sav/interventions': 'Interventions',
 };
@@ -96,7 +100,7 @@ export default function ErpLayout() {
   const [open, setOpen] = useState(false);
   const moduleId = pathname.split('/')[1];
   const mod = MODULES[moduleId];
-  const statsUrl = moduleId === 'sav' && can('sav:read') ? '/admin/erp/sav/stats' : moduleId === 'commercial' && can('commercial:read') ? '/admin/erp/commercial/dashboard' : moduleId === 'compta' && can('compta:read') ? '/admin/erp/compta/dashboard' : moduleId === 'rh' ? '/admin/erp/rh/badges' : null;
+  const statsUrl = moduleId === 'sav' && can('sav:read') ? '/admin/erp/sav/stats' : moduleId === 'commercial' && can('commercial:read') ? '/admin/erp/commercial/dashboard' : moduleId === 'compta' && can('compta:read') ? '/admin/erp/compta/dashboard' : moduleId === 'rh' ? '/admin/erp/rh/badges' : moduleId === 'administration' ? '/admin/erp/courrier/badges' : null;
   const stats = useResource(statsUrl, [pathname]);
   const contentRef = useRef(null);
   useRevealOnScroll(contentRef, [pathname]);
@@ -113,7 +117,7 @@ export default function ErpLayout() {
         <div className="nav-group">
           <NavLink to="/" end className={({ isActive }) => `nav-item ${isActive ? 'active' : ''}`}><LayoutGrid aria-hidden="true" />Tous les modules</NavLink>
         </div>
-        {mod && (can(mod.perm) || can('users:read')) && (
+        {mod && (can(mod.perm) || can('users:read') || mod.show?.(stats.data)) && (
           <div className="nav-group">
             <div className="nav-group-title">{mod.label}</div>
             {mod.items.filter(i => (i.perm && can(i.perm)) || (i.show && i.show(stats.data)) || (!i.perm && !i.show)).map(i => {
