@@ -140,7 +140,7 @@ function ContractDrawer({ id, refs, onClose, onChange, onEdit }) {
   };
   return (
     <Drawer title={c ? `${c.reference} · ${c.kind_label}` : 'Contrat'} onClose={onClose}>
-      {!c ? <Skeleton h={300} /> : (
+      {x.error ? <ErrorBox error={x.error} /> : !c ? <Skeleton h={300} /> : (
         <div className="stack" style={{ gap: 16 }}>
           <div className="row" style={{ gap: 6, flexWrap: 'wrap' }}>
             <Badge tone={STATUS_TONES[c.status]}>{c.status_label}</Badge>

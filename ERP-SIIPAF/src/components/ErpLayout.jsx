@@ -4,7 +4,7 @@ import {
   LayoutGrid, LifeBuoy, LayoutDashboard, ClipboardList, ClipboardCheck, CalendarClock, LogOut, Menu, ExternalLink,
   Briefcase, Columns3, ListTodo, CalendarDays, Building2, FileSignature, Landmark, Target,
   Calculator, BookOpen, ShoppingCart, FileBarChart, ListTree, Settings2, Contact, Banknote,
-  Users, UserRound, Palmtree, Fingerprint, Receipt, UserPlus, GraduationCap, ShieldCheck, UserCog, Building, Mail, FileClock,
+  Users, UserRound, Palmtree, Fingerprint, Receipt, UserPlus, GraduationCap, ShieldCheck, UserCog, Building, Mail, FileClock, Truck,
 } from 'lucide-react';
 import { useAuth, useResource } from '@admin/lib/app-context';
 import { useRevealOnScroll } from '@admin/lib/reveal';
@@ -13,6 +13,7 @@ import { initials } from '@admin/lib/format';
 
 const COURRIER = ['courrier:read', 'courrier:write', 'courrier:assign'];
 const CONTRATS = ['contrats:read', 'contrats:write'];
+const PARC = ['parc:read', 'parc:write'];
 
 // Navigation de chaque module ; les modules suivants (comptabilité, RH…) viendront s'ajouter ici
 const MODULES = {
@@ -64,11 +65,12 @@ const MODULES = {
   // Administration générale : vue Direction, courrier ; contrats, parc, documents et demandes viendront ici.
   // Le destinataire d'un courrier y accède pour ses seuls courriers à traiter.
   administration: {
-    label: 'Administration générale', icon: Building, perm: ['direction:read', ...COURRIER, ...CONTRATS], show: b => b?.mine > 0 || b?.contracts_owned > 0,
+    label: 'Administration générale', icon: Building, perm: ['direction:read', ...COURRIER, ...CONTRATS, ...PARC], show: b => b?.mine > 0 || b?.contracts_owned > 0,
     items: [
       { to: '/administration', label: 'Vue Direction', icon: LayoutDashboard, end: true, perm: 'direction:read' },
       { to: '/administration/courrier', label: 'Courrier', icon: Mail, badge: 'count', perm: COURRIER, show: b => b?.mine > 0 },
       { to: '/administration/contrats', label: 'Contrats et échéances', icon: FileClock, badge: 'contracts_due', perm: CONTRATS, show: b => b?.contracts_owned > 0 },
+      { to: '/administration/parc', label: 'Parc auto et matériel', icon: Truck, badge: 'parc_count', perm: PARC },
       { to: '/administration/acces', label: 'Rôles et privilèges', icon: ShieldCheck, perm: 'users:read' },
     ],
   },
@@ -87,7 +89,7 @@ const MODULES = {
 const TITLES = {
   '/': 'Modules', '/commercial': 'Service commercial', '/commercial/pipeline': 'Pipeline commercial', '/commercial/activites': 'Mes activités',
   '/commercial/rendez-vous': 'Rendez-vous', '/commercial/parc': 'Parc immobilier', '/commercial/ventes': 'Dossiers de vente',
-  '/commercial/vefa': 'Appels de fonds VEFA', '/commercial/objectifs': 'Objectifs et performance', '/administration': 'Vue Direction', '/administration/courrier': 'Courrier arrivée et départ', '/administration/contrats': 'Contrats et échéances', '/administration/acces': 'Rôles et privilèges — Administration générale',
+  '/commercial/vefa': 'Appels de fonds VEFA', '/commercial/objectifs': 'Objectifs et performance', '/administration': 'Vue Direction', '/administration/courrier': 'Courrier arrivée et départ', '/administration/contrats': 'Contrats et échéances', '/administration/parc': 'Parc auto et matériel', '/administration/acces': 'Rôles et privilèges — Administration générale',
   '/compta': 'Comptabilité', '/compta/ecritures': 'Écritures comptables', '/compta/achats': 'Achats et fournisseurs', '/compta/etats': 'États comptables',
   '/compta/plan': 'Plan comptable SYSCOHADA', '/compta/parametres': 'Paramètres comptables', '/compta/paie': 'Paie', '/compta/employes': 'Employés', '/rh': 'Ressources humaines', '/rh/moi': 'Mon espace', '/rh/personnel': 'Personnel', '/rh/conges': 'Congés et absences', '/rh/presences': 'Présences', '/rh/borne': 'Borne de pointage', '/rh/frais': 'Notes de frais', '/rh/recrutement': 'Recrutement', '/rh/competences': 'Compétences et formations', '/rh/objectifs': 'Performance et entretiens', '/rh/reglages': 'Réglages RH', '/commercial/acces': 'Rôles et privilèges — Service commercial', '/compta/acces': 'Rôles et privilèges — Comptabilité', '/rh/acces': 'Rôles et privilèges — Ressources humaines', '/sav/acces': 'Rôles et privilèges — Client & SAV', '/comptes': 'Comptes utilisateurs', '/sav': 'Client & SAV', '/sav/reclamations': 'Réclamations', '/sav/reserves': 'Réserves de livraison', '/sav/interventions': 'Interventions',
 };

@@ -132,7 +132,7 @@ function MailDrawer({ id, refs, onClose, onChange, onEdit, onReply }) {
   const doneLabel = { information: 'J’ai pris connaissance', traitement: 'Marquer traité', avis: 'Donner mon avis' }[d?.suite] || 'Marquer traité';
   return (
     <Drawer title={d ? `${d.number} · ${d.direction_label}` : 'Courrier'} onClose={onClose}>
-      {!d ? <Skeleton h={300} /> : d.masked ? (
+      {x.error ? <ErrorBox error={x.error} /> : !d ? <Skeleton h={300} /> : d.masked ? (
         <Empty icon={Lock}>Courrier confidentiel : seuls le destinataire et la direction en voient le contenu.</Empty>
       ) : (
         <div className="stack" style={{ gap: 16 }}>

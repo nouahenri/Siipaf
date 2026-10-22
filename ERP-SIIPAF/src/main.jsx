@@ -21,6 +21,7 @@ import Targets from './pages/commercial/Targets';
 import Direction from './pages/admin/Direction';
 import Courrier from './pages/admin/Courrier';
 import Contrats from './pages/admin/Contrats';
+import Parc from './pages/admin/Parc';
 import ComptaDashboard from './pages/compta/ComptaDashboard';
 import Entries from './pages/compta/Entries';
 import Purchases from './pages/compta/Purchases';
@@ -57,11 +58,15 @@ function RhHome() {
   return can('rh:read') ? <RhDashboard /> : <Navigate to="/rh/moi" replace />;
 }
 
-/** Entrée de l'Administration générale : la vue Direction, sinon les contrats ou le courrier. */
+/** Entrée de l'Administration générale : la vue Direction, sinon la première partie ouverte au compte. */
 function AdminHome() {
   const { can } = useAuth();
   if (can('direction:read')) return <Direction />;
-  return <Navigate to={['contrats:read', 'contrats:write'].some(can) && !['courrier:read', 'courrier:write', 'courrier:assign'].some(can) ? '/administration/contrats' : '/administration/courrier'} replace />;
+  const first = [
+    [['courrier:read', 'courrier:write', 'courrier:assign'], '/administration/courrier'], [['contrats:read', 'contrats:write'], '/administration/contrats'],
+    [['parc:read', 'parc:write'], '/administration/parc'],
+  ].find(([perms]) => perms.some(can));
+  return <Navigate to={first ? first[1] : '/administration/courrier'} replace />;
 }
 
 function App() {
@@ -107,6 +112,7 @@ function App() {
         <Route path="administration" element={<AdminHome />} />
         <Route path="administration/courrier" element={<Courrier />} />
         <Route path="administration/contrats" element={<Contrats />} />
+        <Route path="administration/parc" element={<Guard perm={['parc:read', 'parc:write']}><Parc /></Guard>} />
         <Route path="administration/acces" element={<Guard perm="users:read"><ModuleAccess module="administration" label="Administration générale" /></Guard>} />
         <Route path="compta/acces" element={<Guard perm="users:read"><ModuleAccess module="compta" label="Comptabilité et paie" /></Guard>} />
         <Route path="rh/acces" element={<Guard perm="users:read"><ModuleAccess module="rh" label="Ressources humaines" /></Guard>} />

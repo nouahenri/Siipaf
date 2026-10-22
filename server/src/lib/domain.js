@@ -295,13 +295,14 @@ function roleKey(label) {
 }
 
 // Actions de l'espace employé de l'ERP (Mon espace), données à tous les rôles
-const SELF_SERVICE = ['self:conges', 'self:pointage', 'self:frais'];
+const SELF_SERVICE = ['self:conges', 'self:pointage', 'self:frais', 'self:vehicule'];
 // Actions détaillées des modules de l'ERP (une ligne du catalogue chacune)
 const SAV_ACTIONS = ['sav:create', 'sav:handle', 'sav:assign', 'sav:reserves', 'sav:interventions'];
 const COMPTA_ACTIONS = ['compta:entries', 'compta:validate', 'achats:write', 'achats:pay', 'frais:post', 'compta:close', 'compta:settings', 'compta:export'];
 const PAIE_ACTIONS = ['paie:employees', 'paie:prepare', 'paie:validate', 'paie:pay', 'paie:settings'];
 const COURRIER_ACTIONS = ['courrier:read', 'courrier:write', 'courrier:assign'];
 const CONTRACT_ACTIONS = ['contrats:read', 'contrats:write'];
+const PARC_ACTIONS = ['parc:read', 'parc:write'];
 const RH_ACTIONS = ['rh:files', 'conges:approve', 'conges:manage', 'rh:overtime', 'frais:approve', 'recrutement:write', 'formation:write', 'evaluation:write', 'rh:settings'];
 
 /** Droits par défaut des rôles d'origine. Le super administrateur a tous les droits. */
@@ -323,7 +324,7 @@ const PERMISSIONS = {
   comptable: [
     'projects:read', 'lots:read', 'leads:read', 'appointments:read', 'sales:read', 'payments:write',
     'schedule:write', 'client_messages', 'commercial:read', 'leads:all', 'compta:read', ...COMPTA_ACTIONS,
-    'rh:read', ...RH_ACTIONS, 'presence:write', 'paie:read', ...PAIE_ACTIONS, 'contrats:read', ...SELF_SERVICE,
+    'rh:read', ...RH_ACTIONS, 'presence:write', 'paie:read', ...PAIE_ACTIONS, 'contrats:read', 'parc:read', ...SELF_SERVICE,
   ],
   resp_exploitation: [
     'projects:read', 'projects:write', 'plans:write', 'lots:read', 'lots:status', 'leads:read', 'leads:delete',
@@ -331,7 +332,7 @@ const PERMISSIONS = {
     'sales:read', 'sales:write', 'documents:write', 'testimonials:write',
     'client_access:write', 'client_messages', 'site_updates:write', 'schedule:write', 'settings:write',
     'leads:all', 'sav:read', ...SAV_ACTIONS, 'commercial:read', 'targets:write', 'vefa:write', 'property:write', 'compta:read',
-    'rh:read', ...RH_ACTIONS, 'presence:write', 'direction:read', ...COURRIER_ACTIONS, ...CONTRACT_ACTIONS, ...SELF_SERVICE,
+    'rh:read', ...RH_ACTIONS, 'presence:write', 'direction:read', ...COURRIER_ACTIONS, ...CONTRACT_ACTIONS, ...PARC_ACTIONS, ...SELF_SERVICE,
   ],
 };
 
@@ -406,6 +407,7 @@ const PERMISSION_CATALOG = [
     ['self:conges', 'Demander des congés', 'Mon espace : demandes de congé et d’absence, justificatifs, auto-évaluation'],
     ['self:pointage', 'Pointer en ligne', 'Mon espace : arrivée et départ, code de la borne de pointage'],
     ['self:frais', 'Saisir des notes de frais', 'Mon espace : dépenses avec reçu, soumission'],
+    ['self:vehicule', 'Demander un véhicule', 'Mon espace : réservation d’un véhicule de service, accordée par les services généraux'],
   ] },
   { group: 'ERP · Administration générale', items: [
     ['direction:read', 'Ouvrir l’Administration générale (vue Direction)', 'Synthèse de tous les services : commercial, chantiers, finance, RH et SAV, avancement des chantiers par programme, dossier et client'],
@@ -414,6 +416,8 @@ const PERMISSION_CATALOG = [
     ['courrier:assign', 'Affecter le courrier (direction)', 'Destinataire, suite à donner et délai ; voit les courriers confidentiels ; relances'],
     ['contrats:read', 'Consulter les contrats et échéances', 'Contrats, pièces, échéances et factures préparées'],
     ['contrats:write', 'Gérer les contrats (services généraux, juridique)', 'Saisir, modifier, résilier ; pièces à renouveler ; reçoit toutes les alertes'],
+    ['parc:read', 'Consulter le parc auto et matériel', 'Biens, affectations, échéances, entretien, carburant, coûts par chantier'],
+    ['parc:write', 'Gérer le parc (services généraux)', 'Biens, affectations, échéances, entretien, dépenses, réservations de véhicules'],
   ] },
   { group: 'ERP · Client & SAV', items: [
     ['sav:read', 'Voir le SAV', 'Réclamations, réserves à la livraison, interventions, indicateurs'],
@@ -887,7 +891,70 @@ function contractPaymentsDue(c, today) {
   return { dates, next: c.end_date && !c.tacit_renewal && next > c.end_date ? null : next };
 }
 
+/* ─── ERP · Administration générale › Parc auto et matériel ────────────────── */
+
+// Tous les biens (choix du client du 22/10) ; compteur : kilomètres (véhicules) ou heures moteur (engins)
+const ASSET_KINDS = {
+  vehicule: { label: 'Véhicule', prefix: 'VEH', meter: 'km' },
+  engin: { label: 'Engin de chantier', prefix: 'ENG', meter: 'h' },
+  materiel: { label: 'Petit matériel et outillage', prefix: 'MAT', meter: null },
+  informatique: { label: 'Informatique et bureau', prefix: 'INF', meter: null },
+  autre: { label: 'Autre matériel', prefix: 'DIV', meter: null },
+};
+const assetCode = (kind, seq) => `${ASSET_KINDS[kind].prefix}-${String(seq).padStart(4, '0')}`;
+const ASSET_STATUSES = { disponible: 'Disponible', affecte: 'Affecté', maintenance: 'En panne / en réparation', reforme: 'Réformé / cédé' };
+// Affectation : à un employé (remise / restitution) ou à un chantier (mouvement dépôt → chantier)
+const ASSET_ASSIGNMENT_KINDS = { employe: 'Employé', chantier: 'Chantier' };
+// Échéances administratives : alertes 30 puis 7 jours avant (comme les contrats)
+const ASSET_DOC_KINDS = {
+  assurance: 'Assurance', visite_technique: 'Visite technique', vignette: 'Vignette', carte_transport: 'Carte de transport',
+  carte_grise: 'Carte grise', garantie: 'Garantie constructeur', autre: 'Autre échéance',
+};
+// Dépenses saisies dans le parc (le carburant porte les litres et le compteur)
+const ASSET_COST_KINDS = {
+  carburant: 'Carburant', entretien: 'Entretien planifié', reparation: 'Panne / réparation', pneus: 'Pneumatiques', location: 'Location',
+  assurance: 'Assurance', taxes: 'Vignette, visite, taxes', autre: 'Autre dépense',
+};
+const RESERVATION_STATUSES = { demandee: 'Demandée', accordee: 'Accordée', refusee: 'Refusée', annulee: 'Annulée' };
+// Entretien « à prévoir » avant l'échéance : 7 jours, 500 km ou 20 heures
+const MAINTENANCE_SOON = { days: 7, km: 500, h: 20 };
+
+/**
+ * Prochain entretien d'un plan (vidange tous les 10 000 km ou 6 mois, révision toutes les 250 h…) : le premier atteint
+ * du compteur ou de la date. Renvoie { next_date, next_meter, state: 'ok' | 'bientot' | 'du' }.
+ */
+function maintenanceDue(plan, asset, today) {
+  const meterStep = asset.meter === 'km' ? plan.every_km : asset.meter === 'h' ? plan.every_hours : null;
+  const next_meter = meterStep && plan.last_meter != null ? Number(plan.last_meter) + Number(meterStep) : null;
+  const next_date = plan.every_months && plan.last_date ? addMonths(plan.last_date, plan.every_months) : null;
+  const current = asset.meter_value == null ? null : Number(asset.meter_value);
+  let state = 'ok';
+  if ((next_date && next_date <= today) || (next_meter != null && current != null && current >= next_meter)) state = 'du';
+  else if ((next_date && daysBetween(today, next_date) <= MAINTENANCE_SOON.days)
+    || (next_meter != null && current != null && next_meter - current <= (asset.meter === 'h' ? MAINTENANCE_SOON.h : MAINTENANCE_SOON.km))) state = 'bientot';
+  return { next_date, next_meter, state };
+}
+
+/**
+ * Consommation moyenne à partir des pleins (plein complet à chaque fois) : litres versés après le premier plein,
+ * rapportés au compteur parcouru. L/100 km pour un véhicule, L/h pour un engin ; null sans deux relevés.
+ */
+function fuelConsumption(fills, meter) {
+  const rows = fills.filter(f => f.meter_value != null && f.liters).sort((a, b) => Number(a.meter_value) - Number(b.meter_value));
+  if (rows.length < 2 || !meter) return null;
+  const distance = Number(rows[rows.length - 1].meter_value) - Number(rows[0].meter_value);
+  if (distance <= 0) return null;
+  const liters = rows.slice(1).reduce((t, f) => t + Number(f.liters), 0);
+  const value = meter === 'km' ? (liters / distance) * 100 : liters / distance;
+  return { value: Math.round(value * 10) / 10, unit: meter === 'km' ? 'L/100 km' : 'L/h', liters, distance };
+}
+
+/** Deux réservations du même véhicule se chevauchent (début et fin « AAAA-MM-JJTHH:MM »). */
+const reservationsOverlap = (a, b) => a.start_at < b.end_at && b.start_at < a.end_at;
+
 module.exports = {
+  ASSET_KINDS, ASSET_STATUSES, ASSET_ASSIGNMENT_KINDS, ASSET_DOC_KINDS, ASSET_COST_KINDS, RESERVATION_STATUSES, MAINTENANCE_SOON, PARC_ACTIONS,
+  assetCode, maintenanceDue, fuelConsumption, reservationsOverlap,
   MAIL_DIRECTIONS, MAIL_SUITES, MAIL_NATURES, MAIL_CHANNELS, MAIL_STATUSES, mailNumber, mailVisibility, mailReminder,
   CONTRACT_KINDS, CONTRACT_FREQUENCIES, CONTRACT_STATUSES, CONTRACT_DOC_KINDS, CONTRACT_ALERT_STAGES, CONTRACT_INVOICE_LEAD_DAYS, CONTRACT_ACTIONS,
   contractDeadlines, contractAlertStage, renewedEnd, contractPaymentsDue, daysBetween,

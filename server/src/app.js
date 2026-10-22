@@ -69,6 +69,7 @@ function createApp(db) {
   admin.use('/erp/direction', require('./routes/erp/direction')(db));
   admin.use('/erp/courrier', require('./routes/erp/courrier')(db));
   admin.use('/erp/contrats', require('./routes/erp/contracts')(db));
+  admin.use('/erp/parc', require('./routes/erp/parc')(db));
   admin.use('/erp/compta', require('./routes/erp/compta')(db));
   admin.use('/erp/paie', require('./routes/erp/paie')(db));
   admin.use('/erp/rh', require('./routes/erp/rh')(db));
@@ -149,6 +150,9 @@ function createApp(db) {
     // Contrats : renouvellements, factures des paiements à venir, alertes 30 puis 7 jours avant (chaque heure, sans doublon)
     const contracts = require('./services/contracts');
     setInterval(() => contracts.tick(db).catch(e => console.error('[contrats]', e.message)), 60 * 60 * 1000).unref();
+    // Parc : échéances administratives et entretiens (30 puis 7 jours avant, compteur atteint)
+    const parc = require('./services/parc');
+    setInterval(() => parc.tick(db).catch(e => console.error('[parc]', e.message)), 60 * 60 * 1000).unref();
   }
 
   return app;

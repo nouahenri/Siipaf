@@ -9,6 +9,7 @@ import { RH, days, hours, hm, useRhMeta, metricValue } from '../../lib/rh';
 import { LeaveForm, LeaveBadge, TypeDot, ExpenseForm, ExpenseBadge } from '../../components/RhForms';
 import { Indicators } from './Reviews';
 import PerformanceCurves from './PerformanceCurves';
+import VehicleRequests from '../../components/VehicleRequests';
 
 /** Libre-service de l'employé (référence : espace « Mon profil » d'Odoo) : pointage, congés, frais, formations, entretien. */
 export default function MySpace() {
@@ -90,6 +91,8 @@ export default function MySpace() {
           </table></div>
         )}
       </Card>
+
+      {can('self:vehicule') && <VehicleRequests />}
 
       <div className="grid grid-2" style={{ alignItems: 'start' }}>
         <Card title="Mes formations" bodyClass="">
