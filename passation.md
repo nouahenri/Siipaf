@@ -1,12 +1,14 @@
 # Passation — Plateforme SIIPAF
 
 > Document de reprise pour continuer le travail dans une nouvelle discussion.
-> Dernière mise à jour : 22 octobre 2026 (fin de journée) — **release `80091fc` en production** (serveur + site).
+> Dernière mise à jour : 22 octobre 2026 (soir) — **serveur `80091fc`, site `d7bf336` en production**.
 > Branche `plateforme-admin-espace-client` **poussée sur GitHub** jusqu'à la passation du 22/10 au soir (un push déclenche Vercel).
 > **Release `80091fc` EN LIGNE depuis le 22/10 vers 15 h 22 UTC** (serveur + site ; contient `35cfd87` et `5a14e93`). Commits poussés sur GitHub le 22/10.
 > **À faire en premier** : reprendre le module ERP Administration générale, partie **2. Courrier** (§5 quinquies) ; le menu « Actualités » (Facebook) est à cadrer plus tard (voir plus bas).
 
-## Soir du 22/10 — lotissements séparés, budget pré-rempli (fait, NON committé, NON en ligne)
+## Soir du 22/10 — lotissements séparés, budget pré-rempli (commits `d90eb40` + `d7bf336`, site EN LIGNE)
+**Site `d7bf336` en ligne le 22/10 vers 15 h 54 UTC** (accord : « Commit ce lot et mets le site en ligne ») : paquet site seul déposé par Chrome, `bash update-d7bf336.sh` → empreinte OK, sauvegarde `~/sauvegardes/site-d7bf336-20261022-155408/`, `DEPLOY_OK d7bf336` (la release `d90eb40` était passée juste avant, sauvegarde `site-d90eb40-20261022-155106`). Vérifié en production : Projets sans « TEST SITE GRAND-BASSAM », Lotissements avec sa fiche (378 lots, 373 disponibles, 400–600 m², dès 2 400 000 FCFA), budget pré-rempli exact.
+- **Correctif `d7bf336`** : des lignes de la grille du même nom (« Terrain nu » en 400, 500 et 600 m²) se distinguent par la surface (« Terrain nu 600 m² », `lineName()` de `js/offers.js`) dans le bouton, les suggestions et le budget.
 Choix du client : fiche d'un lotissement **sur la page Lotissements** ; budget = **montant exact modifiable** tiré de la grille ; ligne Diaspora = **prix total + mensualité** (« 11 210 000 FCFA (311 389 F/mois sur 36 mois) »).
 - **Chaque projet dans son menu** : `js/projets.js` retire les projets `category = lotissement` (carte, fiche écrite, lien de la colonne) ; un lien `projets.html#<lotissement>` est renvoyé vers `lotissements.html#<slug>`. La page Lotissements n'affiche plus les promotions qui ont un plan (bloc `otherPlans` supprimé).
 - **Fiche d'un lotissement** (`lotissements.html#slug`, `js/lotissements.js`) : « Tous les lotissements », photo, Localiser le site, chiffres clés (lots, disponibles, surfaces, livraison ou prix d'entrée), équipements, description, tableau des prix avec « Infos & réservation », Plan interactif, Réserver ce lotissement. Cartes : Découvrir (fiche), Réserver, Plan interactif.
