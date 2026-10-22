@@ -2,7 +2,7 @@ import { useEffect, useState } from 'react';
 import { Download, Mail, Newspaper, Plus, Search } from 'lucide-react';
 import { useSearchParams } from 'react-router-dom';
 import { api } from '../lib/api';
-import { useAuth, useResource, useToast } from '../lib/app-context';
+import { useAuth, useResource, useToast, useSaved } from '../lib/app-context';
 import { Card, Field, Badge, Empty, ErrorBox, Skeleton, Modal } from '../components/ui';
 import CampaignEditor, { CAMPAIGN_TONES, CampaignProgress } from '../components/CampaignEditor';
 import { date, dateTime } from '../lib/format';
@@ -142,6 +142,7 @@ function Subscribers() {
 function SendSettings() {
   const { can } = useAuth();
   const toast = useToast();
+  const saved = useSaved();
   const res = useResource('/admin/newsletter/settings');
   const [form, setForm] = useState(null);
   const [busy, setBusy] = useState(false);
@@ -156,7 +157,7 @@ function SendSettings() {
     setBusy(true);
     try {
       res.setData(await api.put('/admin/newsletter/settings', { ...form, per_minute: Number(form.per_minute), per_hour: Number(form.per_hour) }));
-      toast('Réglages enregistrés');
+      saved('Réglages enregistrés');
     } catch (err) { toast(err.message, 'err'); } finally { setBusy(false); }
   };
 

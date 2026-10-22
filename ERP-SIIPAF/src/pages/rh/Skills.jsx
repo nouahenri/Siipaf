@@ -2,7 +2,7 @@ import { useState } from 'react';
 import { Link, useSearchParams } from 'react-router-dom';
 import { Plus, Users, CheckCheck, Ban, GraduationCap, Pencil, Trash2, Search } from 'lucide-react';
 import { api } from '@admin/lib/api';
-import { useAuth, useResource, useToast } from '@admin/lib/app-context';
+import { useAuth, useResource, useToast, useSaved } from '@admin/lib/app-context';
 import { Card, Empty, Skeleton, ErrorBox, Modal, Field, Badge } from '@admin/components/ui';
 import { date, fcfa } from '@admin/lib/format';
 import { RH, today, useRhMeta } from '../../lib/rh';
@@ -85,6 +85,7 @@ function Trainings() {
 }
 
 function TrainingForm({ training, skills, onClose, onSaved }) {
+  const saved = useSaved();
   const [f, setF] = useState({
     title: training.title || '', provider: training.provider || '', kind: training.kind || 'externe', skill_id: training.skill_id || '', start_date: training.start_date || today(),
     end_date: training.end_date || today(), hours: training.hours ?? '', location: training.location || '', cost: training.cost ?? 0, fdfp: !!training.fdfp,
@@ -94,7 +95,7 @@ function TrainingForm({ training, skills, onClose, onSaved }) {
   const save = async e => {
     e.preventDefault();
     const body = { ...f, skill_id: Number(f.skill_id) || null, hours: f.hours === '' ? null : Number(f.hours), cost: Number(f.cost) || 0, provider: f.provider || null, location: f.location || null };
-    try { await (training.id ? api.patch(`${RH}/trainings/${training.id}`, body) : api.post(`${RH}/trainings`, body)); onSaved(); } catch (err) { setError(err); }
+    try { await (training.id ? api.patch(`${RH}/trainings/${training.id}`, body) : api.post(`${RH}/trainings`, body)); saved("Formation enregistrée"); onSaved(); } catch (err) { setError(err); }
   };
   return (
     <Modal title={training.id ? training.title : 'Nouvelle formation'} onClose={onClose} footer={<><button className="btn btn-ghost" onClick={onClose}>Annuler</button><button className="btn btn-primary" form="training">Enregistrer</button></>}>
@@ -118,10 +119,11 @@ function TrainingForm({ training, skills, onClose, onSaved }) {
 }
 
 function Participants({ training, employees, onClose, onSaved }) {
+  const saved = useSaved();
   const [ids, setIds] = useState(training.participants.map(p => p.employee_id));
   const [q, setQ] = useState('');
   const [error, setError] = useState(null);
-  const save = async () => { try { await api.put(`${RH}/trainings/${training.id}/participants`, { employee_ids: ids }); onSaved(); } catch (e) { setError(e); } };
+  const save = async () => { try { await api.put(`${RH}/trainings/${training.id}/participants`, { employee_ids: ids }); saved("Participants enregistrés"); onSaved(); } catch (e) { setError(e); } };
   const shown = employees.filter(e => !q || `${e.last_name} ${e.first_name}`.toLowerCase().includes(q.toLowerCase()));
   return (
     <Modal title={`Participants — ${training.title}`} onClose={onClose} footer={<><button className="btn btn-ghost" onClick={onClose}>Annuler</button><button className="btn btn-primary" onClick={save}>Enregistrer ({ids.length})</button></>}>
@@ -135,9 +137,10 @@ function Participants({ training, employees, onClose, onSaved }) {
 }
 
 function CloseTraining({ training, onClose, onSaved }) {
+  const saved = useSaved();
   const [att, setAtt] = useState(training.participants.map(p => ({ employee_id: p.employee_id, name: p.employee_name, present: true, evaluation: '' })));
   const [error, setError] = useState(null);
-  const save = async () => { try { await api.post(`${RH}/trainings/${training.id}/complete`, { attendance: att.map(({ name, ...a }) => ({ ...a, evaluation: a.evaluation || null })) }); onSaved(); } catch (e) { setError(e); } };
+  const save = async () => { try { await api.post(`${RH}/trainings/${training.id}/complete`, { attendance: att.map(({ name, ...a }) => ({ ...a, evaluation: a.evaluation || null })) }); saved("Formation clôturée"); onSaved(); } catch (e) { setError(e); } };
   return (
     <Modal title={`Clôturer — ${training.title}`} onClose={onClose} footer={<><button className="btn btn-ghost" onClick={onClose}>Annuler</button><button className="btn btn-primary" onClick={save}><CheckCheck />Clôturer la formation</button></>}>
       <div className="stack" style={{ gap: 10 }}>
@@ -218,13 +221,14 @@ function Referential() {
 }
 
 function TypeForm({ type, onClose, onSaved }) {
+  const saved = useSaved();
   const [name, setName] = useState(type.name || '');
   const [levels, setLevels] = useState((type.levels || ['Débutant', 'Intermédiaire', 'Avancé', 'Expert']).join('\n'));
   const [error, setError] = useState(null);
   const save = async e => {
     e.preventDefault();
     const body = { name, levels: levels.split('\n').map(l => l.trim()).filter(Boolean) };
-    try { await (type.id ? api.patch(`${RH}/skill-types/${type.id}`, body) : api.post(`${RH}/skill-types`, body)); onSaved(); } catch (err) { setError(err); }
+    try { await (type.id ? api.patch(`${RH}/skill-types/${type.id}`, body) : api.post(`${RH}/skill-types`, body)); saved("Domaine enregistré"); onSaved(); } catch (err) { setError(err); }
   };
   return (
     <Modal title={type.id ? type.name : 'Nouveau domaine'} onClose={onClose} footer={<><button className="btn btn-ghost" onClick={onClose}>Annuler</button><button className="btn btn-primary" form="type">Enregistrer</button></>}>

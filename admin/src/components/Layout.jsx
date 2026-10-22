@@ -8,13 +8,14 @@ import { useAuth, useResource } from '../lib/app-context';
 import { ROLE_LABELS } from '../lib/domain';
 import { initials } from '../lib/format';
 import NotificationBell, { useNotifications } from './NotificationBell';
+import AppointmentRequests from './AppointmentRequests';
 
 const NAV = [
   { group: null, items: [{ to: '/', label: 'Tableau de bord', icon: LayoutDashboard, end: true }] },
   { group: 'Ventes', items: [
     { to: '/prospects', label: 'Prospects', icon: Users, perm: 'leads:read', badge: 'new_leads' },
     { to: '/clients', label: 'Clients', icon: UserCheck, perm: 'sales:read' },
-    { to: '/rendez-vous', label: 'Rendez-vous', icon: CalendarDays, perm: 'appointments:read' },
+    { to: '/rendez-vous', label: 'Rendez-vous', icon: CalendarDays, perm: 'appointments:read', badge: 'site_appointment_requests', panel: true },
     { to: '/messagerie-clients', label: 'Messagerie clients', icon: MessagesSquare, perm: 'client_messages', badge: 'unread_client_messages' },
   ] },
   { group: 'Catalogue', items: [
@@ -49,6 +50,7 @@ export default function Layout() {
   const { user, logout, can } = useAuth();
   const { pathname } = useLocation();
   const [open, setOpen] = useState(false);
+  const [requestsOpen, setRequestsOpen] = useState(false);
   const stats = useResource('/admin/stats', [pathname]);
   const notif = useNotifications(can('leads:read'));
   const contentRef = useRef(null);
@@ -72,11 +74,16 @@ export default function Layout() {
               {g.group && <div className="nav-group-title">{g.group}</div>}
               {items.map(i => {
                 // Prospects : compteur rafraîchi avec la cloche (toutes les 30 s), les autres au changement de page
-                const count = i.badge === 'new_leads' && notif.data ? notif.data.new_leads : i.badge && stats.data ? stats.data[i.badge] : 0;
+                const live = notif.data && notif.data[i.badge] != null ? notif.data[i.badge] : null;
+                const count = live != null ? live : i.badge && stats.data ? stats.data[i.badge] : 0;
                 return (
                   <NavLink key={i.to} to={i.to} end={i.end} className={({ isActive }) => `nav-item ${isActive ? 'active' : ''}`}>
                     <i.icon aria-hidden="true" />{i.label}
-                    {count > 0 && <span className="count" aria-label={`${count} nouveaux`}>{count}</span>}
+                    {count > 0 && (i.panel
+                      // Rendez-vous : la pastille ouvre le panneau des demandes du site, le libellé ouvre la page
+                      ? <button type="button" className="count count-btn" aria-label={`${count} rendez-vous demandés sur le site : voir`} title="Demandes du site à traiter"
+                          onClick={e => { e.preventDefault(); e.stopPropagation(); setOpen(false); setRequestsOpen(true); }}>{count}</button>
+                      : <span className="count" aria-label={`${count} nouveaux`}>{count}</span>)}
                   </NavLink>
                 );
               })}
@@ -106,6 +113,7 @@ export default function Layout() {
             <span className="avatar" aria-hidden="true">{initials(user.name)}</span>
           </div>
         </header>
+        {requestsOpen && <AppointmentRequests onClose={() => { setRequestsOpen(false); stats.reload(); }} />}
         <main className="content" ref={contentRef}>
           <Outlet context={{ stats }} />
         </main>

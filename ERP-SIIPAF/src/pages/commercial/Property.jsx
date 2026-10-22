@@ -2,7 +2,7 @@ import { useEffect, useMemo, useState } from 'react';
 import { useSearchParams } from 'react-router-dom';
 import { Building2, Plus, Pencil, Trash2, Layers, Map as MapIcon, LandPlot, Ruler, Wallet } from 'lucide-react';
 import { api } from '@admin/lib/api';
-import { useAuth, useResource, useToast } from '@admin/lib/app-context';
+import { useAuth, useResource, useToast, useSaved } from '@admin/lib/app-context';
 import { Card, Empty, Skeleton, ErrorBox, Modal, Drawer, Field, StatusBadge, DistributionBar, naturalCompare } from '@admin/components/ui';
 import { LOT_STATUSES, lotStatus } from '@admin/lib/domain';
 import { fcfa, num } from '@admin/lib/format';
@@ -148,6 +148,7 @@ function DeleteBuilding({ building, onDone }) {
 }
 
 function BuildingModal({ projectId, building, ilots, onClose, onSaved }) {
+  const saved = useSaved();
   const meta = useCommercialMeta();
   const [f, setF] = useState({ code: building.code || '', name: building.name || '', ilot: building.ilot || '', kind: building.kind || 'immeuble', floors: building.floors ?? 0, notes: building.notes || '' });
   const [error, setError] = useState(null);
@@ -158,7 +159,7 @@ function BuildingModal({ projectId, building, ilots, onClose, onSaved }) {
     try {
       if (building.id) await api.patch(`/admin/erp/commercial/buildings/${building.id}`, body);
       else await api.post(`/admin/erp/commercial/projects/${projectId}/buildings`, body);
-      onSaved();
+      saved("Bâtiment enregistré"); onSaved();
     } catch (err) { setError(err); }
   };
   return (
@@ -186,6 +187,7 @@ function BuildingModal({ projectId, building, ilots, onClose, onSaved }) {
 }
 
 function LotEditor({ lot, buildings, write, onClose, onSaved }) {
+  const saved = useSaved();
   const { can } = useAuth();
   const meta = useCommercialMeta();
   const [f, setF] = useState({
@@ -204,7 +206,7 @@ function LotEditor({ lot, buildings, write, onClose, onSaved }) {
         lot_type: f.lot_type || null, building_id: n(f.building_id), floor: f.building_id ? n(f.floor) : null, rooms: n(f.rooms),
         surface_m2: n(f.surface_m2), price_fcfa: n(f.price_fcfa), title_number: f.title_number || null, tantiemes: n(f.tantiemes),
       });
-      onSaved();
+      saved("Lot enregistré"); onSaved();
     } catch (err) { setError(err); }
   };
   const free = ['disponible', 'desistement', 'option'].includes(lot.status);
@@ -271,6 +273,7 @@ function LeadPicker({ onPick }) {
 }
 
 function BulkModal({ lotIds, buildings, onClose, onSaved }) {
+  const saved = useSaved();
   const meta = useCommercialMeta();
   const [f, setF] = useState({ lot_type: '', building_id: '', floor: '' });
   const [error, setError] = useState(null);
@@ -280,7 +283,7 @@ function BulkModal({ lotIds, buildings, onClose, onSaved }) {
     if (f.lot_type) body.lot_type = f.lot_type;
     if (f.building_id === 'none') body.building_id = null;
     else if (f.building_id) { body.building_id = Number(f.building_id); if (f.floor !== '') body.floor = Number(f.floor); }
-    try { await api.post('/admin/erp/commercial/lots/bulk', body); onSaved(); } catch (e) { setError(e); }
+    try { await api.post('/admin/erp/commercial/lots/bulk', body); saved("Lots créés"); onSaved(); } catch (e) { setError(e); }
   };
   return (
     <Modal title={`Affecter ${lotIds.length} lot(s)`} onClose={onClose} footer={<><button className="btn btn-ghost" onClick={onClose}>Annuler</button><button className="btn btn-primary" onClick={save}>Appliquer</button></>}>

@@ -2,7 +2,7 @@ import { useState } from 'react';
 import { Link } from 'react-router-dom';
 import { Plus, Pencil, Star, FileText, UserPlus, Ban, Globe, Search, Briefcase, RotateCcw, Paperclip } from 'lucide-react';
 import { api, qs } from '@admin/lib/api';
-import { useAuth, useResource, useToast } from '@admin/lib/app-context';
+import { useAuth, useResource, useToast, useSaved } from '@admin/lib/app-context';
 import { Card, Empty, Skeleton, ErrorBox, Modal, Field, Drawer } from '@admin/components/ui';
 import { date, dateTime, fcfa, initials } from '@admin/lib/format';
 import { RH, today, formData, useRhMeta, STAGE_COLORS } from '../../lib/rh';
@@ -226,6 +226,7 @@ function ApplicantDrawer({ id, onClose, onChange }) {
 function HireForm({ applicant, onClose, onDone }) {
   const { meta } = useRhMeta();
   const toast = useToast();
+  const saved = useSaved();
   const [f, setF] = useState({ hire_date: applicant.available_from || today(), base_salary: applicant.proposed_salary || applicant.expected_salary || '', trial_end_date: '', contract_type: '', job_title: applicant.job_title || '' });
   const [error, setError] = useState(null);
   const set = k => e => setF(x => ({ ...x, [k]: e.target.value }));
@@ -233,7 +234,7 @@ function HireForm({ applicant, onClose, onDone }) {
     e.preventDefault();
     try {
       await api.post(`${RH}/applicants/${applicant.id}/hire`, { hire_date: f.hire_date, base_salary: Number(f.base_salary) || 0, trial_end_date: f.trial_end_date || null, ...(f.contract_type ? { contract_type: f.contract_type } : {}), ...(f.job_title ? { job_title: f.job_title } : {}) });
-      toast('Fiche employé créée : complétez-la dans le dossier et la paie'); onDone();
+      saved('Fiche employé créée : complétez-la dans le dossier et la paie'); onDone();
     } catch (err) { setError(err); }
   };
   return (

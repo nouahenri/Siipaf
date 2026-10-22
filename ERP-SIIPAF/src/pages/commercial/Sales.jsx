@@ -2,7 +2,7 @@ import { useEffect, useState } from 'react';
 import { useSearchParams } from 'react-router-dom';
 import { Search, FileSignature, Plus } from 'lucide-react';
 import { api, qs } from '@admin/lib/api';
-import { useAuth, useResource, useToast } from '@admin/lib/app-context';
+import { useAuth, useResource, useToast, useSaved } from '@admin/lib/app-context';
 import { Card, Empty, Skeleton, ErrorBox, Drawer, Field, Badge, Pagination, Advance } from '@admin/components/ui';
 import { INSTALLMENT_STATUS } from '@admin/lib/domain';
 import { date, fcfa } from '@admin/lib/format';
@@ -87,6 +87,7 @@ export default function Sales() {
 export function SaleDrawer({ id, onClose, onChange }) {
   const { can } = useAuth();
   const toast = useToast();
+  const saved = useSaved();
   const meta = useCommercialMeta();
   const s = useResource(`/admin/erp/commercial/sales/${id}`);
   const [leadId, setLeadId] = useState(null);
@@ -97,7 +98,7 @@ export function SaleDrawer({ id, onClose, onChange }) {
     e.preventDefault();
     try {
       await api.post(`/admin/sales/${id}/payments`, { amount_fcfa: Number(pay.amount_fcfa), paid_at: pay.paid_at, method: pay.method, reference: pay.reference || undefined });
-      setPay(null); toast('Versement enregistré'); s.reload(); onChange?.();
+      setPay(null); saved('Versement enregistré'); s.reload(); onChange?.();
     } catch (err) { toast(err.message, 'err'); }
   };
 

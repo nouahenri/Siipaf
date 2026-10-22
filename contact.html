@@ -97,7 +97,11 @@
       <!-- Formulaire refondu dans la grille -->
       <div class="contact-form-wrap" data-aos="fade-left">
         <div class="section-label">Formulaire</div>
-        <h2 class="section-title">Envoyez-nous <em>un message</em></h2>
+        <h2 class="section-title" id="cf-title">Envoyez-nous <em>un message</em></h2>
+        <div class="cf-modes" role="tablist" aria-label="Type de demande">
+          <button type="button" class="cf-mode is-active" role="tab" aria-selected="true" data-mode="message"><i class="fas fa-paper-plane" aria-hidden="true"></i> Envoyer un message</button>
+          <button type="button" class="cf-mode" role="tab" aria-selected="false" data-mode="rdv"><i class="fas fa-calendar-check" aria-hidden="true"></i> Prendre rendez-vous</button>
+        </div>
         <form class="contact-form" id="contactForm">
           <div class="form-row">
             <div class="form-group">
@@ -134,9 +138,33 @@
             <label for="cf-budget">Budget approximatif</label>
             <input type="text" name="budget" id="cf-budget" maxlength="120" inputmode="text" placeholder="Ex. 25 000 000 FCFA" autocomplete="off"/>
           </div>
+          <!-- Prise de rendez-vous : arrive dans l'admin › Rendez-vous avec le statut « Demandé » -->
+          <fieldset class="cf-rdv" hidden disabled>
+            <legend class="sr-only">Rendez-vous souhaité</legend>
+            <div class="form-group">
+              <label for="cf-kind">Type de rendez-vous *</label>
+              <select name="kind" id="cf-kind" required>
+                <option value="visite">Visite sur site</option>
+                <option value="bureau">Rendez-vous au bureau (Cocody 2 Plateaux)</option>
+                <option value="appel">Appel téléphonique</option>
+                <option value="visio">Visio (WhatsApp, Meet…)</option>
+              </select>
+            </div>
+            <div class="form-row">
+              <div class="form-group">
+                <label for="cf-date">Date souhaitée *</label>
+                <input type="date" name="date" id="cf-date" required/>
+              </div>
+              <div class="form-group">
+                <label for="cf-time">Heure (Abidjan) *</label>
+                <select name="time" id="cf-time" required></select>
+              </div>
+            </div>
+            <p class="cf-hint"><i class="fas fa-info-circle" aria-hidden="true"></i> Du lundi au samedi. Un conseiller vous recontacte pour confirmer le créneau.</p>
+          </fieldset>
           <div class="form-group">
-            <label>Votre message *</label>
-            <textarea name="message" rows="5" placeholder="Décrivez votre projet ou posez vos questions..." required></textarea>
+            <label for="cf-message" id="cf-message-label">Votre message *</label>
+            <textarea name="message" id="cf-message" rows="5" placeholder="Décrivez votre projet ou posez vos questions..." required></textarea>
           </div>
           <div class="cf-trap" aria-hidden="true"><label>Ne pas remplir <input type="text" name="website" tabindex="-1" autocomplete="off"/></label></div>
           <button type="submit" class="btn btn-primary btn-full" style="padding: 16px;">
@@ -153,13 +181,13 @@
       <div class="map-label"><i class="fas fa-map-marker-alt"></i> SIIPAF SA — Cocody 2 Plateaux 7ème Tranche, Abidjan</div>
       <div style="position: relative;">
         <iframe
-          src="https://www.google.com/maps/embed?pb=!1m18!1m12!1m3!1d3972.076953014396!2d-3.9671!3d5.3988!2m3!1f0!2f0!3f0!3m2!1i1024!2i768!4f13.1!3m3!1m2!1s0xfc1ea5f3da3625b%3A0x1234567890abcdef!2sCocody%202%20Plateaux%207%C3%A8me%20Tranche%2C%20Abidjan!5e0!3m2!1sfr!2sci!4v1700000000000"
+          src="https://maps.google.com/maps?q=5.3965958,-3.9871942&z=17&hl=fr&output=embed"
           width="100%" height="450" style="border:0;border-radius:16px;"
           allowfullscreen="" loading="lazy" referrerpolicy="no-referrer-when-downgrade"
           title="SIIPAF SA — Cocody Abidjan">
         </iframe>
         <div style="text-align: center; margin-top: 16px;">
-          <a href="https://maps.app.goo.gl/QGnM2sHcYUdcMb719" target="_blank" rel="noopener" class="btn btn-outline">
+          <a href="https://maps.app.goo.gl/VFnXbFc2Qm6D4RoE7" target="_blank" rel="noopener" class="btn btn-outline">
             <i class="fas fa-directions"></i> <span>Obtenir l'itinéraire (Google Maps)</span>
           </a>
         </div>

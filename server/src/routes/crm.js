@@ -3,7 +3,7 @@ const express = require('express');
 const { z } = require('zod');
 const { ah, parse, idParam, HttpError } = require('../lib/http');
 const { requirePermission } = require('../auth');
-const { LEAD_STAGES } = require('../lib/domain');
+const { LEAD_STAGES, PUBLIC_LEAD_SOURCES } = require('../lib/domain');
 const { findOrCreateLead } = require('../services/lots');
 const { syncLead, recordDeletion } = require('../services/portfolio');
 
@@ -155,6 +155,8 @@ module.exports = function crmRoutes(db) {
   }));
 
   // ─── Rendez-vous ──────────────────────────────────────────
+  // Demande de rendez-vous du site (ou du plan, de l'assistant) que personne n'a encore traitée
+  const siteRequests = q => q.where('a.status', 'demande').whereIn('a.source', PUBLIC_LEAD_SOURCES);
   r.get('/appointments', requirePermission('appointments:read'), ah(async (req, res) => {
     const q = db('appointments as a')
       .join('leads as ld', 'ld.id', 'a.lead_id')
@@ -165,6 +167,8 @@ module.exports = function crmRoutes(db) {
     if (req.query.from) q.where('a.starts_at', '>=', new Date(String(req.query.from)));
     if (req.query.to) q.where('a.starts_at', '<', new Date(String(req.query.to)));
     if (req.query.status) q.whereIn('a.status', String(req.query.status).split(','));
+    // a_traiter : demandes venues du site encore au statut « Demandé » (pastille du menu Rendez-vous)
+    if (req.query.a_traiter) siteRequests(q);
     if (!seesAllLeads(req.user)) q.where(b => b.where('a.assigned_to', req.user.id).orWhereNull('a.assigned_to'));
     res.json(await q);
   }));
@@ -264,8 +268,15 @@ module.exports = function crmRoutes(db) {
       pending_testimonials: pendingTestimonials,
       unread_client_messages: unreadClientMessages,
       new_leads: req.can('leads:read') ? await countNewLeads(req.user) : 0,
+      site_appointment_requests: req.can('appointments:read') ? await countSiteRequests(req.user) : 0,
     });
   }));
+
+  const countSiteRequests = async user => {
+    const q = siteRequests(db('appointments as a'));
+    if (!seesAllLeads(user)) q.where(b => b.where('a.assigned_to', user.id).orWhereNull('a.assigned_to'));
+    return Number((await q.count({ n: '*' }))[0].n);
+  };
 
   // ─── Notifications « nouveau prospect » (cloche du dashboard) ───
   // Prospects nouveaux pour l'équipe : demande venue du site dont personne n'a encore ouvert la fiche
@@ -287,6 +298,7 @@ module.exports = function crmRoutes(db) {
     ]);
     res.json({
       unread: Number(n), new_leads: newLeads, seen_until: since,
+      site_appointment_requests: req.can('appointments:read') ? await countSiteRequests(req.user) : 0,
       items: rows.map(x => ({ ...x, unread: new Date(x.alert_at) > since })),
     });
   }));

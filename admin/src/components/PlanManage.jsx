@@ -7,7 +7,7 @@
 import { useEffect, useRef, useState } from 'react';
 import { MoreHorizontal, Pencil, RefreshCw, Archive, ArchiveRestore, Trash2, Eye, EyeOff } from 'lucide-react';
 import { api } from '../lib/api';
-import { useToast } from '../lib/app-context';
+import { useToast, useSaved } from '../lib/app-context';
 import { Modal, Field, ErrorBox } from './ui';
 import PlanImport from './PlanImport';
 
@@ -79,11 +79,12 @@ export default function PlanManage({ plan, projectId, onChanged, onDeleted, show
 
 function RenameDialog({ plan, onClose, onDone }) {
   const toast = useToast();
+  const saved = useSaved();
   const [name, setName] = useState(plan.name);
   const [error, setError] = useState(null);
   const save = async e => {
     e?.preventDefault();
-    try { await api.patch(`/admin/plans/${plan.id}`, { name }); toast('Plan renommé'); onDone(); } catch (err) { setError(err); }
+    try { await api.patch(`/admin/plans/${plan.id}`, { name }); saved('Plan renommé'); onDone(); } catch (err) { setError(err); }
   };
   return (
     <Modal title="Renommer le plan" onClose={onClose} footer={<>

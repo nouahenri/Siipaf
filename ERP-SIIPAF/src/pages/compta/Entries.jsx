@@ -2,7 +2,7 @@ import { useEffect, useState } from 'react';
 import { useSearchParams } from 'react-router-dom';
 import { Plus, Search, RefreshCw, CheckCheck, Trash2, RotateCcw, BookOpen, Lock } from 'lucide-react';
 import { api, qs } from '@admin/lib/api';
-import { useAuth, useResource, useToast } from '@admin/lib/app-context';
+import { useAuth, useResource, useToast, useSaved } from '@admin/lib/app-context';
 import { Card, Empty, Skeleton, ErrorBox, Drawer, Modal, Field, Badge, Pagination } from '@admin/components/ui';
 import { date, dateTime } from '@admin/lib/format';
 import { useComptaMeta, amt, STATUS, SOURCES, AccountInput } from '../../lib/compta';
@@ -162,6 +162,7 @@ const blankLine = () => ({ account: '', label: '', debit: '', credit: '', projec
 
 /** Saisie ou modification d'un brouillon : lignes au débit ou au crédit, équilibre contrôlé en direct. */
 export function EntryForm({ entry, onClose, onSaved }) {
+  const saved = useSaved();
   const { meta } = useComptaMeta();
   const [f, setF] = useState(() => ({
     journal_id: entry?.journal_id || meta?.journals.find(j => j.code === 'OD')?.id || '', date: entry?.date || new Date().toISOString().slice(0, 10),
@@ -185,7 +186,7 @@ export function EntryForm({ entry, onClose, onSaved }) {
     };
     try {
       const out = entry ? await api.patch(`/admin/erp/compta/entries/${entry.id}`, body) : await api.post('/admin/erp/compta/entries', body);
-      onSaved(out);
+      saved("Écriture enregistrée en brouillon"); onSaved(out);
     } catch (err) { setError(err); }
   };
 

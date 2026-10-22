@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { Check, X, BookOpen, Wallet, Receipt, Plus, FileText, Undo2 } from 'lucide-react';
 import { api, qs } from '@admin/lib/api';
-import { useAuth, useResource, useToast } from '@admin/lib/app-context';
+import { useAuth, useResource, useToast, useSaved } from '@admin/lib/app-context';
 import { Card, Empty, Skeleton, ErrorBox, Field, Drawer } from '@admin/components/ui';
 import { date, dateTime, fcfa } from '@admin/lib/format';
 import { RH, today, useRhMeta } from '../../lib/rh';
@@ -56,6 +56,7 @@ export default function Expenses() {
 function ExpenseDrawer({ id, onClose, onChange }) {
   const { can, user } = useAuth();
   const toast = useToast();
+  const saved = useSaved();
   const x = useResource(`${RH}/expenses/${id}`);
   const [note, setNote] = useState('');
   const [journal, setJournal] = useState('CA');
@@ -68,7 +69,7 @@ function ExpenseDrawer({ id, onClose, onChange }) {
   };
   const reimburse = async () => {
     setBusy(true);
-    try { await api.post(`${RH}/expenses/reimburse`, { ids: [id], journal: payJournal, date: payDate }); toast('Remboursement enregistré en comptabilité'); x.reload(); onChange(); } catch (e) { toast(e.message, 'err'); } finally { setBusy(false); }
+    try { await api.post(`${RH}/expenses/reimburse`, { ids: [id], journal: payJournal, date: payDate }); saved('Remboursement enregistré en comptabilité'); x.reload(); onChange(); } catch (e) { toast(e.message, 'err'); } finally { setBusy(false); }
   };
   const d = x.data;
   const own = d && d.employee_user_id === user.id;

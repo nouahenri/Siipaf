@@ -2,7 +2,7 @@ import { useEffect, useMemo, useState } from 'react';
 import { useSearchParams } from 'react-router-dom';
 import { Landmark, Plus, Trash2, RotateCcw, CheckCircle2, ShieldCheck, AlertTriangle, HardHat } from 'lucide-react';
 import { api } from '@admin/lib/api';
-import { useAuth, useResource, useToast } from '@admin/lib/app-context';
+import { useAuth, useResource, useToast, useSaved } from '@admin/lib/app-context';
 import { Card, Empty, Skeleton, ErrorBox, Field, Badge } from '@admin/components/ui';
 import { date, fcfa } from '@admin/lib/format';
 import { useCommercialMeta, CALL_STATUS, compact } from '../../lib/commercial';
@@ -161,6 +161,7 @@ function Progress({ projectId }) {
 function Plan({ projectId }) {
   const { can } = useAuth();
   const toast = useToast();
+  const saved = useSaved();
   const meta = useCommercialMeta();
   const plan = useResource(`/admin/erp/commercial/vefa/plans/${projectId}`);
   const [rows, setRows] = useState(null);
@@ -188,7 +189,7 @@ function Plan({ projectId }) {
     setError(null);
     try {
       await api.put(`/admin/erp/commercial/vefa/plans/${projectId}`, { milestones: rows.map(r => ({ stage: r.stage, label: r.label, pct: Number(r.pct) })), due_days: Number(due) });
-      toast('Plan d’appels de fonds enregistré'); plan.reload();
+      saved('Plan d’appels de fonds enregistré'); plan.reload();
     } catch (e) { setError(e); }
   };
 

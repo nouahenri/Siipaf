@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { Plus, Search, UserPlus, Users, Link2 } from 'lucide-react';
 import { api } from '@admin/lib/api';
-import { useAuth, useResource, useToast } from '@admin/lib/app-context';
+import { useAuth, useResource, useToast, useSaved } from '@admin/lib/app-context';
 import { Card, Empty, Skeleton, ErrorBox, Modal, Field, Badge } from '@admin/components/ui';
 import { date, fcfa } from '@admin/lib/format';
 import { usePaieMeta } from '../../lib/paie';
@@ -88,6 +88,7 @@ function FromUsers({ onClose, onDone }) {
 }
 
 function EmployeeForm({ employee, onClose, onSaved }) {
+  const saved = useSaved();
   const { meta, reload } = usePaieMeta();
   const blank = { last_name: '', first_name: '', gender: '', birth_date: '', nationality: 'Ivoirienne', expatriate: false, phone: '', email: '', address: '', id_number: '', cnps_number: '',
     marital_status: 'celibataire', children: 0, tax_parts: '', job_title: '', department: 'administratif', category: '', contract_type: 'cdi', hire_date: new Date().toISOString().slice(0, 10), end_date: '',
@@ -112,7 +113,7 @@ function EmployeeForm({ employee, onClose, onSaved }) {
     if (!employee.id) delete body.active;
     try {
       await (employee.id ? api.patch(`/admin/erp/paie/employees/${employee.id}`, body) : api.post('/admin/erp/paie/employees', body));
-      reload(); onSaved();
+      reload(); saved("Fiche employé enregistrée"); onSaved();
     } catch (err) { setError(err); }
   };
   const users = (meta?.users || []).filter(u => !u.employee_id || u.employee_id === employee.id);

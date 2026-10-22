@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react';
 import { Plus, Search, Pencil } from 'lucide-react';
 import { api } from '@admin/lib/api';
-import { useAuth, useResource, useToast } from '@admin/lib/app-context';
+import { useAuth, useResource, useToast, useSaved } from '@admin/lib/app-context';
 import { Card, Skeleton, Empty, Modal, Field, ErrorBox, Badge } from '@admin/components/ui';
 
 const CLASSES = { 1: 'Ressources durables', 2: 'Actif immobilisé', 3: 'Stocks', 4: 'Tiers', 5: 'Trésorerie', 6: 'Charges', 7: 'Produits', 8: 'Hors activités ordinaires', 9: 'Analytique' };
@@ -55,6 +55,7 @@ export default function Chart() {
 
 function AccountForm({ account, onClose, onSaved }) {
   const toast = useToast();
+  const saved = useSaved();
   const [f, setF] = useState({ code: account.code || '', label: account.label || '', active: account.active ?? true });
   const [error, setError] = useState(null);
   const save = async e => {
@@ -62,7 +63,7 @@ function AccountForm({ account, onClose, onSaved }) {
     try {
       if (account.id) await api.patch(`/admin/erp/compta/accounts/${account.id}`, { label: f.label, active: f.active });
       else await api.post('/admin/erp/compta/accounts', { code: f.code, label: f.label });
-      toast('Compte enregistré'); onSaved();
+      saved('Compte enregistré'); onSaved();
     } catch (err) { setError(err); }
   };
   return (

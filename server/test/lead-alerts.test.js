@@ -50,3 +50,20 @@ test('cloche : chaque nouveau prospect, sauf ceux qu\'on a saisis soi-même ; «
   // Un prospect saisi par l'équipe n'entre pas dans le compteur « nouveaux » du menu
   assert.equal((await db('leads').where({ name: 'Koffi Yao' }).first()).seen_at !== null, true);
 });
+
+test('rendez-vous du site : comptés à traiter tant qu\'ils sont « Demandé », listés par a_traiter', async () => {
+  const starts = new Date(Date.now() + 3 * 86400000).toISOString();
+  const res = await request(app).post('/api/public/appointments').send({ name: 'Fatou Koné', phone: '0102030405', kind: 'visite', starts_at: starts });
+  assert.equal(res.status, 201);
+  const before = (await admin.get('/api/admin/stats')).body.site_appointment_requests;
+  assert.ok(before >= 1);
+  const list = (await admin.get('/api/admin/appointments?a_traiter=1')).body;
+  assert.ok(list.some(a => a.id === res.body.appointment_id && a.lead_name === 'Fatou Koné'));
+  // Un rendez-vous saisi par l'équipe n'entre pas dans le compteur
+  const lead = await db('leads').where({ phone: '0102030405' }).first();
+  await admin.post('/api/admin/appointments').send({ lead_id: lead.id, starts_at: starts, status: 'demande' });
+  assert.equal((await admin.get('/api/admin/stats')).body.site_appointment_requests, before);
+  assert.equal((await admin.patch(`/api/admin/appointments/${res.body.appointment_id}`).send({ status: 'confirme' })).status, 200);
+  assert.equal((await admin.get('/api/admin/stats')).body.site_appointment_requests, before - 1);
+  assert.equal((await admin.get('/api/admin/notifications')).body.site_appointment_requests, before - 1);
+});

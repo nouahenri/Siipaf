@@ -2,7 +2,7 @@ import { useState } from 'react';
 import { useOutletContext } from 'react-router-dom';
 import { Check, X, Star, Pencil, Trash2, Plus, MessageSquareQuote, Undo2 } from 'lucide-react';
 import { api } from '../lib/api';
-import { useResource, useToast } from '../lib/app-context';
+import { useResource, useToast, useSaved } from '../lib/app-context';
 import { Card, Drawer, Field, Badge, Empty, ErrorBox, Skeleton } from '../components/ui';
 import { initials, relative, date } from '../lib/format';
 
@@ -111,6 +111,7 @@ export default function Testimonials() {
 
 function EditDrawer({ t, projects, onClose, onSaved }) {
   const toast = useToast();
+  const saved = useSaved();
   const isNew = !t.id;
   const [f, setF] = useState({ name: t.name || '', role_label: t.role_label || '', project_id: t.project_id || '', rating: t.rating || 5, message: t.message || '' });
   const [error, setError] = useState(null);
@@ -122,7 +123,7 @@ function EditDrawer({ t, projects, onClose, onSaved }) {
     try {
       if (isNew) await api.post('/admin/testimonials', body);
       else await api.patch(`/admin/testimonials/${t.id}`, body);
-      toast(isNew ? 'Témoignage ajouté et publié' : 'Témoignage modifié');
+      saved(isNew ? 'Témoignage ajouté et publié' : 'Témoignage modifié');
       onSaved();
     } catch (e) { setError(e); }
   };

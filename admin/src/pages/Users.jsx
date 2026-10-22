@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react';
 import { Plus, UserCog } from 'lucide-react';
 import { api } from '../lib/api';
-import { useAuth, useResource, useToast } from '../lib/app-context';
+import { useAuth, useResource, useToast, useSaved } from '../lib/app-context';
 import { Card, Drawer, Field, Badge, Empty, ErrorBox, Skeleton } from '../components/ui';
 import { initials, relative } from '../lib/format';
 
@@ -44,6 +44,7 @@ export default function UsersPage() {
 
 function UserDrawer({ user, roles, roleLabel, onClose, onSaved }) {
   const toast = useToast();
+  const saved = useSaved();
   const isNew = !user.id;
   const [form, setForm] = useState({ name: user.name || '', email: user.email || '', phone: user.phone || '', role: user.role || 'commercial', active: user.active ?? true, password: '' });
   const [error, setError] = useState(null);
@@ -60,7 +61,7 @@ function UserDrawer({ user, roles, roleLabel, onClose, onSaved }) {
         if (created.temporary_password) window.prompt(`Mot de passe provisoire de ${created.name} (affiché une seule fois) :`, created.temporary_password);
       }
       else await api.patch(`/admin/users/${user.id}`, body);
-      toast(isNew ? 'Utilisateur créé' : 'Utilisateur mis à jour');
+      saved(isNew ? 'Utilisateur créé' : 'Utilisateur mis à jour');
       onSaved();
     } catch (e) { setError(e); }
   };
@@ -95,6 +96,7 @@ function UserDrawer({ user, roles, roleLabel, onClose, onSaved }) {
 /** Privilèges propres à un compte : hérités du rôle, accordés en plus, ou retirés. */
 function UserPrivileges({ user, roleLabel }) {
   const toast = useToast();
+  const saved = useSaved();
   const { user: me } = useAuth();
   const catalog = useResource('/admin/permissions');
   const perms = useResource(`/admin/users/${user.id}/permissions`);
@@ -112,7 +114,7 @@ function UserPrivileges({ user, roleLabel }) {
     try {
       const res = await api.put(`/admin/users/${user.id}/permissions`, { overrides });
       perms.setData(res);
-      toast('Privilèges du compte enregistrés');
+      saved('Privilèges du compte enregistrés');
     } catch (e) { toast(e.message, 'err'); }
   };
 

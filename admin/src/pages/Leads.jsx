@@ -5,7 +5,7 @@ import ImportModal from '../components/ImportModal';
 import PortfolioHistory from '../components/PortfolioHistory';
 import PipelineBoard from '../components/PipelineBoard';
 import { api, qs } from '../lib/api';
-import { useAuth, useResource, useToast } from '../lib/app-context';
+import { useAuth, useResource, useToast, useSaved } from '../lib/app-context';
 import { Card, Drawer, Field, Badge, Empty, ErrorBox, Skeleton, Pagination } from '../components/ui';
 import { LEAD_STAGES, PROSPECT_STAGES, CLIENT_STAGES, FINANCING, SOURCES, APPT_KINDS, APPT_STATUS, stageLabel } from '../lib/domain';
 import { date, dateTime, relative, toLocalInput } from '../lib/format';
@@ -222,6 +222,7 @@ const EMPTY = { name: '', email: '', phone: '', country: '', is_diaspora: false,
 function LeadDrawer({ id, onClose, onSaved, projects }) {
   const { can, user } = useAuth();
   const toast = useToast();
+  const saved = useSaved();
   const detail = useResource(id ? `/admin/leads/${id}` : null);
   const sellers = useResource('/admin/users/commerciaux');
   // Fiche ouverte : le serveur la marque vue → compteur du menu et cloche à jour
@@ -259,15 +260,16 @@ function LeadDrawer({ id, onClose, onSaved, projects }) {
       assigned_to: form.assigned_to ? Number(form.assigned_to) : null,
     };
     try {
-      const saved = id ? await api.patch(`/admin/leads/${id}`, body) : await api.post('/admin/leads', body);
+      const out = id ? await api.patch(`/admin/leads/${id}`, body) : await api.post('/admin/leads', body);
       onSaved();
       // Étape paiement ou au-delà : la personne est devenue client et quitte les prospects
-      if (saved.client_code && !d?.client_code) {
-        toast(`${saved.name} devient client (${saved.client_code}) : retrouvez-le dans Clients`);
+      if (out.client_code && !d?.client_code) {
+        saved(`${out.name} devient client (${out.client_code}) : retrouvez-le dans Clients`);
         return onClose();
       }
-      toast(id ? 'Prospect mis à jour' : 'Prospect créé');
-      if (id) detail.reload();
+      // Fiche enregistrée : elle se ferme, retour à la liste avec l'accusé
+      saved(id ? `Prospect « ${out.name} » mis à jour` : `Prospect « ${out.name} » créé`);
+      onClose();
     } catch (e) { setError(e); } finally { setBusy(false); }
   };
 

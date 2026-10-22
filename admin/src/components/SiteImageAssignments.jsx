@@ -2,13 +2,14 @@ import { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { ImagePlus, RotateCcw, Save } from 'lucide-react';
 import { api } from '../lib/api';
-import { useResource, useToast } from '../lib/app-context';
+import { useResource, useToast, useSaved } from '../lib/app-context';
 import { Card, ErrorBox, Field, Skeleton } from './ui';
 import { MediaPicker } from './MediaLibrary';
 
 export default function SiteImageAssignments({ candidate, onConsumed }) {
   const resource = useResource('/admin/media-placements');
   const toast = useToast();
+  const saved = useSaved();
   const [page, setPage] = useState('home');
   const [section, setSection] = useState('');
   const [slotId, setSlotId] = useState('');
@@ -39,7 +40,7 @@ export default function SiteImageAssignments({ candidate, onConsumed }) {
       const saved = await api.put(`/admin/media-placements/${slot.id}`, { media_id: chosen?.id || null, alt });
       resource.setData(previous => ({ ...previous, assignments: { ...previous.assignments, [slot.id]: saved } }));
       onConsumed(); setDirty(false);
-      toast(chosen ? 'Image affectée à cet emplacement' : 'Image d’origine rétablie');
+      saved(chosen ? 'Image affectée à cet emplacement' : 'Image d’origine rétablie');
     } catch (e) { setError(e); }
     finally { setBusy(false); }
   };

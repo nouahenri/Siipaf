@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react';
 import { CalendarPlus, Lock, Archive, Plus, ArrowRightLeft, Upload } from 'lucide-react';
 import { api } from '@admin/lib/api';
-import { useAuth, useToast } from '@admin/lib/app-context';
+import { useAuth, useToast, useSaved } from '@admin/lib/app-context';
 import { Card, Skeleton, Field, ErrorBox, Badge, Modal } from '@admin/components/ui';
 import { date } from '@admin/lib/format';
 import { useComptaMeta, AccountInput, amt } from '../../lib/compta';
@@ -86,6 +86,7 @@ function FiscalYears({ meta, write, onChange }) {
 /** Soldes d'ouverture collés depuis l'ancienne comptabilité ou Excel : « compte ; débit ; crédit ; libellé ». */
 function OpeningModal({ fy, onClose, onDone }) {
   const toast = useToast();
+  const saved = useSaved();
   const [text, setText] = useState('');
   const [error, setError] = useState(null);
   const num = v => Number(String(v || '').replace(/[\s  ]/g, '').replace(',', '.')) || 0;
@@ -94,7 +95,7 @@ function OpeningModal({ fy, onClose, onDone }) {
   const d = lines.reduce((t, l) => t + l.debit, 0), c = lines.reduce((t, l) => t + l.credit, 0);
   const save = async () => {
     setError(null);
-    try { await api.post('/admin/erp/compta/opening', { fiscal_year_id: fy.id, lines }); toast('Soldes d’ouverture enregistrés (brouillon dans le journal AN)'); onDone(); } catch (e) { setError(e); }
+    try { await api.post('/admin/erp/compta/opening', { fiscal_year_id: fy.id, lines }); saved('Soldes d’ouverture enregistrés (brouillon dans le journal AN)'); onDone(); } catch (e) { setError(e); }
   };
   return (
     <Modal title={`Soldes d’ouverture — exercice ${fy.label}`} onClose={onClose} footer={(
@@ -115,12 +116,13 @@ function OpeningModal({ fy, onClose, onDone }) {
 
 function Rules({ meta, write, onChange }) {
   const toast = useToast();
+  const saved = useSaved();
   const [s, setS] = useState(meta.settings);
   const [error, setError] = useState(null);
   useEffect(() => setS(meta.settings), [meta.settings]);
   const save = async e => {
     e.preventDefault(); setError(null);
-    try { await api.put('/admin/erp/compta/settings', { ...s, vat_sales_rate: Number(s.vat_sales_rate), vat_purchases_rate: Number(s.vat_purchases_rate) }); toast('Réglages enregistrés'); onChange(); } catch (err) { setError(err); }
+    try { await api.put('/admin/erp/compta/settings', { ...s, vat_sales_rate: Number(s.vat_sales_rate), vat_purchases_rate: Number(s.vat_purchases_rate) }); saved('Réglages enregistrés'); onChange(); } catch (err) { setError(err); }
   };
   return (
     <Card title="Règles comptables">
@@ -168,12 +170,13 @@ function Rules({ meta, write, onChange }) {
 
 function Journals({ meta, write, onChange }) {
   const toast = useToast();
+  const saved = useSaved();
   const [adding, setAdding] = useState(false);
   const [f, setF] = useState({ code: '', label: '', kind: 'banque', account: '' });
   const [error, setError] = useState(null);
   const save = async () => {
     setError(null);
-    try { await api.post('/admin/erp/compta/journals', { ...f, account: f.account || null }); toast('Journal créé'); setAdding(false); onChange(); } catch (e) { setError(e); }
+    try { await api.post('/admin/erp/compta/journals', { ...f, account: f.account || null }); saved('Journal créé'); setAdding(false); onChange(); } catch (e) { setError(e); }
   };
   return (
     <Card title="Journaux" bodyClass="" actions={write && <button className="btn btn-sm" onClick={() => setAdding(true)}><Plus />Journal</button>}>

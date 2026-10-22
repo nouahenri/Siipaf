@@ -4,7 +4,7 @@ import {
   ArrowLeft, MousePointer2, Pentagon, Square, Hand, ZoomIn, ZoomOut, Maximize, Undo2, Copy, Trash2, Save, Search, Eye, EyeOff, ChevronDown,
 } from 'lucide-react';
 import { api } from '../lib/api';
-import { useAuth, useResource, useToast } from '../lib/app-context';
+import { useAuth, useResource, useToast, useSaved } from '../lib/app-context';
 import { Field, ErrorBox, Skeleton, StatusBadge } from '../components/ui';
 import { LOT_STATUSES, lotStatus, gridOfferFor } from '../lib/domain';
 import { fcfa } from '../lib/format';
@@ -46,6 +46,7 @@ export default function PlanEditor() {
   const { id } = useParams();
   const { can } = useAuth();
   const toast = useToast();
+  const saved = useSaved();
   const plan = useResource(`/admin/plans/${id}`);
   const editable = can('plans:write');
   const navigate = useNavigate();
@@ -184,7 +185,7 @@ export default function PlanEditor() {
       for (const l of changed.filter(l => l.id)) await api.patch(`/admin/lots/${l.id}`, payload(l));
       const created = changed.filter(l => !l.id);
       if (created.length) await api.put(`/admin/projects/${plan.data.project.id}/lots`, created.map(payload));
-      toast(`${changed.length} lot(s) enregistré(s)`);
+      saved(`${changed.length} lot(s) enregistré(s)`);
       await plan.reload();
     } catch (e) { setError(e); } finally { setSaving(false); }
   };

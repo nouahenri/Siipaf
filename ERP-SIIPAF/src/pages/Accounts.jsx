@@ -2,7 +2,7 @@ import { useState } from 'react';
 import { Link } from 'react-router-dom';
 import { Plus, Search, UserCog, Copy, KeyRound, ShieldCheck, ExternalLink } from 'lucide-react';
 import { api } from '@admin/lib/api';
-import { useAuth, useResource, useToast } from '@admin/lib/app-context';
+import { useAuth, useResource, useToast, useSaved } from '@admin/lib/app-context';
 import { Card, Empty, Skeleton, ErrorBox, Modal, Field, Badge, Drawer } from '@admin/components/ui';
 import { initials, relative } from '@admin/lib/format';
 import { useRhMeta } from '../lib/rh';
@@ -131,6 +131,7 @@ function TemporaryPassword({ account, onClose }) {
 function EditAccount({ user: u, roles, onClose, onSaved, onReset }) {
   const { can, user: me } = useAuth();
   const toast = useToast();
+  const saved = useSaved();
   const files = can('rh:files') || can('paie:employees');
   const unlinked = useResource(files ? '/admin/users/unlinked-employees' : null);
   const [f, setF] = useState({ name: u.name, phone: u.phone || '', role: u.role, active: u.active });
@@ -143,7 +144,7 @@ function EditAccount({ user: u, roles, onClose, onSaved, onReset }) {
     try {
       await api.patch(`/admin/users/${u.id}`, { ...f, phone: f.phone || null });
       if (files && employee !== (u.employee?.id ? String(u.employee.id) : '')) await api.put(`/admin/users/${u.id}/employee`, { employee_id: employee ? Number(employee) : null });
-      toast('Compte mis à jour'); onSaved();
+      saved('Compte mis à jour'); onSaved();
     } catch (e) { setError(e); }
   };
   const reset = async () => {

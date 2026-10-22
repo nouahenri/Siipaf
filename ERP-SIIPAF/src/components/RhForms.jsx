@@ -2,7 +2,7 @@
 import { useEffect, useState } from 'react';
 import { Send, Paperclip, CircleAlert, CalendarCheck } from 'lucide-react';
 import { api } from '@admin/lib/api';
-import { useToast } from '@admin/lib/app-context';
+import { useToast, useSaved } from '@admin/lib/app-context';
 import { Modal, Field, ErrorBox, Badge } from '@admin/components/ui';
 import { fcfa } from '@admin/lib/format';
 import { RH, today, days, formData, useRhMeta, EXPENSE_TONES } from '../lib/rh';
@@ -24,6 +24,7 @@ export function TypeDot({ type, meta }) {
 export function LeaveForm({ employee = null, onClose, onSaved }) {
   const { meta } = useRhMeta();
   const toast = useToast();
+  const saved = useSaved();
   const hr = !!employee;
   const [f, setF] = useState({ type: 'conge_annuel', event: '', start_date: today(), end_date: today(), start_half: false, end_half: false, reason: '', approve: true });
   const [file, setFile] = useState(null);
@@ -65,7 +66,7 @@ export function LeaveForm({ employee = null, onClose, onSaved }) {
         document_id = doc.id;
       }
       const r = await api.post(hr ? `${RH}/leaves` : `${RH}/me/leaves`, { ...body(), document_id, ...(hr ? { approve: f.approve } : {}) });
-      toast(r.leave.status === 'approuvee' ? 'Absence enregistrée et approuvée' : 'Demande envoyée pour approbation');
+      saved(r.leave.status === 'approuvee' ? 'Absence enregistrée et approuvée' : 'Demande envoyée pour approbation');
       onSaved(r.leave);
     } catch (err) { setError(err); setBusy(false); }
   };
@@ -119,6 +120,7 @@ export function LeaveForm({ employee = null, onClose, onSaved }) {
 export function ExpenseForm({ expense = null, onClose, onSaved }) {
   const { meta } = useRhMeta();
   const toast = useToast();
+  const saved = useSaved();
   const [f, setF] = useState({
     date: expense?.date || today(), category: expense?.category || 'deplacement', label: expense?.label || '', amount: expense?.amount || '',
     vat_rate: expense?.vat_rate ?? 0, paid_by: expense?.paid_by || 'employe', project_id: expense?.project_id || '',
@@ -134,7 +136,7 @@ export function ExpenseForm({ expense = null, onClose, onSaved }) {
       const body = formData({ ...f, project_id: f.project_id || 'null' }, { receipt: file });
       let x = expense ? await api.patch(`${RH}/expenses/${expense.id}`, body) : await api.post(`${RH}/me/expenses`, body);
       if (submit) x = await api.post(`${RH}/expenses/${x.id}/submit`);
-      toast(submit ? 'Note de frais soumise pour approbation' : 'Brouillon enregistré');
+      saved(submit ? 'Note de frais soumise pour approbation' : 'Brouillon enregistré');
       onSaved(x);
     } catch (err) { setError(err); setBusy(false); }
   };

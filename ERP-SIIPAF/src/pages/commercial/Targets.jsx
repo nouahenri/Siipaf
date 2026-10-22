@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { ChevronLeft, ChevronRight, Pencil, Target } from 'lucide-react';
 import { api } from '@admin/lib/api';
-import { useAuth, useResource, useToast } from '@admin/lib/app-context';
+import { useAuth, useResource, useToast, useSaved } from '@admin/lib/app-context';
 import { Card, Empty, Skeleton, ErrorBox, Modal, Field } from '@admin/components/ui';
 import { fcfa } from '@admin/lib/format';
 import { compact, thisMonth, monthName } from '../../lib/commercial';
@@ -97,13 +97,14 @@ function MonthlyTargets() {
 
 function TargetModal({ month, row, onClose, onSaved }) {
   const toast = useToast();
+  const saved = useSaved();
   const [f, setF] = useState(Object.fromEntries(METRICS.map(([k]) => [k, row.target[k] ?? ''])));
   const [error, setError] = useState(null);
   const save = async e => {
     e.preventDefault();
     try {
       const out = await api.put('/admin/erp/commercial/targets', { month, user_id: row.user_id, ...Object.fromEntries(METRICS.map(([k]) => [k, f[k] === '' ? null : Number(f[k])])) });
-      toast('Objectifs enregistrés'); onSaved(out);
+      saved('Objectifs enregistrés'); onSaved(out);
     } catch (err) { setError(err); }
   };
   return (

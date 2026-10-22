@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { Phone, Mail as MailIcon, FileText, Plus, Trash2, Paperclip, ExternalLink, Pencil } from 'lucide-react';
 import { api } from '../lib/api';
-import { useAuth, useResource, useToast } from '../lib/app-context';
+import { useAuth, useResource, useToast, useSaved } from '../lib/app-context';
 import { Drawer, Card, Field, Badge, StatusBadge, Skeleton, ErrorBox, Empty } from './ui';
 import { MediaPicker } from './MediaLibrary';
 import { ScheduleTab, AccessTab, SiteTab, MessageThread } from './ClientSpace';
@@ -221,6 +221,7 @@ function OpenSaleForm({ d, onDone, onCancel }) {
 function Payments({ sale, onChange }) {
   const { can } = useAuth();
   const toast = useToast();
+  const saved = useSaved();
   const today = new Date().toISOString().slice(0, 10);
   const [f, setF] = useState({ amount_fcfa: '', paid_at: today, method: 'virement', reference: '', note: '' });
   const [error, setError] = useState(null);
@@ -235,7 +236,7 @@ function Payments({ sale, onChange }) {
         reference: f.reference || undefined, note: f.note || undefined,
       });
       setF({ ...f, amount_fcfa: '', reference: '', note: '' });
-      toast('Versement enregistré');
+      saved('Versement enregistré');
       onChange(data);
     } catch (e) { setError(e); }
   };
@@ -286,11 +287,12 @@ function Payments({ sale, onChange }) {
 function Documents({ sale, onChange }) {
   const { can } = useAuth();
   const toast = useToast();
+  const saved = useSaved();
   const [picker, setPicker] = useState(null);
   const editable = can('documents:write');
 
   const patch = async (doc, body) => {
-    try { onChange(await api.patch(`/admin/documents/${doc.id}`, body)); toast('Document mis à jour'); } catch (e) { toast(e.message, 'err'); }
+    try { onChange(await api.patch(`/admin/documents/${doc.id}`, body)); saved('Document mis à jour'); } catch (e) { toast(e.message, 'err'); }
   };
   const addDoc = async () => {
     const label = window.prompt('Nom du document (ex. : Permis de construire)');

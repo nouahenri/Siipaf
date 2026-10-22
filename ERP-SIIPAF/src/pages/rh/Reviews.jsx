@@ -2,7 +2,7 @@ import { Fragment, useState } from 'react';
 import { Link, useSearchParams } from 'react-router-dom';
 import { Plus, Trash2, Target, Star, CheckCheck, FolderOpen, Gauge, UserCheck, GraduationCap } from 'lucide-react';
 import { api } from '@admin/lib/api';
-import { useAuth, useResource, useToast } from '@admin/lib/app-context';
+import { useAuth, useResource, useToast, useSaved } from '@admin/lib/app-context';
 import { Card, Empty, Skeleton, ErrorBox, Modal, Field, Badge, Drawer } from '@admin/components/ui';
 import { date } from '@admin/lib/format';
 import { GroupedBars, HighlightBars } from '@admin/components/ChartsPlus';
@@ -263,6 +263,7 @@ function ObjectiveForm({ employeeId, year, hasAccount, hasProject, onClose, onSa
 function ReviewForm({ employeeId, year, review, coach, onSaved }) {
   const { meta } = useRhMeta();
   const toast = useToast();
+  const saved = useSaved();
   const [f, setF] = useState({ rating: review?.rating || '', manager_comment: review?.manager_comment || '', strengths: review?.strengths || '', improvements: review?.improvements || '', training_needs: review?.training_needs || '' });
   const locked = review?.status === 'finalise';
   const set = k => e => setF(x => ({ ...x, [k]: e.target.value }));
@@ -270,7 +271,7 @@ function ReviewForm({ employeeId, year, review, coach, onSaved }) {
     if (finalize && !window.confirm('Finaliser l’entretien ? Il ne pourra plus être modifié.')) return;
     try {
       await api.put(`${RH}/employees/${employeeId}/reviews/${year}`, { ...f, rating: f.rating ? Number(f.rating) : null, finalize });
-      toast(finalize ? 'Entretien finalisé et ajouté au dossier' : 'Entretien enregistré'); onSaved();
+      saved(finalize ? 'Entretien finalisé et ajouté au dossier' : 'Entretien enregistré'); onSaved();
     } catch (e) { toast(e.message, 'err'); }
   };
   return (

@@ -2,12 +2,13 @@ import { useEffect, useMemo, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { ShieldCheck, Lock, RotateCcw, Save, Info, Plus, Pencil, Trash2 } from 'lucide-react';
 import { api } from '../lib/api';
-import { useResource, useToast } from '../lib/app-context';
+import { useResource, useToast, useSaved } from '../lib/app-context';
 import { Card, ErrorBox, Skeleton, Badge, Drawer, Field } from '../components/ui';
 
 /** Grille des privilèges : une colonne par rôle, une ligne par privilège, regroupés par domaine. */
 export default function Roles() {
   const toast = useToast();
+  const saved = useSaved();
   const data = useResource('/admin/permissions');
   const [draft, setDraft] = useState({}); // rôle → Set de privilèges
   const [saving, setSaving] = useState(null);
@@ -35,7 +36,7 @@ export default function Roles() {
     setSaving(role.id);
     try {
       await api.put(`/admin/permissions/roles/${role.id}`, { permissions: [...draft[role.id]] });
-      toast(`Privilèges du rôle « ${role.label} » enregistrés`);
+      saved(`Privilèges du rôle « ${role.label} » enregistrés`);
       data.reload();
     } catch (e) { toast(e.message, 'err'); } finally { setSaving(null); }
   };
@@ -147,6 +148,7 @@ export default function Roles() {
 /** Création d'un rôle (libellé, description, droits cochés) ou renommage d'un rôle existant. */
 function RoleDrawer({ role, catalog, roles, onClose, onSaved }) {
   const toast = useToast();
+  const saved = useSaved();
   const isNew = !role.id;
   const [form, setForm] = useState({ label: role.label || '', description: role.description || '' });
   const [perms, setPerms] = useState(() => new Set());
@@ -167,7 +169,7 @@ function RoleDrawer({ role, catalog, roles, onClose, onSaved }) {
       const body = { label: form.label, description: form.description || null };
       if (isNew) await api.post('/admin/permissions/roles', { ...body, permissions: [...perms] });
       else await api.patch(`/admin/permissions/roles/${role.id}`, body);
-      toast(isNew ? `Rôle « ${form.label.trim()} » créé` : 'Rôle renommé');
+      saved(isNew ? `Rôle « ${form.label.trim()} » créé` : 'Rôle renommé');
       onSaved();
     } catch (e) { setError(e); } finally { setBusy(false); }
   };

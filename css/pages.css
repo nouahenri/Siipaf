@@ -1199,3 +1199,17 @@ body.temo-modal-open { overflow: hidden; }
 .newsletter-form .nl-status { margin-top: 12px; background: rgba(255, 255, 255, .96); color: var(--dark); font-weight: 500; text-align: center; }
 .newsletter-form .nl-status.ok::before { content: '\2713'; color: #0f7a3d; font-weight: 700; margin-right: 8px; }
 .newsletter-form .nl-status.err { color: var(--red); }
+
+/* ─── Contact : message ou prise de rendez-vous ─────────── */
+.cf-modes { display: grid; grid-template-columns: 1fr 1fr; gap: 6px; padding: 5px; margin: 4px 0 22px; border-radius: 50px; background: var(--light); }
+.cf-mode { display: inline-flex; align-items: center; justify-content: center; gap: 8px; padding: 11px 12px; border: 0; border-radius: 50px; background: transparent; color: var(--dark2); font-family: inherit; font-size: .86rem; font-weight: 600; cursor: pointer; transition: background .2s, color .2s, box-shadow .2s; }
+.cf-mode i { color: var(--red); }
+.cf-mode:hover { color: var(--red); }
+.cf-mode.is-active { background: var(--white); color: var(--dark); box-shadow: 0 2px 10px rgba(0, 0, 0, .08); }
+.cf-mode:focus-visible { outline: 3px solid rgba(227, 6, 19, .3); outline-offset: 2px; }
+.cf-rdv { border: 0; padding: 0; margin: 0; min-width: 0; display: flex; flex-direction: column; gap: inherit; }
+.contact-form .cf-rdv { gap: 20px; }
+.cf-rdv[hidden] { display: none; }
+.cf-hint { margin: -8px 0 0; font-size: .8rem; color: var(--grey); display: flex; gap: 8px; align-items: baseline; }
+.cf-hint i { color: var(--red); }
+@media (max-width: 480px) { .cf-mode { font-size: .8rem; padding: 10px 8px; } }

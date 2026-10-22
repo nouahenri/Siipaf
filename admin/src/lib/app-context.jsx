@@ -1,4 +1,5 @@
 import { createContext, useCallback, useContext, useEffect, useRef, useState } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { api, setUnauthorizedHandler } from './api';
 
 const AuthContext = createContext(null);
@@ -38,7 +39,7 @@ export function AppProvider({ children }) {
   const toast = useCallback((message, kind = 'ok') => {
     const id = ++nextId.current;
     setToasts(t => [...t, { id, message, kind }]);
-    setTimeout(() => setToasts(t => t.filter(x => x.id !== id)), kind === 'err' ? 6000 : 3500);
+    setTimeout(() => setToasts(t => t.filter(x => x.id !== id)), kind === 'err' ? 6000 : kind === 'saved' ? 3000 : 3500);
   }, []);
 
   useEffect(() => {
@@ -65,7 +66,10 @@ export function AppProvider({ children }) {
       <ToastContext.Provider value={toast}>
         {children}
         <div className="toasts" role="status" aria-live="polite">
-          {toasts.map(t => <div key={t.id} className={`toast ${t.kind === 'err' ? 'err' : ''}`}>{t.message}</div>)}
+          {toasts.map(t => t.kind === 'saved'
+            // Accusé d'enregistrement : discret, aux couleurs SIIPAF (encre et or), en bas à droite
+            ? <div key={t.id} className="toast toast-saved"><span aria-hidden="true">✓</span>{t.message}</div>
+            : <div key={t.id} className={`toast ${t.kind === 'err' ? 'err' : ''}`}>{t.message}</div>)}
         </div>
       </ToastContext.Provider>
     </AuthContext.Provider>
@@ -73,6 +77,15 @@ export function AppProvider({ children }) {
 }
 
 export const useAuth = () => useContext(AuthContext);
+
+/**
+ * Accusé d'enregistrement (« ✓ Enregistré », discret, en bas à droite). Après « Enregistrer », une fiche se ferme ou la
+ * page revient à la précédente (useSaveAndReturn) ; une page de réglages reste affichée avec ce seul accusé.
+ */
+export function useSaved() {
+  const toast = useContext(ToastContext);
+  return useCallback((message = 'Enregistré') => toast(message, 'saved'), [toast]);
+}
 export const useToast = () => useContext(ToastContext);
 
 /** Charge une ressource et expose { data, loading, error, reload, setData }. */
@@ -88,4 +101,18 @@ export function useResource(url, deps = []) {
   }, [url, ...deps]);
   useEffect(() => { load(); }, [load]);
   return { ...state, reload: load, setData: data => setState(s => ({ ...s, data: typeof data === 'function' ? data(s.data) : data })) };
+}
+
+/**
+ * Page d'édition : après « Enregistrer », retour à la page précédente (ou à `fallback` si on est arrivé
+ * directement sur la page) avec l'accusé d'enregistrement.
+ */
+export function useSaveAndReturn(fallback) {
+  const saved = useSaved();
+  const navigate = useNavigate();
+  return useCallback((message = 'Enregistré') => {
+    saved(message);
+    if ((window.history.state?.idx ?? 0) > 0) navigate(-1);
+    else if (fallback) navigate(fallback, { replace: true });
+  }, [saved, navigate, fallback]);
 }

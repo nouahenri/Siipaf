@@ -2,7 +2,7 @@ import { useMemo, useState } from 'react';
 import { Link, useSearchParams } from 'react-router-dom';
 import { UserCheck, Clock3, Palmtree, Save, Pencil, Trash2, Plus, Tablet, CheckCheck, Timer } from 'lucide-react';
 import { api, qs } from '@admin/lib/api';
-import { useAuth, useResource, useToast } from '@admin/lib/app-context';
+import { useAuth, useResource, useToast, useSaved } from '@admin/lib/app-context';
 import { Card, Empty, Skeleton, ErrorBox, Modal, Field, Badge } from '@admin/components/ui';
 import { date, fcfa } from '@admin/lib/format';
 import { RH, hours, hm, today, thisMonth, useRhMeta } from '../../lib/rh';
@@ -53,6 +53,7 @@ function Today() {
 function Sheet() {
   const { meta } = useRhMeta();
   const toast = useToast();
+  const saved = useSaved();
   const [day, setDay] = useState(today());
   const [project, setProject] = useState('');
   const [dept, setDept] = useState('chantier');
@@ -66,7 +67,7 @@ function Sheet() {
     const list = people.filter(e => row(e.id).present).map(e => ({ employee_id: e.id, periods: [row(e.id).am, ...(row(e.id).pmOn ? [row(e.id).pm] : [])] }));
     if (!list.length) return toast('Cochez les présents.', 'err');
     setBusy(true);
-    try { const r = await api.post(`${RH}/attendance/sheet`, { date: day, project_id: Number(project) || null, rows: list }); toast(`${r.created} plage(s) enregistrée(s) pour ${list.length} personne(s)`); } catch (e) { toast(e.message, 'err'); } finally { setBusy(false); }
+    try { const r = await api.post(`${RH}/attendance/sheet`, { date: day, project_id: Number(project) || null, rows: list }); saved(`${r.created} plage(s) enregistrée(s) pour ${list.length} personne(s)`); } catch (e) { toast(e.message, 'err'); } finally { setBusy(false); }
   };
   return (
     <Card title="Feuille de présence" actions={<button className="btn btn-primary btn-sm" disabled={busy} onClick={save}><Save />Enregistrer la feuille</button>} bodyClass="">
@@ -143,6 +144,7 @@ function Records() {
 
 const local = iso => (iso ? iso.slice(0, 16) : '');
 function ManualForm({ record, onClose, onSaved }) {
+  const saved = useSaved();
   const { meta } = useRhMeta();
   const [f, setF] = useState({ employee_id: record.employee_id || '', check_in: local(record.check_in) || `${today()}T07:30`, check_out: local(record.check_out), project_id: record.project_id || '', note: '' });
   const [error, setError] = useState(null);
@@ -150,7 +152,7 @@ function ManualForm({ record, onClose, onSaved }) {
   const save = async e => {
     e.preventDefault();
     const body = { employee_id: Number(f.employee_id), check_in: `${f.check_in}:00Z`, check_out: f.check_out ? `${f.check_out}:00Z` : null, project_id: Number(f.project_id) || null, note: f.note };
-    try { await (record.id ? api.patch(`${RH}/attendance/${record.id}`, body) : api.post(`${RH}/attendance`, body)); onSaved(); } catch (err) { setError(err); }
+    try { await (record.id ? api.patch(`${RH}/attendance/${record.id}`, body) : api.post(`${RH}/attendance`, body)); saved("Pointage enregistré"); onSaved(); } catch (err) { setError(err); }
   };
   return (
     <Modal title={record.id ? `Corriger — ${record.employee_name}` : 'Saisie manuelle d’un pointage'} onClose={onClose} footer={<><button className="btn btn-ghost" onClick={onClose}>Annuler</button><button className="btn btn-primary" form="manual">Enregistrer</button></>}>

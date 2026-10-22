@@ -2,7 +2,7 @@ import { useEffect, useState } from 'react';
 import { Link, useNavigate, useParams } from 'react-router-dom';
 import { ArrowLeft, Plus, Trash2, ArrowUp, ArrowDown, ImagePlus, Map, FileText, PenTool, MapPin } from 'lucide-react';
 import { api } from '../lib/api';
-import { useAuth, useResource, useToast } from '../lib/app-context';
+import { useAuth, useResource, useToast, useSaveAndReturn } from '../lib/app-context';
 import { Card, Field, ErrorBox, Skeleton, Badge, Empty } from '../components/ui';
 import { MediaPicker } from '../components/MediaLibrary';
 import { Modal } from '../components/ui';
@@ -37,6 +37,7 @@ export default function ProjectEdit() {
   const navigate = useNavigate();
   const { can } = useAuth();
   const toast = useToast();
+  const saveAndReturn = useSaveAndReturn('/projets');
   const project = useResource(`/admin/projects/${id}`);
   const lists = useResource('/admin/refs');
   const [form, setForm] = useState(null);
@@ -124,8 +125,8 @@ export default function ProjectEdit() {
       await api.put(`/admin/projects/${id}/offers`, offers.filter(o => o.label?.trim()).map(o => ({
         id: o.id, label: o.label, designation: o.designation?.trim() || null, surface: o.surface || null, price_fcfa: intOrNull(o.price_fcfa), diaspora_price_fcfa: intOrNull(o.diaspora_price_fcfa),
       })));
-      toast('Projet enregistré');
-      project.reload();
+      // Fiche enregistrée : retour à la page précédente (liste des projets) avec l'accusé
+      saveAndReturn(`Projet « ${form.name || project.data?.name || ''} » enregistré`);
     } catch (e) { setError(e); } finally { setBusy(false); }
   };
 

@@ -6,7 +6,7 @@ import { useEffect, useMemo, useState } from 'react';
 import { useSearchParams } from 'react-router-dom';
 import { Plus, Trash2, ArrowUp, ArrowDown, Archive, ArchiveRestore, MapPin, Building, Building2, Dumbbell, Store, Construction, Home, SlidersHorizontal, Palette } from 'lucide-react';
 import { api } from '../lib/api';
-import { useAuth, useResource, useToast } from '../lib/app-context';
+import { useAuth, useResource, useToast, useSaved } from '../lib/app-context';
 import { Card, Field, ErrorBox, Skeleton, Badge, Empty } from '../components/ui';
 
 const ICONS = { ville: Building, localisation: MapPin, equipement: Dumbbell, commodite: Store, viabilisation: Construction, type_projet: Building2, type_bien: Home };
@@ -203,6 +203,7 @@ function RefList({ kind, data, editable, reload }) {
 
 function General({ editable }) {
   const toast = useToast();
+  const saved = useSaved();
   const settings = useResource('/admin/settings');
   const [values, setValues] = useState(null);
   const [error, setError] = useState(null);
@@ -214,7 +215,7 @@ function General({ editable }) {
     try {
       const body = Object.fromEntries(Object.entries(v).map(([k, x]) => [k, Number(x)]));
       await api.put('/admin/settings', body);
-      toast('Réglages enregistrés');
+      saved('Réglages enregistrés');
       setValues(null); settings.reload();
     } catch (e) { setError(e); }
   };
@@ -235,6 +236,7 @@ function General({ editable }) {
 function Display() {
   const { theme, setTheme } = useAuth();
   const toast = useToast();
+  const saved = useSaved();
   const [saving, setSaving] = useState(false);
   const [systemDark, setSystemDark] = useState(() => window.matchMedia('(prefers-color-scheme: dark)').matches);
   useEffect(() => {
@@ -248,7 +250,7 @@ function Display() {
   const pick = async value => {
     if (saving) return;
     setSaving(true);
-    try { await setTheme(value); toast('Affichage enregistré pour votre compte'); } catch (e) { toast(e.message, 'err'); }
+    try { await setTheme(value); saved('Affichage enregistré pour votre compte'); } catch (e) { toast(e.message, 'err'); }
     finally { setSaving(false); }
   };
   return (

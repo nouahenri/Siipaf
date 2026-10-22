@@ -4,6 +4,7 @@ import { api, qs } from '@admin/lib/api';
 import { Modal, Field, ErrorBox } from '@admin/components/ui';
 import { useSavMeta } from '../../components/SavBits';
 import { PhotoPicker } from '../../components/Photos';
+import { useSaved } from '@admin/lib/app-context';
 
 /** Recherche d'un dossier d'acquisition (client, code client, lot, téléphone). */
 export function SalePicker({ value, onChange, autoFocus }) {
@@ -45,6 +46,7 @@ export function SalePicker({ value, onChange, autoFocus }) {
 }
 
 export default function NewTicket({ onClose, onCreated }) {
+  const saved = useSaved();
   const meta = useSavMeta();
   const [sale, setSale] = useState(null);
   const [form, setForm] = useState({ category: '', priority: 'normale', title: '', description: '', location: '', assigned_to: '' });
@@ -62,7 +64,7 @@ export default function NewTicket({ onClose, onCreated }) {
         description: form.description || null, location: form.location || null,
         assigned_to: Number(form.assigned_to) || null, media_ids: photos.map(p => p.id),
       });
-      onCreated(t);
+      saved("Réclamation enregistrée"); onCreated(t);
     } catch (err) { setError(err); } finally { setBusy(false); }
   };
 

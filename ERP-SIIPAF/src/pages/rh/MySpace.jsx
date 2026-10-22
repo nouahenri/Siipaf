@@ -2,7 +2,7 @@ import { useState } from 'react';
 import { Link } from 'react-router-dom';
 import { LogIn, LogOut, CalendarPlus, Receipt, Plus, Palmtree, Hourglass, CalendarCheck, KeyRound, GraduationCap, Target, FolderOpen, UserX, MapPin } from 'lucide-react';
 import { api } from '@admin/lib/api';
-import { useAuth, useResource, useToast } from '@admin/lib/app-context';
+import { useAuth, useResource, useToast, useSaved } from '@admin/lib/app-context';
 import { Card, Empty, Skeleton, ErrorBox, Modal, Field, Badge } from '@admin/components/ui';
 import { date, fcfa } from '@admin/lib/format';
 import { RH, days, hours, hm, useRhMeta, metricValue } from '../../lib/rh';
@@ -160,11 +160,12 @@ function CancelLeave({ leave, onDone }) {
 
 function PinForm({ onClose, onSaved }) {
   const toast = useToast();
+  const saved = useSaved();
   const [pin, setPin] = useState('');
   const [error, setError] = useState(null);
   const save = async e => {
     e.preventDefault();
-    try { await api.put(`${RH}/me/pin`, { pin }); toast('Code de pointage enregistré'); onSaved(); } catch (err) { setError(err); }
+    try { await api.put(`${RH}/me/pin`, { pin }); saved('Code de pointage enregistré'); onSaved(); } catch (err) { setError(err); }
   };
   return (
     <Modal title="Code de pointage" onClose={onClose} footer={<><button className="btn btn-ghost" onClick={onClose}>Annuler</button><button className="btn btn-primary" form="pin-form">Enregistrer</button></>}>

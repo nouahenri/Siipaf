@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react';
 import { Plus, Trash2, ArrowUp, ArrowDown, ImagePlus } from 'lucide-react';
 import { api } from '../lib/api';
-import { useResource, useToast } from '../lib/app-context';
+import { useResource, useToast, useSaved } from '../lib/app-context';
 import { Card, Field, ErrorBox, Skeleton } from '../components/ui';
 import { MediaPicker } from '../components/MediaLibrary';
 
@@ -23,6 +23,7 @@ const move = (list, i, d) => { const l = [...list]; [l[i], l[i + d]] = [l[i + d]
 
 export default function SiteContent() {
   const toast = useToast();
+  const saved = useSaved();
   const content = useResource('/admin/content');
   const [tab, setTab] = useState('hero');
   const [value, setValue] = useState(null);
@@ -44,7 +45,7 @@ export default function SiteContent() {
     try {
       const saved = await api.put(`/admin/content/${tab}`, value);
       content.setData(d => ({ ...d, [tab]: saved }));
-      toast('Contenu enregistré — visible sur le site au prochain chargement');
+      saved('Contenu enregistré — visible sur le site au prochain chargement');
     } catch (e) { setError(e); } finally { setBusy(false); }
   };
 

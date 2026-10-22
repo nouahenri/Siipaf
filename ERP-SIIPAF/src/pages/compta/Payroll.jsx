@@ -2,7 +2,7 @@ import { useEffect, useState } from 'react';
 import { useNavigate, useParams, useSearchParams, Link } from 'react-router-dom';
 import { Plus, RefreshCw, CheckCheck, Wallet, Printer, FileSpreadsheet, Trash2, ArrowLeft, Banknote } from 'lucide-react';
 import { api } from '@admin/lib/api';
-import { useAuth, useResource, useToast } from '@admin/lib/app-context';
+import { useAuth, useResource, useToast, useSaved } from '@admin/lib/app-context';
 import { Card, Empty, Skeleton, ErrorBox, Modal, Field, Badge } from '@admin/components/ui';
 import { date, fcfa } from '@admin/lib/format';
 import { amt, downloadCsv } from '../../lib/compta';
@@ -243,6 +243,7 @@ function Declarations({ run, onClose }) {
 function Scale() {
   const { can } = useAuth();
   const toast = useToast();
+  const saved = useSaved();
   const { meta, reload } = usePaieMeta();
   const [s, setS] = useState(null);
   const [error, setError] = useState(null);
@@ -255,7 +256,7 @@ function Scale() {
     const body = { ...s };
     for (const k of Object.keys(body)) if (typeof meta.defaults[k] === 'number') body[k] = Number(body[k]);
     body.its_brackets = s.its_brackets.map(([c, r]) => [c === '' || c == null ? null : Number(c), Number(r)]);
-    try { await api.put('/admin/erp/paie/settings', body); toast('Barème enregistré'); reload(); } catch (err) { setError(err); }
+    try { await api.put('/admin/erp/paie/settings', body); saved('Barème enregistré'); reload(); } catch (err) { setError(err); }
   };
   const F = (label, k, hint) => <Field label={label} hint={hint}><input className="input" type="number" step="any" min="0" {...num(k)} /></Field>;
   return (

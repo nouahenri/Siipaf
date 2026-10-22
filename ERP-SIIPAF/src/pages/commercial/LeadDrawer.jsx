@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react';
 import { Phone, Mail, MessageCircle, Star, CheckCircle2, Trash2, CalendarPlus, FileSignature, XCircle, RotateCcw, Send, Clock, Building2 } from 'lucide-react';
 import { api } from '@admin/lib/api';
-import { useAuth, useResource, useToast } from '@admin/lib/app-context';
+import { useAuth, useResource, useToast, useSaved } from '@admin/lib/app-context';
 import { Drawer, Modal, Field, Skeleton, ErrorBox, Badge, Empty, Advance } from '@admin/components/ui';
 import { dateTime, fcfa, relative, toLocalInput } from '@admin/lib/format';
 import { useCommercialMeta, ACTIVITY_STATE, STAGE_COLORS, compact } from '../../lib/commercial';
@@ -99,6 +99,7 @@ export default function LeadDrawer({ id, onClose, onChange }) {
 
 function LeadInfo({ lead, meta, write, onSaved }) {
   const toast = useToast();
+  const saved = useSaved();
   const [form, setForm] = useState(null);
   const [error, setError] = useState(null);
   useEffect(() => setForm({
@@ -116,7 +117,7 @@ function LeadInfo({ lead, meta, write, onSaved }) {
         priority: Number(form.priority), expected_revenue_fcfa: form.expected_revenue_fcfa === '' ? null : Number(form.expected_revenue_fcfa),
         financing: form.financing || null, project_id: Number(form.project_id) || null, assigned_to: Number(form.assigned_to) || null, is_diaspora: form.is_diaspora,
       });
-      toast('Fiche enregistrée'); onSaved();
+      saved('Fiche enregistrée'); onSaved();
     } catch (err) { setError(err); }
   };
   return (

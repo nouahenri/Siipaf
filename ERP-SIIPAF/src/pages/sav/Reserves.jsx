@@ -2,7 +2,7 @@ import { useState } from 'react';
 import { Link } from 'react-router-dom';
 import { ClipboardCheck, FilePlus2, CheckCircle2, RotateCcw, ClipboardList, Plus } from 'lucide-react';
 import { api } from '@admin/lib/api';
-import { useAuth, useResource, useToast } from '@admin/lib/app-context';
+import { useAuth, useResource, useToast, useSaved } from '@admin/lib/app-context';
 import { Card, Empty, Skeleton, ErrorBox, Modal, Field, Badge } from '@admin/components/ui';
 import { date } from '@admin/lib/format';
 import { useSavMeta } from '../../components/SavBits';
@@ -77,6 +77,7 @@ export default function Reserves() {
 /** PV de livraison d'un dossier : date (départ des garanties) et réserves relevées. */
 function DeliveryReport({ onClose }) {
   const toast = useToast();
+  const saved = useSaved();
   const meta = useSavMeta();
   const [sale, setSale] = useState(null);
   const detail = useResource(sale ? `/admin/erp/sav/sales/${sale.id}` : null);
@@ -90,7 +91,7 @@ function DeliveryReport({ onClose }) {
 
   const saveDate = async () => {
     setBusy(true); setError(null);
-    try { await api.patch(`/admin/erp/sav/sales/${sale.id}/delivery`, { delivered_at: deliveredAt || null }); toast('Date de livraison enregistrée'); detail.reload(); } catch (e) { setError(e); } finally { setBusy(false); }
+    try { await api.patch(`/admin/erp/sav/sales/${sale.id}/delivery`, { delivered_at: deliveredAt || null }); saved('Date de livraison enregistrée'); detail.reload(); } catch (e) { setError(e); } finally { setBusy(false); }
   };
   const addReserve = async e => {
     e.preventDefault();
@@ -101,7 +102,7 @@ function DeliveryReport({ onClose }) {
         media_ids: photos.map(p => p.id),
       });
       setForm({ label: '', location: '', category: '', deadline: '' }); setPhotos([]);
-      toast('Réserve ajoutée');
+      saved('Réserve ajoutée');
       detail.reload();
     } catch (err) { setError(err); } finally { setBusy(false); }
   };

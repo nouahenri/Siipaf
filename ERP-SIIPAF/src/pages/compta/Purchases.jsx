@@ -2,7 +2,7 @@ import { useState } from 'react';
 import { useSearchParams } from 'react-router-dom';
 import { Plus, Truck, FileText, CheckCheck, Wallet, Pencil, Trash2 } from 'lucide-react';
 import { api } from '@admin/lib/api';
-import { useAuth, useResource, useToast } from '@admin/lib/app-context';
+import { useAuth, useResource, useToast, useSaved } from '@admin/lib/app-context';
 import { Card, Empty, Skeleton, ErrorBox, Drawer, Modal, Field, Badge } from '@admin/components/ui';
 import { date, fcfa } from '@admin/lib/format';
 import { useComptaMeta, amt, PAYMENT_STATUS, AccountInput } from '../../lib/compta';
@@ -144,6 +144,7 @@ function InvoiceDrawer({ id, onClose, onChange }) {
 }
 
 function InvoiceForm({ invoice, onClose, onSaved }) {
+  const saved = useSaved();
   const { meta } = useComptaMeta();
   const suppliers = useResource('/admin/erp/compta/suppliers');
   const [f, setF] = useState(() => ({
@@ -161,7 +162,7 @@ function InvoiceForm({ invoice, onClose, onSaved }) {
   const save = async e => {
     e.preventDefault(); setError(null);
     const body = { ...f, supplier_id: Number(f.supplier_id), project_id: Number(f.project_id) || null, amount_ttc: Number(f.amount_ttc), vat_rate: Number(f.vat_rate), due_date: f.due_date || null, supplier_ref: f.supplier_ref || null };
-    try { onSaved(invoice ? await api.patch(`/admin/erp/compta/purchases/${invoice.id}`, body) : await api.post('/admin/erp/compta/purchases', body)); } catch (err) { setError(err); }
+    try { saved("Facture d’achat enregistrée"); onSaved(invoice ? await api.patch(`/admin/erp/compta/purchases/${invoice.id}`, body) : await api.post('/admin/erp/compta/purchases', body)); } catch (err) { setError(err); }
   };
   return (
     <Modal title={invoice ? `Modifier ${invoice.number}` : 'Nouvelle facture d’achat'} onClose={onClose} footer={<><button className="btn btn-ghost" onClick={onClose}>Annuler</button><button className="btn btn-primary" form="inv-form">Enregistrer</button></>}>
@@ -231,6 +232,7 @@ function Suppliers() {
 }
 
 function SupplierForm({ supplier, onClose, onSaved }) {
+  const saved = useSaved();
   const [f, setF] = useState({ name: supplier.name || '', kind: supplier.kind || 'fournisseur', phone: supplier.phone || '', email: supplier.email || '', address: supplier.address || '', ncc: supplier.ncc || '', rccm: supplier.rccm || '', expense_account: supplier.expense_account || '', notes: supplier.notes || '', active: supplier.active ?? true });
   const [error, setError] = useState(null);
   const set = k => e => setF(x => ({ ...x, [k]: e.target.type === 'checkbox' ? e.target.checked : e.target.value }));
@@ -238,7 +240,7 @@ function SupplierForm({ supplier, onClose, onSaved }) {
     e.preventDefault(); setError(null);
     const body = { ...f, email: f.email || null, expense_account: f.expense_account || null };
     if (!supplier.id) delete body.active;
-    try { await (supplier.id ? api.patch(`/admin/erp/compta/suppliers/${supplier.id}`, body) : api.post('/admin/erp/compta/suppliers', body)); onSaved(); } catch (err) { setError(err); }
+    try { await (supplier.id ? api.patch(`/admin/erp/compta/suppliers/${supplier.id}`, body) : api.post('/admin/erp/compta/suppliers', body)); saved("Fournisseur enregistré"); onSaved(); } catch (err) { setError(err); }
   };
   return (
     <Modal title={supplier.id ? supplier.name : 'Nouveau fournisseur'} onClose={onClose} footer={<><button className="btn btn-ghost" onClick={onClose}>Annuler</button><button className="btn btn-primary" form="sup-form">Enregistrer</button></>}>

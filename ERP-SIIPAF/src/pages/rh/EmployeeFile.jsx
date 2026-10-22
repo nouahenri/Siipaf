@@ -2,7 +2,7 @@ import { useState } from 'react';
 import { useParams, useSearchParams, Link } from 'react-router-dom';
 import { ArrowLeft, Pencil, Upload, Trash2, FileText, Plus, CalendarPlus, Star, Briefcase, KeyRound, ExternalLink } from 'lucide-react';
 import { api } from '@admin/lib/api';
-import { useAuth, useResource, useToast } from '@admin/lib/app-context';
+import { useAuth, useResource, useToast, useSaved } from '@admin/lib/app-context';
 import { Card, Empty, Skeleton, ErrorBox, Modal, Field, Badge } from '@admin/components/ui';
 import { date, fcfa, initials } from '@admin/lib/format';
 import { RH, hours, hm, today, formData, useRhMeta, thisMonth } from '../../lib/rh';
@@ -96,6 +96,7 @@ function Identity({ d, hr, onSaved }) {
 }
 
 function IdentityForm({ d, onClose, onSaved }) {
+  const saved = useSaved();
   const { meta } = useRhMeta();
   const e = d.employee;
   const keys = ['phone', 'email', 'address', 'birth_date', 'birth_place', 'gender', 'nationality', 'id_number', 'cnps_number', 'marital_status', 'children', 'emergency_contact', 'job_title', 'department', 'category', 'contract_type', 'end_date', 'trial_end_date', 'manager_id', 'leave_opening_days', 'leave_opening_date', 'notes'];
@@ -107,7 +108,7 @@ function IdentityForm({ d, onClose, onSaved }) {
     const body = Object.fromEntries(keys.map(k => [k, f[k] === '' ? null : f[k]]));
     for (const k of ['children', 'manager_id', 'leave_opening_days']) body[k] = body[k] == null ? null : Number(body[k]);
     body.children = body.children ?? 0;
-    try { await api.patch(`${RH}/employees/${e.id}`, body); onSaved(); } catch (err) { setError(err); }
+    try { await api.patch(`${RH}/employees/${e.id}`, body); saved("Dossier enregistré"); onSaved(); } catch (err) { setError(err); }
   };
   return (
     <Modal title={`Dossier — ${e.last_name} ${e.first_name}`} onClose={onClose} footer={<><button className="btn btn-ghost" onClick={onClose}>Annuler</button><button className="btn btn-primary" form="id-form">Enregistrer</button></>}>
@@ -146,9 +147,10 @@ function IdentityForm({ d, onClose, onSaved }) {
 
 function HrPin({ employee, onClose, onSaved }) {
   const toast = useToast();
+  const saved = useSaved();
   const [pin, setPin] = useState('');
   const [error, setError] = useState(null);
-  const save = async ev => { ev.preventDefault(); try { await api.put(`${RH}/employees/${employee.id}/pin`, { pin }); toast('Code de pointage défini'); onSaved(); } catch (err) { setError(err); } };
+  const save = async ev => { ev.preventDefault(); try { await api.put(`${RH}/employees/${employee.id}/pin`, { pin }); saved('Code de pointage défini'); onSaved(); } catch (err) { setError(err); } };
   return (
     <Modal title={`Code de pointage — ${employee.last_name} ${employee.first_name}`} onClose={onClose} footer={<><button className="btn btn-ghost" onClick={onClose}>Annuler</button><button className="btn btn-primary" form="hr-pin">Enregistrer</button></>}>
       <form id="hr-pin" className="stack" style={{ gap: 12 }} onSubmit={save}>
@@ -197,9 +199,10 @@ function LeaveTab({ d, hr, onChange }) {
 }
 
 function AdjustForm({ employee, onClose, onSaved }) {
+  const saved = useSaved();
   const [f, setF] = useState({ date: today(), days: '', label: '' });
   const [error, setError] = useState(null);
-  const save = async ev => { ev.preventDefault(); try { await api.post(`${RH}/employees/${employee.id}/adjustments`, { ...f, days: Number(f.days) }); onSaved(); } catch (err) { setError(err); } };
+  const save = async ev => { ev.preventDefault(); try { await api.post(`${RH}/employees/${employee.id}/adjustments`, { ...f, days: Number(f.days) }); saved("Solde de congés ajusté"); onSaved(); } catch (err) { setError(err); } };
   return (
     <Modal title="Ajuster le solde de congés" onClose={onClose} footer={<><button className="btn btn-ghost" onClick={onClose}>Annuler</button><button className="btn btn-primary" form="adj">Enregistrer</button></>}>
       <form id="adj" className="form-grid" onSubmit={save}>
@@ -277,10 +280,11 @@ function Career({ d, hr, onChange }) {
 }
 
 function CareerForm({ employee, onClose, onSaved }) {
+  const saved = useSaved();
   const { meta } = useRhMeta();
   const [f, setF] = useState({ date: today(), kind: 'formation', label: '' });
   const [error, setError] = useState(null);
-  const save = async ev => { ev.preventDefault(); try { await api.post(`${RH}/employees/${employee.id}/career`, f); onSaved(); } catch (err) { setError(err); } };
+  const save = async ev => { ev.preventDefault(); try { await api.post(`${RH}/employees/${employee.id}/career`, f); saved("Événement de carrière enregistré"); onSaved(); } catch (err) { setError(err); } };
   return (
     <Modal title="Événement de carrière" onClose={onClose} footer={<><button className="btn btn-ghost" onClick={onClose}>Annuler</button><button className="btn btn-primary" form="career">Enregistrer</button></>}>
       <form id="career" className="form-grid" onSubmit={save}>
@@ -366,12 +370,13 @@ function AddSkill({ types, have, onClose, onAdd }) {
 }
 
 function ResumeForm({ employeeId, onClose, onSaved }) {
+  const saved = useSaved();
   const { meta } = useRhMeta();
   const [f, setF] = useState({ kind: 'experience', title: '', organisation: '', start_date: '', end_date: '', description: '' });
   const [error, setError] = useState(null);
   const set = k => e => setF(x => ({ ...x, [k]: e.target.value }));
   const kinds = { experience: 'Expérience', formation: 'Diplôme, formation', certification: 'Certification', interne: 'Formation interne SIIPAF' };
-  const save = async e => { e.preventDefault(); try { onSaved(await api.post(`${RH}/employees/${employeeId}/resume`, f)); } catch (err) { setError(err); } };
+  const save = async e => { e.preventDefault(); try { const out = await api.post(`${RH}/employees/${employeeId}/resume`, f); saved("CV enregistré"); onSaved(out); } catch (err) { setError(err); } };
   return (
     <Modal title="Ligne de CV" onClose={onClose} footer={<><button className="btn btn-ghost" onClick={onClose}>Annuler</button><button className="btn btn-primary" form="resume">Ajouter</button></>}>
       <form id="resume" className="form-grid" onSubmit={save}>

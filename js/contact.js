@@ -58,7 +58,8 @@
     if (opt) opt.selected = true;
     if (wanted.bien && !property.value) property.value = wanted.bien;
     fillProperties();
-    if (message.value.trim() || !(opt || wanted.bien || wanted.lot)) return;
+    // Prise de rendez-vous : le message n'est qu'un champ de précisions facultatif, laissé vide
+    if (params.get('rdv') || message.value.trim() || !(opt || wanted.bien || wanted.lot)) return;
     var projectName = opt && opt.value !== 'Autre' ? opt.textContent.trim() : '';
     var what = [wanted.bien && '« ' + wanted.bien + ' »', wanted.lot && 'le lot ' + wanted.lot].filter(Boolean).join(', ');
     message.value = what
@@ -96,12 +97,99 @@
     status.className = 'cf-status ' + (ok ? 'ok' : 'err');
   }
 
+  // ── Deux modes : message, ou demande de rendez-vous (admin › Rendez-vous, statut « Demandé ») ──
+  // contact.html?rdv=1 (boutons « Prendre RDV » du site) ouvre directement la prise de rendez-vous.
+  var rdvBox = form.querySelector('.cf-rdv');
+  var title = document.getElementById('cf-title');
+  var messageLabel = document.getElementById('cf-message-label');
+  var submitLabel = form.querySelector('button[type="submit"] span');
+  var dateInput = form.querySelector('input[name="date"]');
+  var timeSelect = form.querySelector('select[name="time"]');
+  var mode = 'message';
+  // Créneaux de 30 min, 8 h – 17 h 30, heure d'Abidjan (GMT, sans heure d'été)
+  for (var h = 8; h < 18; h++) {
+    ['00', '30'].forEach(function (m) {
+      var v = (h < 10 ? '0' : '') + h + ':' + m;
+      var o = document.createElement('option');
+      o.value = v;
+      o.textContent = h + ' h ' + m;
+      timeSelect.appendChild(o);
+    });
+  }
+  timeSelect.value = '10:00';
+  // Au plus tôt demain (date d'Abidjan), au plus tard dans 3 mois
+  function isoDay(d) { return d.toISOString().slice(0, 10); }
+  var tomorrow = new Date(Date.now() + 864e5);
+  dateInput.min = isoDay(tomorrow);
+  dateInput.max = isoDay(new Date(Date.now() + 92 * 864e5));
+  dateInput.addEventListener('input', function () {
+    var sunday = dateInput.value && new Date(dateInput.value + 'T12:00:00Z').getUTCDay() === 0;
+    dateInput.setCustomValidity(sunday ? 'Nos bureaux sont fermés le dimanche : choisissez un autre jour.' : '');
+  });
+
+  function setMode(next) {
+    mode = next;
+    var rdv = next === 'rdv';
+    Array.prototype.forEach.call(document.querySelectorAll('.cf-mode'), function (b) {
+      var on = b.getAttribute('data-mode') === next;
+      b.classList.toggle('is-active', on);
+      b.setAttribute('aria-selected', on ? 'true' : 'false');
+    });
+    rdvBox.hidden = !rdv;
+    rdvBox.disabled = !rdv;
+    title.innerHTML = rdv ? 'Prenez <em>rendez-vous</em>' : 'Envoyez-nous <em>un message</em>';
+    messageLabel.textContent = rdv ? 'Précisions (facultatif)' : 'Votre message *';
+    message.required = !rdv;
+    submitLabel.textContent = rdv ? 'Demander ce rendez-vous' : 'Envoyer ma demande';
+    status.hidden = true;
+  }
+  Array.prototype.forEach.call(document.querySelectorAll('.cf-mode'), function (b) {
+    b.addEventListener('click', function () { setMode(b.getAttribute('data-mode')); });
+  });
+  if (params.get('rdv')) {
+    setMode('rdv');
+    // Arrivée par un bouton « Prendre RDV » : on va droit au formulaire
+    // (après le chargement des images et les animations d'apparition, sinon la position bouge encore)
+    window.addEventListener('load', function () {
+      setTimeout(function () {
+        var top = title.getBoundingClientRect().top + window.scrollY - 100;
+        window.scrollTo({ top: Math.max(0, top), behavior: 'smooth' });
+      }, 600);
+    });
+  }
+
+  function sendAppointment(val) {
+    var p = projects.filter(function (x) { return x.slug === val('project'); })[0];
+    var notes = [
+      val('property_type') && 'Type de bien : ' + val('property_type'),
+      val('budget') && 'Budget : ' + val('budget'),
+      val('message'),
+    ].filter(Boolean).join('\n');
+    return {
+      url: '/api/public/appointments',
+      body: {
+        name: val('name'),
+        phone: val('phone') || undefined,
+        email: val('email') || undefined,
+        kind: val('kind'),
+        // Heure d'Abidjan = GMT : le créneau choisi est le même pour un visiteur de la diaspora
+        starts_at: val('date') + 'T' + val('time') + ':00Z',
+        project_id: p ? p.id : undefined,
+        message: notes || undefined,
+        website: val('website'),
+      },
+      done: 'Merci ! Votre demande de rendez-vous du ' + new Date(val('date') + 'T12:00:00Z').toLocaleDateString('fr-FR', { weekday: 'long', day: 'numeric', month: 'long', timeZone: 'UTC' }) +
+        ' à ' + val('time').replace(':', ' h ') + ' est enregistrée. Un conseiller vous recontacte pour la confirmer.',
+    };
+  }
+
   form.addEventListener('submit', function (e) {
     e.preventDefault();
     var fd = new FormData(form);
     var val = function (k) { return String(fd.get(k) || '').trim(); };
     var budget = val('budget');
-    var body = {
+    var req = mode === 'rdv' ? sendAppointment(val) : null;
+    var body = req ? req.body : {
       name: val('name'),
       phone: val('phone') || undefined,
       email: val('email') || undefined,
@@ -116,16 +204,17 @@
     btn.disabled = true;
     btn.innerHTML = '<span>Envoi en cours…</span><i class="fas fa-spinner fa-spin" aria-hidden="true"></i>';
     status.hidden = true;
-    fetch(API + '/api/public/contact', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body), credentials: 'omit' })
+    fetch(API + (req ? req.url : '/api/public/contact'), { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body), credentials: 'omit' })
       .then(function (r) { return r.json().catch(function () { return {}; }).then(function (d) { return { ok: r.ok, d: d }; }); })
       .then(function (res) {
         if (!res.ok) throw new Error(res.d.details ? res.d.details.map(function (x) { return x.message; }).join(' ') : res.d.error);
         form.reset();
         autoBudget = '';
+        timeSelect.value = '10:00';
         fillProperties();
         btn.innerHTML = '<span>Demande envoyée</span><i class="fas fa-check" aria-hidden="true"></i>';
         btn.classList.add('is-sent');
-        show('Merci ! Votre demande est bien arrivée chez SIIPAF. Un conseiller vous recontacte très vite.', true);
+        show(req ? req.done : 'Merci ! Votre demande est bien arrivée chez SIIPAF. Un conseiller vous recontacte très vite.', true);
         setTimeout(function () { btn.innerHTML = original; btn.classList.remove('is-sent'); btn.disabled = false; }, 4000);
       })
       .catch(function (err) {

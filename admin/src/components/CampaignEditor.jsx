@@ -58,7 +58,7 @@ export default function CampaignEditor({ id, statuses, onBack, onChanged }) {
 
   const call = async (key, fn, ok) => {
     setBusy(key);
-    try { const out = await fn(); if (ok) toast(ok); return out; } catch (e) { toast(e.message, 'err'); return null; } finally { setBusy(''); }
+    try { const out = await fn(); if (ok) toast(ok, key === 'save' ? 'saved' : 'ok'); return out; } catch (e) { toast(e.message, 'err'); return null; } finally { setBusy(''); }
   };
   const save = async () => {
     const body = { ...pick(form) };

@@ -127,7 +127,8 @@
     });
     var hero = b.querySelector('.price-hero-card');
     var heroBtn = hero && hero.querySelector('a.btn');
-    if (heroBtn) heroBtn.href = contactHref(p.slug, text(hero.querySelector('.phc-badge')).split(' — ')[0]);
+    // « Prendre Rendez-vous » (Riviera) garde la prise de rendez-vous
+    if (heroBtn) heroBtn.href = contactHref(p.slug, text(hero.querySelector('.phc-badge')).split(' — ')[0]) + (/rdv=1/.test(heroBtn.getAttribute('href')) ? '&rdv=1' : '');
     Array.prototype.forEach.call(b.querySelectorAll('.proj-footer-btns a'), function (a) {
       if (/^contact\.html/.test(a.getAttribute('href') || '')) a.href = contactHref(p.slug);
     });

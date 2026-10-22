@@ -2,7 +2,7 @@
 import { useState } from 'react';
 import { Save } from 'lucide-react';
 import { api } from '../lib/api';
-import { useAuth, useResource, useToast } from '../lib/app-context';
+import { useAuth, useResource, useToast, useSaved } from '../lib/app-context';
 import { Modal, Field, ErrorBox, StatusBadge } from './ui';
 import { FINANCING, LOT_STATUSES, LOT_TRANSITIONS, lotStatus, bienKind, gridOfferFor } from '../lib/domain';
 import { fcfa } from '../lib/format';
@@ -107,6 +107,7 @@ const day = v => {
 /** Créer un lot (lot absent) ou modifier ses caractéristiques. Le statut se change ailleurs, pour garder l'historique. */
 export function LotFormModal({ projectId, lot, onClose, onDone }) {
   const toast = useToast();
+  const saved = useSaved();
   const project = useResource(`/admin/projects/${projectId}`);
   const isNew = !lot;
   const [f, setF] = useState({
@@ -149,7 +150,7 @@ export function LotFormModal({ projectId, lot, onClose, onDone }) {
     try {
       if (isNew) await api.post(`/admin/projects/${projectId}/lots`, { ...body, status: f.status });
       else await api.patch(`/admin/lots/${lot.id}`, body);
-      toast(isNew ? `${kind.noun === 'lot' ? 'Lot' : 'Bien'} ${body.code} créé` : 'Lot mis à jour');
+      saved(isNew ? `${kind.noun === 'lot' ? 'Lot' : 'Bien'} ${body.code} créé` : 'Lot mis à jour');
       onDone();
     } catch (e) { setError(e); }
     setBusy(false);
@@ -192,6 +193,7 @@ export function LotFormModal({ projectId, lot, onClose, onDone }) {
 /** Modifier le dossier d'acquisition. Changer le prix, le financement ou la date de réservation recalcule l'échéancier type. */
 export function SaleEditModal({ sale, onClose, onDone }) {
   const toast = useToast();
+  const saved = useSaved();
   const [f, setF] = useState({
     price_fcfa: sale.price_fcfa ?? '', financing: sale.financing || '', reserved_at: day(sale.reserved_at),
     signed_at: day(sale.signed_at), notes: sale.notes || '',
@@ -210,7 +212,7 @@ export function SaleEditModal({ sale, onClose, onDone }) {
     };
     try {
       const data = await api.patch(`/admin/sales/${sale.id}`, body);
-      toast('Dossier mis à jour');
+      saved('Dossier mis à jour');
       onDone(data);
     } catch (e) { setError(e); }
     setBusy(false);

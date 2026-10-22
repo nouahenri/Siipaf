@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { Plus, Trash2, Save, CalendarDays, RotateCcw } from 'lucide-react';
 import { api } from '@admin/lib/api';
-import { useAuth, useResource, useToast } from '@admin/lib/app-context';
+import { useAuth, useResource, useToast, useSaved } from '@admin/lib/app-context';
 import { Card, Skeleton, ErrorBox, Field, Empty } from '@admin/components/ui';
 import { date } from '@admin/lib/format';
 import { RH, useRhMeta, WEEKDAYS } from '../../lib/rh';
@@ -13,6 +13,7 @@ export default function RhSettings() {
   const { can } = useAuth();
   const { meta, reload } = useRhMeta();
   const toast = useToast();
+  const saved = useSaved();
   const [s, setS] = useState(null);
   const [error, setError] = useState(null);
   const write = can('rh:settings');
@@ -22,7 +23,7 @@ export default function RhSettings() {
   const num = k => e => set(k, e.target.value === '' ? '' : Number(e.target.value));
   const save = async () => {
     setError(null);
-    try { await api.put(`${RH}/settings`, cur); await reload(); setS(null); toast('Réglages RH enregistrés'); } catch (e) { setError(e); }
+    try { await api.put(`${RH}/settings`, cur); await reload(); setS(null); saved('Réglages RH enregistrés'); } catch (e) { setError(e); }
   };
   const reset = () => { if (window.confirm('Revenir aux valeurs par défaut (Code du travail ivoirien) ?')) setS({ ...meta.defaults }); };
   // Appelé comme une fonction (et non comme un composant) pour que le champ garde le focus pendant la saisie

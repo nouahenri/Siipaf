@@ -1,12 +1,13 @@
 import { useState } from 'react';
 import { api } from '../lib/api';
-import { useAuth, useToast } from '../lib/app-context';
+import { useAuth, useToast, useSaved } from '../lib/app-context';
 import { Card, Field, ErrorBox } from '../components/ui';
 import { ROLE_LABELS } from '../lib/domain';
 
 export default function Account() {
   const { user } = useAuth();
   const toast = useToast();
+  const saved = useSaved();
   const [form, setForm] = useState({ current: '', next: '', confirm: '' });
   const [error, setError] = useState(null);
   const set = k => e => setForm(f => ({ ...f, [k]: e.target.value }));
@@ -18,7 +19,7 @@ export default function Account() {
     try {
       await api.post('/auth/password', { current: form.current, next: form.next });
       setForm({ current: '', next: '', confirm: '' });
-      toast('Mot de passe modifié');
+      saved('Mot de passe modifié');
     } catch (err) { setError(err); }
   };
 
