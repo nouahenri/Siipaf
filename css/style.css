@@ -2780,8 +2780,7 @@ body.menu-open {
   align-self: center;
 }
 
-.pc-badge,
-.foc-badge {
+.pc-badge {
   z-index: 2;
   line-height: 1.4;
   text-transform: uppercase;

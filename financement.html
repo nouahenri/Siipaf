@@ -5,6 +5,10 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
   <title>Financement — SIIPAF SA | Solutions de Paiement Flexibles</title>
   <meta name="description" content="SIIPAF SA propose des solutions de financement flexibles : avec apport, sans apport (Diaspora), crédit bancaire sur 36 mois. Orange Bank, BHCI, BNI."/>
+  <link rel="icon" href="favicon.svg" type="image/svg+xml"/>
+  <link rel="icon" href="favicon.png" type="image/png" sizes="180x180"/>
+  <link rel="apple-touch-icon" href="apple-touch-icon.png"/>
+  <meta name="theme-color" content="#e30613"/>
   <link rel="preconnect" href="https://fonts.googleapis.com"/>
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin/>
   <link rel="preconnect" href="https://cdnjs.cloudflare.com" crossorigin/>
@@ -58,68 +62,65 @@
       <p class="section-sub">SIIPAF SA rend l'accession à la propriété possible pour tous grâce à des solutions de paiement adaptées à chaque situation.</p>
     </div>
 
-    <!-- 3 Options Cards -->
-    <div class="fin-options-grid">
-      <div class="fin-option-card" data-aos="fade-up" data-aos-delay="100">
-        <div class="foc-icon"><i class="fas fa-percent"></i></div>
-        <div class="foc-number">01</div>
-        <h3>Avec Apport Initial</h3>
-        <p>La solution classique pour les résidents en Côte d'Ivoire et à l'international.</p>
-        <div class="foc-steps">
-          <div class="foc-step">
-            <div class="foc-step-num">30%</div>
-            <p>À la réservation du bien</p>
+    <!-- 3 formules de paiement : chaque tuile montre comment se paie le bien (jauge remplie à l'apparition, js/financement.js) -->
+    <div class="fin-plans">
+      <article class="fin-plan" style="--i:0">
+        <header class="fin-plan-head">
+          <span class="fin-plan-icon" aria-hidden="true"><i class="fas fa-percent"></i></span>
+          <h3>Avec apport initial</h3>
+        </header>
+        <p class="fin-plan-lead">La solution classique pour les résidents en Côte d'Ivoire et à l'international.</p>
+        <div class="fin-plan-meter">
+          <div class="fin-plan-bar" role="img" aria-label="30 % à la réservation, puis 70 % réglés sur 36 mois">
+            <span class="seg seg-apport" style="--w:30%"></span><span class="seg seg-mois" style="--w:calc(70% - 4px)"></span>
           </div>
-          <div class="foc-arrow"><i class="fas fa-arrow-right"></i></div>
-          <div class="foc-step">
-            <div class="foc-step-num">70%</div>
-            <p>Solde sur 36 mois</p>
-          </div>
+          <dl class="fin-plan-figures" style="--cols:minmax(8.5rem, 3fr) 7fr">
+            <div><dt>30&nbsp;%</dt><dd>à la réservation du bien</dd></div>
+            <div><dt>70&nbsp;%</dt><dd>soldés en 36 mensualités</dd></div>
+          </dl>
         </div>
-        <div class="foc-note"><i class="fas fa-info-circle"></i> Livraison en 30 mois ou 12/24 mois si paiement intégral</div>
-        <a href="contact.html" class="btn btn-primary btn-sm mt-2"><span>Démarrer</span><i class="fas fa-arrow-right"></i></a>
-      </div>
+        <p class="fin-plan-note"><i class="fas fa-key" aria-hidden="true"></i><span>Livraison en 30 mois, ou en 12 / 24 mois en cas de paiement intégral.</span></p>
+        <a href="contact.html" class="btn btn-primary btn-sm"><span>Démarrer</span><i class="fas fa-arrow-right"></i></a>
+      </article>
 
-      <div class="fin-option-card fin-option-featured" data-aos="fade-up" data-aos-delay="200">
-        <div class="foc-badge">Option Diaspora</div>
-        <div class="foc-icon"><i class="fas fa-globe-africa"></i></div>
-        <div class="foc-number">02</div>
-        <h3>Sans Apport — Diaspora</h3>
-        <p>Spécialement conçu pour la diaspora ivoirienne et africaine à l'étranger.</p>
-        <div class="foc-steps">
-          <div class="foc-step">
-            <div class="foc-step-num" style="background:rgba(255,255,255,0.2)">0%</div>
-            <p>Aucun apport requis</p>
+      <article class="fin-plan fin-plan-featured" style="--i:1">
+        <span class="fin-plan-badge">Option Diaspora</span>
+        <header class="fin-plan-head">
+          <span class="fin-plan-icon" aria-hidden="true"><i class="fas fa-globe-africa"></i></span>
+          <h3>Sans apport&nbsp;— Diaspora</h3>
+        </header>
+        <p class="fin-plan-lead">Spécialement conçu pour la diaspora ivoirienne et africaine à l'étranger.</p>
+        <div class="fin-plan-meter">
+          <div class="fin-plan-bar" role="img" aria-label="Aucun apport, prix total réglé sur 36 mois">
+            <span class="seg seg-zero" style="--w:14px"></span><span class="seg seg-mois" style="--w:calc(100% - 18px)"></span>
           </div>
-          <div class="foc-arrow"><i class="fas fa-arrow-right"></i></div>
-          <div class="foc-step">
-            <div class="foc-step-num" style="background:rgba(255,255,255,0.2)">100%</div>
-            <p>Prix total sur 36 mois</p>
-          </div>
+          <dl class="fin-plan-figures" style="--cols:auto 1fr">
+            <div><dt>0&nbsp;%</dt><dd>aucun apport requis</dd></div>
+            <div><dt>36&nbsp;mois</dt><dd>pour régler la totalité du prix</dd></div>
+          </dl>
         </div>
-        <div class="foc-note" style="background:rgba(255,255,255,0.15);color:rgba(255,255,255,0.8);"><i class="fas fa-info-circle"></i> Prix légèrement majoré — voir tableaux par projet</div>
-        <a href="contact.html" class="btn btn-white btn-sm mt-2"><span>Démarrer</span><i class="fas fa-arrow-right"></i></a>
-      </div>
+        <p class="fin-plan-note"><i class="fas fa-circle-info" aria-hidden="true"></i><span>Prix légèrement majoré : voir les <a href="projets.html">tableaux de prix de chaque projet</a>.</span></p>
+        <a href="contact.html" class="btn btn-white btn-sm"><span>Démarrer</span><i class="fas fa-arrow-right"></i></a>
+      </article>
 
-      <div class="fin-option-card" data-aos="fade-up" data-aos-delay="300">
-        <div class="foc-icon"><i class="fas fa-university"></i></div>
-        <div class="foc-number">03</div>
-        <h3>Crédit Bancaire</h3>
-        <p>Bénéficiez d'un financement auprès de nos banques partenaires avec des conditions préférentielles.</p>
-        <div class="foc-steps">
-          <div class="foc-step">
-            <div class="foc-step-num"><i class="fas fa-bank" style="font-size:1.2rem"></i></div>
-            <p>Banque ou microfinance agréée</p>
+      <article class="fin-plan" style="--i:2">
+        <header class="fin-plan-head">
+          <span class="fin-plan-icon" aria-hidden="true"><i class="fas fa-building-columns"></i></span>
+          <h3>Crédit bancaire</h3>
+        </header>
+        <p class="fin-plan-lead">Bénéficiez d'un financement auprès de nos banques partenaires avec des conditions préférentielles.</p>
+        <div class="fin-plan-meter">
+          <div class="fin-plan-bar" role="img" aria-label="Un apport, puis le prêt d'une banque ou d'une microfinance agréée">
+            <span class="seg seg-apport" style="--w:30%"></span><span class="seg seg-pret" style="--w:calc(70% - 4px)"></span>
           </div>
-          <div class="foc-arrow"><i class="fas fa-arrow-right"></i></div>
-          <div class="foc-step">
-            <div class="foc-step-num"><i class="fas fa-home" style="font-size:1.2rem"></i></div>
-            <p>Acquisition sécurisée</p>
-          </div>
+          <dl class="fin-plan-figures" style="--cols:minmax(8.5rem, 3fr) 7fr">
+            <div><dt>Apport</dt><dd>à la réservation</dd></div>
+            <div><dt>Prêt</dt><dd>banque ou microfinance agréée, acquisition sécurisée</dd></div>
+          </dl>
         </div>
-        <div class="foc-note"><i class="fas fa-info-circle"></i> Nos conseillers vous accompagnent dans la constitution du dossier</div>
-        <a href="contact.html" class="btn btn-primary btn-sm mt-2"><span>Nous contacter</span><i class="fas fa-arrow-right"></i></a>
-      </div>
+        <p class="fin-plan-note"><i class="fas fa-user-tie" aria-hidden="true"></i><span>Nos conseillers vous accompagnent dans la constitution du dossier.</span></p>
+        <a href="contact.html" class="btn btn-primary btn-sm"><span>Nous contacter</span><i class="fas fa-arrow-right"></i></a>
+      </article>
     </div>
   </div>
 </section>
@@ -278,5 +279,6 @@
 <script src="https://cdnjs.cloudflare.com/ajax/libs/aos/2.3.4/aos.js" defer></script>
 <script src="js/site-content.js" defer></script>
 <script src="js/main.js" defer></script>
+<script src="js/financement.js" defer></script>
 </body>
 </html>
