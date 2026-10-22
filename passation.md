@@ -6,6 +6,16 @@
 > **Release `80091fc` EN LIGNE depuis le 22/10 vers 15 h 22 UTC** (serveur + site ; contient `35cfd87` et `5a14e93`). Commits poussés sur GitHub le 22/10.
 > **À faire en premier** : reprendre le module ERP Administration générale, partie **2. Courrier** (§5 quinquies) ; le menu « Actualités » (Facebook) est à cadrer plus tard (voir plus bas).
 
+## Soir du 22/10 — lotissements séparés, budget pré-rempli (fait, NON committé, NON en ligne)
+Choix du client : fiche d'un lotissement **sur la page Lotissements** ; budget = **montant exact modifiable** tiré de la grille ; ligne Diaspora = **prix total + mensualité** (« 11 210 000 FCFA (311 389 F/mois sur 36 mois) »).
+- **Chaque projet dans son menu** : `js/projets.js` retire les projets `category = lotissement` (carte, fiche écrite, lien de la colonne) ; un lien `projets.html#<lotissement>` est renvoyé vers `lotissements.html#<slug>`. La page Lotissements n'affiche plus les promotions qui ont un plan (bloc `otherPlans` supprimé).
+- **Fiche d'un lotissement** (`lotissements.html#slug`, `js/lotissements.js`) : « Tous les lotissements », photo, Localiser le site, chiffres clés (lots, disponibles, surfaces, livraison ou prix d'entrée), équipements, description, tableau des prix avec « Infos & réservation », Plan interactif, Réserver ce lotissement. Cartes : Découvrir (fiche), Réserver, Plan interactif.
+- **Module commun `js/offers.js`** (pages Projets, Lotissements, Contact) : formats FCFA/€, tableau des prix avec boutons, liens de contact, `budgetFor()` (budget d'une ligne de la grille).
+- **Formulaire de contact** : « Budget approximatif » devient un champ texte, rempli d'après la grille du projet pour le type de bien (suit le type choisi ; une saisie du visiteur n'est jamais remplacée) ; envoyé dans le message comme avant.
+- Téléphone (< 600 px) : bouton de ligne réduit à une pastille (libellé en `aria-label`), marges du tableau resserrées : plus de défilement horizontal.
+- Vérifié sur la démo (Bingerville passé **temporairement** en lotissement puis remis en `haut_standing`). En production, « TEST SITE GRAND-BASSAM » (lotissement) quittera la page Projets.
+- Mise en ligne : site seul (aucun changement serveur) : pages `projets.html`, `lotissements.html`, `contact.html`, `css/style.css`, `css/plans.css`, `js/offers.js` (nouveau), `js/projets.js`, `js/lotissements.js`, `js/contact.js`.
+
 ## Fin du 22/10 — newsletter du site (committé `80091fc`, EN LIGNE)
 - **Bug corrigé — l'inscription à la newsletter ne marchait pas** : le formulaire de l'accueil (`#newsletterForm`, `index.html`) n'avait aucun script (la page se rechargeait, le champ n'avait même pas de `name`). Gestionnaire ajouté dans `js/main.js` → `POST /api/public/newsletter` (route existante et testée), champ piège `website`, message de confirmation lisible sur le bandeau rouge (`css/pages.css`). Vérifié sur la démo : l'adresse test `test.newsletter@example.com` est inscrite (actif, source site).
 

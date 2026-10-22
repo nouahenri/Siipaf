@@ -131,15 +131,8 @@
             <datalist id="cf-property-list"></datalist>
           </div>
           <div class="form-group">
-            <label>Budget approximatif</label>
-            <select name="budget">
-              <option value="">Sélectionnez une tranche</option>
-              <option>Moins de 20 000 000 FCFA</option>
-              <option>20 000 000 – 50 000 000 FCFA</option>
-              <option>50 000 000 – 100 000 000 FCFA</option>
-              <option>100 000 000 – 200 000 000 FCFA</option>
-              <option>Plus de 200 000 000 FCFA</option>
-            </select>
+            <label for="cf-budget">Budget approximatif</label>
+            <input type="text" name="budget" id="cf-budget" maxlength="120" inputmode="text" placeholder="Ex. 25 000 000 FCFA" autocomplete="off"/>
           </div>
           <div class="form-group">
             <label>Votre message *</label>
@@ -230,6 +223,7 @@
 <script src="https://cdnjs.cloudflare.com/ajax/libs/aos/2.3.4/aos.js" defer></script>
 <script src="js/site-content.js" defer></script>
 <script src="js/main.js" defer></script>
+<script src="js/offers.js" defer></script>
 <script src="js/contact.js" defer></script>
 </body>
 </html>

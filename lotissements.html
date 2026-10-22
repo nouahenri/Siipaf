@@ -63,12 +63,10 @@
     <div class="lots-grid" id="lotissementsList" aria-live="polite">
       <div class="lots-loading"><i class="fas fa-circle-notch fa-spin"></i> Chargement des lotissements…</div>
     </div>
-    <div class="lots-other" id="otherPlans" hidden>
-      <h3>Promotions immobilières : choisissez aussi votre bien sur plan</h3>
-      <div class="lots-grid" id="otherPlansList"></div>
-    </div>
-    <!-- Après les programmes : invitation à être informé des prochains lotissements -->
+    <!-- Pas encore de lotissement : invitation à être informé des prochains -->
     <div class="lots-grid lots-soon" id="lotsSoon" hidden></div>
+    <!-- Fiche d'un lotissement (lotissements.html#slug), construite par js/lotissements.js -->
+    <div class="lot-detail" id="lotDetail" aria-live="polite" hidden></div>
   </div>
 </section>
 
@@ -135,6 +133,7 @@
 <script src="js/site-content.js" defer></script>
 <script src="js/main.js" defer></script>
 <script src="js/project-map.js" defer></script>
+<script src="js/offers.js" defer></script>
 <script src="js/lotissements.js" defer></script>
 </body>
 </html>

@@ -44,8 +44,6 @@
 .lot-stock-bar span { display: block; height: 100%; background: #2e9e5b; border-radius: 6px; }
 .lot-card .btn { align-self: flex-start; margin-top: auto; padding: 12px 24px; }
 .lot-card .btn-plan-soon { color: var(--grey); font-size: .85rem; margin-top: auto; }
-.lots-other { margin-top: 56px; }
-.lots-other h3 { font-family: var(--serif); font-size: 1.5rem; margin-bottom: 20px; color: var(--dark); }
 .lots-empty { grid-column: 1 / -1; background: var(--white); border-radius: var(--radius); padding: 40px 28px; text-align: center; box-shadow: var(--shadow); }
 .lots-empty i { font-size: 2rem; color: var(--red); margin-bottom: 12px; }
 .lots-empty h3 { font-family: var(--serif); font-size: 1.4rem; margin-bottom: 8px; }
@@ -176,7 +174,16 @@
 .feature-tags li { font-size: .78rem; padding: 5px 11px; border-radius: 50px; background: var(--light); color: #444; }
 .lots-grid[hidden] { display: none; }
 .lots-soon { margin-top: 56px; }
-.lots-grid[hidden] + .lots-other, .lots-intro + .lots-grid[hidden] + .lots-other { margin-top: 0; }
 
 /* « Projets » n'est plus un lien : il ouvre seulement le sous-menu */
 .nav-sub-toggle { background: none; border: 0; font-family: inherit; line-height: inherit; cursor: pointer; }
+
+/* ─── Fiche d'un lotissement (lotissements.html#slug) ─── */
+.lots-page [hidden] { display: none !important; }
+.lot-detail { max-width: 980px; margin: 0 auto; }
+.lot-detailbar { margin-bottom: 18px; }
+.lot-detail .proj-block { display: block; margin-bottom: 0; animation: progIn 0.55s cubic-bezier(0.16, 1, 0.3, 1); }
+.lot-detail .proj-hero { background-size: cover; background-position: center; }
+.lot-detail .proj-hero h2:focus { outline: none; }
+.lot-detail .proj-footer-btns { display: flex; flex-wrap: wrap; align-items: center; gap: 12px; margin-top: 24px; }
+@media (prefers-reduced-motion: reduce) { .lot-detail .proj-block { animation: none; } }

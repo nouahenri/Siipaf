@@ -36,7 +36,21 @@
     var names = p ? (p.offers || []).map(offerName).filter(Boolean) : [];
     datalist.innerHTML = names.filter(function (n, i) { return names.indexOf(n) === i; })
       .map(function (n) { var o = document.createElement('option'); o.value = n; return o.outerHTML; }).join('');
+    fillBudget();
   }
+
+  // Budget : prix de la ligne de la grille (promotion ou lotissement) pour le type de bien choisi
+  // (js/offers.js) ; un montant saisi par le visiteur n'est jamais remplacé
+  var budget = form.querySelector('input[name="budget"]');
+  var autoBudget = '';
+  function fillBudget() {
+    if (!budget || !window.SiipafOffers) return;
+    if (budget.value && budget.value !== autoBudget) return;
+    var p = projects.filter(function (x) { return x.slug === select.value; })[0];
+    autoBudget = p ? window.SiipafOffers.budgetFor(p.offers, property.value) : '';
+    budget.value = autoBudget;
+  }
+  property.addEventListener('input', fillBudget);
 
   function prefill() {
     var opt = findOption(wanted.projet);
@@ -106,6 +120,7 @@
       .then(function (res) {
         if (!res.ok) throw new Error(res.d.details ? res.d.details.map(function (x) { return x.message; }).join(' ') : res.d.error);
         form.reset();
+        autoBudget = '';
         fillProperties();
         btn.innerHTML = '<span>Demande envoyée</span><i class="fas fa-check" aria-hidden="true"></i>';
         btn.classList.add('is-sent');

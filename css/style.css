@@ -3113,3 +3113,11 @@ tr:hover .btn-ask-row { border-color: currentColor; }
 .btn-ask:hover { background: var(--red); color: var(--white); border-color: var(--red); transform: translateY(-2px); }
 @media (prefers-reduced-motion: reduce) { .btn-ask-row i, .btn-ask:hover { transition: none; transform: none; } }
 .pricing-table tbody td:not(:first-child) { white-space: nowrap; }
+/* Téléphone : le bouton de ligne devient une pastille (le libellé reste dans aria-label) */
+@media (max-width: 600px) {
+  .pricing-table td.td-ask { padding: 8px 10px 8px 0; }
+  .btn-ask-row { width: 34px; height: 34px; padding: 0; justify-content: center; }
+  .btn-ask-row span { display: none; }
+  .btn-ask-row i { font-size: 0.8rem; }
+  .pricing-table thead th, .pricing-table tbody td { padding-left: 8px; padding-right: 8px; }
+}
