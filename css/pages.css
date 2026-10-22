@@ -1195,3 +1195,7 @@ body.temo-modal-open { overflow: hidden; }
 .cf-status.ok { background: rgba(37, 211, 102, .1); color: #0f7a3d; }
 .cf-status.err { background: rgba(227, 6, 19, .07); color: var(--red); }
 .btn.is-sent { background: linear-gradient(135deg, #25D366, #128C7E); }
+/* Newsletter (bandeau rouge) : message lisible sur fond rouge */
+.newsletter-form .nl-status { margin-top: 12px; background: rgba(255, 255, 255, .96); color: var(--dark); font-weight: 500; text-align: center; }
+.newsletter-form .nl-status.ok::before { content: '\2713'; color: #0f7a3d; font-weight: 700; margin-right: 8px; }
+.newsletter-form .nl-status.err { color: var(--red); }

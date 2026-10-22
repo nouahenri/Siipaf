@@ -510,9 +510,11 @@
       </div>
       <form class="newsletter-form" id="newsletterForm">
         <div class="nl-input-wrap">
-          <input type="email" placeholder="Votre adresse email" required/>
+          <input type="email" name="email" placeholder="Votre adresse email" aria-label="Votre adresse email" autocomplete="email" required/>
           <button type="submit" class="btn btn-primary"><span>S'abonner</span><i class="fas fa-paper-plane"></i></button>
         </div>
+        <div class="cf-trap" aria-hidden="true"><label>Ne pas remplir <input type="text" name="website" tabindex="-1" autocomplete="off"/></label></div>
+        <p class="cf-status nl-status" role="status" aria-live="polite" hidden></p>
         <p class="nl-note"><i class="fas fa-lock"></i> Nous respectons votre vie privée. Désinscription possible à tout moment.</p>
       </form>
     </div>

@@ -239,6 +239,32 @@ document.addEventListener('DOMContentLoaded', function () {
 
   /* Formulaire de contact : js/contact.js (envoi réel à l'API) */
 
+  /* ── NEWSLETTER : inscription réelle (liste Newsletter du dashboard) ── */
+  const nlForm = document.getElementById('newsletterForm');
+  if (nlForm) {
+    const API = window.SIIPAF_API || (/^(localhost|127\.0\.0\.1)$/.test(location.hostname) ? 'http://localhost:4000' : 'https://client.siipaf.com');
+    const nlStatus = nlForm.querySelector('.nl-status');
+    const nlShow = (text, ok) => { nlStatus.hidden = false; nlStatus.textContent = text; nlStatus.className = `cf-status nl-status ${ok ? 'ok' : 'err'}`; };
+    nlForm.addEventListener('submit', e => {
+      e.preventDefault();
+      const btn = nlForm.querySelector('button[type="submit"]');
+      const original = btn.innerHTML;
+      btn.disabled = true;
+      btn.innerHTML = '<span>Inscription…</span><i class="fas fa-spinner fa-spin" aria-hidden="true"></i>';
+      nlStatus.hidden = true;
+      const body = { email: nlForm.email.value.trim(), website: nlForm.website ? nlForm.website.value : '' };
+      fetch(`${API}/api/public/newsletter`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body), credentials: 'omit' })
+        .then(r => r.json().catch(() => ({})).then(d => ({ ok: r.ok, d })))
+        .then(({ ok, d }) => {
+          if (!ok) throw new Error(d.details ? d.details.map(x => x.message).join(' ') : d.error);
+          nlForm.reset();
+          nlShow('Merci ! Vous êtes inscrit(e) à la newsletter SIIPAF.', true);
+        })
+        .catch(err => nlShow(err && err.message && err.message !== 'Failed to fetch' ? err.message : 'Inscription impossible pour le moment. Réessayez dans un instant.', false))
+        .finally(() => { btn.disabled = false; btn.innerHTML = original; });
+    });
+  }
+
   /* ── ACTIVE NAV ON SCROLL ─────────────────────────────── */
   const sections = document.querySelectorAll('section[id], div[id]');
   const navLinks = document.querySelectorAll('.nav-link');
