@@ -1,11 +1,25 @@
 # Passation — Plateforme SIIPAF
 
 > Document de reprise pour continuer le travail dans une nouvelle discussion.
-> Dernière mise à jour : 22 octobre 2026 (soir) — **serveur `80091fc`, site `d7bf336` en production**.
-> Branche `plateforme-admin-espace-client` **poussée sur GitHub** jusqu'à la passation du 22/10 au soir (un push déclenche Vercel).
-> **Release `80091fc` EN LIGNE depuis le 22/10 vers 15 h 22 UTC** (serveur + site ; contient `35cfd87` et `5a14e93`). Commits poussés sur GitHub le 22/10.
-> **À faire en premier** : reprendre le module ERP Administration générale, partie **2. Courrier** (§5 quinquies) ; le menu « Actualités » (Facebook) est à cadrer plus tard (voir plus bas).
+> Dernière mise à jour : 22 octobre 2026 (soir).
+> **En production** : serveur `80091fc` (22/10, 15 h 22 UTC), site `d7bf336` (22/10, 15 h 54 UTC). Branche `plateforme-admin-espace-client` **poussée sur GitHub jusqu'à `ce103bb`** (un push déclenche Vercel : demander avant).
+> **Prochaine étape** : ERP › Administration générale, partie **2. Courrier** arrivée / départ (§5 quinquies). Avant de coder, poser les questions de détail au client (numérotation des n° d'ordre, scan joint, affectation et suite à donner, délais et relances ; « confidentiel » = visible du destinataire et de la direction, les autres ne voient que le n° d'ordre). Rien de commencé.
+> **Plus tard** : menu « Actualités » du site (publications Facebook), à cadrer avec le client (voir plus bas).
 
+## En attente / points ouverts (à jour au 22/10 au soir)
+- [ ] **Test réel en production** du formulaire de contact : un envoi depuis siipaf.com/contact.html, puis pastille Prospects, cloche et son dans admin.siipaf.com. Crée un vrai prospect : par le client, ou avec son accord.
+- [ ] « **TEST SITE GRAND-BASSAM** » (lotissement) est publié sur le site (page Lotissements) : le dépublier dans le dashboard si c'est un essai.
+- [ ] Pied de page de `projets.html`, `lotissements.html`, `plan-interactif.html` : liens « Nos Projets » en `#yamoussoukro`… (sans effet hors de la page Projets) → les faire pointer vers `projets.html#…`.
+- [ ] Déploiement Vercel déclenché par les pushes du 22/10 : non vérifié.
+- [ ] Sur l'hébergement (`/home/c2777901c`) : `livraison-35cfd87.zip` et `livraison-5a14e93.zip` n'ont jamais été lancés et ne doivent pas l'être (remplacés) ; ne les supprimer qu'avec l'accord du client.
+- [ ] Saisir les **vraies positions GPS** des projets en production (« Localiser le site » utilise l'adresse). En démo, Ahoutoué et Bingerville ont des positions **de test**.
+- [ ] Vérifier en production la **grille de prix** de chaque projet (désignations, prix Diaspora) : elle fournit les prix du site et le budget pré-rempli du formulaire.
+- [ ] **Jeton GitHub en clair** dans `.git/config` (URL du remote) : le révoquer et passer au gestionnaire d'identifiants (voir Sécurité).
+- [ ] ModSecurity : vérifier qu'il est revenu sur **On** pour admin.siipaf.com (coupé le 21/10 pour un test).
+- [ ] Dossier `Img illustration/` (non suivi, images du client) : demander s'il doit entrer dans le site.
+- [ ] Le dédoublonnage des prospects compare le téléphone tel qu'il est saisi (« +225 07… » et « 07… » donnent deux prospects) : à traiter avec `phoneKey`.
+
+**Procédure de mise en ligne (rappel)** : copie propre `../siipaf-deploy` (worktree) placée sur le commit, builds `admin/` `client/` `ERP-SIIPAF/` si le front change, `node deploy/package-release.cjs <commit> ../siipaf-deploy` (serveur) et/ou `node deploy/package-site.cjs <commit> ../siipaf-deploy` (site), script `deploy/update-<commit>.sh` (copié du précédent : empreintes à jour), ensemble `deploy/livraison-<commit>.zip`. Les fichiers de `deploy/` ont plusieurs liens physiques : le connecteur Chrome refuse de les envoyer, **en faire d'abord une copie** (dossier temporaire de la session). Dépôt par Chrome dans le Gestionnaire de fichiers (`upload-ajax.html?dir=/home/c2777901c`), contrôle de la taille par l'API Fileman `list_files`, puis dans le terminal cPanel : `cd ~ && unzip -o livraison-<commit>.zip && bash update-<commit>.sh 2>&1 | tee ~/deploiement-<commit>.log` → `DEPLOY_OK <commit>`. La fenêtre Chrome ne doit pas être réduite (sinon le terminal se fige).
 ## Soir du 22/10 — lotissements séparés, budget pré-rempli (commits `d90eb40` + `d7bf336`, site EN LIGNE)
 **Site `d7bf336` en ligne le 22/10 vers 15 h 54 UTC** (accord : « Commit ce lot et mets le site en ligne ») : paquet site seul déposé par Chrome, `bash update-d7bf336.sh` → empreinte OK, sauvegarde `~/sauvegardes/site-d7bf336-20261022-155408/`, `DEPLOY_OK d7bf336` (la release `d90eb40` était passée juste avant, sauvegarde `site-d90eb40-20261022-155106`). Vérifié en production : Projets sans « TEST SITE GRAND-BASSAM », Lotissements avec sa fiche (378 lots, 373 disponibles, 400–600 m², dès 2 400 000 FCFA), budget pré-rempli exact.
 - **Correctif `d7bf336`** : des lignes de la grille du même nom (« Terrain nu » en 400, 500 et 600 m²) se distinguent par la surface (« Terrain nu 600 m² », `lineName()` de `js/offers.js`) dans le bouton, les suggestions et le budget.
@@ -39,7 +53,7 @@ Choix du client : bouton « **Infos & réservation** » ; le compteur Prospects 
 - Vérifié sur la démo (bases locale et démo migrées) : ligne de prix → formulaire pré-rempli → envoi → pastille 1 + cloche + fiche ouverte → pastille 0. Le son n'a pas pu être écouté (navigateur de test).
 - Mise en ligne : serveur (migration à passer) + admin/ERP recompilés + site (7 pages, `css/style.css`, `css/pages.css`, `css/plans.css`, `js/main.js`, `js/contact.js`, `js/projets.js`, `js/lotissements.js`) via `deploy/package-site.cjs`.
 
-## Journée du 22/10 — releases `b392de2` (en ligne) et `5a14e93` (site, en attente)
+## Journée du 22/10 — releases `b392de2` et `5a14e93` (toutes deux en ligne depuis `80091fc`)
 
 ### Ce qui est fait (commits `454299a`, `b392de2`, `5a14e93`, poussés)
 - **Biens & disponibilités** (ex « Lots & disponibilités ») ; bouton de création selon le type de biens du projet : `bienKind()` dans `admin/src/lib/domain.js` (villa/duplex → « Nouvelle villa », appartement/penthouse → « Nouvel appartement », maison, terrain/aucun → « Nouveau lot », autre → « Nouveau bien »).
@@ -57,17 +71,9 @@ Choix du client : bouton « **Infos & réservation** » ; le compteur Prospects 
 - **`b392de2` mise en ligne le 22/10 vers 10 h 22 UTC** (accord explicite : « commit, mise en ligne et push ») : paquet déposé par le connecteur Chrome (taille vérifiée par l'API Fileman), commande lancée par l'assistant dans le terminal cPanel, empreintes OK, sauvegardes `~/sauvegardes/deploiement-b392de2-20261022-102151/`, **6 migrations (lot 9)**, `{"ok":true}`, `DEPLOY_OK b392de2`, journal `~/deploiement-b392de2.log`. Bundles admin/ERP servis = ceux de la release ; l'API publique publie grilles et types (TEST SITE GRAND-BASSAM, publié, a une carte générée).
 - **Problème constaté** : les navigateurs gardaient l'ancien `projets.js` (LWS n'envoie aucun Cache-Control) → la nouvelle page Projets ne s'affichait pas. **Correctif** : `deploy/package-site.cjs` ajoute `?v=<commit>` à chaque style/script des pages livrées (le dépôt n'est pas modifié). **À utiliser pour toute livraison du site.**
 
-### Livraison en attente — site `5a14e93`
+### Site `5a14e93` (jamais lancé seul : inclus dans la release `80091fc`)
 - `livraison-5a14e93.zip` (108 279 o) **déposé et vérifié** dans `/home/c2777901c`. La commande n'a pas pu s'exécuter (fenêtre Chrome réduite → terminal figé). Production encore en `b392de2` (`https://siipaf.com/site-release.json`).
 - À lancer dans le terminal cPanel : `cd ~ && unzip -o livraison-5a14e93.zip && bash update-5a14e93.sh` (site seul : empreinte, sauvegarde du site, dépaquetage, `DEPLOY_OK 5a14e93`). Relançable sans risque. Puis vérifier `site-release.json` = `5a14e93`, le favicon, et que la page Projets montre les cartes (navigation privée).
-
-### Points ouverts du 22/10
-- [ ] Saisir les **vraies positions GPS** des projets en production (aucune pour l'instant : « Localiser le site » utilise l'adresse). En démo, Ahoutoué et Bingerville ont des positions **de test**.
-- [ ] Vérifier en production la **grille de prix** de chaque projet (désignations, prix Diaspora) : elle remplace désormais les prix écrits du site.
-- [ ] **Jeton GitHub en clair** dans `.git/config` (URL du remote) : le révoquer et passer au gestionnaire d'identifiants (voir Sécurité).
-- [ ] ModSecurity : vérifier qu'il est revenu sur **On** pour admin.siipaf.com (coupé le 21/10 pour un test, sans effet).
-- [ ] Dossier `Img illustration/` (non suivi, images du client) : demander s'il doit entrer dans le site.
-- Remarque : une copie de livraison partage des fichiers par liens physiques avec le dépôt (`siipaf-deploy`) ; un fichier du dépôt est revenu une fois à une version antérieure pendant une session parallèle. Vérifier le disque (`grep`) après une modification importante.
 
 ### Administration générale › Vue Direction (fait le 21/10 — committé `da28e71`, **en ligne** depuis la release `b392de2`)
 - ERP : tuile « Administration générale » ouverte (`/administration`), menu « Vue Direction » + « Rôles et privilèges » (`ModuleAccess` groupe « ERP · Administration générale »). Page `ERP-SIIPAF/src/pages/admin/Direction.jsx` (réutilise `Kpi`, `Progress`, `trendOf` exportés de `CommercialDashboard.jsx`, `Advance` et `LineChart` du dashboard).
@@ -127,7 +133,7 @@ SIIPAF_WEB/
 │   ├── migrations/              init · sales · testimonials · client_space · permissions · roles
 │   ├── seeds/01_base.js         5 projets + 24 prix + contenu du site + super admin
 │   ├── scripts/                 demo-data.js, demo-sales.js (base démo), serve-site.js (aperçu du site)
-│   └── test/                    50 tests (node --test) — tous verts
+│   └── test/                    158 tests (node --test) — tous verts au 22/10
 ├── admin/                       Dashboard React + Vite, servi par le serveur à /admin
 │   └── src/pages, components    Tableau de bord, Prospects, RDV, Lots, Projets, Éditeur de plan,
 │                                Contenu, Médiathèque, Messages, Témoignages, Newsletter, Utilisateurs
@@ -147,7 +153,7 @@ SIIPAF_WEB/
 ## 3. Lancer en local
 
 ```bash
-cd server && npm install && npm test          # 50 tests
+cd server && npm install && npm test          # 158 tests (22/10)
 cd admin && npm install && npm run build      # compile le dashboard (servi à /admin)
 cd client && npm install && npm run build     # compile l'espace client (servi à /espace-client)
 ```
