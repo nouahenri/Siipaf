@@ -2,8 +2,8 @@
 
 > Document de reprise pour continuer le travail dans une nouvelle discussion.
 > Dernière mise à jour : 22 octobre 2026 (fin de journée) — **release `80091fc` en production** (serveur + site).
-> Branche `plateforme-admin-espace-client` **poussée sur GitHub** jusqu'à `5a14e93` (un push déclenche Vercel).
-> **Release `80091fc` EN LIGNE depuis le 22/10 vers 15 h 22 UTC** (serveur + site ; contient `35cfd87` et `5a14e93`). Commits `35cfd87` et `80091fc` **non poussés** sur GitHub (un push déclenche Vercel : demander avant).
+> Branche `plateforme-admin-espace-client` **poussée sur GitHub** jusqu'à la passation du 22/10 au soir (un push déclenche Vercel).
+> **Release `80091fc` EN LIGNE depuis le 22/10 vers 15 h 22 UTC** (serveur + site ; contient `35cfd87` et `5a14e93`). Commits poussés sur GitHub le 22/10.
 > **À faire en premier** : reprendre le module ERP Administration générale, partie **2. Courrier** (§5 quinquies) ; le menu « Actualités » (Facebook) est à cadrer plus tard (voir plus bas).
 
 ## Fin du 22/10 — newsletter du site (committé `80091fc`, EN LIGNE)
