@@ -5,6 +5,7 @@ import { useAuth, useResource, useToast, useSaved } from '@admin/lib/app-context
 import { Card, Skeleton, ErrorBox, Field, Empty } from '@admin/components/ui';
 import { date } from '@admin/lib/format';
 import { RH, useRhMeta, WEEKDAYS } from '../../lib/rh';
+import { NewRoleModal } from '../../components/Positions';
 
 const thisYear = new Date().getFullYear();
 
@@ -133,16 +134,21 @@ function Positions() {
   const list = useResource(`${RH}/positions?all=1`);
   const blank = { title: '', department: 'administratif', category: '', default_role: '' };
   const [f, setF] = useState(blank);
-  const [editing, setEditing] = useState(null); // id du poste modifié
+  const [open, setOpen] = useState(null); // null : formulaire replié ; 'new' : nouveau poste ; id : poste modifié
+  const [newRole, setNewRole] = useState(false);
   const write = can('rh:settings');
   const roles = list.data?.roles || [];
   const set = k => e => setF(x => ({ ...x, [k]: e.target.value }));
+  const close = () => { setOpen(null); setF(blank); };
+  const edit = p => { setOpen(p.id); setF({ title: p.title, department: p.department, category: p.category || '', default_role: p.default_role || '' }); };
+  // « Créer un rôle… » dans la liste : ouvre la fenêtre du rôle, puis le sélectionne
+  const pickRole = e => (e.target.value === '__new' ? setNewRole(true) : set('default_role')(e));
   const save = async e => {
     e.preventDefault();
     const body = { title: f.title.trim(), department: f.department, category: f.category.trim() || null, default_role: f.default_role || null };
     try {
-      if (editing) await api.patch(`${RH}/positions/${editing}`, body); else await api.post(`${RH}/positions`, body);
-      toast(editing ? 'Poste modifié' : 'Poste ajouté'); setF(blank); setEditing(null); list.reload();
+      if (open !== 'new') await api.patch(`${RH}/positions/${open}`, body); else await api.post(`${RH}/positions`, body);
+      toast(open !== 'new' ? 'Poste modifié' : 'Poste ajouté'); close(); list.reload();
     } catch (err) { toast(err.message, 'err'); }
   };
   const toggle = async p => { try { await api.patch(`${RH}/positions/${p.id}`, { active: !p.active }); list.reload(); } catch (err) { toast(err.message, 'err'); } };
@@ -154,9 +160,30 @@ function Positions() {
   };
   return (
     <Card title="Postes" bodyClass="">
-      <p className="card-body small muted" style={{ borderBottom: '1px solid var(--border)', margin: 0 }}>
-        Liste proposée dans la fiche employé, la création d’un compte et « Changer de poste ». Le rôle indiqué est proposé pour le compte de la personne au changement de poste (ses droits dans le dashboard et l’ERP). Renommer un poste renomme les fiches qui l’occupent.
-      </p>
+      <div className="card-body" style={{ borderBottom: '1px solid var(--border)' }}>
+        <p className="small muted" style={{ margin: 0 }}>
+          Liste proposée dans la fiche employé, la création d’un compte et « Changer de poste ». Le rôle indiqué est proposé pour le compte de la personne au changement de poste (ses droits dans le dashboard et l’ERP). Renommer un poste renomme les fiches qui l’occupent.
+        </p>
+        {write && !open && <div className="row" style={{ justifyContent: 'flex-end', marginTop: 10 }}><button className="btn btn-primary btn-sm" onClick={() => setOpen('new')}><Plus />Ajouter un poste</button></div>}
+      </div>
+      {write && open && (
+        <form id="position-form" className="card-body form-grid" style={{ borderBottom: '1px solid var(--border)', background: 'var(--bg)' }} onSubmit={save}>
+          <Field label={open === 'new' ? 'Nouveau poste' : 'Intitulé du poste'}><input className="input" required minLength={2} maxLength={120} value={f.title} onChange={set('title')} placeholder="Responsable commercial, conducteur de travaux…" autoFocus /></Field>
+          <Field label="Service"><select className="select" value={f.department} onChange={set('department')}>{meta && Object.entries(meta.departments).map(([k, v]) => <option key={k} value={k}>{v}</option>)}</select></Field>
+          <Field label="Catégorie habituelle"><input className="input" maxLength={40} value={f.category} onChange={set('category')} placeholder="Cadre, agent de maîtrise…" /></Field>
+          <Field label="Rôle du compte proposé" hint={can('roles:write') ? 'Absent de la liste : « + Créer un nouveau rôle »' : 'Rôle absent : à créer par le super administrateur ou la personne qui en a le droit'}>
+            <select className="select" value={f.default_role} onChange={pickRole}>
+              <option value="">— Aucun —</option>{roles.map(r => <option key={r.id} value={r.id}>{r.label}</option>)}
+              {can('roles:write') && <option value="__new">+ Créer un nouveau rôle…</option>}
+            </select>
+          </Field>
+          <div className="full row" style={{ gap: 8 }}>
+            <button className="btn btn-primary btn-sm"><Save />Enregistrer</button>
+            <button type="button" className="btn btn-ghost btn-sm" onClick={close}>Annuler</button>
+          </div>
+        </form>
+      )}
+      {newRole && <NewRoleModal onClose={() => setNewRole(false)} onCreated={role => { setNewRole(false); setF(x => ({ ...x, default_role: role.id })); list.reload(); }} />}
       {!list.data ? <div className="card-body"><Skeleton h={120} /></div> : !list.data.positions.length ? <div className="card-body"><Empty icon={Briefcase}>Aucun poste : ajoutez-en ci-dessous.</Empty></div> : (
         <div className="table-wrap"><table className="table">
           <thead><tr><th>Poste</th><th>Service</th><th>Catégorie</th><th>Rôle proposé</th><th className="right">Employés</th><th /></tr></thead>
@@ -168,7 +195,7 @@ function Positions() {
               <td className="small">{roles.find(r => r.id === p.default_role)?.label || '—'}</td>
               <td className="right tabular">{p.employees}</td>
               <td className="right nowrap">{write && <>
-                <button className="btn btn-ghost btn-sm" onClick={() => { setEditing(p.id); setF({ title: p.title, department: p.department, category: p.category || '', default_role: p.default_role || '' }); }}>Modifier</button>
+                <button className="btn btn-ghost btn-sm" onClick={() => { edit(p); setTimeout(() => document.getElementById('position-form')?.scrollIntoView({ block: 'center', behavior: 'smooth' }), 50); }}>Modifier</button>
                 <button className="btn btn-ghost btn-sm" onClick={() => toggle(p)}>{p.active ? 'Archiver' : 'Réactiver'}</button>
                 {merging?.id === p.id
                   ? <select className="select" style={{ width: 'auto', display: 'inline-block' }} autoFocus value="" onChange={e => merge(e.target.value)} onBlur={() => setMerging(null)} aria-label="Fusionner dans">
@@ -179,18 +206,6 @@ function Positions() {
             </tr>
           ))}</tbody>
         </table></div>
-      )}
-      {write && (
-        <form className="card-body form-grid" style={{ borderTop: '1px solid var(--border)' }} onSubmit={save}>
-          <Field label={editing ? 'Modifier le poste' : 'Nouveau poste'}><input className="input" required minLength={2} maxLength={120} value={f.title} onChange={set('title')} placeholder="Responsable commercial, conducteur de travaux…" /></Field>
-          <Field label="Service"><select className="select" value={f.department} onChange={set('department')}>{meta && Object.entries(meta.departments).map(([k, v]) => <option key={k} value={k}>{v}</option>)}</select></Field>
-          <Field label="Catégorie habituelle"><input className="input" maxLength={40} value={f.category} onChange={set('category')} placeholder="Cadre, agent de maîtrise…" /></Field>
-          <Field label="Rôle du compte proposé"><select className="select" value={f.default_role} onChange={set('default_role')}><option value="">— Aucun —</option>{roles.map(r => <option key={r.id} value={r.id}>{r.label}</option>)}</select></Field>
-          <div className="full row" style={{ gap: 8 }}>
-            <button className="btn btn-primary btn-sm"><Plus />{editing ? 'Enregistrer' : 'Ajouter le poste'}</button>
-            {editing && <button type="button" className="btn btn-ghost btn-sm" onClick={() => { setEditing(null); setF(blank); }}>Annuler</button>}
-          </div>
-        </form>
       )}
     </Card>
   );

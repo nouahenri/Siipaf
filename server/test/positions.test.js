@@ -51,8 +51,12 @@ test('changement de poste immédiat : poste, service, catégorie, salaire, équi
   assert.equal((await db('employees').where({ id: emp.paul }).first()).manager_id, emp.awa, 'équipe rattachée');
   const ev = await db('hr_career_events').where({ employee_id: emp.awa, kind: 'promotion' }).orderBy('id', 'desc').first();
   assert.match(ev.label, /Commercial.*→ Responsable commercial/);
-  // Le super administrateur a tous les droits : salaire et rôle du compte
-  res = await admin.post(`${RH}/employees/${emp.awa}/position`).send({ ...body, team_ids: [] });
+  // Le super administrateur a tous les droits : salaire et rôle du compte ; privilèges individuels retirés au choix
+  await db('user_permissions').insert({ user_id: ids.commercial, permission: 'courrier:read', granted: true });
+  res = await admin.post(`${RH}/employees/${emp.awa}/position`).send({ ...body, team_ids: [], reset_overrides: true });
+  assert.equal((await db('user_permissions').where({ user_id: ids.commercial }).count({ n: '*' }).first()).n, 0, 'privilège individuel retiré');
+  const last = await db('hr_career_events').where({ employee_id: emp.awa }).orderBy('id', 'desc').first();
+  assert.deepEqual(JSON.parse(last.details).privileges_removed, ['courrier:read']);
   assert.equal(res.status, 201, JSON.stringify(res.body));
   e = await db('employees').where({ id: emp.awa }).first();
   assert.equal(Number(e.base_salary), 600000);

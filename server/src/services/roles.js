@@ -54,8 +54,15 @@ async function deleteRole(db, id) {
   if (Number(n)) {
     throw new HttpError(409, `Ce rôle est encore attribué à ${n} compte(s). Changez d’abord leur rôle dans « Utilisateurs ».`);
   }
+  // ERP : un changement de poste planifié qui donnera ce rôle laisserait le compte sans droits
+  const planned = await db('hr_position_changes').where({ role: role.id, status: 'planifie' }).count({ n: '*' }).first().catch(() => ({ n: 0 }));
+  if (Number(planned.n)) {
+    throw new HttpError(409, `Ce rôle est prévu par ${planned.n} changement(s) de poste planifié(s) (ERP › RH › fiche employé › Carrière) : annulez-les ou changez de rôle d’abord.`);
+  }
   await db.transaction(async trx => {
     await trx('role_permissions').where({ role: role.id }).del();
+    // Postes de l'ERP qui le proposaient : plus de rôle proposé (ils restent valables)
+    if (await trx.schema.hasTable('hr_positions')) await trx('hr_positions').where({ default_role: role.id }).update({ default_role: null, updated_at: new Date() });
     await trx('roles').where({ id: role.id }).del();
   });
   invalidate(db);

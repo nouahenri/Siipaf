@@ -67,7 +67,7 @@ async function resolve(trx, { position_id = null, job_title = null, department =
 
 const changeRow = c => ({
   ...c, effective_date: isoDay(c.effective_date), applied_at: isoTime(c.applied_at), created_at: isoTime(c.created_at),
-  team_ids: json(c.team_ids, []), change_manager: !!c.change_manager, base_salary: c.base_salary == null ? null : Number(c.base_salary),
+  team_ids: json(c.team_ids, []), change_manager: !!c.change_manager, reset_overrides: !!c.reset_overrides, base_salary: c.base_salary == null ? null : Number(c.base_salary),
   reason_label: POSITION_CHANGE_REASONS[c.reason]?.label || c.reason, department_label: DEPARTMENTS[c.department] || c.department,
 });
 
@@ -106,6 +106,7 @@ async function changePosition(db, e, data, { user, can }) {
   const [id] = await db('hr_position_changes').insert({
     employee_id: e.id, position_id: p.id, job_title: p.title, department, category: data.category ?? null, base_salary: data.base_salary ?? null,
     change_manager: !!data.change_manager, manager_id: data.change_manager ? data.manager_id || null : null, team_ids: JSON.stringify(team), role: data.role || null,
+    reset_overrides: !!(data.role && data.reset_overrides),
     effective_date: data.effective_date, reason: data.reason, note: data.note || null, created_by: user.id,
   });
   const changeId = insertedId(id);
@@ -127,14 +128,21 @@ async function apply(db, changeId) {
   await db.transaction(async trx => {
     await trx('employees').where({ id: e.id }).update(patch);
     if (c.team_ids.length) await trx('employees').whereIn('id', c.team_ids).update({ manager_id: e.id, updated_at: new Date() });
+    let removed = [];
     if (c.role && e.user_id) {
       oldRole = (await trx('users').where({ id: e.user_id }).first('role'))?.role;
       await trx('users').where({ id: e.user_id }).update({ role: c.role, updated_at: new Date() });
+      // Le nouveau rôle seul, sans les privilèges individuels de l'ancien poste (si demandé)
+      if (c.reset_overrides) {
+        removed = await trx('user_permissions').where({ user_id: e.user_id }).pluck('permission');
+        await trx('user_permissions').where({ user_id: e.user_id }).del();
+      }
     }
     const after = { ...before, ...Object.fromEntries(Object.entries(patch).filter(([k]) => k in before)) };
     const details = Object.fromEntries(Object.keys(before).filter(k => String(before[k] ?? '') !== String(after[k] ?? '')).map(k => [k, { from: before[k], to: after[k] }]));
     if (c.team_ids.length) details.team = { to: c.team_ids };
     if (c.role) details.role = { from: oldRole, to: c.role };
+    if (removed.length) details.privileges_removed = removed;
     if (c.note) details.note = c.note;
     await trx('hr_career_events').insert({
       employee_id: e.id, date: c.effective_date, kind: POSITION_CHANGE_REASONS[c.reason]?.career || 'autre',

@@ -43,7 +43,7 @@ export function ChangePositionModal({ d, onClose, onSaved }) {
   const e = d.employee;
   const [f, setF] = useState({
     position_id: '', department: e.department, effective_date: today(), reason: 'promotion', note: '', category: e.category || '',
-    base_salary: '', change_manager: false, manager_id: e.manager_id || '', team_ids: [], role: '',
+    base_salary: '', change_manager: false, manager_id: e.manager_id || '', team_ids: [], role: '', reset_overrides: true,
   });
   const [error, setError] = useState(null);
   const [busy, setBusy] = useState(false);
@@ -57,6 +57,11 @@ export function ChangePositionModal({ d, onClose, onSaved }) {
   };
   const toggleTeam = id => setF(x => ({ ...x, team_ids: x.team_ids.includes(id) ? x.team_ids.filter(y => y !== id) : [...x.team_ids, id] }));
   const canRole = can('users:write') && d.user && d.user.id !== user.id && (d.user.role !== 'super_admin' || user.role === 'super_admin');
+  // Privilèges accordés ou retirés à la personne elle-même (Dashboard › Utilisateurs) : signalés, retirés au choix
+  const userPerms = useResource(canRole && can('users:read') ? `/admin/users/${d.user.id}/permissions` : null);
+  const catalog = useResource(canRole && can('users:read') ? '/admin/permissions' : null);
+  const overrides = Object.entries(userPerms.data?.overrides || {});
+  const permLabel = id => catalog.data?.catalog.flatMap(g => g.items).find(i => i.id === id)?.label || id;
   const others = (meta?.employees || []).filter(x => x.id !== e.id);
   const future = f.effective_date > today();
   const save = async ev => {
@@ -66,6 +71,7 @@ export function ChangePositionModal({ d, onClose, onSaved }) {
         position_id: Number(f.position_id), department: f.department, effective_date: f.effective_date, reason: f.reason, note: f.note.trim() || null,
         category: f.category.trim() || null, base_salary: f.base_salary === '' ? null : Number(f.base_salary), change_manager: f.change_manager,
         manager_id: f.change_manager && f.manager_id ? Number(f.manager_id) : null, team_ids: f.team_ids, role: canRole && f.role ? f.role : null,
+        reset_overrides: !!(canRole && f.role && overrides.length && f.reset_overrides),
       });
       toast(c.status === 'applique' ? `Nouveau poste appliqué : ${c.job_title}` : `Changement planifié au ${date(c.effective_date)}`);
       onSaved();
@@ -109,6 +115,17 @@ export function ChangePositionModal({ d, onClose, onSaved }) {
               <select className="select" disabled={!canRole} value={f.role} onChange={set('role')}><option value="">Inchangé</option>{roles.map(r => <option key={r.id} value={r.id}>{r.label}</option>)}</select>
             </Field>
           ) : <p className="full small muted" style={{ margin: 0 }}>Pas de compte relié : aucun droit à ajuster.</p>}
+          {canRole && f.role && overrides.length > 0 && (
+            <div className="full" style={{ border: '1px solid var(--border)', borderRadius: 8, padding: 10 }}>
+              <p className="small" style={{ margin: '0 0 6px' }}><b>Privilèges propres à la personne</b> (en plus ou en moins de son rôle actuel) :</p>
+              <ul className="small" style={{ margin: '0 0 8px', paddingLeft: 18 }}>
+                {overrides.map(([p, granted]) => <li key={p}>{granted ? 'accordé' : 'retiré'} : {permLabel(p)}</li>)}
+              </ul>
+              <label className="small" style={{ display: 'flex', gap: 6, alignItems: 'center' }}>
+                <input type="checkbox" checked={f.reset_overrides} onChange={set('reset_overrides')} />Les retirer : le nouveau rôle s’applique seul
+              </label>
+            </div>
+          )}
           <Field label="Commentaire" className="full"><input className="input" maxLength={500} value={f.note} onChange={set('note')} placeholder="Note de nomination du…" /></Field>
         </form>
       )}
@@ -138,4 +155,66 @@ export function PositionChanges({ employeeId, hr, onChange }) {
   );
 }
 
-export const ChangePositionButton = ({ onClick }) => <button className="btn btn-sm" onClick={onClick}><ArrowRightLeft />Changer de poste</button>;
+/**
+ * Nouveau rôle et ses privilèges, sans quitter l'ERP (même table que Dashboard › Rôles et privilèges : le rôle y
+ * apparaît aussitôt, et inversement). Réservé au super administrateur et au droit « Créer de nouveaux rôles » ; un
+ * privilège qu'on n'a pas soi-même reste grisé. Régler un rôle existant reste au super administrateur.
+ */
+export function NewRoleModal({ onClose, onCreated }) {
+  const toast = useToast();
+  const perms = useResource('/admin/permissions');
+  const [f, setF] = useState({ label: '', description: '', from: '', permissions: [] });
+  const [error, setError] = useState(null);
+  const [busy, setBusy] = useState(false);
+  const d = perms.data;
+  const mine = d?.my_permissions || [];
+  const allowed = p => mine.includes('*') || mine.includes(p);
+  const toggle = p => setF(x => ({ ...x, permissions: x.permissions.includes(p) ? x.permissions.filter(y => y !== p) : [...x.permissions, p] }));
+  const copy = id => {
+    const role = d.roles.find(r => r.id === id);
+    setF(x => ({ ...x, from: id, permissions: role ? role.permissions.filter(p => p !== '*' && allowed(p)) : [] }));
+  };
+  const save = async e => {
+    e.preventDefault(); setError(null); setBusy(true);
+    try {
+      const role = await api.post('/admin/permissions/roles', { label: f.label.trim(), description: f.description.trim() || null, permissions: f.permissions });
+      toast(`Rôle « ${role.label} » créé avec ${f.permissions.length} privilège(s)`);
+      onCreated(role);
+    } catch (err) { setError(err); setBusy(false); }
+  };
+  return (
+    <Modal title="Nouveau rôle et ses privilèges" onClose={onClose}
+      footer={<><button className="btn btn-ghost" onClick={onClose}>Annuler</button><button className="btn btn-primary" form="new-role" disabled={busy || !d?.can_create}><Check />Créer le rôle</button></>}>
+      {perms.error ? <ErrorBox error={perms.error} /> : !d ? <Skeleton h={240} /> : !d.can_create ? (
+        <p className="small">Créer un rôle demande le droit « Créer de nouveaux rôles » (ou le super administrateur).</p>
+      ) : (
+        <form id="new-role" className="stack" style={{ gap: 12 }} onSubmit={save}>
+          <ErrorBox error={error} />
+          <div className="form-grid">
+            <Field label="Nom du rôle"><input className="input" required minLength={2} maxLength={120} value={f.label} onChange={e => setF(x => ({ ...x, label: e.target.value }))} placeholder="Directeur des ressources humaines, secrétaire…" autoFocus /></Field>
+            <Field label="Partir des privilèges de" hint="Coche d’office ses privilèges, à ajuster ensuite">
+              <select className="select" value={f.from} onChange={e => copy(e.target.value)}><option value="">— Aucun —</option>{d.roles.filter(r => !r.locked).map(r => <option key={r.id} value={r.id}>{r.label}</option>)}</select>
+            </Field>
+            <Field label="Description" className="full"><input className="input" maxLength={255} value={f.description} onChange={e => setF(x => ({ ...x, description: e.target.value }))} /></Field>
+          </div>
+          <p className="small muted" style={{ margin: 0 }}>{f.permissions.length} privilège(s) coché(s). Le rôle apparaît aussitôt dans Dashboard › Rôles et privilèges, où le super administrateur peut l’ajuster.{!mine.includes('*') && ' Les privilèges que vous n’avez pas vous-même sont grisés.'}</p>
+          <div style={{ maxHeight: 340, overflow: 'auto', border: '1px solid var(--border)', borderRadius: 8, padding: 10 }}>
+            {d.catalog.map(g => (
+              <fieldset key={g.group} style={{ border: 0, padding: 0, margin: '0 0 10px' }}>
+                <legend className="small" style={{ fontWeight: 600, marginBottom: 4 }}>{g.group}</legend>
+                {g.items.map(i => (
+                  <label key={i.id} style={{ display: 'flex', flexWrap: 'nowrap', gap: 8, alignItems: 'flex-start', padding: '3px 0', cursor: 'pointer', opacity: allowed(i.id) ? 1 : 0.5 }} title={i.hint || undefined}>
+                    <input type="checkbox" disabled={!allowed(i.id)} checked={f.permissions.includes(i.id)} onChange={() => toggle(i.id)} style={{ marginTop: 3, flexShrink: 0 }} />
+                    <span className="small">{i.label}{i.hint && <span className="muted"> — {i.hint}</span>}</span>
+                  </label>
+                ))}
+              </fieldset>
+            ))}
+          </div>
+        </form>
+      )}
+    </Modal>
+  );
+}
+
+export const ChangePositionButton =({ onClick }) => <button className="btn btn-sm" onClick={onClick}><ArrowRightLeft />Changer de poste</button>;

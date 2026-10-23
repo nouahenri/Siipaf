@@ -5,6 +5,9 @@ import { useAuth, useResource, useToast, useSaved } from '../lib/app-context';
 import { Card, Drawer, Field, Badge, Empty, ErrorBox, Skeleton } from '../components/ui';
 import { initials, relative } from '../lib/format';
 
+// L'ERP est sur erp.siipaf.com quand le dashboard est sur admin.siipaf.com (erp.localhost en local)
+const erpUrl = path => `${window.location.protocol}//${window.location.host.replace(/^admin\./, 'erp.')}${path}`;
+
 export default function UsersPage() {
   const { can } = useAuth();
   const users = useResource('/admin/users');
@@ -69,6 +72,12 @@ function UserDrawer({ user, roles, roleLabel, onClose, onSaved }) {
   return (
     <Drawer title={isNew ? 'Nouvel utilisateur' : user.name} onClose={onClose} footer={<><button className="btn" onClick={onClose}>Annuler</button><button className="btn btn-primary" onClick={save}>Enregistrer</button></>}>
       <ErrorBox error={error} />
+      {isNew && (
+        // Un employé de SIIPAF se crée dans l'ERP : compte, fiche employé et poste en une fois (choix du client du 23/10)
+        <div className="alert" style={{ background: 'var(--bg)', color: 'var(--ink)', marginBottom: 12 }}>
+          <b>Pour un employé de SIIPAF</b>, créez plutôt le compte depuis <a className="link" href={erpUrl('/comptes')}>ERP › Comptes utilisateurs</a> : sa fiche employé et son poste sont créés en même temps (sans fiche, pas de « Mon espace » : congés, frais, demandes, documents à lire). Ici : un compte sans fiche (prestataire, agence…).
+        </div>
+      )}
       <div className="form-grid">
         <Field label="Nom complet" className="full"><input className="input" value={form.name} onChange={set('name')} /></Field>
         <Field label="E-mail"><input className="input" type="email" value={form.email} onChange={set('email')} /></Field>
@@ -77,7 +86,7 @@ function UserDrawer({ user, roles, roleLabel, onClose, onSaved }) {
           <select className="select" value={form.role} onChange={set('role')}>
             {roles.filter(r => r.system).map(r => <option key={r.id} value={r.id}>{r.label}</option>)}
             {roles.some(r => !r.system) && (
-              <optgroup label="Rôles créés dans « Rôles & privilèges »">
+              <optgroup label="Rôles créés (Rôles & privilèges ou ERP › RH › Postes)">
                 {roles.filter(r => !r.system).map(r => <option key={r.id} value={r.id}>{r.label}</option>)}
               </optgroup>
             )}

@@ -279,6 +279,7 @@ function Career({ d, hr, onChange }) {
               <div className="small">{c.label}</div>
               {Object.entries(c.details || {}).filter(([, v]) => v && typeof v === 'object' && 'to' in v).map(([k, v]) => <div key={k} className="small muted">{LABELS[k] ? `${LABELS[k]} : ` : ''}{k === 'team' ? <b>{fmt(k, v.to)}</b> : <>{fmt(k, v.from)} → <b>{fmt(k, v.to)}</b></>}</div>)}
               {typeof c.details?.note === 'string' && <div className="small muted">{c.details.note}</div>}
+              {Array.isArray(c.details?.privileges_removed) && <div className="small muted">Privilèges individuels retirés : {c.details.privileges_removed.length}</div>}
               {c.created_by_name && <div className="small muted">par {c.created_by_name}</div>}
             </div>
           </li>

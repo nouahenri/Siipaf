@@ -100,7 +100,7 @@ module.exports = function rhRoutes(db) {
       reason: z.enum(Object.keys(POSITION_CHANGE_REASONS)), note: optText(500), category: optText(40),
       base_salary: z.number().int().min(0).max(1000000000).optional().nullable(), change_manager: z.boolean().optional(),
       manager_id: z.number().int().positive().optional().nullable(), team_ids: z.array(z.number().int().positive()).max(200).optional(),
-      role: z.string().trim().max(40).optional().nullable(),
+      role: z.string().trim().max(40).optional().nullable(), reset_overrides: z.boolean().optional(),
     }), req.body);
     const id = await positions.changePosition(db, e, data, { user: req.user, can: p => req.can(p) });
     const change = (await positions.changesOf(db, e.id)).find(c => c.id === id);

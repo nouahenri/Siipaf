@@ -452,6 +452,7 @@ const PERMISSION_CATALOG = [
   { group: 'Administration', items: [
     ['users:read', 'Voir les utilisateurs', null],
     ['users:write', 'Gérer les utilisateurs', 'Créer des comptes, changer les rôles et mots de passe'],
+    ['roles:write', 'Créer de nouveaux rôles', 'Depuis RH › Réglages › Postes, avec des privilèges qu’on a soi-même ; modifier, renommer ou supprimer un rôle existant reste au super administrateur'],
   ] },
 ];
 const PERMISSION_IDS = PERMISSION_CATALOG.flatMap(g => g.items.map(i => i[0]));

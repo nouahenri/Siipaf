@@ -14,6 +14,22 @@ const roles = require('../services/roles');
 const superAdminOnly = (req, res, next) =>
   req.user.role === 'super_admin' ? next() : next(new HttpError(403, 'Seul le super administrateur peut modifier les privilèges.'));
 
+/**
+ * Créer un nouveau rôle avec ses privilèges : super administrateur, ou droit roles:write (DRH, direction…), qui
+ * n'accorde que des privilèges qu'il a lui-même. Modifier, renommer ou supprimer un rôle existant reste au super
+ * administrateur (choix du client du 23/10).
+ */
+const canManageRoles = req => req.user.role === 'super_admin' || req.can('roles:write');
+const rolesWriter = (req, res, next) =>
+  canManageRoles(req) ? next() : next(new HttpError(403, 'Créer un rôle demande le droit « Créer de nouveaux rôles ».'));
+async function checkGrant(db, req, permissions) {
+  if (req.user.role === 'super_admin') return;
+  const mine = await svc.effectivePermissions(db, req.user);
+  const beyond = permissions.filter(p => !svc.hasPermission(mine, p));
+  if (beyond.length) throw new HttpError(403, `Vous ne pouvez pas accorder un privilège que vous n’avez pas : ${beyond.join(', ')}.`);
+}
+const canRead = (req, res, next) => (req.can('users:read') || canManageRoles(req) ? next() : next(new HttpError(403, 'Droits insuffisants.')));
+
 const permissionList = z.array(z.string().refine(p => PERMISSION_IDS.includes(p), 'Privilège inconnu')).max(PERMISSION_IDS.length);
 const roleFields = {
   label: z.string().trim().min(2, 'Libellé : 2 caractères minimum.').max(120),
@@ -31,7 +47,7 @@ module.exports = function permissionRoutes(db) {
   const r = express.Router();
 
   // Catalogue + droits actuels et par défaut de chaque rôle
-  r.get('/permissions', requirePermission('users:read'), ah(async (req, res) => {
+  r.get('/permissions', canRead, ah(async (req, res) => {
     const list = [];
     for (const role of await roles.listRoles(db)) {
       const permissions = await svc.rolePermissions(db, role.id);
@@ -58,13 +74,17 @@ module.exports = function permissionRoutes(db) {
         users_total: Number(totals.find(c => c.role === r.id)?.n || 0),
       })),
       can_edit: req.user.role === 'super_admin',
+      // Création d'un nouveau rôle : super administrateur ou droit roles:write
+      can_create: canManageRoles(req), my_role: req.user.role,
+      my_permissions: req.user.role === 'super_admin' ? ['*'] : await svc.effectivePermissions(db, req.user),
       users_with_overrides: Number(overrides[0].n),
     });
   }));
 
   // Nouveau rôle : libellé, description facultative et droits cochés dans le catalogue
-  r.post('/permissions/roles', requirePermission('users:read'), superAdminOnly, ah(async (req, res) => {
+  r.post('/permissions/roles', rolesWriter, ah(async (req, res) => {
     const data = parse(z.object({ ...roleFields, permissions: permissionList.default([]) }), req.body);
+    await checkGrant(db, req, data.permissions);
     const role = await roles.createRole(db, { ...data, permissions: [...new Set(data.permissions)] });
     res.status(201).json({ ...role, system: !!role.system, permissions: await svc.rolePermissions(db, role.id) });
   }));
@@ -81,6 +101,7 @@ module.exports = function permissionRoutes(db) {
     res.json({ ok: true });
   }));
 
+  // Régler un rôle existant change les droits de tous ses comptes : super administrateur seul (choix du client du 23/10)
   r.put('/permissions/roles/:role', requirePermission('users:read'), superAdminOnly, ah(async (req, res) => {
     const role = await editableRole(db, req.params.role);
     const permissions = parse(permissionList, req.body.permissions);
