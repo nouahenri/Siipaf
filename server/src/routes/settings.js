@@ -4,7 +4,7 @@ const { z } = require('zod');
 const { ah, parse, idParam, HttpError, json } = require('../lib/http');
 const { requirePermission } = require('../auth');
 const { REF_KINDS, FEATURE_KINDS, VIABILISATION_STATES, APP_SETTINGS, monthChoices } = require('../lib/domain');
-const { syncProjectText, projectsUsing, norm, sameLabel, PROJECT_REF_COLUMNS } = require('../services/refs');
+const { syncProjectText, projectsUsing, norm, sameLabel, PROJECT_REF_COLUMNS, stateLabels, defaultStateLabels, STATE_KEYS } = require('../services/refs');
 const { getSettings, saveSettings } = require('../services/settings');
 
 module.exports = function settingsRoutes(db) {
@@ -17,16 +17,19 @@ module.exports = function settingsRoutes(db) {
 
   // Lecture : toute personne qui voit les projets (les listes alimentent la fiche projet)
   r.get('/refs', requirePermission('projects:read'), ah(async (req, res) => {
-    const [items, direct, linked] = await Promise.all([
+    const [items, direct, linked, labels] = await Promise.all([
+      // (libellés des états réglés dans Paramètres, ajoutés aux listes à états)
       db('ref_items').orderBy(['kind', 'sort', 'label']),
       db('projects').select(PROJECT_REF_COLUMNS),
       db('project_refs').select('ref_id').count({ n: '*' }).groupBy('ref_id'),
+      stateLabels(db),
     ]);
     const used = {};
     for (const p of direct) for (const c of PROJECT_REF_COLUMNS) if (p[c]) used[p[c]] = (used[p[c]] || 0) + 1;
     for (const l of linked) used[l.ref_id] = (used[l.ref_id] || 0) + Number(l.n);
     res.json({
-      kinds: REF_KINDS, states: VIABILISATION_STATES,
+      kinds: Object.fromEntries(Object.entries(REF_KINDS).map(([k, m]) => [k, labels[k] ? { ...m, state_labels: labels[k], default_state_labels: defaultStateLabels(k) } : m])),
+      states: VIABILISATION_STATES,
       items: items.map(i => ({
         ...i, archived: !!i.archived, used: used[i.id] || 0, children: items.filter(c => c.parent_id === i.id).length,
         project_types: json(i.project_types, null), // type de biens : types de projet concernés (null ou [] = tous)
@@ -77,9 +80,12 @@ module.exports = function settingsRoutes(db) {
     }
     if (data.kind && data.kind !== item.kind) {
       if (!FEATURE_KINDS.includes(item.kind)) throw new HttpError(400, 'Cette valeur ne peut pas changer de liste.');
-      if (item.kind === 'viabilisation' || data.kind === 'viabilisation') {
-        await db('project_refs').where({ ref_id: id }).update({ state: data.kind === 'viabilisation' ? 'prevu' : null });
-      }
+      if (await duplicate(data.kind, data.label || item.label, null, id)) throw new HttpError(409, `« ${data.label || item.label} » existe déjà dans « ${REF_KINDS[data.kind].label} ».`);
+      // L'état suit la liste d'arrivée : gardé entre deux listes à états (mêmes clés), état de départ de la liste
+      // à l'arrivée dans une liste à états, effacé dans une liste sans état
+      const from = REF_KINDS[item.kind], to = REF_KINDS[data.kind];
+      if (!to.states) await db('project_refs').where({ ref_id: id }).update({ state: null });
+      else if (!from.states) await db('project_refs').where({ ref_id: id }).update({ state: to.default_state || 'prevu' });
       update.kind = data.kind;
     }
     if (data.parent_id !== undefined) {
@@ -121,6 +127,20 @@ module.exports = function settingsRoutes(db) {
     if (Number(children.n)) throw new HttpError(409, `Supprimez ou déplacez d’abord les ${children.n} localisation(s) de « ${item.label} ».`);
     await db('ref_items').where({ id }).del();
     res.json({ ok: true });
+  }));
+
+  // Libellés des états d'une liste à états (viabilisation, documents du bien) ; vide = libellé d'origine
+  r.put('/refs/states/:kind', requirePermission('settings:write'), ah(async (req, res) => {
+    const kind = req.params.kind;
+    if (!REF_KINDS[kind]?.states) throw new HttpError(404, 'Cette liste n’a pas d’états.');
+    const values = parse(z.object(Object.fromEntries(STATE_KEYS.map(s => [s, z.string().trim().max(40).optional()]))), req.body);
+    const labels = Object.fromEntries(STATE_KEYS.map(s => [s, values[s] || defaultStateLabels(kind)[s]]));
+    if (new Set(Object.values(labels).map(l => l.toLocaleLowerCase('fr'))).size < STATE_KEYS.length) throw new HttpError(400, 'Les trois états doivent avoir des libellés différents.');
+    const key = `state_labels:${kind}`;
+    const row = { value: JSON.stringify(labels), updated_at: new Date() };
+    if (await db('app_settings').where({ key }).first()) await db('app_settings').where({ key }).update(row);
+    else await db('app_settings').insert({ key, ...row });
+    res.json({ kind, state_labels: (await stateLabels(db))[kind] });
   }));
 
   // ─── Réglages généraux ───────────────────────────────────

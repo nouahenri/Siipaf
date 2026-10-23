@@ -555,7 +555,7 @@ fieldset { min-width: 0; }
 :root[data-theme="sombre"] .cad-preview { background: #fff; }
 
 /* ─── Paramètres ─────────────────────────────────────── */
-.settings-layout { display: grid; grid-template-columns: 240px 1fr; gap: 20px; align-items: start; }
+.settings-layout { display: grid; grid-template-columns: 240px minmax(0, 1fr); gap: 20px; align-items: start; }
 .settings-nav { display: flex; flex-direction: column; gap: 2px; padding: 8px; }
 .settings-nav button { display: flex; align-items: center; gap: 10px; width: 100%; padding: 9px 12px; border: none; border-radius: var(--radius-sm); background: none; color: var(--ink-2); font-weight: 500; text-align: left; cursor: pointer; }
 .settings-nav button svg { width: 17px; height: 17px; flex-shrink: 0; }
@@ -565,6 +565,10 @@ fieldset { min-width: 0; }
 .settings-nav .sep { height: 1px; background: var(--border); margin: 6px 4px; }
 .ref-add { display: flex; gap: 8px; flex-wrap: wrap; padding: 14px 16px; border-bottom: 1px solid var(--border); }
 .ref-add .input { flex: 1 1 220px; }
+/* États proposés d’une liste à états (viabilisation, documents du bien) */
+.ref-states { display: grid; gap: 10px; padding: 14px 16px; border-bottom: 1px solid var(--border); background: var(--surface-2); }
+.ref-states .small { margin-top: 2px; }
+.ref-states-grid { grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); }
 .ref-row.archived td:first-child { opacity: .55; }
 .ref-label-input { border-color: transparent; background: transparent; padding-left: 6px; }
 .ref-label-input:hover { border-color: var(--border); }
@@ -590,7 +594,7 @@ fieldset { min-width: 0; }
 .terms-link { display: block; margin: 4px 0 0 auto; padding: 2px 4px; white-space: nowrap; border: 0; border-radius: 4px; background: none; color: var(--focus); text-align: right; text-decoration: underline dotted; text-underline-offset: 3px; cursor: pointer; }
 .terms-link:hover, .terms-link:focus-visible { background: var(--bg); text-decoration-style: solid; }
 @media (max-width: 900px) {
-  .settings-layout { grid-template-columns: 1fr; }
+  .settings-layout { grid-template-columns: minmax(0, 1fr); }
   .settings-nav { flex-direction: row; overflow-x: auto; }
   .settings-nav button { width: auto; white-space: nowrap; }
   .settings-nav .sep { display: none; }

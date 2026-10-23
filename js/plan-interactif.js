@@ -40,14 +40,27 @@
       '<a class="btn btn-primary" href="' + back.href + '"><span>' + back.cta + '</span></a></div>';
   }
 
-  // Équipements, commodités à proximité et avancement de la viabilisation (Paramètres du dashboard)
+  // Équipements, commodités à proximité, avancement de la viabilisation, documents du bien et conditions de paiement
+  // (fiche projet et Paramètres du dashboard)
   var VIAB_ICON = { fait: 'fa-check-circle', en_cours: 'fa-hard-hat', prevu: 'fa-clock' };
+  var DOC_ICON = { fait: 'fa-check-circle', en_cours: 'fa-hourglass-half', prevu: 'fa-clock' };
+  function fcfa(n) { return Math.round(n).toLocaleString('fr-FR').replace(/[  ]/g, ' ') + ' FCFA'; }
   function features(p) {
     var blocks = [];
     if (p.viabilisation && p.viabilisation.length) {
       blocks.push('<div class="plan-feature"><h3><i class="fas fa-road"></i> Viabilisation</h3><ul class="viab-list">' + p.viabilisation.map(function (v) {
         return '<li class="viab-' + esc(v.state) + '"><i class="fas ' + (VIAB_ICON[v.state] || 'fa-clock') + '"></i><span>' + esc(v.label) + '</span><b>' + esc(v.state_label) + '</b></li>';
       }).join('') + '</ul></div>');
+    }
+    if (p.documents && p.documents.length) {
+      blocks.push('<div class="plan-feature"><h3><i class="fas fa-file-signature"></i> Documents du bien</h3><ul class="viab-list">' + p.documents.map(function (d) {
+        return '<li class="viab-' + esc(d.state) + '"><i class="fas ' + (DOC_ICON[d.state] || 'fa-clock') + '"></i><span>' + esc(d.label) + '</span><b>' + esc(d.state_label) + '</b></li>';
+      }).join('') + '</ul></div>');
+    }
+    if (p.balance_months) {
+      blocks.push('<div class="plan-feature"><h3><i class="fas fa-hand-holding-usd"></i> Conditions de paiement</h3><ul class="viab-list">' +
+        (p.deposit_fcfa ? '<li><i class="fas fa-coins"></i><span>Acompte</span><b>' + esc(fcfa(p.deposit_fcfa)) + '</b></li>' : '') +
+        '<li><i class="fas fa-calendar-alt"></i><span>Délai de solde</span><b>' + esc(p.balance_months + ' mois') + '</b></li></ul></div>');
     }
     if (p.amenities && p.amenities.length) {
       blocks.push('<div class="plan-feature"><h3><i class="fas fa-swimming-pool"></i> Équipements</h3><ul class="feature-tags">' + p.amenities.map(function (a) { return '<li>' + esc(a) + '</li>'; }).join('') + '</ul></div>');

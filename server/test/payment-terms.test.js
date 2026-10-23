@@ -113,3 +113,54 @@ test('dossiers de vente : un nouveau dossier Diaspora suit l’acompte et le dé
   assert.deepEqual([rows.length, rows[0].label], [36, 'Mensualité 1/36']);
   assert.equal((await scheduleStatus(db, old)).financing_label, 'Diaspora — sans apport, 36 mensualités');
 });
+
+test('états des listes : relus par la fiche projet, libellés réglables dans Paramètres, repris par le site', async () => {
+  const refs = (await admin.get('/api/admin/refs')).body;
+  const docs = refs.items.filter(i => i.kind === 'document');
+  const acd = docs.find(d => /^ACD/.test(d.label));
+  const titre = docs.find(d => d.label === 'Titre foncier');
+  assert.deepEqual(refs.kinds.document.state_labels, { prevu: 'À obtenir', en_cours: 'En cours', fait: 'Obtenu' });
+  assert.deepEqual(refs.kinds.viabilisation.state_labels, { prevu: 'Prévu', en_cours: 'En cours', fait: 'Réalisé' });
+  assert.equal(refs.kinds.equipement.state_labels, undefined, 'liste sans états');
+
+  // Aller-retour : la fiche relit l'état de chaque document et un nouvel enregistrement le conserve
+  await admin.patch(`/api/admin/projects/${projectId}`).send({ refs: [{ id: acd.id, state: 'fait' }, { id: titre.id, state: 'en_cours' }] });
+  let doc = (await admin.get(`/api/admin/projects/${projectId}`)).body.refs.document;
+  assert.deepEqual(doc.map(d => [d.label.slice(0, 3), d.state]).sort(), [['ACD', 'fait'], ['Tit', 'en_cours']]);
+  await admin.patch(`/api/admin/projects/${projectId}`).send({ refs: doc.map(d => ({ id: d.id, state: d.state })) });
+  doc = (await admin.get(`/api/admin/projects/${projectId}`)).body.refs.document;
+  assert.deepEqual(doc.map(d => d.state).sort(), ['en_cours', 'fait'], 'rien n’est remis à « À obtenir »');
+
+  // Libellés réglés : Paramètres, puis site (liste et fiche) ; vide = libellé d'origine
+  let res = await admin.put('/api/admin/refs/states/document').send({ prevu: 'À demander', en_cours: 'En instruction', fait: '' });
+  assert.equal(res.status, 200, JSON.stringify(res.body));
+  assert.deepEqual(res.body.state_labels, { prevu: 'À demander', en_cours: 'En instruction', fait: 'Obtenu' });
+  assert.equal((await admin.get('/api/admin/refs')).body.kinds.document.state_labels.en_cours, 'En instruction');
+  const site = (await request(app).get('/api/public/projects')).body.find(p => p.id === projectId);
+  assert.equal(site.documents.find(d => d.label === 'Titre foncier').state_label, 'En instruction');
+  const detail = (await request(app).get('/api/public/projects/lotissement-acompte')).body;
+  assert.equal(detail.documents.find(d => d.label === 'Titre foncier').state_label, 'En instruction');
+  assert.equal((await admin.put('/api/admin/refs/states/viabilisation').send({ prevu: 'Prévu', en_cours: 'prévu', fait: 'Fait' })).status, 400, 'libellés identiques refusés');
+  assert.equal((await admin.put('/api/admin/refs/states/equipement').send({ prevu: 'X' })).status, 404);
+});
+
+test('déplacer une valeur de liste : l’état suit la liste d’arrivée, pas de doublon', async () => {
+  const items = (await admin.get('/api/admin/refs')).body.items;
+  const titre = items.find(i => i.kind === 'document' && i.label === 'Titre foncier');
+  const stateOf = async () => (await db('project_refs').where({ project_id: projectId, ref_id: titre.id }).first())?.state;
+  await admin.patch(`/api/admin/projects/${projectId}`).send({ refs: [{ id: titre.id, state: 'en_cours' }] });
+
+  // Document → équipement : plus d'état ; le projet l'affiche parmi ses équipements
+  let res = await admin.patch(`/api/admin/refs/${titre.id}`).send({ kind: 'equipement' });
+  assert.equal(res.status, 200, JSON.stringify(res.body));
+  assert.equal(await stateOf(), null);
+  assert.ok((await admin.get(`/api/admin/projects/${projectId}`)).body.amenities.includes('Titre foncier'));
+  // Retour dans les documents : état de départ de la liste (Obtenu)
+  await admin.patch(`/api/admin/refs/${titre.id}`).send({ kind: 'document' });
+  assert.equal(await stateOf(), 'fait');
+  assert.ok(!(await admin.get(`/api/admin/projects/${projectId}`)).body.amenities.includes('Titre foncier'));
+  // Une liste qui a déjà ce libellé refuse le déplacement
+  const twin = (await admin.post('/api/admin/refs').send({ kind: 'commodite', label: 'Titre foncier' })).body;
+  assert.equal((await admin.patch(`/api/admin/refs/${titre.id}`).send({ kind: 'commodite' })).status, 409);
+  await admin.delete(`/api/admin/refs/${twin.id}`);
+});

@@ -23,8 +23,8 @@ const HELP = {
   localisation: 'Quartiers, communes ou sites, rattachés à une ville : la fiche projet ne propose que ceux de la ville choisie.',
   equipement: 'Équipements du programme (cases à cocher dans la fiche projet), affichés sur le site.',
   commodite: 'Commodités à proximité (écoles, marché, santé…), affichées sur le site.',
-  viabilisation: 'Travaux de viabilisation d’un lotissement : chaque élément coché porte son état (prévu, en cours, réalisé), visible par les acheteurs.',
-  document: 'Documents du terrain ou du bien (titre foncier, ACD, attestation villageoise…) : chaque document coché dans la fiche projet porte son état (à obtenir, en cours, obtenu), affiché sur le site.',
+  viabilisation: 'Travaux de viabilisation d’un lotissement : chaque élément coché dans la fiche projet porte son état (libellés réglables ci-dessous), visible par les acheteurs sur le plan interactif.',
+  document: 'Documents du terrain ou du bien (titre foncier, ACD, attestation villageoise…) : chaque document coché dans la fiche projet porte son état (libellés réglables ci-dessous), affiché sur la tuile, la fiche et le plan interactif du site.',
   type_projet: 'Type de projet affiché sur la fiche projet (informatif). Un type dont le nom contient « lotissement » range le projet dans Projets › Lotissements sur le site.',
   type_bien: 'Type de biens du projet et de sa grille de prix. Cochez les types de projet concernés : la fiche projet ne propose que ceux-là (lotissement → terrains…). Il donne aussi le libellé du bouton de création dans Biens & disponibilités (villa, appartement, lot…).',
 };
@@ -105,6 +105,15 @@ function RefList({ kind, data, editable, reload }) {
     const next = on ? [...current, scopeId] : current.filter(x => x !== scopeId);
     run(() => api.patch(`/admin/refs/${item.id}`, { project_types: next }));
   };
+  // Changer de liste (ex. « École » : équipement → commodité) : la valeur disparaît d'ici, les projets qui l'ont
+  // cochée l'affichent dans l'autre rubrique ; confirmation avec la conséquence
+  const moveTo = (item, target) => {
+    if (!target) return;
+    const to = data.kinds[target];
+    const used = item.used ? `\n\n${item.used} projet${item.used > 1 ? 's l’ont cochée' : ' l’a cochée'} : sur la fiche projet et le site, elle apparaîtra dans « ${to.label} »${meta.states && !to.states ? ' et perdra son état' : ''}.` : '';
+    if (!window.confirm(`Déplacer « ${item.label} » de « ${meta.label} » vers « ${to.label} » ?\nElle ne sera plus dans cette liste.${used}`)) return;
+    run(() => api.patch(`/admin/refs/${item.id}`, { kind: target }), `« ${item.label} » déplacé vers « ${to.label} »`);
+  };
   const remove = item => {
     if (!window.confirm(`Supprimer « ${item.label} » ?`)) return;
     run(() => api.del(`/admin/refs/${item.id}`), 'Supprimé');
@@ -138,13 +147,14 @@ function RefList({ kind, data, editable, reload }) {
           <button className="btn btn-primary" disabled={!label.trim() || (parentKind && !(parentId || filter))}><Plus />Ajouter</button>
         </form>
       )}
+      {meta.state_labels && <StateLabels key={kind} kind={kind} meta={meta} editable={editable} reload={reload} />}
       {!rows.length ? <Empty>Aucune valeur.</Empty> : (
         <div className="table-wrap">
           <table className="table">
             <thead><tr>
               <th>Libellé</th>
               {parentKind && <th>{data.kinds[parentKind].one}</th>}
-              {editable && featureKinds.includes(kind) && <th>Liste</th>}
+              {editable && featureKinds.includes(kind) && <th title="Changer cette valeur de liste (ex. « École » : équipement → commodité)">Déplacer vers</th>}
               {meta.scope && <th>Proposé pour les projets</th>}
               <th>Utilisation</th>
               {editable && <th className="right">Actions</th>}
@@ -162,9 +172,11 @@ function RefList({ kind, data, editable, reload }) {
                   {parentKind && <td>{parentName(item.parent_id)}</td>}
                   {editable && featureKinds.includes(kind) && (
                     <td>
-                      <select className="select" style={{ height: 32, minWidth: 150 }} value={kind} aria-label="Déplacer vers la liste"
-                        onChange={e => run(() => api.patch(`/admin/refs/${item.id}`, { kind: e.target.value }), `Déplacé vers « ${data.kinds[e.target.value].label} »`)}>
-                        {featureKinds.map(k => <option key={k} value={k}>{data.kinds[k].label}</option>)}
+                      {/* Rien ne bouge sans confirmation : la valeur quitte cette liste et change de rôle sur les projets */}
+                      <select className="select" style={{ height: 32, minWidth: 150 }} value="" aria-label={`Déplacer « ${item.label} » vers une autre liste`}
+                        onChange={e => moveTo(item, e.target.value)}>
+                        <option value="">Déplacer vers…</option>
+                        {featureKinds.filter(k => k !== kind).map(k => <option key={k} value={k}>{data.kinds[k].label}</option>)}
                       </select>
                     </td>
                   )}
@@ -207,6 +219,44 @@ function RefList({ kind, data, editable, reload }) {
         </div>
       )}
     </Card>
+  );
+}
+
+// Les trois états d'une liste à états, dans l'ordre d'avancement ; le dernier est marqué d'une coche verte sur le site
+const STATE_STEPS = [['prevu', '1. Pas encore commencé'], ['en_cours', '2. En cours'], ['fait', '3. Terminé (coche verte sur le site)']];
+
+/**
+ * États proposés pour chaque valeur cochée dans la fiche projet (viabilisation : prévu, en cours, réalisé ;
+ * documents : à obtenir, en cours, obtenu). Seuls les libellés changent ; vide = libellé d'origine.
+ */
+function StateLabels({ kind, meta, editable, reload }) {
+  const saved = useSaved();
+  const [values, setValues] = useState(meta.state_labels);
+  const [error, setError] = useState(null);
+  const changed = STATE_STEPS.some(([k]) => (values[k] || '') !== meta.state_labels[k]);
+  const save = async () => {
+    setError(null);
+    try { await api.put(`/admin/refs/states/${kind}`, values); saved('États enregistrés — fiches projet et site à jour'); await reload(); } catch (e) { setError(e); }
+  };
+  return (
+    <div className="ref-states">
+      <div className="row-between" style={{ gap: 10 }}>
+        <div>
+          <strong>États proposés</strong>
+          <p className="small muted">Dans la fiche projet, chaque {meta.one} coché reçoit l’un de ces états (menu à droite de la case) ; le site affiche le libellé.</p>
+        </div>
+        {editable && <button className="btn btn-primary btn-sm" onClick={save} disabled={!changed}>Enregistrer les états</button>}
+      </div>
+      <ErrorBox error={error} />
+      <div className="form-grid ref-states-grid">
+        {STATE_STEPS.map(([k, step]) => (
+          <Field key={k} label={step} hint={meta.default_state_labels && values[k] !== meta.default_state_labels[k] ? `D’origine : ${meta.default_state_labels[k]}` : null}>
+            <input className="input" value={values[k] || ''} maxLength={40} disabled={!editable} placeholder={meta.default_state_labels?.[k]}
+              onChange={e => setValues(v => ({ ...v, [k]: e.target.value }))} />
+          </Field>
+        ))}
+      </div>
+    </div>
   );
 }
 

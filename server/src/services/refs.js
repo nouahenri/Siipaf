@@ -191,7 +191,25 @@ async function projectRefs(db, projectId) {
   const rows = await db('project_refs as pr').join('ref_items as r', 'r.id', 'pr.ref_id')
     .where('pr.project_id', projectId).select('r.id', 'r.kind', 'r.label', 'r.archived', 'pr.state').orderBy(['r.sort', 'r.label']);
   const out = Object.fromEntries(FEATURE_KINDS.map(k => [k, []]));
-  for (const r of rows) out[r.kind].push({ id: r.id, label: r.label, archived: !!r.archived, ...(r.kind === 'viabilisation' ? { state: r.state || 'prevu' } : {}) });
+  // Listes à états (viabilisation, documents du bien) : l'état de chaque case cochée
+  for (const r of rows) out[r.kind].push({ id: r.id, label: r.label, archived: !!r.archived, ...(REF_KINDS[r.kind].states ? { state: r.state || 'prevu' } : {}) });
+  return out;
+}
+
+/**
+ * Libellés des états de chaque liste à états (Paramètres › la liste) : valeurs du code, remplacées par celles
+ * réglées par l'utilisateur (app_settings « state_labels:<liste> »). Les clés ne changent jamais.
+ */
+const STATE_KEYS = Object.keys(VIABILISATION_STATES);
+const defaultStateLabels = kind => REF_KINDS[kind].state_labels || VIABILISATION_STATES;
+async function stateLabels(db) {
+  const kinds = FEATURE_KINDS.filter(k => REF_KINDS[k].states);
+  const rows = await db('app_settings').whereIn('key', kinds.map(k => `state_labels:${k}`)).select('key', 'value');
+  const out = {};
+  for (const k of kinds) {
+    const saved = json(rows.find(r => r.key === `state_labels:${k}`)?.value, {});
+    out[k] = Object.fromEntries(STATE_KEYS.map(s => [s, String(saved?.[s] || '').trim() || defaultStateLabels(k)[s]]));
+  }
   return out;
 }
 
@@ -231,5 +249,5 @@ async function withTypeLabels(db, projects) {
 
 module.exports = {
   DEFAULT_REFS, PROJECT_REF_COLUMNS, backfill, seedDefaultLists, linkProjectTypes, scopePropertyTypes, defaultScope, syncProjectText, applyProjectRefs, applyProjectTypes, withTypeLabels,
-  projectRefs, projectsUsing, norm, sameLabel,
+  projectRefs, projectsUsing, norm, sameLabel, stateLabels, defaultStateLabels, STATE_KEYS,
 };
