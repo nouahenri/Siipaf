@@ -59,7 +59,10 @@ module.exports = function userRoutes(db) {
     const data = parse(z.object({
       ...base, password: z.string().min(10, 'Mot de passe : 10 caractères minimum.').optional(),
       employee_id: z.number().int().positive().optional().nullable(),
-      employee: z.object({ job_title: z.string().trim().min(2).max(120), department: z.string().trim().min(2).max(20), hire_date: day, contract_type: z.string().trim().max(12).optional() }).optional().nullable(),
+      employee: z.object({
+        job_title: z.string().trim().min(2).max(120), position_id: z.number().int().positive().optional().nullable(),
+        department: z.string().trim().min(2).max(20), hire_date: day, contract_type: z.string().trim().max(12).optional(),
+      }).optional().nullable(),
     }), req.body);
     await requireRole(db, data.role);
     if (await db('users').where({ email: data.email }).first()) throw new HttpError(409, 'Un compte existe déjà avec cet e-mail.');
@@ -79,12 +82,14 @@ module.exports = function userRoutes(db) {
         if (!DEPARTMENTS[employee.department]) throw new HttpError(400, 'Service inconnu.');
         const contract = CONTRACT_TYPES[employee.contract_type] ? employee.contract_type : 'cdi';
         const [first, ...others] = rest.name.trim().split(/\s+/);
+        // Poste de la liste (RH › Réglages), ou ajouté à la liste s'il n'y figure pas
+        const post = await require('../services/positions').resolve(trx, employee);
         const eid = insertedId((await trx('employees').insert({
           matricule: await require('../services/paie').nextMatricule(trx), user_id: userId, first_name: first, last_name: others.join(' ') || first,
-          email: rest.email, phone: rest.phone || null, job_title: employee.job_title, department: employee.department, contract_type: contract,
+          email: rest.email, phone: rest.phone || null, job_title: post.job_title, position_id: post.position_id, department: employee.department, contract_type: contract,
           hire_date: employee.hire_date, base_salary: 0,
         }))[0]);
-        await trx('hr_career_events').insert({ employee_id: eid, date: employee.hire_date, kind: 'embauche', label: `Embauche : ${employee.job_title}`, details: JSON.stringify({ contract_type: contract }), created_by: req.user.id }).catch(() => {});
+        await trx('hr_career_events').insert({ employee_id: eid, date: employee.hire_date, kind: 'embauche', label: `Embauche : ${post.job_title}`, details: JSON.stringify({ contract_type: contract }), created_by: req.user.id }).catch(() => {});
       }
       return userId;
     });

@@ -106,6 +106,30 @@
     });
   }
 
+  // Réseaux sociaux du pied de page : ceux renseignés dans le dashboard (Contenu du site › Coordonnées) ;
+  // un réseau sans adresse n'est pas affiché (plus de lien mort « # »). Le lien WhatsApp reste tel quel.
+  var SOCIALS = [
+    ['facebook', 'fa-facebook-f', 'Facebook'], ['instagram', 'fa-instagram', 'Instagram'], ['linkedin', 'fa-linkedin-in', 'LinkedIn'],
+    ['tiktok', 'fa-tiktok', 'TikTok'], ['youtube', 'fa-youtube', 'YouTube'],
+  ];
+  function applySocials(socials) {
+    socials = socials || {};
+    Array.prototype.forEach.call(document.querySelectorAll('.footer-social'), function (box) {
+      Array.prototype.forEach.call(box.querySelectorAll('a'), function (a) {
+        if (a.getAttribute('href') === '#' || a.hasAttribute('data-social')) a.remove();
+      });
+      var first = box.firstChild;
+      SOCIALS.forEach(function (s) {
+        var url = String(socials[s[0]] || '').trim();
+        if (!/^https?:\/\//i.test(url)) return;
+        var a = document.createElement('a');
+        a.href = url; a.target = '_blank'; a.rel = 'noopener'; a.setAttribute('aria-label', s[2]); a.setAttribute('data-social', s[0]);
+        a.innerHTML = '<i class="fab ' + s[1] + '"></i>';
+        box.insertBefore(a, first);
+      });
+    });
+  }
+
   function applyImages(images) {
     if (!images) return;
     Array.prototype.forEach.call(document.querySelectorAll('[data-media-slot]'), function (el) {
@@ -132,6 +156,7 @@
         try { applyTicker(c.ticker); } catch (e) {}
         try { applyStats(c.stats); } catch (e) {}
         try { applySite(c.site); } catch (e) {}
+        try { applySocials(c.site && c.site.socials); } catch (e) {}
         try { applyImages(c.images); } catch (e) {}
       })
       .catch(function () {})

@@ -6,6 +6,7 @@ const { requirePermission } = require('../../auth');
 const { CONTRACT_TYPES, DEPARTMENTS, MARITAL, PAY_METHODS, DEFAULT_PAYROLL } = require('../../lib/paie');
 const paie = require('../../services/paie');
 const rh = require('../../services/rh');
+const positions = require('../../services/positions');
 
 const day = z.string().regex(/^\d{4}-\d{2}-\d{2}$/, 'Date attendue au format AAAA-MM-JJ');
 const optText = max => z.string().trim().max(max).optional().nullable().transform(v => v || null);
@@ -41,6 +42,7 @@ module.exports = function paieRoutes(db) {
     email: z.string().trim().toLowerCase().email().optional().nullable().or(z.literal('').transform(() => null)), address: optText(255),
     id_number: optText(60), cnps_number: optText(40), marital_status: z.enum(Object.keys(MARITAL)).optional(), children: z.number().int().min(0).max(20).optional(),
     tax_parts: z.number().min(1).max(5).multipleOf(0.5).optional().nullable(), job_title: z.string().trim().min(2).max(120),
+    position_id: z.number().int().positive().optional().nullable(),
     department: z.enum(Object.keys(DEPARTMENTS)).optional(), category: optText(40), contract_type: z.enum(Object.keys(CONTRACT_TYPES)).optional(),
     hire_date: day, end_date: day.optional().nullable(), base_salary: money, housing_allowance: money.optional(), transport_allowance: money.optional(),
     other_allowance: money.optional(), accident_rate: z.number().min(0).max(10).optional().nullable(), pay_method: z.enum(Object.keys(PAY_METHODS)).optional(),
@@ -62,6 +64,7 @@ module.exports = function paieRoutes(db) {
     const data = parse(employeeSchema, req.body);
     await checkUser(data.user_id);
     const id = await db.transaction(async trx => {
+      Object.assign(data, await positions.resolve(trx, data));
       const newId = insertedId((await trx('employees').insert({ ...data, matricule: await paie.nextMatricule(trx) }))[0]);
       await trx('hr_career_events').insert({ employee_id: newId, date: data.hire_date, kind: 'embauche', label: `Embauche : ${data.job_title}`, details: JSON.stringify({ contract_type: data.contract_type || 'cdi' }), created_by: req.user.id });
       return newId;
@@ -77,6 +80,9 @@ module.exports = function paieRoutes(db) {
     const before = await db('employees').where({ id }).first();
     if (!before) throw new HttpError(404, 'Employé introuvable.');
     await db.transaction(async trx => {
+      if (data.position_id || (data.job_title && data.job_title !== before.job_title)) {
+        Object.assign(data, await positions.resolve(trx, { position_id: data.position_id, job_title: data.job_title, department: data.department || before.department }));
+      }
       await trx('employees').where({ id }).update({ ...data, updated_at: new Date() });
       await rh.logChanges(trx, rh.normEmployee(before), data, req.user.id);
     });
@@ -96,7 +102,7 @@ module.exports = function paieRoutes(db) {
         const [first, ...rest] = u.name.trim().split(/\s+/);
         await trx('employees').insert({
           matricule: await paie.nextMatricule(trx), user_id: u.id, first_name: first, last_name: rest.join(' ') || first, email: u.email, phone: u.phone || null,
-          job_title: ROLE_JOBS[u.role] || 'Employé(e)', department: DEPTS[u.role] || 'administratif', hire_date, base_salary: 0,
+          ...(await positions.resolve(trx, { job_title: ROLE_JOBS[u.role] || 'Employé(e)', department: DEPTS[u.role] || 'administratif' })), hire_date, base_salary: 0,
         });
         created++;
       }

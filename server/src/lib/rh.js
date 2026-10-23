@@ -111,6 +111,14 @@ const CAREER_EVENTS = {
   embauche: 'Embauche', fin_essai: 'Confirmation après essai', avenant: 'Avenant au contrat', promotion: 'Promotion', augmentation: 'Révision du salaire',
   mutation: 'Changement de service / affectation', formation: 'Formation suivie', avertissement: 'Avertissement', fin_contrat: 'Fin de contrat', autre: 'Autre',
 };
+/**
+ * Changement de poste (choix du client du 23/10) : motif et type d'événement de carrière correspondant. La date d'effet
+ * peut être future : le changement s'applique alors ce jour-là (poste, service, catégorie, salaire, responsable, rôle).
+ */
+const POSITION_CHANGE_REASONS = {
+  promotion: { label: 'Promotion', career: 'promotion' }, mutation: { label: 'Mutation / changement de service', career: 'mutation' },
+  reclassement: { label: 'Reclassement', career: 'avenant' }, autre: { label: 'Autre', career: 'autre' },
+};
 const OBJECTIVE_STATUSES = { en_cours: 'En cours', atteint: 'Atteint', partiel: 'Partiellement atteint', non_atteint: 'Non atteint', abandonne: 'Abandonné' };
 /**
  * Indicateurs d'objectifs calculés depuis les données de l'ERP et du dashboard (services/performance.js).
@@ -376,7 +384,7 @@ function checkRh(s) {
 }
 
 module.exports = {
-  DEFAULT_RH, LEAVE_TYPES, PERMISSION_EVENTS, LEAVE_STATUSES, LEAVE_ACTIVE, DOCUMENT_KINDS, CAREER_EVENTS, OBJECTIVE_STATUSES, OBJECTIVE_METRICS, REVIEW_RATINGS,
+  DEFAULT_RH, LEAVE_TYPES, PERMISSION_EVENTS, LEAVE_STATUSES, LEAVE_ACTIVE, DOCUMENT_KINDS, CAREER_EVENTS, POSITION_CHANGE_REASONS, OBJECTIVE_STATUSES, OBJECTIVE_METRICS, REVIEW_RATINGS,
   EXPENSE_STATUSES, ATTENDANCE_SOURCES, RECRUIT_STAGES, RECRUIT_SOURCES, REFUSE_REASONS, JOB_STATUSES, RESUME_KINDS, TRAINING_STATUSES,
   easter, fixedHolidays, countDays, yearsOfService, annualBonus, leaveBalance, annualEntitlement, checkRh, addDays, chunks, withoutBreak, computeOvertime, attainment,
 };

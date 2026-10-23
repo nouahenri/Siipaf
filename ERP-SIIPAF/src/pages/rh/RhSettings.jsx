@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { Plus, Trash2, Save, CalendarDays, RotateCcw } from 'lucide-react';
+import { Plus, Trash2, Save, CalendarDays, RotateCcw, Briefcase } from 'lucide-react';
 import { api } from '@admin/lib/api';
 import { useAuth, useResource, useToast, useSaved } from '@admin/lib/app-context';
 import { Card, Skeleton, ErrorBox, Field, Empty } from '@admin/components/ui';
@@ -116,8 +116,83 @@ export default function RhSettings() {
         </Card>
       </div>
       {write && <div className="row" style={{ gap: 8 }}><button className="btn btn-primary" disabled={!s} onClick={save}><Save />Enregistrer les réglages</button><button className="btn btn-ghost" onClick={reset}><RotateCcw />Valeurs par défaut</button></div>}
+      <Positions />
       <Holidays />
     </div>
+  );
+}
+
+/**
+ * Postes de l'entreprise (choix du client du 23/10) : proposés en liste dans la fiche employé, la création d'un compte
+ * et le changement de poste ; chacun rattaché à un service, avec la catégorie et le rôle du compte proposés.
+ */
+function Positions() {
+  const { can } = useAuth();
+  const { meta } = useRhMeta();
+  const toast = useToast();
+  const list = useResource(`${RH}/positions?all=1`);
+  const blank = { title: '', department: 'administratif', category: '', default_role: '' };
+  const [f, setF] = useState(blank);
+  const [editing, setEditing] = useState(null); // id du poste modifié
+  const write = can('rh:settings');
+  const roles = list.data?.roles || [];
+  const set = k => e => setF(x => ({ ...x, [k]: e.target.value }));
+  const save = async e => {
+    e.preventDefault();
+    const body = { title: f.title.trim(), department: f.department, category: f.category.trim() || null, default_role: f.default_role || null };
+    try {
+      if (editing) await api.patch(`${RH}/positions/${editing}`, body); else await api.post(`${RH}/positions`, body);
+      toast(editing ? 'Poste modifié' : 'Poste ajouté'); setF(blank); setEditing(null); list.reload();
+    } catch (err) { toast(err.message, 'err'); }
+  };
+  const toggle = async p => { try { await api.patch(`${RH}/positions/${p.id}`, { active: !p.active }); list.reload(); } catch (err) { toast(err.message, 'err'); } };
+  const [merging, setMerging] = useState(null); // poste à fusionner dans un autre
+  const merge = async into => {
+    const target = list.data.positions.find(x => x.id === Number(into));
+    if (!target || !window.confirm(`Fusionner « ${merging.title} » dans « ${target.title} » ? Ses ${merging.employees} fiche(s) prendront l’intitulé « ${target.title} ».`)) return;
+    try { await api.post(`${RH}/positions/${merging.id}/merge`, { into: target.id }); toast('Postes fusionnés'); setMerging(null); list.reload(); } catch (err) { toast(err.message, 'err'); }
+  };
+  return (
+    <Card title="Postes" bodyClass="">
+      <p className="card-body small muted" style={{ borderBottom: '1px solid var(--border)', margin: 0 }}>
+        Liste proposée dans la fiche employé, la création d’un compte et « Changer de poste ». Le rôle indiqué est proposé pour le compte de la personne au changement de poste (ses droits dans le dashboard et l’ERP). Renommer un poste renomme les fiches qui l’occupent.
+      </p>
+      {!list.data ? <div className="card-body"><Skeleton h={120} /></div> : !list.data.positions.length ? <div className="card-body"><Empty icon={Briefcase}>Aucun poste : ajoutez-en ci-dessous.</Empty></div> : (
+        <div className="table-wrap"><table className="table">
+          <thead><tr><th>Poste</th><th>Service</th><th>Catégorie</th><th>Rôle proposé</th><th className="right">Employés</th><th /></tr></thead>
+          <tbody>{list.data.positions.map(p => (
+            <tr key={p.id} style={p.active ? undefined : { opacity: 0.55 }}>
+              <td><b>{p.title}</b>{!p.active && <span className="small muted"> · archivé</span>}</td>
+              <td className="small">{p.department_label}</td>
+              <td className="small">{p.category || '—'}</td>
+              <td className="small">{roles.find(r => r.id === p.default_role)?.label || '—'}</td>
+              <td className="right tabular">{p.employees}</td>
+              <td className="right nowrap">{write && <>
+                <button className="btn btn-ghost btn-sm" onClick={() => { setEditing(p.id); setF({ title: p.title, department: p.department, category: p.category || '', default_role: p.default_role || '' }); }}>Modifier</button>
+                <button className="btn btn-ghost btn-sm" onClick={() => toggle(p)}>{p.active ? 'Archiver' : 'Réactiver'}</button>
+                {merging?.id === p.id
+                  ? <select className="select" style={{ width: 'auto', display: 'inline-block' }} autoFocus value="" onChange={e => merge(e.target.value)} onBlur={() => setMerging(null)} aria-label="Fusionner dans">
+                      <option value="">Fusionner dans…</option>{list.data.positions.filter(x => x.id !== p.id).map(x => <option key={x.id} value={x.id}>{x.title}</option>)}
+                    </select>
+                  : <button className="btn btn-ghost btn-sm" onClick={() => setMerging(p)} title="Pour un poste en double (orthographe différente)">Fusionner</button>}
+              </>}</td>
+            </tr>
+          ))}</tbody>
+        </table></div>
+      )}
+      {write && (
+        <form className="card-body form-grid" style={{ borderTop: '1px solid var(--border)' }} onSubmit={save}>
+          <Field label={editing ? 'Modifier le poste' : 'Nouveau poste'}><input className="input" required minLength={2} maxLength={120} value={f.title} onChange={set('title')} placeholder="Responsable commercial, conducteur de travaux…" /></Field>
+          <Field label="Service"><select className="select" value={f.department} onChange={set('department')}>{meta && Object.entries(meta.departments).map(([k, v]) => <option key={k} value={k}>{v}</option>)}</select></Field>
+          <Field label="Catégorie habituelle"><input className="input" maxLength={40} value={f.category} onChange={set('category')} placeholder="Cadre, agent de maîtrise…" /></Field>
+          <Field label="Rôle du compte proposé"><select className="select" value={f.default_role} onChange={set('default_role')}><option value="">— Aucun —</option>{roles.map(r => <option key={r.id} value={r.id}>{r.label}</option>)}</select></Field>
+          <div className="full row" style={{ gap: 8 }}>
+            <button className="btn btn-primary btn-sm"><Plus />{editing ? 'Enregistrer' : 'Ajouter le poste'}</button>
+            {editing && <button type="button" className="btn btn-ghost btn-sm" onClick={() => { setEditing(null); setF(blank); }}>Annuler</button>}
+          </div>
+        </form>
+      )}
+    </Card>
   );
 }
 

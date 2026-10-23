@@ -9,6 +9,7 @@ import { RH, hours, hm, today, formData, useRhMeta, thisMonth } from '../../lib/
 import { LeaveForm, LeaveBadge, TypeDot } from '../../components/RhForms';
 import { ObjectivesPanel, Indicators } from './Reviews';
 import PerformanceCurves from './PerformanceCurves';
+import { ChangePositionModal, ChangePositionButton, PositionChanges } from '../../components/Positions';
 
 const TABS = [['dossier', 'Dossier'], ['conges', 'Congés'], ['documents', 'Documents'], ['carriere', 'Carrière'], ['competences', 'Compétences et CV'], ['objectifs', 'Objectifs et performance'], ['presences', 'Présences']];
 
@@ -60,6 +61,7 @@ function Identity({ d, hr, onSaved }) {
   const { meta } = useRhMeta();
   const [edit, setEdit] = useState(false);
   const [pin, setPin] = useState(false);
+  const [change, setChange] = useState(false);
   const e = d.employee;
   return (
     <div className="grid grid-2" style={{ alignItems: 'start' }}>
@@ -76,7 +78,7 @@ function Identity({ d, hr, onSaved }) {
         <Row label="N° CNPS">{e.cnps_number}</Row>
         <Row label="Compte du dashboard">{d.user && `${d.user.name} (${d.user.email})`}</Row>
       </Card>
-      <Card title="Contrat" actions={hr && <button className="btn btn-sm" onClick={() => setPin(true)}><KeyRound />Code de pointage</button>}>
+      <Card title="Contrat" actions={hr && <div className="row" style={{ gap: 6 }}>{e.active && <ChangePositionButton onClick={() => setChange(true)} />}<button className="btn btn-sm" onClick={() => setPin(true)}><KeyRound />Code de pointage</button></div>}>
         <Row label="Poste">{e.job_title}</Row>
         <Row label="Service">{meta?.departments[e.department]}</Row>
         <Row label="Catégorie">{e.category}</Row>
@@ -91,6 +93,7 @@ function Identity({ d, hr, onSaved }) {
       </Card>
       {edit && <IdentityForm d={d} onClose={() => setEdit(false)} onSaved={() => { setEdit(false); onSaved(); }} />}
       {pin && <HrPin employee={e} onClose={() => setPin(false)} onSaved={() => { setPin(false); onSaved(); }} />}
+      {change && <ChangePositionModal d={d} onClose={() => setChange(false)} onSaved={() => { setChange(false); onSaved(); }} />}
     </div>
   );
 }
@@ -99,7 +102,8 @@ function IdentityForm({ d, onClose, onSaved }) {
   const saved = useSaved();
   const { meta } = useRhMeta();
   const e = d.employee;
-  const keys = ['phone', 'email', 'address', 'birth_date', 'birth_place', 'gender', 'nationality', 'id_number', 'cnps_number', 'marital_status', 'children', 'emergency_contact', 'job_title', 'department', 'category', 'contract_type', 'end_date', 'trial_end_date', 'manager_id', 'leave_opening_days', 'leave_opening_date', 'notes'];
+  // Poste et service : par « Changer de poste » (date d'effet, motif, historique), plus dans ce formulaire
+  const keys = ['phone', 'email', 'address', 'birth_date', 'birth_place', 'gender', 'nationality', 'id_number', 'cnps_number', 'marital_status', 'children', 'emergency_contact', 'category', 'contract_type', 'end_date', 'trial_end_date', 'manager_id', 'leave_opening_days', 'leave_opening_date', 'notes'];
   const [f, setF] = useState(Object.fromEntries(keys.map(k => [k, e[k] ?? ''])));
   const [error, setError] = useState(null);
   const set = k => ev => setF(x => ({ ...x, [k]: ev.target.value }));
@@ -127,8 +131,9 @@ function IdentityForm({ d, onClose, onSaved }) {
           <Field label="Situation de famille"><select className="select" value={f.marital_status} onChange={set('marital_status')}>{meta && Object.entries(meta.marital).map(([k, v]) => <option key={k} value={k}>{v}</option>)}</select></Field>
           <Field label="Enfants à charge" hint="Compte pour les jours de congé supplémentaires et la paie"><input className="input" type="number" min="0" max="20" value={f.children} onChange={set('children')} /></Field>
           <Field label="Contact en cas d’urgence" className="full"><input className="input" value={f.emergency_contact} onChange={set('emergency_contact')} placeholder="Nom, lien, téléphone" /></Field>
-          <Field label="Poste"><input className="input" required minLength={2} value={f.job_title} onChange={set('job_title')} /></Field>
-          <Field label="Service"><select className="select" value={f.department} onChange={set('department')}>{meta && Object.entries(meta.departments).map(([k, v]) => <option key={k} value={k}>{v}</option>)}</select></Field>
+          <Field label="Poste et service" className="full" hint="Pour un nouveau poste ou un autre service : bouton « Changer de poste » de la carte Contrat (date d’effet, motif, historique)">
+            <input className="input" disabled value={`${e.job_title} · ${meta?.departments[e.department] || e.department}`} />
+          </Field>
           <Field label="Catégorie professionnelle"><input className="input" value={f.category} onChange={set('category')} /></Field>
           <Field label="Contrat"><select className="select" value={f.contract_type} onChange={set('contract_type')}>{meta && Object.entries(meta.contract_types).map(([k, v]) => <option key={k} value={k}>{v}</option>)}</select></Field>
           <Field label="Fin de la période d’essai"><input className="input" type="date" value={f.trial_end_date} onChange={set('trial_end_date')} /></Field>
@@ -258,9 +263,13 @@ function Documents({ d, hr, onChange }) {
 function Career({ d, hr, onChange }) {
   const { meta } = useRhMeta();
   const [form, setForm] = useState(false);
-  const fmt = (k, v) => (v == null || v === '' ? '—' : k === 'base_salary' ? fcfa(v) : k === 'department' ? meta?.departments[v] || v : k === 'contract_type' ? meta?.contract_types[v] || v : /date/.test(k) ? date(v) : String(v));
+  const person = id => { const x = meta?.employees.find(y => y.id === id); return x ? `${x.last_name} ${x.first_name}` : `#${id}`; };
+  const fmt = (k, v) => (v == null || v === '' ? '—' : k === 'base_salary' ? fcfa(v) : k === 'department' ? meta?.departments[v] || v : k === 'contract_type' ? meta?.contract_types[v] || v
+    : k === 'manager_id' ? person(v) : k === 'team' ? (v || []).map(person).join(', ') : /date/.test(k) ? date(v) : String(v));
+  const LABELS = { job_title: 'Poste', department: 'Service', category: 'Catégorie', base_salary: 'Salaire de base', manager_id: 'Responsable direct', team: 'Équipe rattachée', role: 'Rôle du compte', contract_type: 'Contrat', project_id: 'Affectation' };
   return (
     <Card title="Parcours dans l’entreprise" actions={hr && <button className="btn btn-sm" onClick={() => setForm(true)}><Plus />Événement</button>}>
+      <PositionChanges employeeId={d.employee.id} hr={hr} onChange={onChange} />
       {!d.career.length ? <Empty icon={Briefcase}>Aucun événement.</Empty> : (
         <ul className="timeline">{d.career.map(c => (
           <li key={c.id} className={`tl-${c.kind === 'embauche' || c.kind === 'promotion' ? 'vente' : c.kind === 'avertissement' ? 'sav' : 'etape'}`}>
@@ -268,7 +277,8 @@ function Career({ d, hr, onChange }) {
             <div>
               <div className="row-between"><b className="small">{meta?.career_events[c.kind] || c.kind}</b><span className="small muted">{date(c.date)}</span></div>
               <div className="small">{c.label}</div>
-              {Object.entries(c.details || {}).filter(([, v]) => v && typeof v === 'object' && 'to' in v).map(([k, v]) => <div key={k} className="small muted">{fmt(k, v.from)} → <b>{fmt(k, v.to)}</b></div>)}
+              {Object.entries(c.details || {}).filter(([, v]) => v && typeof v === 'object' && 'to' in v).map(([k, v]) => <div key={k} className="small muted">{LABELS[k] ? `${LABELS[k]} : ` : ''}{k === 'team' ? <b>{fmt(k, v.to)}</b> : <>{fmt(k, v.from)} → <b>{fmt(k, v.to)}</b></>}</div>)}
+              {typeof c.details?.note === 'string' && <div className="small muted">{c.details.note}</div>}
               {c.created_by_name && <div className="small muted">par {c.created_by_name}</div>}
             </div>
           </li>

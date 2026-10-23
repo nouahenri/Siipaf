@@ -43,8 +43,9 @@ export default function SiteContent() {
     setBusy(true);
     setError(null);
     try {
-      const saved = await api.put(`/admin/content/${tab}`, value);
-      content.setData(d => ({ ...d, [tab]: saved }));
+      // (le résultat ne doit pas s'appeler « saved » : il masquait la confirmation et l'enregistrement semblait sans effet)
+      const stored = await api.put(`/admin/content/${tab}`, value);
+      content.setData(d => ({ ...d, [tab]: stored }));
       saved('Contenu enregistré — visible sur le site au prochain chargement');
     } catch (e) { setError(e); } finally { setBusy(false); }
   };

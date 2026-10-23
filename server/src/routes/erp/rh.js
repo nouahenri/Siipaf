@@ -9,13 +9,15 @@ const { z } = require('zod');
 const { ah, parse, idParam, HttpError, isoDay } = require('../../lib/http');
 const { requirePermission } = require('../../auth');
 const {
-  LEAVE_TYPES, PERMISSION_EVENTS, LEAVE_STATUSES, LEAVE_ACTIVE, DOCUMENT_KINDS, CAREER_EVENTS, OBJECTIVE_STATUSES, OBJECTIVE_METRICS, REVIEW_RATINGS, DEFAULT_RH,
+  LEAVE_TYPES, PERMISSION_EVENTS, LEAVE_STATUSES, LEAVE_ACTIVE, DOCUMENT_KINDS, CAREER_EVENTS, POSITION_CHANGE_REASONS, OBJECTIVE_STATUSES, OBJECTIVE_METRICS, REVIEW_RATINGS, DEFAULT_RH,
   EXPENSE_STATUSES, ATTENDANCE_SOURCES, RECRUIT_STAGES, RECRUIT_SOURCES, REFUSE_REASONS, JOB_STATUSES, RESUME_KINDS, TRAINING_STATUSES,
 } = require('../../lib/rh');
 const { CONTRACT_TYPES, DEPARTMENTS, MARITAL } = require('../../lib/paie');
 const rh = require('../../services/rh');
 const paie = require('../../services/paie');
 const performance = require('../../services/performance');
+const positions = require('../../services/positions');
+const { listRoles } = require('../../services/roles');
 
 const day = z.string().regex(/^\d{4}-\d{2}-\d{2}$/, 'Date attendue au format AAAA-MM-JJ');
 const optText = max => z.string().trim().max(max).optional().nullable().transform(v => v || null);
@@ -59,6 +61,58 @@ module.exports = function rhRoutes(db) {
   }));
 
   r.get('/dashboard', read, ah(async (req, res) => res.json(await rh.dashboard(db))));
+
+  // ─── Postes (RH › Réglages) ────────────────────────────────
+  /** Liste des postes : pour les formulaires (fiche, compte, paie) et les réglages ; rôles proposables joints. */
+  r.get('/positions', ah(async (req, res) => {
+    if (!['rh:read', 'rh:files', 'paie:read', 'paie:employees', 'users:read', 'users:write'].some(p => req.can(p))) throw new HttpError(403, 'Droits insuffisants.');
+    const roles = (await listRoles(db)).filter(x => x.id !== 'super_admin').map(x => ({ id: x.id, label: x.label }));
+    res.json({ positions: await positions.list(db, { all: req.query.all === '1' }), roles, reasons: POSITION_CHANGE_REASONS });
+  }));
+  const positionSchema = z.object({
+    title: z.string().trim().min(2).max(120), department: z.enum(Object.keys(DEPARTMENTS)), category: optText(40),
+    default_role: z.string().trim().max(40).optional().nullable().transform(v => v || null), active: z.boolean().optional(),
+  });
+  r.post('/positions', requirePermission('rh:settings'), ah(async (req, res) => {
+    const id = await positions.create(db, parse(positionSchema, req.body));
+    res.status(201).json(await db('hr_positions').where({ id }).first());
+  }));
+  r.patch('/positions/:id', requirePermission('rh:settings'), ah(async (req, res) => {
+    const p = await db('hr_positions').where({ id: idParam(req) }).first();
+    if (!p) throw new HttpError(404, 'Poste introuvable.');
+    await positions.update(db, p, parse(positionSchema.partial(), req.body));
+    res.json(await db('hr_positions').where({ id: p.id }).first());
+  }));
+
+  r.post('/positions/:id/merge', requirePermission('rh:settings'), ah(async (req, res) => {
+    const { into } = parse(z.object({ into: z.number().int().positive() }), req.body);
+    const [from, target] = await Promise.all([db('hr_positions').where({ id: idParam(req) }).first(), db('hr_positions').where({ id: into }).first()]);
+    if (!from || !target) throw new HttpError(404, 'Poste introuvable.');
+    await positions.merge(db, from, target);
+    res.json({ ok: true });
+  }));
+
+  /** Changement de poste daté (promotion, mutation…) : appliqué à la date d'effet. */
+  r.post('/employees/:id/position', requirePermission('rh:files'), ah(async (req, res) => {
+    const e = await rh.getEmployee(db, idParam(req));
+    const data = parse(z.object({
+      position_id: z.number().int().positive(), department: z.enum(Object.keys(DEPARTMENTS)).optional(), effective_date: day,
+      reason: z.enum(Object.keys(POSITION_CHANGE_REASONS)), note: optText(500), category: optText(40),
+      base_salary: z.number().int().min(0).max(1000000000).optional().nullable(), change_manager: z.boolean().optional(),
+      manager_id: z.number().int().positive().optional().nullable(), team_ids: z.array(z.number().int().positive()).max(200).optional(),
+      role: z.string().trim().max(40).optional().nullable(),
+    }), req.body);
+    const id = await positions.changePosition(db, e, data, { user: req.user, can: p => req.can(p) });
+    const change = (await positions.changesOf(db, e.id)).find(c => c.id === id);
+    res.status(201).json(change);
+  }));
+  r.get('/employees/:id/position-changes', requirePermission('rh:read'), ah(async (req, res) => res.json(await positions.changesOf(db, idParam(req)))));
+  r.delete('/position-changes/:id', requirePermission('rh:files'), ah(async (req, res) => {
+    const c = await db('hr_position_changes').where({ id: idParam(req) }).first();
+    if (!c) throw new HttpError(404, 'Changement introuvable.');
+    await positions.cancel(db, c);
+    res.json({ ok: true });
+  }));
 
   /** Pastilles du menu RH : demandes à traiter par le compte connecté, et ce qu'il peut ouvrir. */
   r.get('/badges', ah(async (req, res) => {
@@ -232,6 +286,8 @@ module.exports = function rhRoutes(db) {
       m = (await db('employees').where({ id: m }).first('manager_id'))?.manager_id;
     }
     await db.transaction(async trx => {
+      // Un intitulé saisi ici reste dans la liste des postes (RH › Réglages)
+      if (data.job_title && data.job_title !== e.job_title) Object.assign(data, await positions.resolve(trx, { job_title: data.job_title, department: data.department || e.department }));
       await trx('employees').where({ id: e.id }).update({ ...data, updated_at: new Date() });
       await rh.logChanges(trx, e, data, req.user.id);
     });

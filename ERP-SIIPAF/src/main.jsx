@@ -46,6 +46,7 @@ import Reviews from './pages/rh/Reviews';
 import RhSettings from './pages/rh/RhSettings';
 import ModuleAccess from './components/ModuleAccess';
 import Accounts from './pages/Accounts';
+import Onboarding from './pages/Onboarding';
 import '@admin/styles.css';
 import './erp.css';
 
@@ -110,6 +111,7 @@ function App() {
         <Route path="rh/objectifs" element={<Reviews />} />
         <Route path="rh/reglages" element={<Guard perm="rh:read"><RhSettings /></Guard>} />
         <Route path="comptes" element={<Guard perm="users:read"><Accounts /></Guard>} />
+        <Route path="demarrer" element={<Guard perm={['users:read', 'rh:read']}><Onboarding /></Guard>} />
         <Route path="commercial/acces" element={<Guard perm="users:read"><ModuleAccess module="commercial" label="Service commercial" /></Guard>} />
         <Route path="administration" element={<AdminHome />} />
         <Route path="administration/courrier" element={<Courrier />} />

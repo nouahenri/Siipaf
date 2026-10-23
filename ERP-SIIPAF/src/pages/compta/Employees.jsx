@@ -5,6 +5,7 @@ import { useAuth, useResource, useToast, useSaved } from '@admin/lib/app-context
 import { Card, Empty, Skeleton, ErrorBox, Modal, Field, Badge } from '@admin/components/ui';
 import { date, fcfa } from '@admin/lib/format';
 import { usePaieMeta } from '../../lib/paie';
+import { PositionSelect, usePositions } from '../../components/Positions';
 
 /** Registre des employés : bureau, commerciaux, chantier ; relié aux comptes du dashboard quand l'employé en a un. */
 export default function Employees() {
@@ -108,8 +109,9 @@ function EmployeeForm({ employee, onClose, onSaved }) {
       ...f, gender: f.gender || null, birth_date: f.birth_date || null, end_date: f.end_date || null, email: f.email || null,
       children: Number(f.children) || 0, tax_parts: n(f.tax_parts), base_salary: Number(f.base_salary) || 0, housing_allowance: Number(f.housing_allowance) || 0,
       transport_allowance: Number(f.transport_allowance) || 0, other_allowance: Number(f.other_allowance) || 0, accident_rate: n(f.accident_rate),
-      project_id: n(f.project_id), user_id: n(f.user_id),
+      project_id: n(f.project_id), user_id: n(f.user_id), position_id: n(f.position_id),
     };
+    if (!body.position_id) delete body.position_id;
     if (!employee.id) delete body.active;
     try {
       await (employee.id ? api.patch(`/admin/erp/paie/employees/${employee.id}`, body) : api.post('/admin/erp/paie/employees', body));
@@ -117,6 +119,7 @@ function EmployeeForm({ employee, onClose, onSaved }) {
     } catch (err) { setError(err); }
   };
   const users = (meta?.users || []).filter(u => !u.employee_id || u.employee_id === employee.id);
+  const positions = usePositions();
   return (
     <Modal title={employee.id ? `${employee.last_name} ${employee.first_name} · ${employee.matricule}` : 'Nouvel employé'} onClose={onClose} footer={<><button className="btn btn-ghost" onClick={onClose}>Annuler</button><button className="btn btn-primary" form="emp-form">Enregistrer</button></>}>
       <form id="emp-form" className="stack wide-form" style={{ gap: 14 }} onSubmit={save}>
@@ -139,7 +142,7 @@ function EmployeeForm({ employee, onClose, onSaved }) {
         </div>
         <h3 className="erp-h3">Poste et contrat</h3>
         <div className="form-grid">
-          <Field label="Poste"><input className="input" required minLength={2} value={f.job_title} onChange={set('job_title')} placeholder="Conducteur de travaux, maçon, commerciale…" /></Field>
+          <Field label="Poste"><PositionSelect value={f.job_title} positions={positions.data?.positions} onPick={p => setF(x => ({ ...x, job_title: p.title, position_id: p.id, department: p.department, category: x.category || p.category || '' }))} /></Field>
           <Field label="Service"><select className="select" value={f.department} onChange={set('department')}>{meta && Object.entries(meta.departments).map(([k, v]) => <option key={k} value={k}>{v}</option>)}</select></Field>
           <Field label="Contrat"><select className="select" value={f.contract_type} onChange={set('contract_type')}>{meta && Object.entries(meta.contract_types).map(([k, v]) => <option key={k} value={k}>{v}</option>)}</select></Field>
           <Field label="Catégorie professionnelle"><input className="input" value={f.category} onChange={set('category')} /></Field>

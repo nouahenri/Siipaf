@@ -4,7 +4,7 @@ import {
   LayoutGrid, LifeBuoy, LayoutDashboard, ClipboardList, ClipboardCheck, CalendarClock, LogOut, Menu, ExternalLink,
   Briefcase, Columns3, ListTodo, CalendarDays, Building2, FileSignature, Landmark, Target,
   Calculator, BookOpen, ShoppingCart, FileBarChart, ListTree, Settings2, Contact, Banknote,
-  Users, UserRound, Palmtree, Fingerprint, Receipt, UserPlus, GraduationCap, ShieldCheck, UserCog, Building, Mail, FileClock, Truck, BookOpenCheck, Inbox,
+  Users, UserRound, Palmtree, Fingerprint, Receipt, UserPlus, GraduationCap, ShieldCheck, UserCog, Building, Mail, FileClock, Truck, BookOpenCheck, Inbox, Rocket,
 } from 'lucide-react';
 import { useAuth, useResource } from '@admin/lib/app-context';
 import { useRevealOnScroll } from '@admin/lib/reveal';
@@ -94,7 +94,7 @@ const MODULES = {
 const TITLES = {
   '/': 'Modules', '/commercial': 'Service commercial', '/commercial/pipeline': 'Pipeline commercial', '/commercial/activites': 'Mes activités',
   '/commercial/rendez-vous': 'Rendez-vous', '/commercial/parc': 'Parc immobilier', '/commercial/ventes': 'Dossiers de vente',
-  '/commercial/vefa': 'Appels de fonds VEFA', '/commercial/objectifs': 'Objectifs et performance', '/administration': 'Vue Direction', '/administration/courrier': 'Courrier arrivée et départ', '/administration/contrats': 'Contrats et échéances', '/administration/parc': 'Parc auto et matériel', '/administration/documents': 'Documents internes', '/administration/demandes': 'Demandes internes', '/administration/acces': 'Rôles et privilèges — Administration générale',
+  '/commercial/vefa': 'Appels de fonds VEFA', '/commercial/objectifs': 'Objectifs et performance', '/administration': 'Vue Direction', '/administration/courrier': 'Courrier arrivée et départ', '/administration/contrats': 'Contrats et échéances', '/administration/parc': 'Parc auto et matériel', '/administration/documents': 'Documents internes', '/demarrer': 'Bien démarrer', '/administration/demandes': 'Demandes internes', '/administration/acces': 'Rôles et privilèges — Administration générale',
   '/compta': 'Comptabilité', '/compta/ecritures': 'Écritures comptables', '/compta/achats': 'Achats et fournisseurs', '/compta/etats': 'États comptables',
   '/compta/plan': 'Plan comptable SYSCOHADA', '/compta/parametres': 'Paramètres comptables', '/compta/paie': 'Paie', '/compta/employes': 'Employés', '/rh': 'Ressources humaines', '/rh/moi': 'Mon espace', '/rh/personnel': 'Personnel', '/rh/conges': 'Congés et absences', '/rh/presences': 'Présences', '/rh/borne': 'Borne de pointage', '/rh/frais': 'Notes de frais', '/rh/recrutement': 'Recrutement', '/rh/competences': 'Compétences et formations', '/rh/objectifs': 'Performance et entretiens', '/rh/reglages': 'Réglages RH', '/commercial/acces': 'Rôles et privilèges — Service commercial', '/compta/acces': 'Rôles et privilèges — Comptabilité', '/rh/acces': 'Rôles et privilèges — Ressources humaines', '/sav/acces': 'Rôles et privilèges — Client & SAV', '/comptes': 'Comptes utilisateurs', '/sav': 'Client & SAV', '/sav/reclamations': 'Réclamations', '/sav/reserves': 'Réserves de livraison', '/sav/interventions': 'Interventions',
 };
@@ -141,6 +141,7 @@ export default function ErpLayout() {
           </div>
         )}
         <div className="sidebar-foot">
+          {(can('users:read') || can('rh:read')) && <NavLink to="/demarrer" className={({ isActive }) => `nav-item ${isActive ? 'active' : ''}`}><Rocket aria-hidden="true" />Bien démarrer</NavLink>}
           {can('users:read') && <NavLink to="/comptes" className={({ isActive }) => `nav-item ${isActive ? 'active' : ''}`}><UserCog aria-hidden="true" />Comptes utilisateurs</NavLink>}
           <a href={dashboardUrl()} className="nav-item"><ExternalLink aria-hidden="true" />Dashboard du site</a>
           <button className="nav-item btn-ghost" style={{ width: '100%', border: 'none', cursor: 'pointer' }} onClick={logout}>

@@ -6,6 +6,7 @@ import { useAuth, useResource, useToast, useSaved } from '@admin/lib/app-context
 import { Card, Empty, Skeleton, ErrorBox, Modal, Field, Badge, Drawer } from '@admin/components/ui';
 import { initials, relative } from '@admin/lib/format';
 import { useRhMeta } from '../lib/rh';
+import { PositionSelect, usePositions } from '../components/Positions';
 
 /**
  * Comptes utilisateurs depuis l'ERP : mêmes comptes que le dashboard (un seul compte par personne pour le dashboard
@@ -59,6 +60,7 @@ function NewAccount({ roles, onClose, onCreated }) {
   const { meta } = useRhMeta();
   const files = can('rh:files') || can('paie:employees');
   const unlinked = useResource(files ? '/admin/users/unlinked-employees' : null);
+  const positions = usePositions();
   const [f, setF] = useState({ name: '', email: '', phone: '', role: 'commercial', link: files ? 'create' : 'none', employee_id: '', job_title: '', department: 'administratif', hire_date: new Date().toISOString().slice(0, 10) });
   const [error, setError] = useState(null);
   const [busy, setBusy] = useState(false);
@@ -72,7 +74,7 @@ function NewAccount({ roles, onClose, onCreated }) {
     e.preventDefault(); setError(null); setBusy(true);
     const body = { name: f.name, email: f.email, phone: f.phone || null, role: f.role };
     if (f.link === 'existing') body.employee_id = Number(f.employee_id);
-    if (f.link === 'create') body.employee = { job_title: f.job_title, department: f.department, hire_date: f.hire_date };
+    if (f.link === 'create') body.employee = { job_title: f.job_title, position_id: f.position_id || null, department: f.department, hire_date: f.hire_date };
     try { onCreated(await api.post('/admin/users', body)); } catch (err) { setError(err); setBusy(false); }
   };
   return (
@@ -98,7 +100,10 @@ function NewAccount({ roles, onClose, onCreated }) {
           </Field>
         )}
         {f.link === 'create' && <>
-          <Field label="Poste"><input className="input" required minLength={2} value={f.job_title} onChange={set('job_title')} placeholder="Commerciale, comptable…" /></Field>
+          <Field label="Poste" hint="Le service et, s’il est prévu, le rôle du poste sont repris d’office">
+            <PositionSelect value={f.job_title} positions={positions.data?.positions}
+              onPick={p => setF(x => ({ ...x, job_title: p.title, position_id: p.id, department: p.department, role: p.default_role && assignable(roles, user).some(r => r.id === p.default_role) ? p.default_role : x.role }))} />
+          </Field>
           <Field label="Service"><select className="select" value={f.department} onChange={set('department')}>{meta && Object.entries(meta.departments).map(([k, v]) => <option key={k} value={k}>{v}</option>)}</select></Field>
           <Field label="Date d’entrée" hint="Salaire et contrat se complètent ensuite dans Comptabilité › Employés"><input className="input" type="date" required value={f.hire_date} onChange={set('hire_date')} /></Field>
         </>}

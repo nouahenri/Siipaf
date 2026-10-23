@@ -108,10 +108,12 @@ async function hire(db, id, { hire_date, base_salary, trial_end_date = null, con
   const job = a.job_id ? await db('hr_jobs').where({ id: a.job_id }).first() : null;
   const [first, ...rest] = a.name.trim().split(/\s+/);
   return db.transaction(async trx => {
-    const title = job_title || job?.title || 'Employé(e)';
+    // Le poste recruté rejoint la liste des postes (RH › Réglages)
+    const post = await require('./positions').resolve(trx, { job_title: job_title || job?.title || 'Employé(e)', department: job?.department || 'administratif' });
+    const title = post.job_title;
     const [eid] = await trx('employees').insert({
       matricule: await paie.nextMatricule(trx), last_name: rest.length ? rest.join(' ') : first, first_name: first, email: a.email, phone: a.phone,
-      job_title: title, department: job?.department || 'administratif', contract_type: contract_type || job?.contract_type || 'cdi', project_id: job?.project_id || null,
+      job_title: title, position_id: post.position_id, department: job?.department || 'administratif', contract_type: contract_type || job?.contract_type || 'cdi', project_id: job?.project_id || null,
       hire_date, trial_end_date, base_salary: base_salary ?? Number(a.proposed_salary || 0),
     });
     const employeeId = insertedId(eid);
