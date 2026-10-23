@@ -96,7 +96,10 @@ async function detail(db, id) {
   const invoices = (await db('contract_invoices as ci').leftJoin('purchase_invoices as i', 'i.id', 'ci.purchase_invoice_id').where('ci.contract_id', c.id)
     .orderBy('ci.due_date', 'desc').select('ci.due_date', 'i.id', 'i.number', 'i.status', 'i.amount_ttc'))
     .map(i => ({ ...i, due_date: isoDay(i.due_date), amount_ttc: i.amount_ttc == null ? null : Number(i.amount_ttc) }));
-  return serialize(c, docs, invoices);
+  // Cautions et retenues de garantie rattachées (suivies dans ERP › Juridique)
+  const guarantees = (await require('./juridique').guarantees(db, { status: null, contractId: c.id }))
+    .map(g => ({ id: g.id, reference: g.reference, kind_label: g.kind_label, amount_fcfa: g.amount_fcfa, status: g.status, status_label: g.status_label, deadline: g.deadline }));
+  return { ...serialize(c, docs, invoices), guarantees };
 }
 
 async function nextReference(trx, date) {

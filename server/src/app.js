@@ -73,6 +73,7 @@ function createApp(db) {
   admin.use('/erp/parc', require('./routes/erp/parc')(db));
   admin.use('/erp/documents', require('./routes/erp/docs')(db));
   admin.use('/erp/demandes', require('./routes/erp/requests')(db));
+  admin.use('/erp/juridique', require('./routes/erp/juridique')(db));
   admin.use('/erp/demarrage', require('./routes/erp/onboarding')(db));
   admin.use('/erp/compta', require('./routes/erp/compta')(db));
   admin.use('/erp/paie', require('./routes/erp/paie')(db));
@@ -160,6 +161,9 @@ function createApp(db) {
     // Documents internes : relances de lecture et actions des PV (veille, retard)
     const docs = require('./services/docs');
     setInterval(() => docs.tick(db).catch(e => console.error('[documents]', e.message)), 60 * 60 * 1000).unref();
+    // Juridique : échéances des litiges (veille, jour), cautions (30 puis 7 jours), impayés (commercial puis Juridique)
+    const juridique = require('./services/juridique');
+    setInterval(() => juridique.tick(db).catch(e => console.error('[juridique]', e.message)), 60 * 60 * 1000).unref();
     // Changements de poste planifiés : appliqués à leur date d'effet
     const positions = require('./services/positions');
     setInterval(() => positions.tick(db).catch(e => console.error('[postes]', e.message)), 60 * 60 * 1000).unref();

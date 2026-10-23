@@ -5,7 +5,7 @@
  */
 import {
   Banknote, Wallet, Landmark, HardHat, Gauge, Target, Users, UserMinus, LifeBuoy, AlarmClock, Star, Scale, ReceiptText, Briefcase,
-  Building, Mail, FileClock, Truck, Inbox, FileText, ListChecks,
+  Building, Mail, FileClock, Truck, Inbox, FileText, ListChecks, Stamp, ShieldHalf,
 } from 'lucide-react';
 import { Link } from 'react-router-dom';
 import { useResource } from '@admin/lib/app-context';
@@ -21,6 +21,7 @@ const pct = (done, target) => (target ? Math.round((done / target) * 1000) / 10 
 const ATTENTION = {
   courrier: { icon: Mail, label: 'Courrier' }, contrats: { icon: FileClock, label: 'Contrats' },
   parc: { icon: Truck, label: 'Parc' }, documents: { icon: FileText, label: 'Documents internes' },
+  litiges: { icon: Scale, label: 'Litiges' }, cautions: { icon: ShieldHalf, label: 'Cautions' }, impayes: { icon: AlarmClock, label: 'Impayés' },
 };
 
 function Section({ icon: Icon, title, to, children }) {
@@ -37,7 +38,7 @@ export default function Direction() {
   const d = res.data;
   if (res.error) return <ErrorBox error={res.error} />;
   if (!d) return <div className="grid grid-4">{[1, 2, 3, 4].map(i => <Skeleton key={i} h={110} />)}</div>;
-  const { commercial: c, chantiers: ch, finance: f, rh, sav, administration: a } = d;
+  const { commercial: c, chantiers: ch, finance: f, rh, sav, administration: a, juridique: j } = d;
   const lastPay = rh.payroll[rh.payroll.length - 1];
   const withSales = ch.projects.filter(p => p.dossiers || p.lots);
 
@@ -208,6 +209,15 @@ export default function Direction() {
             foot={`${num(a.documents.published)} document(s) publié(s) · ${num(a.documents.late_docs)} en retard`} />
           <Kpi to="/administration/documents" icon={ListChecks} label="Actions de réunion ouvertes" count={a.documents.actions_open} tint={a.documents.actions_late ? 'amber' : undefined}
             foot={`${num(a.documents.actions_late)} en retard`} />
+        </div>
+      </Section>
+
+      <Section icon={Scale} title="Juridique" to="/juridique">
+        <div className="grid grid-4">
+          <Kpi to="/juridique/actes" icon={Stamp} label="Ventes en cours jusqu’à l’acte" count={j.deeds_open} foot={`${num(j.deeds_to_sign)} acte(s) à signer chez le notaire`} />
+          <Kpi to="/juridique/litiges" icon={Scale} label="Litiges ouverts" count={j.litigations} foot={j.litigations_fcfa ? `${money(j.litigations_fcfa)} en jeu` : 'aucun montant en jeu'} />
+          <Kpi to="/juridique/cautions" icon={ShieldHalf} label="Cautions : échéances (30 j)" count={j.guarantees_due_30} tint={j.guarantees_late ? 'amber' : undefined} foot={`${num(j.guarantees_late)} dépassée(s)`} />
+          <Kpi to="/juridique/impayes" icon={AlarmClock} label={`Impayés de plus de ${j.unpaid_threshold} jours`} count={j.unpaid_transmitted} tint={j.unpaid_to_handle ? 'amber' : undefined} foot={`${num(j.unpaid_to_handle)} sans litige ouvert`} />
         </div>
       </Section>
     </div>

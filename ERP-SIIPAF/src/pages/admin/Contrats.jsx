@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { useSearchParams } from 'react-router-dom';
+import { Link, useSearchParams } from 'react-router-dom';
 import { Plus, FileClock, FileText, Paperclip, Check, Pencil, Ban, Undo2, Search, RefreshCw, Trash2, Receipt } from 'lucide-react';
 import { api, qs } from '@admin/lib/api';
 import { useAuth, useResource, useToast } from '@admin/lib/app-context';
@@ -130,6 +130,7 @@ function ContractDrawer({ id, refs, onClose, onChange, onEdit }) {
   const [closing, setClosing] = useState(null); // { status, date, reason }
   const [doc, setDoc] = useState(null); // {} nouvelle pièce, { doc } renouvellement
   const write = can('contrats:write');
+  const canGuarantees = ['juridique:read', 'juridique:write', 'direction:read', 'compta:read'].some(can);
   const act = async (path, body, message) => {
     setBusy(true);
     try { x.setData(await api.post(`${URL}/${id}/${path}`, body)); onChange(); toast(message); setClosing(null); } catch (e) { toast(e.message, 'err'); } finally { setBusy(false); }
@@ -184,6 +185,19 @@ function ContractDrawer({ id, refs, onClose, onChange, onEdit }) {
               </div>
             ))}
           </div>
+
+          {c.guarantees?.length > 0 && (
+            <div className="erp-panel">
+              <b>Cautions et retenues de garantie</b>
+              {c.guarantees.map(g => (
+                <div key={g.id} className="kv">
+                  <span style={{ flexShrink: 1 }}>{canGuarantees ? <Link to={`/juridique/cautions?fiche=${g.id}`}>{g.reference}</Link> : g.reference} · {g.kind_label}</span>
+                  <b className="row" style={{ gap: 6, justifyContent: 'flex-end', flexWrap: 'wrap' }}>{fcfa(g.amount_fcfa)} {g.deadline ? <>{date(g.deadline.date)} <DaysLeft n={g.deadline.days_left} /></> : <Badge>{g.status_label}</Badge>}</b>
+                </div>
+              ))}
+              <p className="small muted" style={{ margin: '6px 0 0' }}>Suivies dans Juridique › Cautions et garanties.</p>
+            </div>
+          )}
 
           {c.invoices?.length > 0 && (
             <div className="erp-panel">

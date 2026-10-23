@@ -2,7 +2,7 @@ import { Link } from 'react-router-dom';
 import { LifeBuoy, Calculator, Users, Scale, Building, HardHat, Boxes, Briefcase, ArrowRight } from 'lucide-react';
 import { useAuth, useResource } from '@admin/lib/app-context';
 import { useErpNotifications } from '../components/NotificationCenter';
-import { ADMIN_SHOW } from '../components/ErpLayout';
+import { ADMIN_SHOW, JURIDIQUE, JURIDIQUE_SHOW } from '../components/ErpLayout';
 
 // Feuille de route de l'ERP (passation.md §5 quinquies) : seuls les modules livrés sont ouverts
 const MODULES = [
@@ -12,7 +12,7 @@ const MODULES = [
   { id: 'rh', to: '/rh', label: 'Ressources humaines', text: 'Mon espace (pointage, congés, notes de frais), personnel, présences, recrutement, compétences et formations, entretiens.', icon: Users, color: '#eb6834' },
   { id: 'chantiers', label: 'Chantiers', text: 'Planning (Gantt), feuilles de temps, situations de travaux.', icon: HardHat, color: '#eda100' },
   { id: 'achats', label: 'Achats & stocks', text: 'Commandes, sous-traitance, dépôt ↔ chantier.', icon: Boxes, color: '#e87ba4' },
-  { id: 'juridique', label: 'Juridique', text: 'Contrats, notaires, actes et échéances.', icon: Scale, color: '#6d28d9' },
+  { id: 'juridique', to: '/juridique', label: 'Juridique', text: 'Ventes jusqu’à l’acte notarié, litiges, cautions et retenues de garantie, impayés transmis, contrats et échéances.', icon: Scale, perm: [...JURIDIQUE, 'compta:read'], show: JURIDIQUE_SHOW, badges: '/admin/erp/juridique/badges', color: '#6d28d9' },
   { id: 'admin', module: 'administration', to: '/administration', label: 'Administration générale', text: 'Vue Direction de tous les services, courrier arrivée et départ, contrats et échéances, parc auto et matériel, documents internes, demandes internes.', icon: Building, perm: ['direction:read', 'courrier:read', 'courrier:write', 'courrier:assign', 'contrats:read', 'contrats:write', 'parc:read', 'parc:write', 'demandes:handle', 'demandes:dg'], show: ADMIN_SHOW, color: '#5b6170' },
 ];
 
@@ -20,6 +20,8 @@ export default function Launcher() {
   const { can, user } = useAuth();
   // Le destinataire d'un courrier ou le responsable d'un contrat entre dans l'Administration générale pour les siens
   const mail = useResource('/admin/erp/direction/badges');
+  // Le juriste en charge d'un litige ou un membre du service concerné entre dans le Juridique pour les siens
+  const legal = useResource('/admin/erp/juridique/badges');
   // Pastille : notifications non lues du module (centre de notifications commun)
   const unread = useErpNotifications().data?.by_module || {};
   return (
@@ -30,7 +32,7 @@ export default function Launcher() {
       </div>
       <div className="module-grid">
         {MODULES.map(m => {
-          const ready = m.to && (!m.perm || [].concat(m.perm).some(can) || !!m.show?.(mail.data));
+          const ready = m.to && (!m.perm || [].concat(m.perm).some(can) || !!m.show?.(m.badges ? legal.data : mail.data));
           const count = ready ? unread[m.module || m.id] || 0 : 0;
           const body = (
             <>

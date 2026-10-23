@@ -8,7 +8,7 @@ import { date, fcfa } from '@admin/lib/format';
 import { useComptaMeta, amt, PAYMENT_STATUS, AccountInput } from '../../lib/compta';
 import { splitVatClient } from './vat';
 
-const KINDS = { fournisseur: 'Fournisseur', sous_traitant: 'Sous-traitant', prestataire: 'Prestataire' };
+const KINDS = { fournisseur: 'Fournisseur', sous_traitant: 'Sous-traitant', prestataire: 'Prestataire', notaire: 'Notaire' };
 
 export default function Purchases() {
   const [params, setParams] = useSearchParams();

@@ -2,7 +2,7 @@ import { StrictMode } from 'react';
 import { createRoot } from 'react-dom/client';
 import { BrowserRouter, Navigate, Route, Routes } from 'react-router-dom';
 import { AppProvider, useAuth } from '@admin/lib/app-context';
-import ErpLayout from './components/ErpLayout';
+import ErpLayout, { JURIDIQUE } from './components/ErpLayout';
 import Login from './pages/Login';
 import ForcePassword from '@admin/components/ForcePassword';
 import Launcher from './pages/Launcher';
@@ -24,6 +24,12 @@ import Contrats from './pages/admin/Contrats';
 import Parc from './pages/admin/Parc';
 import Documents from './pages/admin/Documents';
 import Demandes from './pages/admin/Demandes';
+import JuridiqueDashboard from './pages/juridique/JuridiqueDashboard';
+import Actes from './pages/juridique/Actes';
+import Litiges from './pages/juridique/Litiges';
+import Cautions from './pages/juridique/Cautions';
+import Impayes from './pages/juridique/Impayes';
+import JuridiqueSettings from './pages/juridique/JuridiqueSettings';
 import ComptaDashboard from './pages/compta/ComptaDashboard';
 import Entries from './pages/compta/Entries';
 import Purchases from './pages/compta/Purchases';
@@ -70,6 +76,13 @@ function AdminHome() {
     [['parc:read', 'parc:write'], '/administration/parc'], [['demandes:handle', 'demandes:dg'], '/administration/demandes'], [['docs:publish'], '/administration/documents'],
   ].find(([perms]) => perms.some(can));
   return <Navigate to={first ? first[1] : '/administration/courrier'} replace />;
+}
+
+/** Entrée du Juridique : le tableau de bord, sinon les litiges du juriste en charge ou du service concerné. */
+function JuridiqueHome() {
+  const { can } = useAuth();
+  if (JURIDIQUE.some(can)) return <JuridiqueDashboard />;
+  return <Navigate to={can('compta:read') ? '/juridique/cautions' : '/juridique/litiges'} replace />;
 }
 
 function App() {
@@ -120,6 +133,14 @@ function App() {
         <Route path="administration/documents" element={<Documents />} />
         <Route path="administration/demandes" element={<Demandes />} />
         <Route path="administration/acces" element={<Guard perm="users:read"><ModuleAccess module="administration" label="Administration générale" /></Guard>} />
+        <Route path="juridique" element={<JuridiqueHome />} />
+        <Route path="juridique/actes" element={<Guard perm={JURIDIQUE}><Actes /></Guard>} />
+        <Route path="juridique/litiges" element={<Litiges />} />
+        <Route path="juridique/cautions" element={<Guard perm={[...JURIDIQUE, 'compta:read']}><Cautions /></Guard>} />
+        <Route path="juridique/impayes" element={<Guard perm={JURIDIQUE}><Impayes /></Guard>} />
+        <Route path="juridique/contrats" element={<Contrats />} />
+        <Route path="juridique/reglages" element={<Guard perm={JURIDIQUE}><JuridiqueSettings /></Guard>} />
+        <Route path="juridique/acces" element={<Guard perm="users:read"><ModuleAccess module="juridique" label="Juridique" /></Guard>} />
         <Route path="compta/acces" element={<Guard perm="users:read"><ModuleAccess module="compta" label="Comptabilité et paie" /></Guard>} />
         <Route path="rh/acces" element={<Guard perm="users:read"><ModuleAccess module="rh" label="Ressources humaines" /></Guard>} />
         <Route path="sav/acces" element={<Guard perm="users:read"><ModuleAccess module="sav" label="Client & SAV" /></Guard>} />

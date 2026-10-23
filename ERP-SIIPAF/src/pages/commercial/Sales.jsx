@@ -8,6 +8,7 @@ import { INSTALLMENT_STATUS } from '@admin/lib/domain';
 import { date, fcfa } from '@admin/lib/format';
 import { useCommercialMeta, compact } from '../../lib/commercial';
 import LeadDrawer from './LeadDrawer';
+import DeedSteps from '../../components/DeedSteps';
 
 const STATUS = { en_cours: ['En cours', 'warn'], solde: ['Soldé', 'ok'], desiste: ['Désisté', 'danger'] };
 const METHODS = { virement: 'Virement', mobile_money: 'Mobile Money', especes: 'Espèces', cheque: 'Chèque', autre: 'Autre' };
@@ -120,6 +121,11 @@ export function SaleDrawer({ id, onClose, onChange }) {
               <dt>Réservation</dt><dd>{date(d.reserved_at)}{d.signed_at ? ` · acte signé le ${date(d.signed_at)}` : ''}</dd>
               {d.overdue_count > 0 && <><dt>Retard</dt><dd style={{ color: 'var(--danger)' }}>{fcfa(d.overdue_fcfa)} sur {d.overdue_count} échéance(s)</dd></>}
             </dl>
+          </section>
+
+          <section>
+            <h3 className="erp-h3">Circuit jusqu’à l’acte</h3>
+            <DeedSteps saleId={id} onChange={() => { s.reload(); onChange?.(); }} />
           </section>
 
           <section>

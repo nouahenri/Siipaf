@@ -6,6 +6,7 @@ const { requirePermission } = require('../auth');
 const { PAYMENT_METHODS, DOCUMENT_TYPES, DOCUMENT_STATUSES, SCHEDULE_KINDS } = require('../lib/domain');
 const { openSale, refreshSaleStatus, totals, ACTIVE } = require('../services/sales');
 const { regenerateSchedule, replaceSchedule, scheduleStatus } = require('../services/schedule');
+const juridique = require('../services/juridique');
 
 const day = z.coerce.date();
 
@@ -95,15 +96,20 @@ module.exports = function salesRoutes(db) {
       vefa: z.boolean(),
       notes: z.string().max(2000).nullable(),
     }).partial(), req.body);
-    const n = await db('sales').where({ id }).update({ ...data, updated_at: new Date() });
-    if (!n) throw new HttpError(404, 'Dossier introuvable.');
+    const before = await db('sales').where({ id }).first();
+    if (!before) throw new HttpError(404, 'Dossier introuvable.');
+    // Acte signé saisi ici plutôt que dans ERP › Juridique : mêmes effets (lot vendu, pièce signée, annonces)
+    const signedNow = !before.signed_at && !!data.signed_at && before.status !== 'desiste';
+    await db('sales').where({ id }).update({ ...data, updated_at: new Date() });
     const sale = await db.transaction(async trx => {
+      if (signedNow) await juridique.deedSigned(trx, before, req.user.id);
       // Prix, financement ou date de départ modifiés : l'échéancier type est recalculé
       if (['price_fcfa', 'financing', 'reserved_at', 'vefa'].some(k => k in data)) {
         await regenerateSchedule(trx, await trx('sales').where({ id }).first());
       }
       return refreshSaleStatus(trx, id);
     });
+    if (signedNow) await juridique.announceDeed(db, id, req.user.id);
     res.json(await saleDetail(await db('sales').where({ id: sale.id }).first()));
   }));
 

@@ -178,15 +178,40 @@ async function adminPart(db, now) {
   };
 }
 
+/** Juridique : ventes jusqu'à l'acte, litiges, cautions, impayés transmis ; ce qui a dépassé son délai. */
+async function legalPart(db) {
+  const jur = require('./juridique');
+  const ALL = { can: () => true, userId: 0 };
+  const [deeds, lits, gars, unpaid] = await Promise.all([jur.deeds(db), jur.litigations(db, ALL, { status: 'ouvert' }), jur.guarantees(db, { status: 'active' }), jur.unpaid(db)]);
+  const toHandle = unpaid.items.filter(u => u.transmitted && !u.litigation);
+  const attention = [
+    ...lits.filter(l => l.next_date && l.days_left < 0).map(l => ({ module: 'litiges', label: `Litige ${l.reference} : ${(l.next_label || 'échéance').toLowerCase()}`, detail: `${l.title} · ${l.opponent}`, date: l.next_date, link: `/juridique/litiges?fiche=${l.id}` })),
+    ...gars.filter(g => g.deadline && g.deadline.days_left < 0).map(g => ({ module: 'cautions', label: `${g.reference} : ${g.deadline.label.toLowerCase()}`, detail: `${g.kind_label} · ${g.counterparty_name || ''}`, date: g.deadline.date, link: `/juridique/cautions?fiche=${g.id}` })),
+    ...toHandle.map(u => ({ module: 'impayes', label: `Impayé de ${u.days_late} jours sans litige : ${u.client_name}`, detail: `${u.project_name}, lot ${u.lot_code}`, date: u.oldest_due, link: '/juridique/impayes' })),
+  ];
+  return {
+    deeds_open: deeds.filter(d => d.current).length, deeds_to_sign: deeds.filter(d => d.current === 'acte').length,
+    litigations: lits.length, litigations_fcfa: lits.reduce((t, l) => t + (l.amount_fcfa || 0), 0),
+    guarantees_due_30: gars.filter(g => g.deadline && g.deadline.days_left <= 30).length, guarantees_late: gars.filter(g => g.deadline && g.deadline.days_left < 0).length,
+    unpaid_threshold: unpaid.threshold, unpaid_transmitted: unpaid.items.filter(u => u.transmitted).length, unpaid_to_handle: toHandle.length,
+    attention,
+  };
+}
+
 async function overview(db, now = new Date()) {
   const ct = require('./compta');
   const rh = require('./rh');
   const { departmentReport } = require('./performance');
   const { savStats } = require('./sav');
-  const [commercial, projects, collections, finance, staff, payroll, performance, sav, administration] = await Promise.all([
+  const [commercial, projects, collections, finance, staff, payroll, performance, sav, administration, juridique] = await Promise.all([
     commercialPart(db, now), projectsPart(db, now), collectionsPart(db), ct.dashboard(db),
-    rh.dashboard(db, isoDay(now)), payrollPart(db, now), departmentReport(db, now.getFullYear(), { now }), savStats(db, now), adminPart(db, now),
+    rh.dashboard(db, isoDay(now)), payrollPart(db, now), departmentReport(db, now.getFullYear(), { now }), savStats(db, now), adminPart(db, now), legalPart(db),
   ]);
+  // « À traiter en priorité » : les délais dépassés du Juridique rejoignent ceux de l'Administration générale
+  const attention = [...administration.attention, ...juridique.attention].sort((a, b) => String(a.date || '').localeCompare(String(b.date || '')));
+  administration.attention_total += juridique.attention.length;
+  administration.attention = attention.slice(0, 15);
+  delete juridique.attention;
   const withSales = projects.filter(p => p.dossiers);
   return {
     at: isoTime(now),
@@ -215,6 +240,7 @@ async function overview(db, now = new Date()) {
       satisfaction_avg: sav.satisfaction_avg, satisfaction_count: sav.satisfaction_count, months: sav.months, open_by_project: sav.open_by_project,
     },
     administration,
+    juridique,
   };
 }
 

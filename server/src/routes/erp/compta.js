@@ -210,7 +210,7 @@ module.exports = function comptaRoutes(db) {
 
   // ─── Fournisseurs et achats ───────────────────────────────
   const supplierSchema = z.object({
-    name: z.string().trim().min(2).max(160), kind: z.enum(['fournisseur', 'sous_traitant', 'prestataire']).default('fournisseur'),
+    name: z.string().trim().min(2).max(160), kind: z.enum(['fournisseur', 'sous_traitant', 'prestataire', 'notaire']).default('fournisseur'),
     phone: optText(40), email: z.string().trim().toLowerCase().email().optional().nullable().or(z.literal('').transform(() => null)),
     address: optText(255), ncc: optText(40), rccm: optText(60), expense_account: z.string().trim().max(12).optional().nullable(), notes: optText(500),
   });

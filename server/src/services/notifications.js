@@ -11,6 +11,7 @@ const { effectivePermissions, hasPermission } = require('./permissions');
 
 const NOTIF_MODULES = {
   commercial: 'Service commercial', sav: 'Client & SAV', compta: 'Comptabilité', rh: 'Ressources humaines', administration: 'Administration générale',
+  juridique: 'Juridique',
 };
 const PRIORITIES = ['info', 'action', 'urgent'];
 

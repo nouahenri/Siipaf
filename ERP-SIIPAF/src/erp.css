@@ -320,3 +320,15 @@ details > summary { list-style-position: inside; }
 
 /* Courrier : délai dépassé */
 .text-danger { color: var(--danger); font-weight: 500; }
+
+/* ─── Juridique : circuit de la vente jusqu'à l'acte ─────── */
+.deed-steps { list-style: none; margin: 0; padding: 0; position: relative; display: flex; flex-direction: column; gap: 10px; }
+.deed-steps::before { content: ''; position: absolute; left: 10px; top: 12px; bottom: 12px; width: 2px; background: var(--border); }
+.deed-steps li { position: relative; padding-left: 32px; min-width: 0; }
+.deed-dot { position: absolute; left: 0; top: 1px; width: 22px; height: 22px; border-radius: 50%; display: grid; place-items: center; font-size: 11px; font-weight: 600; background: var(--surface); border: 2px solid var(--border-strong); color: var(--ink-3); }
+.deed-steps li.done .deed-dot { background: var(--ok); border-color: var(--ok); color: #fff; }
+.deed-steps li.current .deed-dot { border-color: var(--gold); color: var(--ink); }
+.deed-body { min-width: 0; }
+.deed-mini { display: inline-flex; gap: 3px; vertical-align: middle; }
+.deed-mini i { width: 12px; height: 6px; border-radius: 3px; background: var(--border); }
+.deed-mini i.on { background: var(--ok); }

@@ -346,6 +346,7 @@ const CONTRACT_ACTIONS = ['contrats:read', 'contrats:write'];
 const PARC_ACTIONS = ['parc:read', 'parc:write'];
 const DOCS_ACTIONS = ['docs:publish'];
 const REQUEST_ACTIONS = ['demandes:handle'];
+const LEGAL_ACTIONS = ['juridique:read', 'juridique:write'];
 const RH_ACTIONS = ['rh:files', 'conges:approve', 'conges:manage', 'rh:overtime', 'frais:approve', 'recrutement:write', 'formation:write', 'evaluation:write', 'rh:settings'];
 
 /** Droits par défaut des rôles d'origine. Le super administrateur a tous les droits. */
@@ -362,7 +363,7 @@ const PERMISSIONS = {
   ],
   conducteur_travaux: [
     'projects:read', 'lots:read', 'sales:read', 'documents:write', 'site_updates:write', 'client_messages',
-    'sav:read', 'sav:create', 'sav:handle', 'sav:reserves', 'sav:interventions', 'vefa:write', 'presence:write', ...CONTRACT_ACTIONS, ...SELF_SERVICE,
+    'sav:read', 'sav:create', 'sav:handle', 'sav:reserves', 'sav:interventions', 'vefa:write', 'presence:write', ...CONTRACT_ACTIONS, ...LEGAL_ACTIONS, ...SELF_SERVICE,
   ],
   comptable: [
     'projects:read', 'lots:read', 'leads:read', 'appointments:read', 'sales:read', 'payments:write',
@@ -375,7 +376,7 @@ const PERMISSIONS = {
     'sales:read', 'sales:write', 'documents:write', 'testimonials:write',
     'client_access:write', 'client_messages', 'site_updates:write', 'schedule:write', 'settings:write',
     'leads:all', 'sav:read', ...SAV_ACTIONS, 'commercial:read', 'targets:write', 'vefa:write', 'property:write', 'compta:read',
-    'rh:read', ...RH_ACTIONS, 'presence:write', 'direction:read', ...COURRIER_ACTIONS, ...CONTRACT_ACTIONS, ...PARC_ACTIONS, ...DOCS_ACTIONS, ...REQUEST_ACTIONS, ...SELF_SERVICE,
+    'rh:read', ...RH_ACTIONS, 'presence:write', 'direction:read', ...COURRIER_ACTIONS, ...CONTRACT_ACTIONS, ...PARC_ACTIONS, ...DOCS_ACTIONS, ...REQUEST_ACTIONS, ...LEGAL_ACTIONS, ...SELF_SERVICE,
   ],
 };
 
@@ -465,6 +466,10 @@ const PERMISSION_CATALOG = [
     ['docs:publish', 'Publier les documents internes (direction, services généraux)', 'Notes de service, procédures, PV, modèles pour tout le personnel ; suivi des lectures (un chef de service publie pour son service sans ce droit)'],
     ['demandes:handle', 'Traiter les demandes internes (services généraux)', 'Voir toutes les demandes, les prendre en charge, les clôturer ; un achat traité devient une facture d’achat en brouillon'],
     ['demandes:dg', 'Valider en direction générale', 'Demandes d’achat dont le montant atteint le plafond réglé dans Paramètres › Général'],
+  ] },
+  { group: 'ERP · Juridique', items: [
+    ['juridique:read', 'Consulter le Juridique', 'Circuit des ventes jusqu’à l’acte, litiges, cautions et retenues de garantie, impayés transmis'],
+    ['juridique:write', 'Gérer le Juridique (juriste)', 'Dater les étapes jusqu’à l’acte, notaire ; ouvrir et suivre les litiges ; cautions et retenues ; réglages du module'],
   ] },
   { group: 'ERP · Client & SAV', items: [
     ['sav:read', 'Voir le SAV', 'Réclamations, réserves à la livraison, interventions, indicateurs'],
@@ -1056,7 +1061,111 @@ function requestNextStep(r, { from = null, hasManager, threshold }) {
   return steps.slice(start).find(s => applies[s]);
 }
 
+/* ─── ERP · Juridique ──────────────────────────────────────────────────────── */
+
+/**
+ * Circuit de la vente, de la réservation à l'acte (choix du client du 23/10) : six étapes datées, franchies dans
+ * l'ordre. La date de l'acte est celle du dossier de vente (sales.signed_at, aussi saisie dans le dashboard) :
+ * une seule source pour la Comptabilité (chiffre d'affaires « à l'acte ») et l'espace client.
+ */
+const DEED_STEPS = [
+  { key: 'reservation', label: 'Contrat de réservation signé' },
+  { key: 'pieces', label: 'Pièces du client complètes' },
+  { key: 'notaire', label: 'Dossier transmis au notaire' },
+  { key: 'projet', label: 'Projet d’acte reçu' },
+  { key: 'acte', label: 'Acte signé' },
+  { key: 'remise', label: 'Expédition remise au client' },
+];
+const DEED_STEP_KEYS = DEED_STEPS.map(s => s.key);
+
+/**
+ * Avancement d'un dossier : `dates` = { reservation, pieces, notaire, projet, acte, remise } (AAAA-MM-JJ ou null).
+ * Renvoie les étapes avec leur date, l'étape en cours (première non faite) et le nombre d'étapes faites.
+ */
+function deedProgress(dates) {
+  const steps = DEED_STEPS.map(s => ({ ...s, date: dates[s.key] || null }));
+  // Acte signé (dossier repris sans les étapes d'avant comprises) : seule l'expédition reste à remettre
+  const current = dates.acte ? (dates.remise ? null : steps.find(s => s.key === 'remise')) : steps.find(s => !s.date) || null;
+  return { steps, current: current?.key || null, current_label: current ? current.label : 'Dossier terminé', done: steps.filter(s => s.date).length };
+}
+
+/** Refus d'une saisie d'étape : on ne date une étape qu'après la précédente ; on n'efface pas une étape suivie d'une autre. */
+function deedStepRefusal(dates, key, value) {
+  const i = DEED_STEP_KEYS.indexOf(key);
+  if (i < 0) return 'Étape inconnue.';
+  if (value) {
+    const before = DEED_STEP_KEYS.slice(0, i).find(k => !dates[k]);
+    if (before) return `Datez d’abord l’étape « ${DEED_STEPS.find(s => s.key === before).label} ».`;
+    const prev = DEED_STEP_KEYS.slice(0, i).reverse().find(k => dates[k]);
+    if (prev && value < dates[prev]) return `La date précède celle de l’étape « ${DEED_STEPS.find(s => s.key === prev).label} ».`;
+    return null;
+  }
+  if (key === 'acte') return 'L’acte signé ne s’efface pas : corrigez sa date au besoin.';
+  const after = DEED_STEP_KEYS.slice(i + 1).find(k => dates[k]);
+  return after ? 'Une étape suivante est déjà datée : effacez-la d’abord.' : null;
+}
+
+// Litiges (choix du client du 23/10) : origine, étapes datées, prochaine échéance (alertes la veille et le jour)
+const LITIGATION_ORIGINS = {
+  sav: 'Réclamation SAV', impaye: 'Impayé client', fournisseur: 'Fournisseur', sous_traitant: 'Sous-traitant', employe: 'Employé', autre: 'Autre',
+};
+const LITIGATION_STAGES = {
+  amiable: 'Règlement amiable', mise_en_demeure: 'Mise en demeure', huissier: 'Huissier', avocat: 'Avocat saisi',
+  audience: 'Audience', jugement: 'Jugement', clos: 'Clos',
+};
+const LITIGATION_OUTCOMES = { gagne: 'Gagné', perdu: 'Perdu', transaction: 'Transaction / accord', abandon: 'Abandon' };
+
+/**
+ * Alerte due pour l'échéance d'un litige : 'veille' la veille, 'jour' le jour même et les jours suivants
+ * (une fois chacune, jamais pour une échéance passée depuis plus de 7 jours).
+ */
+function litigationReminder(date, today) {
+  if (!date || daysBetween(date, today) > 7) return null;
+  if (today >= date) return 'jour';
+  if (today >= addDays(date, -1)) return 'veille';
+  return null;
+}
+
+/**
+ * Cautions et garanties : chaque sorte (réglable dans Juridique › Réglages) a un sens — reçue d'un tiers, donnée par
+ * SIIPAF, ou retenue de garantie (sous-traitance, libérée à la fin du délai de garantie comptée depuis la réception).
+ */
+const GUARANTEE_DIRECTIONS = { recue: 'Reçue d’un tiers', donnee: 'Donnée par SIIPAF', retenue: 'Retenue de garantie' };
+const DEFAULT_GUARANTEE_KINDS = [
+  ['Retenue de garantie', 'retenue'],
+  ['Caution de bonne exécution', 'recue'],
+  ['Caution de restitution d’avance', 'recue'],
+  ['Caution de soumission', 'recue'],
+  ['Caution de retenue de garantie', 'recue'],
+  ['Garantie bancaire donnée', 'donnee'],
+  ['Caution administrative ou douanière', 'donnee'],
+];
+const GUARANTEE_STATUSES = { active: 'En cours', liberee: 'Libérée / mainlevée', appelee: 'Mise en jeu', expiree: 'Expirée' };
+
+/** Date suivie d'une caution en cours : libération (retenue) ou expiration (caution). */
+function guaranteeDeadline(g) {
+  if (g.status !== 'active') return null;
+  if (g.direction === 'retenue') return g.release_on ? { date: g.release_on, label: 'Retenue à libérer' } : null;
+  if (!g.expires_on) return null;
+  return { date: g.expires_on, label: g.direction === 'donnee' ? 'Caution donnée : mainlevée à obtenir' : 'Caution reçue : expiration' };
+}
+
+// Réglages du Juridique (ERP › Juridique › Réglages), distincts des Paramètres du dashboard
+const LEGAL_SETTINGS = {
+  legal_unpaid_days: { label: 'Impayé transmis au Juridique après (jours de retard)', default: 90, min: 1, max: 720 },
+  legal_warranty_months: { label: 'Délai de garantie des retenues (mois après la réception)', default: 12, min: 1, max: 120 },
+};
+
+/** Plus ancienne échéance impayée d'un échéancier (lignes de allocatePayments) et son retard en jours. */
+function unpaidAge(lines, today) {
+  const late = lines.filter(l => l.status === 'en_retard');
+  if (!late.length) return null;
+  return { due_date: late[0].due_date, days: daysBetween(late[0].due_date, today), overdue_fcfa: late.reduce((t, l) => t + l.remaining_fcfa, 0), count: late.length };
+}
+
 module.exports = {
+  DEED_STEPS, DEED_STEP_KEYS, deedProgress, deedStepRefusal, LITIGATION_ORIGINS, LITIGATION_STAGES, LITIGATION_OUTCOMES, litigationReminder,
+  GUARANTEE_DIRECTIONS, DEFAULT_GUARANTEE_KINDS, GUARANTEE_STATUSES, guaranteeDeadline, LEGAL_SETTINGS, unpaidAge, LEGAL_ACTIONS,
   DOC_KINDS, DOC_AUDIENCES, DOC_STATUSES, DOC_ACTION_STATUSES, docReference, readReminder,
   REQUEST_KINDS, REQUEST_STATUSES, REQUEST_OPEN, REQUEST_DG_THRESHOLD, requestNeedsDg, requestNextStep, DOCS_ACTIONS, REQUEST_ACTIONS,
   ASSET_KINDS, ASSET_STATUSES, ASSET_ASSIGNMENT_KINDS, ASSET_DOC_KINDS, ASSET_COST_KINDS, RESERVATION_STATUSES, MAINTENANCE_SOON, PARC_ACTIONS,
