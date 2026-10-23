@@ -31,6 +31,9 @@ module.exports = function catalogRoutes(db) {
     category: z.enum(Object.keys(PROJECT_CATEGORIES)).nullable().optional(),
     cover_media_id: z.number().int().positive().nullable().optional(),
     option_days: z.number().int().min(1).max(60).nullable().optional(),
+    // Conditions de paiement (vides = Paramètres › Réglages généraux) : acompte et délai de solde
+    deposit_fcfa: z.number().int().min(0).max(1000000000).nullable().optional(),
+    balance_months: z.number().int().min(1).max(120).nullable().optional(),
     delivery: z.string().trim().max(80).nullable().optional(),
     amenities: z.array(z.string().trim().max(80)).max(40).optional(),
     published: z.boolean().optional(),
@@ -56,7 +59,7 @@ module.exports = function catalogRoutes(db) {
     return [fields, refs, types];
   };
   const encodeProject = d => ('amenities' in d ? { ...d, amenities: JSON.stringify(d.amenities) } : d);
-  const decodeProject = p => p && { ...p, amenities: json(p.amenities, []), published: !!p.published };
+  const decodeProject = p => p && { ...p, amenities: json(p.amenities, []), published: !!p.published, deposit_fcfa: p.deposit_fcfa == null ? null : Number(p.deposit_fcfa) };
 
   r.get('/projects', requirePermission('projects:read'), ah(async (req, res) => {
     const projects = await withTypeLabels(db, await db('projects').orderBy('sort'));

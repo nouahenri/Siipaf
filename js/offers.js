@@ -6,7 +6,7 @@
 ============================================================ */
 (function () {
   var EUR = 655.957; // parité fixe du franc CFA
-  var DIASPORA_MONTHS = 36; // formule Diaspora : sans apport, 36 mensualités
+  var DIASPORA_MONTHS = 36; // formule Diaspora par défaut : 36 mensualités, sans acompte
   var ASK = 'Infos & réservation';
   var DIASPORA_SUFFIX = ' — formule Diaspora';
 
@@ -15,6 +15,18 @@
   function fcfa(n) { return num(n) + ' FCFA'; }
   function eur(n) { return num(n / EUR) + ' €'; }
   function surface(s) { s = String(s || '').trim(); return /^\d+(?:[.,]\d+)?$/.test(s) ? s + ' m²' : s; }
+  /**
+   * Conditions de paiement du projet (fiche du dashboard, sinon Paramètres) : acompte et délai de solde.
+   * Mensualité Diaspora = (prix − acompte) ÷ délai de solde.
+   */
+  function termsOf(p) {
+    return { deposit: Math.max(0, Number(p && p.deposit_fcfa) || 0), months: Number(p && p.balance_months) || DIASPORA_MONTHS };
+  }
+  function monthly(price, t) { return Math.max(0, Number(price) - t.deposit) / t.months; }
+  /** « Acompte 500 000 FCFA puis 75 000 F/mois × 24 » (sans acompte : « 75 000 F/mois × 24 »). */
+  function diasporaText(price, t) {
+    return (t.deposit ? 'Acompte ' + fcfa(t.deposit) + ' puis ' : '') + num(monthly(price, t)) + ' F/mois × ' + t.months;
+  }
   function offerName(o) { return [o.label, o.designation].filter(Boolean).join(' '); }
   /**
    * Nom d'une ligne tel qu'il part dans le formulaire : plusieurs lignes du même nom (« Terrain nu » en
@@ -33,8 +45,34 @@
       '<span>' + ASK + '</span><i class="fas fa-arrow-right" aria-hidden="true"></i></a>';
   }
 
-  /** Tableau des prix d'un projet ; chaque ligne a son bouton « Infos & réservation ». */
-  function priceTable(offers, slug) {
+  /** « Acompte 500 000 FCFA · solde en 24 mois » : tuile et fiche du projet (vide sans conditions particulières). */
+  function termsLine(p) {
+    var t = termsOf(p);
+    return (t.deposit ? 'Acompte ' + fcfa(t.deposit) + ' · ' : '') + 'Solde en ' + t.months + ' mois';
+  }
+  /** Encadré de la fiche : acompte et délai de solde, dans l'habillage des chiffres clés. */
+  function termsHtml(p) {
+    var t = termsOf(p);
+    var card = function (icon, value, label) { return '<div class="pinfo-card"><i class="' + icon + '" aria-hidden="true"></i><span>' + esc(value) + '</span><small>' + label + '</small></div>'; };
+    return '<div class="proj-info-grid proj-terms">' + (t.deposit ? card('fas fa-hand-holding-usd', fcfa(t.deposit), 'Acompte') : '') +
+      card('fas fa-calendar-alt', t.months + ' mois', 'Délai de solde') + '</div>';
+  }
+  /** Documents du bien avec leur état (« Titre foncier — Obtenu ») ; `compact` : tuile (libellés seuls). */
+  function documentsHtml(p, compact) {
+    var docs = (p && p.documents) || [];
+    if (!docs.length) return '';
+    if (compact) {
+      return '<p class="prog-card-docs"><i class="fas fa-file-signature" aria-hidden="true"></i> ' + docs.map(function (d) { return esc(d.label); }).join(' · ') + '</p>';
+    }
+    return '<div class="proj-docs"><h4 class="pricing-title">Documents du bien</h4><ul>' + docs.map(function (d) {
+      return '<li class="doc-' + esc(d.state || 'fait') + '"><i class="fas ' + (d.state === 'fait' ? 'fa-check-circle' : 'fa-hourglass-half') + '" aria-hidden="true"></i>' +
+        '<span>' + esc(d.label) + '</span>' + (d.state_label ? '<small>' + esc(d.state_label) + '</small>' : '') + '</li>';
+    }).join('') + '</ul></div>';
+  }
+
+  /** Tableau des prix d'un projet ; chaque ligne a son bouton « Infos & réservation ». `p` : projet (conditions de paiement). */
+  function priceTable(offers, slug, p) {
+    var t = termsOf(p);
     return '<div class="pricing-table-wrap"><table class="pricing-table">' +
       '<thead><tr><th>Type de bien</th><th>Surface</th><th>Prix FCFA</th><th>Prix EUR</th><th class="th-ask"><span class="sr-only">Demande</span></th></tr></thead><tbody>' +
       offers.map(function (o) {
@@ -46,7 +84,7 @@
           : '';
         if (o.diaspora_price_fcfa) {
           row += '<tr class="diaspora-row"><td>↳ Option Diaspora' + (o.designation ? ' ' + esc(o.designation) : '') + '</td><td>—</td>' +
-            '<td class="price-cell">' + num(o.diaspora_price_fcfa) + '</td><td>' + num(o.diaspora_price_fcfa / DIASPORA_MONTHS) + ' F/mois</td>' +
+            '<td class="price-cell">' + num(o.diaspora_price_fcfa) + '</td><td class="td-terms">' + esc(diasporaText(o.diaspora_price_fcfa, t)) + '</td>' +
             '<td class="td-ask">' + askLink(slug, line + DIASPORA_SUFFIX) + '</td></tr>';
         }
         return row;
@@ -57,9 +95,10 @@
   /**
    * Budget pré-rempli à partir du type de bien demandé et de la grille du projet :
    * « 9 210 000 FCFA » ; « … — formule Diaspora » : prix total et mensualité,
-   * « 11 210 000 FCFA (311 389 F/mois sur 36 mois) ». Vide si la grille n'a pas cette ligne.
+   * « 11 210 000 FCFA (311 389 F/mois sur 36 mois) », acompte compris s'il y en a un. Vide si la grille n'a pas cette ligne.
    */
-  function budgetFor(offers, bien) {
+  function budgetFor(offers, bien, p) {
+    var t = termsOf(p);
     var b = String(bien || '').trim();
     if (!b) return '';
     var diaspora = b.slice(-DIASPORA_SUFFIX.length) === DIASPORA_SUFFIX;
@@ -69,7 +108,7 @@
     if (!o) return '';
     if (diaspora) {
       return o.diaspora_price_fcfa
-        ? fcfa(o.diaspora_price_fcfa) + ' (' + num(o.diaspora_price_fcfa / DIASPORA_MONTHS) + ' F/mois sur ' + DIASPORA_MONTHS + ' mois)'
+        ? fcfa(o.diaspora_price_fcfa) + ' (' + (t.deposit ? 'acompte ' + fcfa(t.deposit) + ' puis ' : '') + num(monthly(o.diaspora_price_fcfa, t)) + ' F/mois sur ' + t.months + ' mois)'
         : '';
     }
     return o.price_fcfa != null ? fcfa(o.price_fcfa) : '';
@@ -79,5 +118,6 @@
     ASK: ASK, DIASPORA_MONTHS: DIASPORA_MONTHS, DIASPORA_SUFFIX: DIASPORA_SUFFIX,
     esc: esc, num: num, fcfa: fcfa, eur: eur, surface: surface, offerName: offerName, lineName: lineName,
     contactHref: contactHref, askLink: askLink, priceTable: priceTable, budgetFor: budgetFor,
+    termsOf: termsOf, monthly: monthly, diasporaText: diasporaText, termsLine: termsLine, termsHtml: termsHtml, documentsHtml: documentsHtml,
   };
 })();

@@ -12,8 +12,8 @@ import ProjectActions from '../components/ProjectActions';
 import { fcfa } from '../lib/format';
 import { bienKind } from '../lib/domain';
 
-const FIELDS = ['name', 'slug', 'city_id', 'location_id', 'location_detail', 'tagline', 'description', 'project_type_id', 'property_type_id', 'delivery', 'option_days', 'published', 'cover_media_id'];
-const FEATURES = ['equipement', 'commodite', 'viabilisation'];
+const FIELDS = ['name', 'slug', 'city_id', 'location_id', 'location_detail', 'tagline', 'description', 'project_type_id', 'property_type_id', 'delivery', 'option_days', 'deposit_fcfa', 'balance_months', 'published', 'cover_media_id'];
+const FEATURES = ['equipement', 'commodite', 'viabilisation', 'document'];
 
 /**
  * Position GPS saisie librement : « 5.3601, -4.0083 » (copié depuis Google Maps), « 5,3601 ; -4,0083 »
@@ -40,9 +40,11 @@ export default function ProjectEdit() {
   const saveAndReturn = useSaveAndReturn('/projets');
   const project = useResource(`/admin/projects/${id}`);
   const lists = useResource('/admin/refs');
+  const settings = useResource('/admin/settings');
   const [form, setForm] = useState(null);
   const [offers, setOffers] = useState([]);
   const [picker, setPicker] = useState(null);
+  const [termsOpen, setTermsOpen] = useState(false);
   const [error, setError] = useState(null);
   const [busy, setBusy] = useState(false);
   const [showArchived, setShowArchived] = useState(false);
@@ -58,9 +60,18 @@ export default function ProjectEdit() {
     setOffers(p.offers.map(o => ({ ...o })));
   }, [project.data]);
 
-  if ((project.loading && !project.data) || (lists.loading && !lists.data)) return <Skeleton h={400} />;
-  if (project.error || lists.error) return <ErrorBox error={project.error || lists.error} />;
+  if ((project.loading && !project.data) || (lists.loading && !lists.data) || (settings.loading && !settings.data)) return <Skeleton h={400} />;
+  if (project.error || lists.error || settings.error) return <ErrorBox error={project.error || lists.error || settings.error} />;
   if (!form) return null;
+
+  // Conditions de paiement : la fiche, sinon Paramètres › Réglages généraux ; mensualité Diaspora = (prix − acompte) ÷ délai
+  const defaults = settings.data.values;
+  const choices = String(defaults.balance_months_choices).split(/[^\d]+/).map(Number).filter(Boolean);
+  const terms = {
+    deposit: form.deposit_fcfa === '' || form.deposit_fcfa == null ? Number(defaults.deposit_default || 0) : Number(form.deposit_fcfa),
+    months: Number(form.balance_months) || Number(defaults.balance_months_default) || 36,
+  };
+  const monthly = price => Math.round(Math.max(0, price - terms.deposit) / terms.months);
 
   // Valeurs proposées : non archivées, plus celles que le projet a déjà
   const items = lists.data.items;
@@ -111,6 +122,8 @@ export default function ProjectEdit() {
         longitude: gps ? gps.lng : null,
         ...form,
         option_days: form.option_days === '' ? null : Number(form.option_days),
+        deposit_fcfa: form.deposit_fcfa === '' || form.deposit_fcfa == null ? null : intOrNull(form.deposit_fcfa),
+        balance_months: Number(form.balance_months) || null,
         cover_media_id: form.cover_media_id || null,
         city_id: Number(form.city_id) || null,
         location_id: Number(form.location_id) || null,
@@ -190,6 +203,15 @@ export default function ProjectEdit() {
               <Field label="Description" className="full"><textarea className="textarea" value={form.description} onChange={set('description')} /></Field>
               <Field label="Délai de livraison"><input className="input" value={form.delivery} onChange={set('delivery')} placeholder="30 mois" /></Field>
               <Field label="Durée d’une option (jours)" hint="Vide = durée par défaut (Paramètres › Réglages généraux)."><input className="input" type="number" min="1" max="60" value={form.option_days} onChange={set('option_days')} /></Field>
+              <Field label="Délai de solde" hint={<>Mensualités pour solder le bien (formule Diaspora). {canLists && <Link className="list-link" to="/parametres?section=general">Régler les durées proposées</Link>}</>}>
+                <select className="select" value={form.balance_months || ''} onChange={set('balance_months')}>
+                  <option value="">Par défaut ({defaults.balance_months_default} mois)</option>
+                  {[...new Set([...choices, Number(form.balance_months)].filter(Boolean))].sort((a, b) => a - b).map(m => <option key={m} value={m}>{m} mois</option>)}
+                </select>
+              </Field>
+              <Field label="Acompte (FCFA)" hint={`Affiché sur la tuile du projet. Vide = acompte par défaut (${fcfa(defaults.deposit_default || 0)}).`}>
+                <input className="input tabular" inputMode="numeric" value={form.deposit_fcfa ?? ''} onChange={set('deposit_fcfa')} placeholder={String(defaults.deposit_default || 0)} />
+              </Field>
             </div>
           </Card>
           <div className="stack">
@@ -207,7 +229,11 @@ export default function ProjectEdit() {
         <div className="grid" style={{ gridTemplateColumns: 'repeat(auto-fit, minmax(300px, 1fr))' }}>
           {FEATURES.map(kind => {
             const meta = lists.data.kinds[kind];
+            if (!meta) return null;
             const choices = offered(kind, Object.keys(form.checked).map(Number));
+            // États de la liste : viabilisation (prévu, en cours, réalisé), documents (à obtenir, en cours, obtenu)
+            const states = meta.state_labels || lists.data.states;
+            const first = meta.default_state || 'prevu';
             return (
               <Card key={kind} title={meta.label} actions={canLists && <Link className="list-link" to={`/parametres?section=${kind}`}>Gérer la liste</Link>}>
                 {!choices.length ? <p className="small muted">Liste vide : ajoutez des valeurs dans Paramètres.</p> : meta.states ? (
@@ -216,10 +242,10 @@ export default function ProjectEdit() {
                       const on = c.id in form.checked;
                       return (
                         <div key={c.id} className="viab-row">
-                          <label className="checkbox"><input type="checkbox" checked={on} onChange={e => toggle(c.id, e.target.checked, 'prevu')} />{c.label}</label>
+                          <label className="checkbox"><input type="checkbox" checked={on} onChange={e => toggle(c.id, e.target.checked, first)} />{c.label}</label>
                           {on && (
-                            <select className="select" value={form.checked[c.id] || 'prevu'} onChange={e => toggle(c.id, true, e.target.value)} aria-label={`État : ${c.label}`}>
-                              {Object.entries(lists.data.states).map(([k, v]) => <option key={k} value={k}>{v}</option>)}
+                            <select className="select" value={form.checked[c.id] || first} onChange={e => toggle(c.id, true, e.target.value)} aria-label={`État : ${c.label}`}>
+                              {Object.entries(states).map(([k, v]) => <option key={k} value={k}>{v}</option>)}
                             </select>
                           )}
                         </div>
@@ -262,7 +288,11 @@ export default function ProjectEdit() {
                       </td>
                       <td style={{ minWidth: 150 }}>
                         <input className="input right tabular" inputMode="numeric" value={o.diaspora_price_fcfa ?? ''} onChange={e => setOffer(i, 'diaspora_price_fcfa', e.target.value)} aria-label="Prix Diaspora" />
-                        {intOrNull(o.diaspora_price_fcfa) > 0 && <div className="small muted right tabular" style={{ marginTop: 4 }}>{fcfa(Math.round(intOrNull(o.diaspora_price_fcfa) / 36))} / mois × 36</div>}
+                        {intOrNull(o.diaspora_price_fcfa) > 0 && (
+                          <button type="button" className="terms-link small tabular" onClick={() => setTermsOpen(true)} title="Acompte et délai de solde du projet">
+                            {terms.deposit > 0 && <>{fcfa(terms.deposit)} puis </>}{fcfa(monthly(intOrNull(o.diaspora_price_fcfa)))} / mois × {terms.months}
+                          </button>
+                        )}
                       </td>
                       <td className="nowrap">
                         <button type="button" className="btn btn-sm btn-ghost btn-icon" disabled={i === 0} onClick={() => moveOffer(i, -1)} aria-label="Monter"><ArrowUp /></button>
@@ -274,7 +304,8 @@ export default function ProjectEdit() {
                 </tbody>
               </table>
               <p className="small muted" style={{ padding: '8px 16px' }}>
-                Cette grille alimente le tableau des prix du site : équivalent en euros calculé automatiquement, ligne « Option Diaspora » avec sa mensualité sur 36 mois.
+                Cette grille alimente le tableau des prix du site : équivalent en euros calculé automatiquement, ligne « Option Diaspora » avec sa mensualité
+                ({terms.deposit > 0 ? `acompte de ${fcfa(terms.deposit)}, puis ` : ''}{terms.months} mois). Cliquez sur une mensualité pour régler l’acompte et le délai de solde.
                 {canLists && <> Types proposés : ceux du type de projet choisi. <Link className="list-link" to="/parametres?section=type_bien">Gérer les types de biens</Link></>}
               </p>
             </div>
@@ -317,7 +348,57 @@ export default function ProjectEdit() {
 
       {picker === 'cover' && <MediaPicker selectedId={form.cover_media_id} onPick={m => setForm(f => ({ ...f, cover_media_id: m.id }))} onClose={() => setPicker(null)} />}
       {picker === 'plan' && <AddPlanModal projectId={Number(id)} onClose={() => setPicker(null)} onDone={() => { setPicker(null); project.reload(); }} />}
+      {termsOpen && (
+        <PaymentTermsModal form={form} defaults={defaults} choices={choices} offers={offers} editable={editable} canLists={canLists}
+          onApply={patch => { setForm(f => ({ ...f, ...patch })); setTermsOpen(false); }} onClose={() => setTermsOpen(false)} />
+      )}
     </div>
+  );
+}
+
+/**
+ * Conditions de paiement du projet (clic sur une mensualité de la grille) : acompte à verser et délai de solde,
+ * avec la mensualité de chaque ligne Diaspora. S'appliquent à la fiche, enregistrées avec le projet ; les valeurs
+ * par défaut et les durées proposées se règlent dans Paramètres › Réglages généraux.
+ */
+function PaymentTermsModal({ form, defaults, choices, offers, editable, canLists, onApply, onClose }) {
+  const [deposit, setDeposit] = useState(form.deposit_fcfa ?? '');
+  const [months, setMonths] = useState(form.balance_months || '');
+  const dep = deposit === '' ? Number(defaults.deposit_default || 0) : Math.max(0, Math.round(Number(String(deposit).replace(/[\s ]/g, '')) || 0));
+  const m = Number(months) || Number(defaults.balance_months_default) || 36;
+  const lines = offers.filter(o => Number(o.diaspora_price_fcfa) > 0);
+  const label = o => [o.label, o.designation, o.surface && `${o.surface}${/^\d+$/.test(String(o.surface).trim()) ? ' m²' : ''}`].filter(Boolean).join(' · ');
+  return (
+    <Modal title="Conditions de paiement du projet" onClose={onClose}
+      footer={<>
+        {canLists && <Link className="btn btn-ghost" to="/parametres?section=general" style={{ marginRight: 'auto' }}>Valeurs par défaut</Link>}
+        <button className="btn btn-ghost" onClick={onClose}>Annuler</button>
+        {editable && <button className="btn btn-primary" onClick={() => onApply({ deposit_fcfa: deposit, balance_months: months })}>Appliquer</button>}
+      </>}>
+      <div className="form-grid">
+        <Field label="Acompte à verser (FCFA)" hint={`Vide = ${fcfa(defaults.deposit_default || 0)} (par défaut).`}>
+          <input className="input tabular" inputMode="numeric" value={deposit} onChange={e => setDeposit(e.target.value)} placeholder={String(defaults.deposit_default || 0)} disabled={!editable} autoFocus />
+        </Field>
+        <Field label="Délai de solde">
+          <select className="select" value={months} onChange={e => setMonths(e.target.value)} disabled={!editable}>
+            <option value="">Par défaut ({defaults.balance_months_default} mois)</option>
+            {[...new Set([...choices, Number(form.balance_months)].filter(Boolean))].sort((a, b) => a - b).map(x => <option key={x} value={x}>{x} mois</option>)}
+          </select>
+        </Field>
+      </div>
+      {lines.length > 0 && (
+        <div className="table-wrap" style={{ marginTop: 14 }}>
+          <table className="table">
+            <thead><tr><th>Option Diaspora</th><th className="right">Prix</th><th className="right">Mensualité</th></tr></thead>
+            <tbody>{lines.map((o, i) => {
+              const price = Number(String(o.diaspora_price_fcfa).replace(/[\s ]/g, ''));
+              return <tr key={o.id || i}><td>{label(o)}</td><td className="right tabular">{fcfa(price)}</td><td className="right tabular"><strong>{fcfa(Math.round(Math.max(0, price - dep) / m))}</strong> × {m}</td></tr>;
+            })}</tbody>
+          </table>
+        </div>
+      )}
+      <p className="small muted" style={{ marginTop: 10 }}>Mensualité = (prix Diaspora − acompte) ÷ délai de solde. Affichés sur la tuile et la fiche du projet du site après enregistrement du projet.</p>
+    </Modal>
   );
 }
 

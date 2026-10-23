@@ -48,7 +48,7 @@
     if (!budget || !window.SiipafOffers) return;
     if (budget.value && budget.value !== autoBudget) return;
     var p = projects.filter(function (x) { return x.slug === select.value; })[0];
-    autoBudget = p ? window.SiipafOffers.budgetFor(p.offers, property.value) : '';
+    autoBudget = p ? window.SiipafOffers.budgetFor(p.offers, property.value, p) : '';
     budget.value = autoBudget;
   }
   property.addEventListener('input', fillBudget);

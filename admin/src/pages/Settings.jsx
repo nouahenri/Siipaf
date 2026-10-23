@@ -4,18 +4,26 @@
  */
 import { useEffect, useMemo, useState } from 'react';
 import { useSearchParams } from 'react-router-dom';
-import { Plus, Trash2, ArrowUp, ArrowDown, Archive, ArchiveRestore, MapPin, Building, Building2, Dumbbell, Store, Construction, Home, SlidersHorizontal, Palette } from 'lucide-react';
+import { Plus, Trash2, ArrowUp, ArrowDown, Archive, ArchiveRestore, MapPin, Building, Building2, Dumbbell, Store, Construction, Home, SlidersHorizontal, Palette, FileCheck } from 'lucide-react';
 import { api } from '../lib/api';
 import { useAuth, useResource, useToast, useSaved } from '../lib/app-context';
 import { Card, Field, ErrorBox, Skeleton, Badge, Empty } from '../components/ui';
 
-const ICONS = { ville: Building, localisation: MapPin, equipement: Dumbbell, commodite: Store, viabilisation: Construction, type_projet: Building2, type_bien: Home };
+const ICONS = { ville: Building, localisation: MapPin, equipement: Dumbbell, commodite: Store, viabilisation: Construction, document: FileCheck, type_projet: Building2, type_bien: Home };
+// Explications des réglages généraux
+const SETTING_HELP = {
+  option_days_default: 'S’applique aux projets dont la fiche ne précise pas de durée (site et dashboard).',
+  deposit_default: 'Acompte affiché sur la tuile et la fiche des projets dont la fiche ne précise pas d’acompte (0 = pas d’acompte affiché).',
+  balance_months_default: 'Nombre de mensualités de la formule Diaspora quand la fiche projet ne précise pas de délai de solde.',
+  balance_months_choices: 'Durées proposées dans la fiche projet, séparées par des virgules : 6, 12, 24, 36.',
+};
 const HELP = {
   ville: 'Villes proposées dans la fiche projet.',
   localisation: 'Quartiers, communes ou sites, rattachés à une ville : la fiche projet ne propose que ceux de la ville choisie.',
   equipement: 'Équipements du programme (cases à cocher dans la fiche projet), affichés sur le site.',
   commodite: 'Commodités à proximité (écoles, marché, santé…), affichées sur le site.',
   viabilisation: 'Travaux de viabilisation d’un lotissement : chaque élément coché porte son état (prévu, en cours, réalisé), visible par les acheteurs.',
+  document: 'Documents du terrain ou du bien (titre foncier, ACD, attestation villageoise…) : chaque document coché dans la fiche projet porte son état (à obtenir, en cours, obtenu), affiché sur le site.',
   type_projet: 'Type de projet affiché sur la fiche projet (informatif). Un type dont le nom contient « lotissement » range le projet dans Projets › Lotissements sur le site.',
   type_bien: 'Type de biens du projet et de sa grille de prix. Cochez les types de projet concernés : la fiche projet ne propose que ceux-là (lotissement → terrains…). Il donne aussi le libellé du bouton de création dans Biens & disponibilités (villa, appartement, lot…).',
 };
@@ -213,7 +221,8 @@ function General({ editable }) {
   const save = async () => {
     setError(null);
     try {
-      const body = Object.fromEntries(Object.entries(v).map(([k, x]) => [k, Number(x)]));
+      // Réglage en liste (délais de solde proposés) envoyé tel quel, les autres en nombre
+      const body = Object.fromEntries(Object.entries(v).map(([k, x]) => [k, settings.data.fields[k]?.list ? String(x) : Number(x)]));
       await api.put('/admin/settings', body);
       saved('Réglages enregistrés');
       setValues(null); settings.reload();
@@ -224,8 +233,10 @@ function General({ editable }) {
       <ErrorBox error={error} />
       <fieldset disabled={!editable} style={{ border: 'none' }} className="form-grid">
         {Object.entries(settings.data.fields).map(([k, f]) => (
-          <Field key={k} label={f.label} hint={k === 'option_days_default' ? 'S’applique aux projets dont la fiche ne précise pas de durée (site et dashboard).' : null}>
-            <input className="input" type="number" min={f.min} max={f.max} value={v[k] ?? ''} onChange={e => setValues({ ...v, [k]: e.target.value })} />
+          <Field key={k} label={f.label} hint={SETTING_HELP[k] || null}>
+            {f.list
+              ? <input className="input tabular" value={v[k] ?? ''} onChange={e => setValues({ ...v, [k]: e.target.value })} placeholder="6, 12, 24, 36" />
+              : <input className="input" type="number" min={f.min} max={f.max} value={v[k] ?? ''} onChange={e => setValues({ ...v, [k]: e.target.value })} />}
           </Field>
         ))}
       </fieldset>

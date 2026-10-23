@@ -56,6 +56,8 @@ const REF_KINDS = {
   equipement: { label: 'Équipements', one: 'équipement', feature: true },
   commodite: { label: 'Commodités à proximité', one: 'commodité', feature: true },
   viabilisation: { label: 'Éléments de viabilisation', one: 'élément de viabilisation', feature: true, states: true },
+  // Pièces du terrain ou du bien (titre foncier, ACD, attestation villageoise…) ; mêmes états, libellés propres
+  document: { label: 'Documents du bien', one: 'document', feature: true, states: true, state_labels: { prevu: 'À obtenir', en_cours: 'En cours', fait: 'Obtenu' }, default_state: 'fait' },
   type_projet: { label: 'Types de projet', one: 'type de projet', project: 'project_type_id' },
   // scope : chaque type de biens indique les types de projet auxquels il s'applique (vide = tous)
   type_bien: { label: 'Types de biens', one: 'type de bien', project: 'property_type_id', scope: 'type_projet' },
@@ -106,7 +108,28 @@ const VIABILISATION_STATES = { prevu: 'Prévu', en_cours: 'En cours', fait: 'Ré
 const APP_SETTINGS = {
   option_days_default: { label: 'Durée d’une pré-réservation (jours)', min: 1, max: 60 },
   request_dg_threshold: { label: 'Achat interne validé par la DG à partir de (FCFA)', min: 0, max: 1000000000 },
+  // Conditions de paiement des projets (une fiche projet peut les préciser) : tuile du site et formule Diaspora
+  deposit_default: { label: 'Acompte par défaut (FCFA)', min: 0, max: 1000000000 },
+  balance_months_default: { label: 'Délai de solde par défaut (mois)', min: 1, max: 120 },
+  balance_months_choices: { label: 'Délais de solde proposés (mois)', list: true, min: 1, max: 120 },
 };
+
+/** Délais de solde proposés, « 6, 12, 24, 36 » → [6, 12, 24, 36] (triés, sans doublon, bornés). */
+function monthChoices(text) {
+  const f = APP_SETTINGS.balance_months_choices;
+  return [...new Set(String(text || '').split(/[^\d]+/).map(Number).filter(n => Number.isInteger(n) && n >= f.min && n <= f.max))].sort((a, b) => a - b);
+}
+
+/**
+ * Conditions de paiement d'un projet : sa fiche, sinon les réglages généraux. Mensualité de la formule
+ * Diaspora = (prix Diaspora − acompte) ÷ délai de solde.
+ */
+function paymentTerms(project, settings) {
+  const deposit = project.deposit_fcfa != null ? Number(project.deposit_fcfa) : Number(settings.deposit_default || 0);
+  const months = Number(project.balance_months || settings.balance_months_default || 36);
+  return { deposit_fcfa: deposit, balance_months: months };
+}
+const monthlyFor = (price, { deposit_fcfa, balance_months }) => Math.round(Math.max(0, Number(price) - deposit_fcfa) / balance_months);
 const THEMES = ['clair', 'sombre', 'systeme'];
 
 // Circuit de vente : Prospection → Visite → Décision → Choix du bien → Paiement → Contrat → Notaire → Livraison → SAV
@@ -1033,7 +1056,7 @@ module.exports = {
   FINANCING_PLANS, FINANCINGS, SCHEDULE_KINDS, INSTALLMENT_STATUS_LABELS, SITE_STAGES, SITE_STAGE_LABELS,
   MESSAGE_SENDERS, CLIENT_PASSWORD_MIN, CLIENT_RESET_HOURS, CLIENT_VISIBLE_SALE_STATUSES,
   addMonths, buildSchedule, allocatePayments, phoneKey, looksLikeClientCode, PROTECTED_ROLES, DELETABLE_LOT_STATUSES, NEW_LOT_STATUSES, PROJECT_CATEGORIES,
-  REF_KINDS, FEATURE_KINDS, VIABILISATION_STATES, APP_SETTINGS, THEMES, categoryForProjectType,
+  REF_KINDS, FEATURE_KINDS, VIABILISATION_STATES, APP_SETTINGS, THEMES, categoryForProjectType, monthChoices, paymentTerms, monthlyFor,
   offerSurface, gridOfferFor, GRID_PRICED_STATUSES,
   SAV_CATEGORIES, SAV_PRIORITIES, SAV_STATUSES, SAV_STATUS_LABELS, SAV_OPEN_STATUSES, SAV_TRANSITIONS, SAV_SOURCES,
   WARRANTIES, warrantyFor, warrantyDates, SAV_LAND_CATEGORIES, SAV_RESERVE_STATUSES, SAV_INTERVENTION_STATUSES,

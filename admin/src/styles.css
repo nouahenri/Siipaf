@@ -586,6 +586,9 @@ fieldset { min-width: 0; }
 .viab-row { display: grid; grid-template-columns: minmax(0, 1fr) 118px; gap: 10px; align-items: center; padding: 4px 0; }
 .viab-row .select { height: 32px; padding-top: 0; padding-bottom: 0; }
 .list-link { font-size: 12px; font-weight: 500; color: var(--focus); }
+/* Mensualité Diaspora de la grille de prix : ouvre les conditions de paiement du projet (acompte, délai de solde) */
+.terms-link { display: block; margin: 4px 0 0 auto; padding: 2px 4px; white-space: nowrap; border: 0; border-radius: 4px; background: none; color: var(--focus); text-align: right; text-decoration: underline dotted; text-underline-offset: 3px; cursor: pointer; }
+.terms-link:hover, .terms-link:focus-visible { background: var(--bg); text-decoration-style: solid; }
 @media (max-width: 900px) {
   .settings-layout { grid-template-columns: 1fr; }
   .settings-nav { flex-direction: row; overflow-x: auto; }

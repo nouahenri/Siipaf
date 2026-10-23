@@ -7,11 +7,11 @@ const express = require('express');
 const rateLimit = require('express-rate-limit');
 const { z } = require('zod');
 const { ah, parse, HttpError, json } = require('../lib/http');
-const { LOT_STATUS_LABELS, SELLABLE_STATUSES, VIABILISATION_STATES } = require('../lib/domain');
+const { LOT_STATUS_LABELS, SELLABLE_STATUSES, VIABILISATION_STATES, REF_KINDS, paymentTerms, monthChoices } = require('../lib/domain');
 const { findOrCreateLead, placeOption, throttledExpiry } = require('../services/lots');
 const { notifyTeam, sendMail } = require('../lib/mailer');
 const { projectRefs } = require('../services/refs');
-const { getSetting } = require('../services/settings');
+const { getSettings } = require('../services/settings');
 const { isTest } = require('../config');
 const { publicSiteImages } = require('../services/siteImages');
 
@@ -47,8 +47,19 @@ module.exports = function publicRoutes(db) {
   // Position GPS du projet : carte et itinéraire sur le site (null si non renseignée)
   const geo = p => (p.latitude != null && p.longitude != null ? { lat: Number(p.latitude), lng: Number(p.longitude) } : null);
 
+  // Documents du bien (titre foncier, ACD…) avec leur état, par projet
+  const docLabel = s => REF_KINDS.document.state_labels[s] || null;
+  const documentsOf = async projectIds => {
+    if (!projectIds.length) return [];
+    return db('project_refs as pr').join('ref_items as i', 'i.id', 'pr.ref_id').where('i.kind', 'document').whereIn('pr.project_id', projectIds)
+      .orderBy(['i.sort', 'i.label']).select('pr.project_id', 'i.label', 'pr.state');
+  };
+  // Conditions de paiement affichées sur la tuile et la fiche : acompte, délai de solde, propositions de durée
+  const termsOf = (p, settings) => ({ ...paymentTerms(p, settings), balance_months_choices: monthChoices(settings.balance_months_choices) });
+
   r.get('/projects', ah(async (req, res) => {
     const projects = await db('projects').where({ published: true }).whereNull('archived_at').orderBy('sort');
+    const [settings, docs] = await Promise.all([getSettings(db), documentsOf(projects.map(p => p.id))]);
     const [counts, plans, offers, types] = await Promise.all([
       db('lots').select('project_id', 'status').count({ n: '*' }).groupBy('project_id', 'status'),
       db('site_plans').where({ published: true }).whereNull('archived_at').select('project_id').count({ n: '*' }).groupBy('project_id'),
@@ -65,6 +76,8 @@ module.exports = function publicRoutes(db) {
       lots: Object.fromEntries(counts.filter(c => c.project_id === p.id).map(c => [c.status, Number(c.n)])),
       // Un plan de masse publié = carte interactive consultable sur le site
       has_plan: plans.some(pl => pl.project_id === p.id),
+      ...termsOf(p, settings),
+      documents: docs.filter(d => d.project_id === p.id).map(d => ({ label: d.label, state: d.state, state_label: docLabel(d.state) })),
     })));
   }));
 
@@ -77,14 +90,16 @@ module.exports = function publicRoutes(db) {
       db('site_plans').where({ project_id: p.id, published: true }).whereNull('archived_at'),
       db('lots').where({ project_id: p.id }).select('id', 'plan_id', 'offer_id', 'code', 'ilot', 'surface_m2', 'price_fcfa', 'status', 'shape'),
     ]);
-    const features = await projectRefs(db, p.id);
+    const [features, settings] = await Promise.all([projectRefs(db, p.id), getSettings(db)]);
     res.json({
       id: p.id, slug: p.slug, name: p.name, city: p.city, location: p.location, tagline: p.tagline,
       description: p.description, category: p.category, delivery: p.delivery, amenities: json(p.amenities, []), geo: geo(p),
       // Listes de Paramètres : commodités à proximité et état de la viabilisation (lotissements)
       commodites: features.commodite.map(f => f.label),
       viabilisation: features.viabilisation.map(f => ({ label: f.label, state: f.state, state_label: VIABILISATION_STATES[f.state] })),
-      cover: mediaUrl(p.cover_media_id), option_days: p.option_days || await getSetting(db, 'option_days_default'),
+      documents: features.document.map(f => ({ label: f.label, state: f.state, state_label: docLabel(f.state) })),
+      ...termsOf(p, settings),
+      cover: mediaUrl(p.cover_media_id), option_days: p.option_days || settings.option_days_default,
       offers,
       statuses: LOT_STATUS_LABELS,
       plans: plans.map(pl => ({

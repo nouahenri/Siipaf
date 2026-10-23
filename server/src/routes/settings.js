@@ -3,7 +3,7 @@ const express = require('express');
 const { z } = require('zod');
 const { ah, parse, idParam, HttpError, json } = require('../lib/http');
 const { requirePermission } = require('../auth');
-const { REF_KINDS, FEATURE_KINDS, VIABILISATION_STATES, APP_SETTINGS } = require('../lib/domain');
+const { REF_KINDS, FEATURE_KINDS, VIABILISATION_STATES, APP_SETTINGS, monthChoices } = require('../lib/domain');
 const { syncProjectText, projectsUsing, norm, sameLabel, PROJECT_REF_COLUMNS } = require('../services/refs');
 const { getSettings, saveSettings } = require('../services/settings');
 
@@ -129,8 +129,16 @@ module.exports = function settingsRoutes(db) {
   }));
 
   r.put('/settings', requirePermission('settings:write'), ah(async (req, res) => {
-    const shape = Object.fromEntries(Object.entries(APP_SETTINGS).map(([k, f]) => [k, z.number().int().min(f.min).max(f.max).optional()]));
+    // Réglage en liste : « 6, 12, 24 » (au moins une durée valable) ; les autres sont des entiers bornés
+    const listOf = (k, f) => z.string().max(200).refine(t => monthChoices(t).length > 0, `${f.label} : au moins une durée entre ${f.min} et ${f.max} mois.`)
+      .transform(t => monthChoices(t).join(', '));
+    const shape = Object.fromEntries(Object.entries(APP_SETTINGS).map(([k, f]) => [k, (f.list ? listOf(k, f) : z.number().int().min(f.min).max(f.max)).optional()]));
     const values = parse(z.object(shape), req.body);
+    // Le délai par défaut fait partie des délais proposés
+    const current = await getSettings(db);
+    const months = values.balance_months_default ?? current.balance_months_default;
+    const choices = monthChoices(values.balance_months_choices ?? current.balance_months_choices);
+    if (!choices.includes(months)) values.balance_months_choices = [...choices, months].sort((a, b) => a - b).join(', ');
     res.json({ values: await saveSettings(db, values), fields: APP_SETTINGS });
   }));
 

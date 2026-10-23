@@ -68,6 +68,8 @@
         (p.tagline ? '<p class="prog-card-desc">' + esc(p.tagline) + '</p>' : (p.location ? '<p class="prog-card-desc">' + esc(p.location) + '</p>' : '')) +
         mini +
         (from ? '<div class="prog-card-price">À partir de <strong>' + O.fcfa(from) + '</strong></div>' : '') +
+        '<p class="prog-card-terms"><i class="fas fa-hand-holding-usd" aria-hidden="true"></i> ' + esc(O.termsLine(p)) + '</p>' +
+        O.documentsHtml(p, true) +
         stock +
         // Projet localisé (GPS) : « Localiser le site » ajouté après l'affichage (js/project-map.js)
         '<div class="card-actions" data-locate="' + esc(p.slug) + '">' +
@@ -100,9 +102,11 @@
           (info.length ? '<div class="proj-info-grid">' + info.map(function (x) {
             return '<div class="pinfo-card"><i class="' + x[0] + '"></i><span>' + esc(x[1]) + '</span><small>' + x[2] + '</small></div>';
           }).join('') + '</div>' : '') +
+          O.termsHtml(p) +
           ((p.amenities || []).length ? '<div class="proj-amenities">' + p.amenities.map(function (a) { return '<div class="am-item"><i class="fas fa-check"></i><span>' + esc(a) + '</span></div>'; }).join('') + '</div>' : '') +
           (p.description ? '<p class="prog-detail-text">' + esc(p.description) + '</p>' : '') +
-          (offers.length ? '<h4 class="pricing-title">Tableau des Prix</h4>' + O.priceTable(offers, p.slug) : '') +
+          O.documentsHtml(p) +
+          (offers.length ? '<h4 class="pricing-title">Tableau des Prix</h4>' + O.priceTable(offers, p.slug, p) : '') +
           '<div class="proj-footer-btns">' +
             (p.has_plan ? '<a class="btn btn-primary btn-plan" href="plan-interactif.html?projet=' + encodeURIComponent(p.slug) + '"><span>Plan interactif</span><i class="fas fa-map-marked-alt" aria-hidden="true"></i></a>' : '') +
             '<a class="btn ' + (p.has_plan ? 'btn-ask' : 'btn-primary') + '" href="' + esc(O.contactHref(p.slug)) + '"><span>Réserver ce lotissement</span><i class="fas fa-arrow-right"></i></a>' +

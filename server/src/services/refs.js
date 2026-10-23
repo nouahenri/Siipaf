@@ -12,6 +12,7 @@ const DEFAULT_REFS = {
   equipement: ['Piscine', 'Salle de sport', 'Parking', 'Ascenseur', 'Surveillance CCTV', 'Groupe électrogène', 'Réserve d’eau', 'Climatisation', 'Cuisine équipée', 'Domotique', 'Aires de jeux', 'Espaces verts'],
   commodite: ['École', 'Centre de santé', 'Marché', 'Centre commercial', 'Transport en commun', 'Lieu de culte', 'Banque', 'Pharmacie'],
   viabilisation: ['Voirie', 'Réseau d’eau potable', 'Réseau électrique', 'Éclairage public', 'Assainissement', 'Bornage des lots', 'Caniveaux / drainage'],
+  document: ['Titre foncier', 'ACD (Arrêté de Concession Définitive)', 'Attestation villageoise', 'Lettre d’attribution', 'Certificat de propriété coutumière', 'Permis de construire'],
   type_projet: ['Logement social & haut standing', 'Logement social', 'Haut standing', 'Lotissement'],
   type_bien: ['Terrain nu', 'Villa basse', 'Duplex', 'Appartement', 'Penthouse'],
 };

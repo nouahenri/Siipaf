@@ -13,7 +13,6 @@
   var API = window.SIIPAF_API || (/^(localhost|127\.0\.0\.1)$/.test(location.hostname) ? 'http://localhost:4000' : 'https://client.siipaf.com');
   var O = window.SiipafOffers;
   if (!O) return;
-  var DIASPORA_MONTHS = O.DIASPORA_MONTHS;
   var section = document.getElementById('projects');
   var catalog = document.getElementById('catalogue');
   var grid = document.getElementById('programmesList');
@@ -134,9 +133,27 @@
     });
   }
 
+  // ── Conditions de paiement et documents du bien (dashboard) : ligne sur la tuile, encadré dans la fiche ──
+  function applyTerms(p, api, cardEl) {
+    var drop = function (root, sel) { Array.prototype.forEach.call(root.querySelectorAll(sel), function (e) { e.remove(); }); };
+    if (cardEl) {
+      drop(cardEl, '.prog-card-terms, .prog-card-docs');
+      cardEl.querySelector('.prog-card-stock').insertAdjacentHTML('beforebegin',
+        '<p class="prog-card-terms"><i class="fas fa-hand-holding-usd" aria-hidden="true"></i> ' + esc(O.termsLine(api)) + '</p>' + O.documentsHtml(api, true));
+    }
+    var body = p.block.querySelector('.proj-body');
+    if (!body) return;
+    drop(body, '.proj-terms, .proj-docs');
+    var wrap = document.createElement('div');
+    wrap.innerHTML = O.termsHtml(api) + O.documentsHtml(api);
+    var before = body.querySelector('.pricing-title, .pricing-table-wrap, .pricing-cards-grid, .proj-price-hero, .proj-footer-btns');
+    while (wrap.firstChild) body.insertBefore(wrap.firstChild, before || null);
+  }
+
   // ── Prix de la grille du dashboard (tableau : js/offers.js) ──
   // Cartes d'options (Bingerville, C & LY) : chaque ligne de la grille garde l'habillage de la carte à la même place
-  function priceCards(offers, old) {
+  function priceCards(offers, old, api) {
+    var t = O.termsOf(api);
     return offers.map(function (o, i) {
       var model = old[i] || old[0];
       var badge = model && model.querySelector('.pc-badge');
@@ -147,13 +164,13 @@
         '<div class="pc-header">' + esc(offerName(o)) + '</div>' +
         (o.surface ? '<div class="pc-surface">' + esc(surface(o.surface)) + '</div>' : '') +
         (o.price_fcfa != null ? '<div class="pc-price">' + num(o.price_fcfa) + ' <span>FCFA</span></div><div class="pc-eur">≈ ' + eur(o.price_fcfa) + '</div>' : '') +
-        (o.diaspora_price_fcfa ? '<div class="pc-eur">Diaspora : ' + fcfa(o.diaspora_price_fcfa) + ' · ' + num(o.diaspora_price_fcfa / DIASPORA_MONTHS) + ' F/mois</div>' : '') +
+        (o.diaspora_price_fcfa ? '<div class="pc-eur">Diaspora : ' + fcfa(o.diaspora_price_fcfa) + ' · ' + esc(O.diasporaText(o.diaspora_price_fcfa, t)) + '</div>' : '') +
         '<a href="contact.html" class="btn ' + (btn ? esc(btn.className.replace(/^btn\s*/, '')) : (featured ? 'btn-white btn-sm' : 'btn-primary btn-sm')) + '">' + (btn ? esc(text(btn)) : 'Réserver') + '</a>' +
         '</div>';
     }).join('');
   }
   /** Remplace les prix écrits par ceux du dashboard, dans la forme de la fiche (tableau, cartes ou prix vedette). */
-  function applyOffers(p, offers) {
+  function applyOffers(p, offers, api) {
     offers = (offers || []).filter(function (o) { return o.price_fcfa != null || o.diaspora_price_fcfa; });
     if (!offers.length) return;
     var b = p.block, body = b.querySelector('.proj-body');
@@ -162,17 +179,17 @@
     var hero = b.querySelector('.proj-price-hero');
     var table = b.querySelector('.pricing-table-wrap');
     if (cards) {
-      cards.innerHTML = priceCards(offers, Array.prototype.slice.call(cards.querySelectorAll('.pricing-card')));
+      cards.innerHTML = priceCards(offers, Array.prototype.slice.call(cards.querySelectorAll('.pricing-card')), api);
     } else if (hero && offers.length === 1) {
       var o = offers[0], cardEl = hero.querySelector('.price-hero-card');
       cardEl.querySelector('.phc-badge').textContent = [offerName(o), surface(o.surface)].filter(Boolean).join(' — ');
       cardEl.querySelector('.phc-price').innerHTML = num(o.price_fcfa) + ' <span>FCFA</span>';
       cardEl.querySelector('.phc-eur').textContent = '≈ ' + eur(o.price_fcfa);
     } else if (table) {
-      table.outerHTML = O.priceTable(offers, p.slug);
+      table.outerHTML = O.priceTable(offers, p.slug, api);
     } else {
       var wrap = document.createElement('div');
-      wrap.innerHTML = '<h4 class="pricing-title">Tableau des Prix</h4>' + O.priceTable(offers, p.slug);
+      wrap.innerHTML = '<h4 class="pricing-title">Tableau des Prix</h4>' + O.priceTable(offers, p.slug, api);
       var before = hero || b.querySelector('.proj-footer-btns');
       while (wrap.firstChild) body.insertBefore(wrap.firstChild, before || null);
       if (hero) hero.remove();
@@ -333,7 +350,8 @@
         var cityEl = cardEl && cardEl.querySelector('.lot-card-city');
         if (api.city && cityEl) cityEl.innerHTML = '<i class="fas fa-map-marker-alt" aria-hidden="true"></i> ' + esc(api.city);
 
-        applyOffers(p, api.offers);
+        applyOffers(p, api.offers, api);
+        applyTerms(p, api, cardEl);
 
         // Stock : biens disponibles sur le total (lots saisis dans le dashboard)
         var lots = api.lots || {};

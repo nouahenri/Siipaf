@@ -3121,3 +3121,16 @@ tr:hover .btn-ask-row { border-color: currentColor; }
   .btn-ask-row i { font-size: 0.8rem; }
   .pricing-table thead th, .pricing-table tbody td { padding-left: 8px; padding-right: 8px; }
 }
+
+/* ─── Conditions de paiement et documents du bien (fiche projet du dashboard) ─── */
+.prog-card-terms { display: flex; align-items: baseline; gap: 8px; margin: 0; font-size: 0.8rem; font-weight: 600; color: var(--dark2); }
+.prog-card-terms i, .prog-card-docs i { color: var(--gold); flex: none; }
+.prog-card-docs { display: flex; align-items: baseline; gap: 8px; margin: 0; font-size: 0.76rem; color: #555; line-height: 1.45; }
+.proj-docs { margin: 0 0 32px; }
+.proj-docs ul { list-style: none; margin: 0; padding: 0; display: flex; flex-wrap: wrap; gap: 10px; }
+.proj-docs li { display: inline-flex; align-items: center; gap: 8px; padding: 8px 16px; border-radius: 50px; background: var(--light); font-size: 0.82rem; font-weight: 500; color: var(--dark2); }
+.proj-docs li i { color: var(--gold); }
+.proj-docs li.doc-fait i { color: #1a8a4a; }
+.proj-docs li small { font-size: 0.72rem; color: var(--grey); }
+.proj-docs li small::before { content: '·'; margin-right: 6px; }
+.pricing-table td.td-terms { font-size: 0.82rem; color: #6f5a12; }
