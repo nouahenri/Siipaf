@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { useSearchParams } from 'react-router-dom';
+import { Link, useSearchParams } from 'react-router-dom';
 import { Plus, BookOpenCheck, Check, Pencil, Send, Archive, Paperclip, FileText, Search, Trash2, GitBranch, ListChecks, Undo2 } from 'lucide-react';
 import { api, qs } from '@admin/lib/api';
 import { useResource, useToast } from '@admin/lib/app-context';
@@ -29,6 +29,13 @@ export default function Documents() {
   const setOpen = id => setParams(id ? { fiche: String(id) } : {}, { replace: true });
   useEffect(() => { const t = setTimeout(() => setQ(text.trim()), 300); return () => clearTimeout(t); }, [text]);
   const scope = refs.data?.scope;
+  // Page ouverte par son adresse sans être auteur (ni direction, ni services généraux, ni chef de service)
+  if (list.error?.status === 403) {
+    return (
+      <Card><Empty icon={BookOpenCheck}>La publication des documents internes est réservée à la direction, aux services généraux et aux chefs de service.
+        <div style={{ marginTop: 10 }}><Link className="btn btn-sm" to="/rh/moi">Lire mes documents dans Mon espace</Link></div></Empty></Card>
+    );
+  }
   return (
     <div className="stack">
       <div className="row-between">

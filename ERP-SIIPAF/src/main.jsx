@@ -98,8 +98,8 @@ function App() {
         <Route path="commercial/pipeline" element={<Guard perm="leads:read"><Pipeline /></Guard>} />
         <Route path="commercial/activites" element={<Guard perm="commercial:read"><Activities /></Guard>} />
         <Route path="commercial/rendez-vous" element={<Guard perm="appointments:read"><Appointments /></Guard>} />
-        <Route path="commercial/parc" element={<Guard perm="lots:read"><Property /></Guard>} />
-        <Route path="commercial/ventes" element={<Guard perm="sales:read"><Sales /></Guard>} />
+        <Route path="commercial/parc" element={<Guard perm="commercial:read"><Guard perm="lots:read"><Property /></Guard></Guard>} />
+        <Route path="commercial/ventes" element={<Guard perm="commercial:read"><Guard perm="sales:read"><Sales /></Guard></Guard>} />
         <Route path="commercial/vefa" element={<Guard perm={['commercial:read', 'vefa:write']}><Vefa /></Guard>} />
         <Route path="commercial/objectifs" element={<Guard perm="commercial:read"><Targets /></Guard>} />
         <Route path="compta" element={<Guard perm="compta:read"><ComptaDashboard /></Guard>} />

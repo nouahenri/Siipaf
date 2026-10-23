@@ -38,6 +38,9 @@ export default function Vefa() {
 function Calls({ projectId, filter, setFilter }) {
   const list = useResource(`/admin/erp/commercial/vefa/calls?project_id=${projectId}&filter=${filter}`);
   const [saleId, setSaleId] = useState(null);
+  // Le dossier de vente s'ouvre avec les droits du Service commercial (le conducteur de travaux suit les appels sans eux)
+  const { can } = useAuth();
+  const canOpen = can('commercial:read') && can('sales:read');
   const rows = list.data || [];
   const FILTERS = [['', 'Tous'], ['appele', 'Émis, non soldés'], ['retard', 'En retard'], ['a_venir', 'À venir']];
   return (
@@ -56,7 +59,7 @@ function Calls({ projectId, filter, setFilter }) {
               {rows.map(c => {
                 const st = c.payment_status ? CALL_STATUS[c.payment_status] : null;
                 return (
-                  <tr key={c.id} className="clickable" onClick={() => setSaleId(c.sale_id)}>
+                  <tr key={c.id} className={canOpen ? 'clickable' : undefined} onClick={canOpen ? () => setSaleId(c.sale_id) : undefined}>
                     <td><b>{c.client_name}</b><div className="small muted">{c.ilot ? `îlot ${c.ilot} · ` : ''}lot {c.lot_code}</div></td>
                     <td className="small">{c.label} <span className="muted">· {c.pct} %</span></td>
                     <td className="right tabular small">{fcfa(c.amount_fcfa)}</td>

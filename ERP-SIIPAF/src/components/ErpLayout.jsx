@@ -30,8 +30,9 @@ const MODULES = {
       { to: '/commercial/pipeline', label: 'Pipeline', icon: Columns3, perm: 'leads:read' },
       { to: '/commercial/activites', label: 'Mes activités', icon: ListTodo, badge: 'late_activities', perm: 'commercial:read' },
       { to: '/commercial/rendez-vous', label: 'Rendez-vous', icon: CalendarDays, perm: 'appointments:read' },
-      { to: '/commercial/parc', label: 'Parc immobilier', icon: Building2, perm: 'lots:read' },
-      { to: '/commercial/ventes', label: 'Dossiers de vente', icon: FileSignature, perm: 'sales:read' },
+      // also : droits exigés en plus par le serveur (il réserve le Service commercial à commercial:read)
+      { to: '/commercial/parc', label: 'Parc immobilier', icon: Building2, perm: 'lots:read', also: 'commercial:read' },
+      { to: '/commercial/ventes', label: 'Dossiers de vente', icon: FileSignature, perm: 'sales:read', also: 'commercial:read' },
       { to: '/commercial/vefa', label: 'Appels de fonds VEFA', icon: Landmark, perm: ['commercial:read', 'vefa:write'] },
       { to: '/commercial/objectifs', label: 'Objectifs et performance', icon: Target, perm: 'commercial:read' },
       { to: '/commercial/acces', label: 'Rôles et privilèges', icon: ShieldCheck, perm: 'users:read' },
@@ -148,7 +149,7 @@ export default function ErpLayout() {
         {mod && (can(mod.perm) || can('users:read') || mod.show?.(stats.data)) && (
           <div className="nav-group">
             <div className="nav-group-title">{mod.label}</div>
-            {mod.items.filter(i => (i.perm && can(i.perm)) || (i.show && i.show(stats.data)) || (!i.perm && !i.show)).map(i => {
+            {mod.items.filter(i => (i.perm && can(i.perm) && (!i.also || [].concat(i.also).every(canOne))) || (i.show && i.show(stats.data)) || (!i.perm && !i.show)).map(i => {
               const count = i.badge && stats.data ? stats.data[i.badge] : 0;
               return (
                 <NavLink key={i.to} to={i.to} end={i.end} className={({ isActive }) => `nav-item ${isActive ? 'active' : ''}`}>
