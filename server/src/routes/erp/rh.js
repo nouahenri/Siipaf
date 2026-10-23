@@ -16,6 +16,7 @@ const { CONTRACT_TYPES, DEPARTMENTS, MARITAL } = require('../../lib/paie');
 const rh = require('../../services/rh');
 const paie = require('../../services/paie');
 const performance = require('../../services/performance');
+const departures = require('../../services/departures');
 const positions = require('../../services/positions');
 const { listRoles } = require('../../services/roles');
 
@@ -244,6 +245,11 @@ module.exports = function rhRoutes(db) {
       out.push({ ...paie.serializeEmployee(e, { withPay: req.can('paie:read') }), manager_name: e.manager_last ? `${e.manager_last} ${e.manager_first}` : null, leave_available: b.available, leave_balance: b.balance, absent: off ? LEAVE_TYPES[off.type]?.label : null });
     }
     res.json(out);
+  }));
+
+  // Bilan de départ d'un employé sorti : compte, matériel, dossiers encore à régler (service RH et direction)
+  r.get('/employees/:id/departure', requirePermission('rh:read', 'direction:read'), ah(async (req, res) => {
+    res.json(await departures.departureReport(db, await rh.getEmployee(db, idParam(req))));
   }));
 
   r.get('/employees/:id', ah(async (req, res) => {

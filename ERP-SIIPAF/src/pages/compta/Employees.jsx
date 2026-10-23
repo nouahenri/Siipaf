@@ -115,7 +115,9 @@ function EmployeeForm({ employee, onClose, onSaved }) {
     if (!employee.id) delete body.active;
     try {
       await (employee.id ? api.patch(`/admin/erp/paie/employees/${employee.id}`, body) : api.post('/admin/erp/paie/employees', body));
-      reload(); saved("Fiche employé enregistrée"); onSaved();
+      // Sortie : le bilan de départ (compte, matériel, dossiers) est dans la fiche RH, les responsables sont prévenus
+      const leaving = employee.id && employee.active && !f.active;
+      reload(); saved(leaving ? 'Sortie enregistrée : le bilan de départ est dans la fiche RH (Ressources humaines › Personnel)' : 'Fiche employé enregistrée'); onSaved();
     } catch (err) { setError(err); }
   };
   const users = (meta?.users || []).filter(u => !u.employee_id || u.employee_id === employee.id);

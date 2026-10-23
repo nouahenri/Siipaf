@@ -2,7 +2,8 @@
  * ERP · Administration générale › vue Direction : synthèse de tous les services, calculée par les services de
  * chaque module (aucun chiffre recalculé ici autrement que dans son module) — commercial (commercial.dashboard,
  * achieved, portefeuille), chantiers (journal de chantier : clients.progressIndex, appels de fonds VEFA),
- * finance (compta.dashboard, échéanciers), RH (rh.dashboard, paie, performance par service) et SAV (sav.savStats).
+ * finance (compta.dashboard, échéanciers), RH (rh.dashboard, paie, performance par service), SAV (sav.savStats) et
+ * Administration générale (courrier, contrats.upcoming, parc.deadlines, documents et demandes internes).
  */
 const { toDate, isoDay, isoTime } = require('../lib/http');
 const { SITE_STAGE_LABELS } = require('../lib/domain');
@@ -101,14 +102,90 @@ async function payrollPart(db, now) {
   return rows.map(r => ({ month: r.period, gross: Number(r.gross || 0), employer_cost: Number(r.employer_cost || 0), payslips: Number(r.n) }));
 }
 
+/**
+ * Administration générale : courrier, contrats, parc, documents internes et demandes internes, avec la liste de ce
+ * qui est en retard (chaque ligne renvoie à sa fiche). Les échéances viennent des services de chaque partie.
+ */
+async function adminPart(db, now) {
+  const contracts = require('./contracts');
+  const parc = require('./parc');
+  const { REQUEST_KINDS, REQUEST_OPEN } = require('../lib/domain');
+  const day = isoDay(now);
+  const monthStart = `${day.slice(0, 7)}-01`;
+  const n = async q => Number((await q.count({ n: '*' }).first()).n || 0);
+  const ALL = { can: () => true, userId: 0 };
+
+  const [mailToAssign, mailOpen, mailLate, mailIn, mailOut, ctrActive, ctrDeadlines, assetRows, assetDeadlines, resaPending, docs, recipients, reads, actions, reqs] = await Promise.all([
+    n(db('mail_items').where({ status: 'enregistre', direction: 'arrivee' })),
+    n(db('mail_items').where({ status: 'affecte' })),
+    db('mail_items as m').leftJoin('users as u', 'u.id', 'm.assigned_to').where('m.status', 'affecte').where('m.due_date', '<', day).orderBy('m.due_date')
+      .select('m.id', 'm.number', 'm.subject', 'm.confidential', 'm.due_date', 'u.name as assigned_to_name'),
+    n(db('mail_items').where({ direction: 'arrivee' }).where('date', '>=', monthStart)),
+    n(db('mail_items').where({ direction: 'depart' }).where('date', '>=', monthStart)),
+    n(db('contracts').where({ status: 'actif' })),
+    contracts.upcoming(db, ALL, { days: 30 }),
+    db('assets').whereNot('status', 'reforme').select('status'),
+    parc.deadlines(db, { days: 30, day }),
+    n(db('asset_reservations').where({ status: 'demandee' })),
+    db('internal_docs').where({ status: 'publie' }).select('id', 'reference', 'title', 'version', 'ack_required', 'ack_deadline'),
+    db('internal_doc_recipients').groupBy('doc_id').select('doc_id').count({ n: '*' }),
+    db('internal_doc_reads as r').join('internal_docs as d', function () { this.on('d.id', 'r.doc_id').andOn('d.version', 'r.version'); })
+      .groupBy('r.doc_id').select('r.doc_id').countDistinct({ n: 'r.user_id' }),
+    db('internal_doc_actions as a').join('internal_docs as d', 'd.id', 'a.doc_id').leftJoin('users as u', 'u.id', 'a.owner_id').where('a.status', 'a_faire')
+      .select('a.id', 'a.label', 'a.due_date', 'a.doc_id', 'd.reference', 'u.name as owner_name'),
+    db('internal_requests').whereIn('status', REQUEST_OPEN).select('id', 'reference', 'title', 'kind', 'status', 'estimated_amount', 'created_at'),
+  ]);
+
+  // Contrats : échéances suivies (fin, préavis, pièces, révision) ; les paiements ont leurs factures en Comptabilité
+  const watched = ctrDeadlines.filter(d => d.kind !== 'paiement');
+  // Documents : lectures attendues de la version en vigueur
+  const count = rows => Object.fromEntries(rows.map(r => [r.doc_id, Number(r.n)]));
+  const sent = count(recipients);
+  const done = count(reads);
+  const docRows = docs.filter(d => d.ack_required).map(d => {
+    const pending = Math.max(0, (sent[d.id] || 0) - (done[d.id] || 0));
+    return { ...d, ack_deadline: isoDay(d.ack_deadline), pending, late: pending > 0 && !!d.ack_deadline && isoDay(d.ack_deadline) < day };
+  });
+  const lateActions = actions.map(a => ({ ...a, due_date: isoDay(a.due_date) })).filter(a => a.due_date && a.due_date < day);
+  const purchase = reqs.filter(r => REQUEST_KINDS[r.kind]?.purchase);
+
+  // À traiter en priorité : tout ce qui a dépassé son délai, du plus ancien au plus récent
+  const attention = [
+    ...mailLate.map(m => ({ module: 'courrier', label: `Courrier ${m.number} non traité`, detail: [m.confidential ? 'Confidentiel' : m.subject, m.assigned_to_name].filter(Boolean).join(' · '), date: isoDay(m.due_date), link: `/administration/courrier?fiche=${m.id}` })),
+    ...watched.filter(d => d.days_left < 0).map(d => ({ module: 'contrats', label: `Contrat ${d.reference} : ${d.label.toLowerCase()}`, detail: [d.title, d.owner_name].filter(Boolean).join(' · '), date: d.date, link: `/administration/contrats?fiche=${d.contract_id}` })),
+    ...assetDeadlines.filter(x => x.state === 'du').map(x => ({ module: 'parc', label: `${x.code}${x.plate ? ` (${x.plate})` : ''} : ${x.label}`, detail: x.name, date: x.date, link: `/administration/parc?fiche=${x.asset_id}` })),
+    ...lateActions.map(a => ({ module: 'documents', label: `Action de PV en retard : ${a.label}`, detail: [a.reference, a.owner_name].filter(Boolean).join(' · '), date: a.due_date, link: `/administration/documents?fiche=${a.doc_id}` })),
+    ...docRows.filter(d => d.late).map(d => ({ module: 'documents', label: `${d.reference} : ${d.pending} lecture(s) en retard`, detail: d.title, date: d.ack_deadline, link: `/administration/documents?fiche=${d.id}` })),
+  ].sort((a, b) => String(a.date || '').localeCompare(String(b.date || '')));
+
+  return {
+    courrier: { to_assign: mailToAssign, open: mailOpen, late: mailLate.length, month_in: mailIn, month_out: mailOut },
+    contrats: { active: ctrActive, due_30: watched.length, late: watched.filter(d => d.days_left < 0).length, payments_30: ctrDeadlines.length - watched.length },
+    parc: {
+      assets: assetRows.length, broken: assetRows.filter(a => a.status === 'maintenance').length,
+      due_30: assetDeadlines.length, late: assetDeadlines.filter(x => x.state === 'du').length, requests: resaPending,
+    },
+    documents: {
+      published: docs.length, to_read: docRows.reduce((t, d) => t + d.pending, 0), late_docs: docRows.filter(d => d.late).length,
+      actions_open: actions.length, actions_late: lateActions.length,
+    },
+    demandes: {
+      open: reqs.length,
+      by_status: REQUEST_OPEN.reduce((m, s) => ({ ...m, [s]: reqs.filter(r => r.status === s).length }), {}),
+      purchases_fcfa: purchase.reduce((t, r) => t + Number(r.estimated_amount || 0), 0),
+    },
+    attention: attention.slice(0, 15), attention_total: attention.length,
+  };
+}
+
 async function overview(db, now = new Date()) {
   const ct = require('./compta');
   const rh = require('./rh');
   const { departmentReport } = require('./performance');
   const { savStats } = require('./sav');
-  const [commercial, projects, collections, finance, staff, payroll, performance, sav] = await Promise.all([
+  const [commercial, projects, collections, finance, staff, payroll, performance, sav, administration] = await Promise.all([
     commercialPart(db, now), projectsPart(db, now), collectionsPart(db), ct.dashboard(db),
-    rh.dashboard(db, isoDay(now)), payrollPart(db, now), departmentReport(db, now.getFullYear(), { now }), savStats(db, now),
+    rh.dashboard(db, isoDay(now)), payrollPart(db, now), departmentReport(db, now.getFullYear(), { now }), savStats(db, now), adminPart(db, now),
   ]);
   const withSales = projects.filter(p => p.dossiers);
   return {
@@ -137,6 +214,7 @@ async function overview(db, now = new Date()) {
       open: sav.open, overdue: sav.overdue, urgent: sav.urgent, avg_resolution_hours: sav.avg_resolution_hours, on_time_rate: sav.on_time_rate,
       satisfaction_avg: sav.satisfaction_avg, satisfaction_count: sav.satisfaction_count, months: sav.months, open_by_project: sav.open_by_project,
     },
+    administration,
   };
 }
 

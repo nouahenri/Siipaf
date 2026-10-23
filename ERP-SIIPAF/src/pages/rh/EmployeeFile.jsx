@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { useParams, useSearchParams, Link } from 'react-router-dom';
-import { ArrowLeft, Pencil, Upload, Trash2, FileText, Plus, CalendarPlus, Star, Briefcase, KeyRound, ExternalLink } from 'lucide-react';
+import { ArrowLeft, Pencil, Upload, Trash2, FileText, Plus, CalendarPlus, Star, Briefcase, KeyRound, ExternalLink, UserX, Truck } from 'lucide-react';
 import { api } from '@admin/lib/api';
 import { useAuth, useResource, useToast, useSaved } from '@admin/lib/app-context';
 import { Card, Empty, Skeleton, ErrorBox, Modal, Field, Badge } from '@admin/components/ui';
@@ -44,6 +44,7 @@ export default function EmployeeFile() {
       <div className="tabs" role="tablist">
         {tabs.map(([k, l]) => <button key={k} role="tab" aria-selected={tab === k} className={`tab ${tab === k ? 'active' : ''}`} onClick={() => setParams({ onglet: k })}>{l}</button>)}
       </div>
+      {tab === 'dossier' && !e.active && (can('rh:read') || can('direction:read')) && <Departure employeeId={e.id} />}
       {tab === 'dossier' && <Identity d={d} hr={hr} onSaved={file.reload} />}
       {tab === 'conges' && <LeaveTab d={d} hr={hr} onChange={file.reload} />}
       {tab === 'documents' && <Documents d={d} hr={hr} onChange={file.reload} />}
@@ -56,6 +57,30 @@ export default function EmployeeFile() {
 }
 
 const Row = ({ label, children }) => <div className="kv"><span>{label}</span><b>{children || <span className="muted">—</span>}</b></div>;
+
+/** Employé sorti : ce qui reste à régler (compte du dashboard, matériel, dossiers à réaffecter), chaque ligne mène à son écran. */
+function Departure({ employeeId }) {
+  const r = useResource(`${RH}/employees/${employeeId}/departure`);
+  if (!r.data) return null;
+  const { account, assets, items, pending } = r.data;
+  return (
+    <Card title="Départ — ce qui reste à régler" actions={pending ? <Badge tone="warn">{pending} point(s)</Badge> : <Badge tone="ok">Tout est réglé</Badge>} bodyClass="">
+      {!pending ? <p className="small muted card-body">Compte désactivé, matériel rendu, aucun dossier ouvert à son nom.</p> : (
+        <ul className="list">
+          {account?.active && (
+            <li><Link to="/comptes" className="list-row"><span><strong>Compte du dashboard encore actif</strong><span className="small muted ellipsis">{account.email} — à désactiver une fois ses dossiers repris</span></span><UserX size={16} aria-hidden="true" /></Link></li>
+          )}
+          {assets.length > 0 && (
+            <li><Link to="/administration/parc" className="list-row"><span><strong>Matériel à récupérer ({assets.length})</strong><span className="small muted ellipsis">{assets.map(a => `${a.code} ${a.name}${a.plate ? ` (${a.plate})` : ''}`).join(' · ')}</span></span><Truck size={16} aria-hidden="true" /></Link></li>
+          )}
+          {items.map(x => (
+            <li key={x.key}><Link to={x.link} className="list-row"><span><strong>{x.label}</strong>{x.names && <span className="small muted ellipsis">{x.names.join(' · ')}</span>}</span><b className="tabular">{x.count}</b></Link></li>
+          ))}
+        </ul>
+      )}
+    </Card>
+  );
+}
 
 function Identity({ d, hr, onSaved }) {
   const { meta } = useRhMeta();

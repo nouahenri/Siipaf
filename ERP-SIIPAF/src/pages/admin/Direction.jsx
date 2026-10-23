@@ -1,8 +1,12 @@
 /**
- * Administration générale › vue Direction : synthèse de tous les services (commercial, chantiers, finance, RH, SAV),
+ * Administration générale › vue Direction : synthèse de tous les services (commercial, chantiers, finance, RH, SAV,
+ * courrier, contrats, parc, documents et demandes internes) et liste des délais dépassés à traiter en priorité ;
  * avancement des chantiers par programme, îlot et dossier. Lecture seule : chaque chiffre renvoie à son module.
  */
-import { Banknote, Wallet, Landmark, HardHat, Gauge, Target, Users, UserMinus, LifeBuoy, AlarmClock, Star, Scale, ReceiptText, Briefcase } from 'lucide-react';
+import {
+  Banknote, Wallet, Landmark, HardHat, Gauge, Target, Users, UserMinus, LifeBuoy, AlarmClock, Star, Scale, ReceiptText, Briefcase,
+  Building, Mail, FileClock, Truck, Inbox, FileText, ListChecks,
+} from 'lucide-react';
 import { Link } from 'react-router-dom';
 import { useResource } from '@admin/lib/app-context';
 import { Card, Skeleton, Empty, ErrorBox, Advance, Badge } from '@admin/components/ui';
@@ -13,6 +17,11 @@ import { Kpi, Progress, trendOf } from '../commercial/CommercialDashboard';
 
 const money = v => `${compact(v)} FCFA`;
 const pct = (done, target) => (target ? Math.round((done / target) * 1000) / 10 : null);
+// Retards de l'Administration générale : icône et nom de la partie
+const ATTENTION = {
+  courrier: { icon: Mail, label: 'Courrier' }, contrats: { icon: FileClock, label: 'Contrats' },
+  parc: { icon: Truck, label: 'Parc' }, documents: { icon: FileText, label: 'Documents internes' },
+};
 
 function Section({ icon: Icon, title, to, children }) {
   return (
@@ -28,7 +37,7 @@ export default function Direction() {
   const d = res.data;
   if (res.error) return <ErrorBox error={res.error} />;
   if (!d) return <div className="grid grid-4">{[1, 2, 3, 4].map(i => <Skeleton key={i} h={110} />)}</div>;
-  const { commercial: c, chantiers: ch, finance: f, rh, sav } = d;
+  const { commercial: c, chantiers: ch, finance: f, rh, sav, administration: a } = d;
   const lastPay = rh.payroll[rh.payroll.length - 1];
   const withSales = ch.projects.filter(p => p.dossiers || p.lots);
 
@@ -41,6 +50,27 @@ export default function Direction() {
         <Kpi icon={Landmark} label="Trésorerie" count={f.fiscal_year ? f.treasury_total : null} format={money} foot={f.fiscal_year ? `exercice ${f.fiscal_year.label}` : 'aucun exercice comptable ouvert'} tint="violet" />
         <Kpi icon={HardHat} label="Avancement moyen des dossiers" count={ch.dossiers_progress_pct} format={v => `${v} %`} foot="dossiers en cours, d’après le journal de chantier" tint="amber" />
       </div>
+
+      {a.attention.length > 0 && (
+        <Card title="À traiter en priorité" actions={<span className="small muted">{num(a.attention_total)} délai(s) dépassé(s)</span>} bodyClass="">
+          <ul className="list">
+            {a.attention.map(x => {
+              const M = ATTENTION[x.module];
+              return (
+                <li key={`${x.module}-${x.link}-${x.label}`}>
+                  <Link to={x.link} className="list-row">
+                    <span className="row" style={{ gap: 10, minWidth: 0, flex: 1, flexWrap: 'nowrap' }}>
+                      <M.icon size={16} aria-hidden="true" style={{ flexShrink: 0, color: 'var(--ink-3)' }} />
+                      <span style={{ minWidth: 0, flex: 1 }}><strong className="ellipsis">{x.label}</strong>{x.detail && <span className="small muted ellipsis">{M.label} · {x.detail}</span>}</span>
+                    </span>
+                    <span className="small nowrap" style={{ color: 'var(--danger)' }}>{x.date ? `depuis le ${date(x.date)}` : 'à faire'}</span>
+                  </Link>
+                </li>
+              );
+            })}
+          </ul>
+        </Card>
+      )}
 
       <Section icon={Briefcase} title={`Commercial — ${monthName(c.month)}`} to="/commercial">
         <div className="grid grid-4">
@@ -159,6 +189,25 @@ export default function Direction() {
           <Kpi icon={AlarmClock} label="En retard" count={sav.overdue} tint={sav.overdue ? 'amber' : undefined} foot="échéance de traitement dépassée" />
           <Kpi icon={Gauge} label="Traitées dans le délai" count={sav.on_time_rate} format={v => `${v} %`} foot={sav.avg_resolution_hours != null ? `délai moyen ${sav.avg_resolution_hours} h` : null} />
           <Kpi icon={Star} label="Satisfaction" count={sav.satisfaction_avg == null ? null : sav.satisfaction_avg * 10} format={v => `${(v / 10).toLocaleString('fr-FR')} / 5`} foot={`${num(sav.satisfaction_count)} avis`} />
+        </div>
+      </Section>
+
+      <Section icon={Building} title="Administration générale">
+        <div className="grid grid-4">
+          <Kpi to="/administration/courrier" icon={Mail} label="Courrier à affecter" count={a.courrier.to_assign} tint={a.courrier.to_assign ? 'amber' : undefined}
+            foot={`${num(a.courrier.open)} en traitement · ${num(a.courrier.late)} en retard · ce mois ${num(a.courrier.month_in)} reçu(s), ${num(a.courrier.month_out)} envoyé(s)`} />
+          <Kpi to="/administration/contrats" icon={FileClock} label="Échéances de contrats (30 j)" count={a.contrats.due_30} tint={a.contrats.late ? 'amber' : undefined}
+            foot={`${num(a.contrats.late)} dépassée(s) · ${num(a.contrats.active)} contrat(s) actif(s) · ${num(a.contrats.payments_30)} paiement(s) à venir`} />
+          <Kpi to="/administration/parc" icon={Truck} label="Parc : échéances et entretiens (30 j)" count={a.parc.due_30} tint={a.parc.late ? 'amber' : undefined}
+            foot={`${num(a.parc.late)} dépassé(s) · ${num(a.parc.broken)} bien(s) en panne sur ${num(a.parc.assets)} · ${num(a.parc.requests)} demande(s) de véhicule`} />
+          <Kpi to="/administration/demandes" icon={Inbox} label="Demandes internes en cours" count={a.demandes.open}
+            foot={`${num(a.demandes.by_status.attente_dg)} à valider par la DG · ${num(a.demandes.by_status.attente_sg + a.demandes.by_status.en_cours)} aux services généraux · achats ${money(a.demandes.purchases_fcfa)}`} />
+        </div>
+        <div className="grid grid-4">
+          <Kpi to="/administration/documents" icon={FileText} label="Lectures attendues" count={a.documents.to_read} tint={a.documents.late_docs ? 'amber' : undefined}
+            foot={`${num(a.documents.published)} document(s) publié(s) · ${num(a.documents.late_docs)} en retard`} />
+          <Kpi to="/administration/documents" icon={ListChecks} label="Actions de réunion ouvertes" count={a.documents.actions_open} tint={a.documents.actions_late ? 'amber' : undefined}
+            foot={`${num(a.documents.actions_late)} en retard`} />
         </div>
       </Section>
     </div>

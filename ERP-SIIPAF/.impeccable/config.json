@@ -1,0 +1,17 @@
+{
+  "detector": {
+    "ignoreRules": [],
+    "ignoreFiles": [],
+    "ignoreValues": [
+      {
+        "rule": "side-tab",
+        "value": "*",
+        "files": [
+          "src/erp.css"
+        ],
+        "createdAt": "2026-10-23T09:39:21.174Z",
+        "reason": "assistant decision: même exception que la config racine (ERP-SIIPAF/src/erp.css) — traits de liaison gris de l'organigramme RH, pas un accent de carte ; le contrôle lit cette config quand il part du dossier ERP-SIIPAF"
+      }
+    ]
+  }
+}

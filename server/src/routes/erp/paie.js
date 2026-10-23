@@ -7,6 +7,7 @@ const { CONTRACT_TYPES, DEPARTMENTS, MARITAL, PAY_METHODS, DEFAULT_PAYROLL } = r
 const paie = require('../../services/paie');
 const rh = require('../../services/rh');
 const positions = require('../../services/positions');
+const departures = require('../../services/departures');
 
 const day = z.string().regex(/^\d{4}-\d{2}-\d{2}$/, 'Date attendue au format AAAA-MM-JJ');
 const optText = max => z.string().trim().max(max).optional().nullable().transform(v => v || null);
@@ -86,7 +87,10 @@ module.exports = function paieRoutes(db) {
       await trx('employees').where({ id }).update({ ...data, updated_at: new Date() });
       await rh.logChanges(trx, rh.normEmployee(before), data, req.user.id);
     });
-    res.json(paie.serializeEmployee(await db('employees').where({ id }).first(), { withPay: true }));
+    const after = await db('employees').where({ id }).first();
+    // Sortie : compte, matériel et dossiers à régler sont signalés à ceux qui les reprennent
+    if (before.active && data.active === false) await departures.notifyDeparture(db, after, { user: req.user });
+    res.json(paie.serializeEmployee(after, { withPay: true }));
   }));
 
   // Fiches créées à partir des comptes du dashboard (même personne, aucune ressaisie du nom ni de l'e-mail)
