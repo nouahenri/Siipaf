@@ -110,7 +110,15 @@ const DEFAULT_SETTINGS = {
   accounts: {
     client: '4111', client_advance: '4191', supplier: '4011', vat_collected: '4431', vat_deductible: '4452',
     sale_housing: '702110', sale_land: '702120', expense_default: '621100', opening_balance: '471',
+    // Parc auto et matériel (choix du client du 23/10) : charge de chaque nature de dépense, carte carburant prépayée
+    parc_carburant: '605', parc_entretien: '624', parc_reparation: '624', parc_pneus: '624', parc_location: '622',
+    parc_assurance: '625', parc_taxes: '645', parc_autre: '605', fuel_card: '4091',
+    // Immobilisations du parc : compte d'actif par sorte de bien, amortissements, dotations, sorties d'actif
+    immo_vehicule: '245', immo_engin: '241', immo_materiel: '241', immo_informatique: '244', immo_autre: '241',
+    depreciation: '284', depreciation_expense: '681', disposal_value: '81', disposal_income: '82',
   },
+  // Durée d'amortissement linéaire par sorte de bien (années), modifiable sur chaque bien
+  depreciation_years: { vehicule: 4, engin: 5, materiel: 5, informatique: 3, autre: 5 },
   sage: { separator: ';', date_format: 'JJMMAAAA', decimal: ',', header: true },
 };
 const REVENUE_MODES = {

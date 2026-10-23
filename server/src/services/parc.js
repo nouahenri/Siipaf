@@ -57,6 +57,7 @@ const planRow = (p, asset, day) => {
 };
 const docRow = d => ({
   id: d.id, kind: d.kind, kind_label: ASSET_DOC_KINDS[d.kind] || d.kind, label: d.label, reference: d.reference, expires_on: isoDay(d.expires_on),
+  amount_estimate: d.amount_estimate == null ? null : Number(d.amount_estimate),
   file_url: d.file_filename ? `/api/admin/erp/parc/documents/${d.id}/fichier` : null, file_name: d.file_name,
 });
 
@@ -84,16 +85,14 @@ async function detail(db, id, day = today()) {
       .where('g.asset_id', id).orderBy('g.start_date', 'desc').orderBy('g.id', 'desc').select('g.*', 'e.last_name', 'e.first_name', 'p.name as project_name'),
     db('asset_documents').where({ asset_id: id }).orderBy('expires_on'),
     db('asset_maintenance_plans').where({ asset_id: id }).orderBy('id'),
-    db('asset_costs as c').leftJoin('projects as p', 'p.id', 'c.project_id').leftJoin('purchase_invoices as i', 'i.id', 'c.purchase_invoice_id')
-      .where('c.asset_id', id).orderBy('c.date', 'desc').orderBy('c.id', 'desc').limit(300).select('c.*', 'p.name as project_name', 'i.number as invoice_number'),
+    require('./parcCompta').costQuery(db).where('c.asset_id', id).orderBy('c.date', 'desc').orderBy('c.id', 'desc').limit(300),
     db('asset_reservations as r').join('users as u', 'u.id', 'r.requested_by').where('r.asset_id', id).where('r.status', 'accordee')
       .where('r.end_at', '>=', `${day}T00:00`).orderBy('r.start_at').select('r.*', 'u.name as requested_by_name'),
   ]);
-  const costRows = costs.map(c => ({
-    ...c, date: isoDay(c.date), amount: Number(c.amount), liters: num(c.liters), meter_value: num(c.meter_value), kind_label: ASSET_COST_KINDS[c.kind] || c.kind,
-  }));
+  // Dépenses avec leur état comptable (à valider, validée, rejetée…) ; une dépense rejetée ne compte pas dans les coûts
+  const costRows = costs.map(require('./parcCompta').serializeCost);
   const since = addMonths(day, -12);
-  const year = costRows.filter(c => c.date > since);
+  const year = costRows.filter(c => c.date > since && c.status !== 'rejetee');
   return {
     ...serialize(raw),
     assignments: assignments.map(g => ({
@@ -196,6 +195,13 @@ async function setStatus(db, a, status) {
   if (status === 'reforme' && open) throw new HttpError(409, 'Restituez d’abord le bien avant de le réformer.');
   const next = status === 'disponible' && open ? 'affecte' : status;
   await db('assets').where({ id: a.id }).update({ status: next, updated_at: new Date() });
+  // Bien immobilisé réformé : le comptable passe sa sortie de l'actif (Comptabilité › Parc › Immobilisations)
+  if (status === 'reforme' && a.fixed_value && !a.disposal_entry_id) {
+    await notify(db, {
+      to: await usersWith(db, 'compta:entries'), module: 'compta', event: 'parc.reforme', title: `Bien réformé à sortir de l’actif : ${a.code} ${a.name}`,
+      link: '/compta/parc?onglet=immobilisations', priority: 'action', key: `parc_reforme:${a.id}`,
+    });
+  }
 }
 
 // ─── Échéances administratives et plans d'entretien ─────────
@@ -252,12 +258,19 @@ async function addCost(db, a, data, { userId }) {
     if (!plan) throw new HttpError(404, 'Plan d’entretien introuvable.');
   }
   if (data.purchase_invoice_id && !(await db('purchase_invoices').where({ id: data.purchase_invoice_id }).first())) throw new HttpError(404, 'Facture d’achat introuvable.');
-  return db.transaction(async trx => {
-    const [i] = await trx('asset_costs').insert({ ...data, asset_id: a.id, project_id: project, created_by: userId });
+  // Lien avec la Comptabilité (choix du client du 23/10) : la dépense part aussitôt en facture ou en écriture à valider
+  const pc = require('./parcCompta');
+  const row = await pc.checkPayment(db, a, { ...data, project_id: project });
+  const id = await db.transaction(async trx => {
+    const [i] = await trx('asset_costs').insert({ ...row, asset_id: a.id, project_id: project, created_by: userId });
+    const costId = insertedId(i);
+    await pc.bookCost(trx, a, costId, row, userId);
     await raiseMeter(trx, normalize(a), data.meter_value, data.date);
     if (plan) await trx('asset_maintenance_plans').where({ id: plan.id }).update({ last_date: data.date, last_meter: data.meter_value ?? num(a.meter_value), updated_at: new Date() });
-    return insertedId(i);
+    return costId;
   });
+  await pc.announceCost(db, id, userId);
+  return id;
 }
 
 // ─── Vues transverses ───────────────────────────────────────
@@ -288,7 +301,7 @@ async function deadlines(db, { days = 60, day = today() } = {}) {
 /** Coûts de la période par chantier, par bien et par nature (frais généraux = sans chantier). */
 async function costsReport(db, { from, to }) {
   const rows = await db('asset_costs as c').join('assets as a', 'a.id', 'c.asset_id').leftJoin('projects as p', 'p.id', 'c.project_id')
-    .whereBetween('c.date', [from, to]).select('c.kind', 'c.amount', 'c.liters', 'c.project_id', 'p.name as project_name', 'a.id as asset_id', 'a.code', 'a.name');
+    .whereBetween('c.date', [from, to]).whereNull('c.rejected_at').select('c.kind', 'c.amount', 'c.liters', 'c.project_id', 'p.name as project_name', 'a.id as asset_id', 'a.code', 'a.name');
   const group = (keyOf, labelOf) => {
     const m = new Map();
     for (const r of rows) {
@@ -425,7 +438,9 @@ async function badges(db, { can, userId }) {
   const items = manage ? await deadlines(db, { days: 30 }) : [];
   const requests = can('parc:write') ? Number((await db('asset_reservations').where({ status: 'demandee' }).count({ n: '*' }).first()).n || 0) : 0;
   const mine = Number((await db('asset_reservations').where({ requested_by: userId }).whereIn('status', ['demandee', 'accordee']).count({ n: '*' }).first()).n || 0);
-  return { due: items.length, late: items.filter(x => x.state === 'du').length, requests, my_reservations: mine };
+  // Dépenses à valider par la Comptabilité (pastille de l'onglet « À valider »)
+  const costs = can('achats:write') || can('compta:read') ? (await require('./parcCompta').pendingCosts(db)).length : 0;
+  return { due: items.length, late: items.filter(x => x.state === 'du').length, requests, my_reservations: mine, costs_to_validate: costs };
 }
 
 module.exports = {

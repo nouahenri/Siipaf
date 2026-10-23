@@ -1002,6 +1002,52 @@ function fuelConsumption(fills, meter) {
   return { value: Math.round(value * 10) / 10, unit: meter === 'km' ? 'L/100 km' : 'L/h', liters, distance };
 }
 
+/**
+ * Paiement d'une dépense du parc et sa traduction en comptabilité (choix du client du 23/10) : facture du fournisseur
+ * (facture d'achat en brouillon), espèces ou Mobile Money (écriture de trésorerie en brouillon), carte carburant
+ * prépayée (écriture qui consomme l'avance faite à la station), avance de l'employé (remboursée par sa note de frais).
+ * Une seule validation : celle du comptable sur la facture ou l'écriture.
+ */
+const ASSET_PAYMENT_MODES = {
+  fournisseur: { label: 'Facture du fournisseur', accounting: 'facture' },
+  caisse: { label: 'Espèces (caisse)', accounting: 'ecriture', journal: 'CA' },
+  mobile: { label: 'Mobile Money', accounting: 'ecriture', journal: 'MM' },
+  carte: { label: 'Carte carburant prépayée', accounting: 'ecriture', journal: 'OD' },
+  employe: { label: 'Avancé par l’employé (note de frais)', accounting: 'frais' },
+};
+const COST_ACCOUNTING_STATUSES = { a_valider: 'À valider (Comptabilité)', validee: 'Validée', rejetee: 'Rejetée', note_de_frais: 'Remboursée par note de frais' };
+
+/**
+ * État comptable d'une dépense : d'après sa facture (brouillon, validée, annulée ou supprimée) ou son écriture
+ * (brouillon, validée ou supprimée). `doc_status` : statut de la pièce liée, null si elle n'existe plus.
+ */
+function costAccountingStatus(c) {
+  if (c.rejected_at) return 'rejetee';
+  if (c.accounting === 'frais') return 'note_de_frais';
+  if (c.accounting === 'facture') return c.doc_status === 'validee' ? 'validee' : c.doc_status === 'brouillon' ? 'a_valider' : 'rejetee';
+  if (c.accounting === 'ecriture') return c.doc_status === 'valide' ? 'validee' : c.doc_status === 'brouillon' ? 'a_valider' : 'rejetee';
+  return null; // dépense saisie avant le lien avec la Comptabilité
+}
+
+/**
+ * Amortissement linéaire au prorata temporis (choix du client du 23/10). `a` : { fixed_value, in_service_on,
+ * depreciation_years, prior_depreciation, prior_as_of, disposed_on }. Cumul des amortissements au soir de `day` :
+ * amortissements déjà pratiqués à la reprise (`prior_as_of`), plus la part de la valeur courue depuis, plafonné à la
+ * valeur d'origine ; arrêté à la sortie de l'actif.
+ */
+function depreciationAt(a, day) {
+  const value = Number(a.fixed_value || 0);
+  if (!value || !a.in_service_on || !a.depreciation_years) return 0;
+  const prior = Number(a.prior_depreciation || 0);
+  const from = a.prior_as_of && a.prior_as_of > a.in_service_on ? a.prior_as_of : a.in_service_on;
+  const until = a.disposed_on && a.disposed_on < day ? a.disposed_on : day;
+  if (until < from) return a.prior_as_of && day >= a.prior_as_of ? Math.min(value, prior) : 0;
+  const days = daysBetween(from, until) + (a.prior_as_of && from === a.prior_as_of ? 0 : 1);
+  return Math.min(value, Math.round(prior + (value * days) / (Number(a.depreciation_years) * 365)));
+}
+/** Dotation d'un exercice : cumul à sa fin moins cumul à la veille de son début. */
+const depreciationFor = (a, start, end) => Math.max(0, depreciationAt(a, end) - depreciationAt(a, addDays(start, -1)));
+
 /** Deux réservations du même véhicule se chevauchent (début et fin « AAAA-MM-JJTHH:MM »). */
 const reservationsOverlap = (a, b) => a.start_at < b.end_at && b.start_at < a.end_at;
 
@@ -1170,6 +1216,7 @@ module.exports = {
   REQUEST_KINDS, REQUEST_STATUSES, REQUEST_OPEN, REQUEST_DG_THRESHOLD, requestNeedsDg, requestNextStep, DOCS_ACTIONS, REQUEST_ACTIONS,
   ASSET_KINDS, ASSET_STATUSES, ASSET_ASSIGNMENT_KINDS, ASSET_DOC_KINDS, ASSET_COST_KINDS, RESERVATION_STATUSES, MAINTENANCE_SOON, PARC_ACTIONS,
   assetCode, maintenanceDue, fuelConsumption, reservationsOverlap,
+  ASSET_PAYMENT_MODES, COST_ACCOUNTING_STATUSES, costAccountingStatus, depreciationAt, depreciationFor, addDays,
   MAIL_DIRECTIONS, MAIL_SUITES, MAIL_NATURES, MAIL_CHANNELS, MAIL_STATUSES, mailNumber, mailVisibility, mailReminder,
   CONTRACT_KINDS, CONTRACT_FREQUENCIES, CONTRACT_STATUSES, CONTRACT_DOC_KINDS, CONTRACT_ALERT_STAGES, CONTRACT_INVOICE_LEAD_DAYS, CONTRACT_ACTIONS,
   contractDeadlines, contractAlertStage, renewedEnd, contractPaymentsDue, daysBetween,

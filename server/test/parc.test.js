@@ -61,15 +61,15 @@ test('affectation : employé puis chantier (remise, retour), dépenses imputées
   const plan = res.body.plans[0];
   assert.equal(plan.next_meter, 1450);
   // Plein sur le chantier : imputé d'office, compteur relevé
-  await resp.post(`${URL}/assets/${engin.id}/costs`).send({ kind: 'carburant', date: day(-10), amount: 150000, liters: 200, meter_value: 1300 });
-  res = await resp.post(`${URL}/assets/${engin.id}/costs`).send({ kind: 'carburant', date: day(-2), amount: 120000, liters: 160, meter_value: 1440 });
+  await resp.post(`${URL}/assets/${engin.id}/costs`).send({ kind: 'carburant', date: day(-10), amount: 150000, liters: 200, meter_value: 1300, payment_mode: 'employe', employee_id: employee });
+  res = await resp.post(`${URL}/assets/${engin.id}/costs`).send({ kind: 'carburant', date: day(-2), amount: 120000, liters: 160, meter_value: 1440, payment_mode: 'employe', employee_id: employee });
   assert.equal(res.body.meter_value, 1440);
   assert.equal(res.body.costs[0].project_id, project.id);
   assert.equal(res.body.consumption.unit, 'L/h');
   assert.equal(res.body.plans[0].state, 'bientot');
-  assert.equal((await resp.post(`${URL}/assets/${engin.id}/costs`).send({ kind: 'carburant', date: day(0), amount: 1000 })).status, 400, 'litres obligatoires');
+  assert.equal((await resp.post(`${URL}/assets/${engin.id}/costs`).send({ kind: 'carburant', date: day(0), amount: 1000, payment_mode: 'employe', employee_id: employee })).status, 400, 'litres obligatoires');
   // L'entretien fait remet le plan à zéro
-  res = await resp.post(`${URL}/assets/${engin.id}/costs`).send({ kind: 'entretien', date: day(-1), amount: 300000, plan_id: plan.id, meter_value: 1445 });
+  res = await resp.post(`${URL}/assets/${engin.id}/costs`).send({ kind: 'entretien', date: day(-1), amount: 300000, plan_id: plan.id, meter_value: 1445, payment_mode: 'employe', employee_id: employee });
   assert.equal(res.body.plans[0].next_meter, 1695);
   // Retour au dépôt puis remise à un employé
   res = await resp.post(`${URL}/assets/${engin.id}/release`).send({ date: day(0), condition: 'RAS' });

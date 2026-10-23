@@ -10,6 +10,7 @@ import { fcfa, date } from '@admin/lib/format';
 import { useComptaMeta, signed } from '../../lib/compta';
 import { compact } from '../../lib/commercial';
 import SignedBars from '../../components/SignedBars';
+import { ParcPayables } from '../../components/ParcCompta';
 
 // Nom court d'un programme sous les barres : « SIIPAF CITY AHOUTOUE » → « AHOUTOUE »
 const shortName = n => n.replace(/^(SIIPAF CITY|MINI-CITÉS DE|C & LY —)\s+/i, '').replace(/^(.{11}).+/, '$1…');
@@ -155,10 +156,14 @@ export default function ComptaDashboard() {
             })}
           </ul>
         </Card>
-        <Card title="TVA à reverser par mois">
-          {vat.length ? <HighlightBars data={vat} labelOf={m => monthLabel(m.month).split(' ')[0]} valueKey="due" format={v => compact(v)} color="#eda100" />
-            : <Empty>Aucune TVA sur l’exercice.</Empty>}
-        </Card>
+        <div className="stack">
+          {/* Échéances administratives du parc (assurance, visite, vignette…) avec leur montant à prévoir */}
+          <ParcPayables days={60} />
+          <Card title="TVA à reverser par mois">
+            {vat.length ? <HighlightBars data={vat} labelOf={m => monthLabel(m.month).split(' ')[0]} valueKey="due" format={v => compact(v)} color="#eda100" />
+              : <Empty>Aucune TVA sur l’exercice.</Empty>}
+          </Card>
+        </div>
       </div>
 
       {meta && <p className="small muted">Chiffre d’affaires : VEFA {meta.settings.revenue_vefa === 'avancement' ? 'à l’avancement' : 'à la livraison'} · ventes sur échéancier {meta.settings.revenue_echeancier === 'acte' ? 'à l’acte définitif' : 'à l’encaissement'} · TVA sur ventes {meta.settings.vat_sales_rate} % (<Link className="link" to="/compta/parametres">réglages</Link>). Montants des graphiques en FCFA, brouillons compris.</p>}

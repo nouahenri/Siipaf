@@ -115,6 +115,8 @@ module.exports = function comptaRoutes(db) {
     if (fy.status === 'cloture') throw new HttpError(409, 'Exercice déjà clôturé.');
     const drafts = await db('acc_entries').where({ fiscal_year_id: fy.id, status: 'brouillon' }).count({ n: '*' });
     if (Number(drafts[0].n)) throw new HttpError(409, `${drafts[0].n} écriture(s) en brouillon : validez-les avant la clôture.`);
+    // Biens du parc immobilisés : les dotations aux amortissements de l'exercice doivent être passées et validées
+    await require('../../services/parcCompta').checkClosing(db, fy);
     await db('acc_fiscal_years').where({ id: fy.id }).update({ status: 'cloture', lock_date: fy.end_date, closed_at: new Date(), closed_by: req.user.id, updated_at: new Date() });
     res.json(await db('acc_fiscal_years').where({ id: fy.id }).first());
   }));
@@ -347,7 +349,8 @@ module.exports = function comptaRoutes(db) {
   }));
   r.get('/reports/treasury', read, ah(async (req, res) => res.json(await ct.treasury(db, { includeDraft: req.query.draft === '1' }))));
 
-  r.get('/dashboard', read, ah(async (req, res) => res.json(await ct.dashboard(db))));
+  // Pastille du menu « Parc auto et matériel » : dépenses du parc à valider
+  r.get('/dashboard', read, ah(async (req, res) => res.json({ ...(await ct.dashboard(db)), parc_to_validate: (await require('../../services/parcCompta').pendingCosts(db)).length })));
 
   // ─── Export et réglages ───────────────────────────────────
   r.get('/export/sage', requirePermission('compta:export'), ah(async (req, res) => {
@@ -364,6 +367,7 @@ module.exports = function comptaRoutes(db) {
       revenue_vefa: z.enum(Object.keys(REVENUE_MODES.vefa)), revenue_echeancier: z.enum(Object.keys(REVENUE_MODES.echeancier)),
       vat_sales_rate: z.number().min(0).max(100), vat_purchases_rate: z.number().min(0).max(100), auto_validate: z.boolean(),
       accounts: z.record(z.string().trim().min(2).max(12)),
+      depreciation_years: z.record(z.number().int().min(1).max(50)),
       sage: z.object({ separator: z.enum([';', ',', '\t', '|']), date_format: z.enum(['JJMMAAAA', 'JJMMAA', 'AAAAMMJJ', 'JJ/MM/AAAA']), decimal: z.enum([',', '.']), header: z.boolean() }).partial(),
     }).partial(), req.body);
     res.json(await ct.saveSettings(db, data));

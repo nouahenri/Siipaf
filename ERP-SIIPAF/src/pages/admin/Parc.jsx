@@ -7,10 +7,12 @@ import { Card, Empty, Skeleton, ErrorBox, Field, Drawer, Modal, Badge } from '@a
 import { date, fcfa } from '@admin/lib/format';
 import { today, formData } from '../../lib/rh';
 import { RESERVATION_TONES, slotLabel } from '../../components/VehicleRequests';
+import { CostsToValidate, FuelCards, FixedAssets } from '../../components/ParcCompta';
 
 const URL = '/admin/erp/parc';
 const STATUS_TONES = { disponible: 'ok', affecte: '', maintenance: 'warn', reforme: '' };
 const STATE = { du: ['danger', 'à faire'], bientot: ['warn', 'à prévoir'], ok: ['', 'prévu'] };
+export const COST_TONES = { a_valider: 'warn', validee: 'ok', rejetee: 'danger', note_de_frais: '' };
 const meter = (v, unit) => (v == null ? '—' : `${Number(v).toLocaleString('fr-FR')} ${unit === 'h' ? 'h' : 'km'}`);
 
 function DueBadge({ item }) {
@@ -29,6 +31,8 @@ function DueBadge({ item }) {
 export default function Parc() {
   const { can } = useAuth();
   const write = can('parc:write');
+  // Onglets de la Comptabilité (choix du client du 23/10) : dépenses à valider, cartes carburant, immobilisations
+  const compta = can('achats:write') || can('compta:read');
   const [params, setParams] = useSearchParams();
   const [tab, setTab] = useState(params.get('onglet') || 'biens');
   const [kind, setKind] = useState('');
@@ -50,7 +54,8 @@ export default function Parc() {
       <div className="row-between">
         <div className="row" style={{ flexWrap: 'wrap' }}>
           <div className="seg" role="group" aria-label="Affichage">
-            {[['biens', 'Biens'], ['echeances', 'Échéances et entretien', b.late], ['reservations', 'Réservations', b.requests], ['couts', 'Coûts']].map(([k, l, n]) => (
+            {[['biens', 'Biens'], ['echeances', 'Échéances et entretien', b.late], ['reservations', 'Réservations', b.requests], ['couts', 'Coûts'],
+              ...(compta ? [['valider', 'À valider (Compta)', b.costs_to_validate], ['cartes', 'Cartes carburant'], ['immobilisations', 'Immobilisations']] : [])].map(([k, l, n]) => (
               <button key={k} className={tab === k ? 'active' : ''} onClick={() => setTab(k)}>{l}{n > 0 && <span> {n}</span>}</button>
             ))}
           </div>
@@ -91,6 +96,9 @@ export default function Parc() {
       {tab === 'echeances' && <Deadlines onOpen={setOpen} />}
       {tab === 'reservations' && <Reservations write={write} onChange={badges.reload} />}
       {tab === 'couts' && <Costs />}
+      {compta && tab === 'valider' && <CostsToValidate onOpen={setOpen} onChange={badges.reload} />}
+      {compta && tab === 'cartes' && <FuelCards />}
+      {compta && tab === 'immobilisations' && <FixedAssets onOpen={setOpen} />}
 
       {open && refs.data && <AssetDrawer id={open} refs={refs.data} write={write} onClose={() => setOpen(null)} onChange={reload} onEdit={a => setForm({ asset: a })} />}
       {form && refs.data && <AssetForm asset={form.asset} refs={refs.data} onClose={() => setForm(null)} onSaved={a => { setForm(null); reload(); setOpen(a.id); }} />}
@@ -287,7 +295,7 @@ function AssetDrawer({ id, refs, write, onClose, onChange, onEdit }) {
             {panel === 'doc' && <DocForm refs={refs} onCancel={() => setPanel(null)} onSubmit={body => call('post', `/assets/${a.id}/documents`, body, 'Échéance ajoutée')} />}
             {!a.documents.length ? <p className="small muted" style={{ margin: '6px 0 0' }}>Assurance, visite technique, vignette, carte de transport…</p> : a.documents.map(d => (
               <div key={d.id} className="kv">
-                <span style={{ flexShrink: 1 }}>{d.label}{d.reference && <div className="small muted">{d.reference}</div>}</span>
+                <span style={{ flexShrink: 1 }}>{d.label}{(d.reference || d.amount_estimate != null) && <div className="small muted">{[d.reference, d.amount_estimate != null && `à prévoir : ${fcfa(d.amount_estimate)}`].filter(Boolean).join(' · ')}</div>}</span>
                 <b className="row" style={{ gap: 6, justifyContent: 'flex-end', flexWrap: 'wrap' }}>
                   {d.expires_on ? `au ${date(d.expires_on)}` : '—'}
                   {d.file_url && <a className="btn btn-ghost btn-icon" href={d.file_url} target="_blank" rel="noreferrer" aria-label={`Ouvrir ${d.label}`}><FileText /></a>}
@@ -317,8 +325,8 @@ function AssetDrawer({ id, refs, write, onClose, onChange, onEdit }) {
             <b>Dépenses</b>
             {!a.costs.length ? <p className="small muted" style={{ margin: '6px 0 0' }}>Aucune dépense saisie.</p> : a.costs.slice(0, 30).map(c => (
               <div key={c.id} className="kv">
-                <span style={{ flexShrink: 1 }}>{date(c.date)} · {c.kind_label}<div className="small muted">{[c.label, c.liters && `${c.liters} L`, c.meter_value != null && meter(c.meter_value, a.meter), c.project_name, c.invoice_number && `facture ${c.invoice_number}`].filter(Boolean).join(' · ')}</div></span>
-                <b className="row" style={{ gap: 6, justifyContent: 'flex-end' }}>{fcfa(c.amount)}{write && <button className="btn btn-ghost btn-icon" onClick={() => remove(`/costs/${c.id}`, 'cette dépense')} aria-label="Retirer la dépense"><Trash2 /></button>}</b>
+                <span style={{ flexShrink: 1 }}>{date(c.date)} · {c.kind_label}<div className="small muted">{[c.label, c.liters && `${c.liters} L`, c.meter_value != null && meter(c.meter_value, a.meter), c.project_name, c.payment_label, c.supplier_name || c.card_label || c.employee_name, c.invoice_number && `facture ${c.invoice_number}`, c.entry_number && `écriture ${c.entry_number}`].filter(Boolean).join(' · ')}</div>{c.reject_reason && <div className="small" style={{ color: 'var(--danger)' }}>Rejetée : {c.reject_reason}</div>}</span>
+                <b className="row" style={{ gap: 6, justifyContent: 'flex-end', flexWrap: 'wrap' }}><span style={c.status === 'rejetee' ? { textDecoration: 'line-through', opacity: 0.6 } : undefined}>{fcfa(c.amount)}</span>{c.status && <Badge tone={COST_TONES[c.status]}>{c.status_label}</Badge>}{write && c.status !== 'validee' && <button className="btn btn-ghost btn-icon" onClick={() => remove(`/costs/${c.id}`, 'cette dépense')} aria-label="Retirer la dépense"><Trash2 /></button>}</b>
               </div>
             ))}
           </div>
@@ -394,10 +402,11 @@ function ReleasePanel({ a, onCancel, onSubmit }) {
 }
 
 function CostPanel({ a, refs, onCancel, onSubmit }) {
-  const [f, setF] = useState({ kind: a.meter ? 'carburant' : 'reparation', date: today(), amount: '', liters: '', meter_value: '', label: '', project_id: a.project_id || '', plan_id: '' });
+  const [f, setF] = useState({ kind: a.meter ? 'carburant' : 'reparation', date: today(), amount: '', liters: '', meter_value: '', label: '', project_id: a.project_id || '', plan_id: '', payment_mode: '', supplier_id: '', vat_rate: '0', fuel_card_id: '', employee_id: a.employee_id || '' });
   const set = k => e => setF(x => ({ ...x, [k]: e.target.value }));
   const fuel = f.kind === 'carburant';
-  const ready = f.amount !== '' && (!fuel || f.liters);
+  const card = refs.cards.find(c => String(c.id) === String(f.fuel_card_id));
+  const ready = Number(f.amount) > 0 && (!fuel || f.liters) && f.payment_mode && (f.payment_mode !== 'fournisseur' || f.supplier_id) && (f.payment_mode !== 'carte' || f.fuel_card_id) && (f.payment_mode !== 'employe' || f.employee_id);
   return (
     <div className="erp-panel form-grid">
       <Field label="Nature"><select className="select" value={f.kind} onChange={set('kind')}>{Object.entries(refs.cost_kinds).map(([k, l]) => <option key={k} value={k}>{l}</option>)}</select></Field>
@@ -405,6 +414,12 @@ function CostPanel({ a, refs, onCancel, onSubmit }) {
       <Field label="Montant (FCFA)"><input className="input" type="number" min="0" required value={f.amount} onChange={set('amount')} /></Field>
       {fuel ? <Field label="Litres"><input className="input" type="number" min="0" step="0.01" value={f.liters} onChange={set('liters')} /></Field> : <div />}
       {a.meter ? <Field label={`Compteur (${a.meter})`} hint={fuel ? 'Pour la consommation' : undefined}><input className="input" type="number" min="0" value={f.meter_value} onChange={set('meter_value')} /></Field> : <div />}
+      <Field label="Payée par" hint="Crée la pièce à valider par la Comptabilité"><select className="select" required value={f.payment_mode} onChange={set('payment_mode')}><option value="">— Choisir —</option>{Object.entries(refs.payment_modes).filter(([k]) => k !== 'carte' || fuel).map(([k, m]) => <option key={k} value={k}>{m.label}</option>)}</select></Field>
+      {f.payment_mode === 'fournisseur' ? <Field label="Fournisseur" hint="Une facture d’achat en brouillon est préparée"><select className="select" value={f.supplier_id} onChange={set('supplier_id')}><option value="">—</option>{refs.suppliers.map(x => <option key={x.id} value={x.id}>{x.name}</option>)}</select></Field>
+        : f.payment_mode === 'carte' ? <Field label="Carte carburant" hint={card ? `Solde : ${fcfa(card.balance)}` : 'Cartes gérées par la Comptabilité'}><select className="select" value={f.fuel_card_id} onChange={set('fuel_card_id')}><option value="">—</option>{refs.cards.map(c => <option key={c.id} value={c.id}>{c.label}</option>)}</select></Field>
+        : f.payment_mode === 'employe' ? <Field label="Employé qui a payé" hint="Se fait rembourser par sa note de frais (Mon espace)"><select className="select" value={f.employee_id} onChange={set('employee_id')}><option value="">—</option>{refs.employees.map(e => <option key={e.id} value={e.id}>{e.name}</option>)}</select></Field>
+        : <div />}
+      {f.payment_mode === 'fournisseur' && <Field label="TVA incluse"><select className="select" value={f.vat_rate} onChange={set('vat_rate')}><option value="0">0 %</option><option value="9">9 %</option><option value="18">18 %</option></select></Field>}
       <Field label="Chantier imputé" hint="Vide : frais généraux"><select className="select" value={f.project_id} onChange={set('project_id')}><option value="">Frais généraux</option>{refs.projects.map(p => <option key={p.id} value={p.id}>{p.name}</option>)}</select></Field>
       {f.kind === 'entretien' && a.plans.length > 0 && <Field label="Plan d’entretien réalisé"><select className="select" value={f.plan_id} onChange={set('plan_id')}><option value="">—</option>{a.plans.map(p => <option key={p.id} value={p.id}>{p.label}</option>)}</select></Field>}
       <Field label="Détail" className="full"><input className="input" maxLength={200} value={f.label} onChange={set('label')} placeholder="Station, garage, pièce changée…" /></Field>
@@ -412,6 +427,8 @@ function CostPanel({ a, refs, onCancel, onSubmit }) {
         <button className="btn btn-primary" disabled={!ready} onClick={() => onSubmit({
           kind: f.kind, date: f.date, amount: Number(f.amount), liters: fuel ? Number(f.liters) : null, meter_value: f.meter_value === '' ? null : Number(f.meter_value),
           label: f.label.trim() || null, project_id: f.project_id ? Number(f.project_id) : null, plan_id: f.plan_id ? Number(f.plan_id) : null,
+          payment_mode: f.payment_mode, supplier_id: f.payment_mode === 'fournisseur' ? Number(f.supplier_id) : null, vat_rate: f.payment_mode === 'fournisseur' ? Number(f.vat_rate) : 0,
+          fuel_card_id: f.payment_mode === 'carte' ? Number(f.fuel_card_id) : null, employee_id: f.payment_mode === 'employe' ? Number(f.employee_id) : null,
         })}><Check />Enregistrer</button>
         <button className="btn btn-ghost" onClick={onCancel}>Annuler</button>
       </div>
@@ -420,7 +437,7 @@ function CostPanel({ a, refs, onCancel, onSubmit }) {
 }
 
 function DocForm({ refs, onCancel, onSubmit }) {
-  const [f, setF] = useState({ kind: 'assurance', label: '', reference: '', expires_on: '' });
+  const [f, setF] = useState({ kind: 'assurance', label: '', reference: '', expires_on: '', amount_estimate: '' });
   const [file, setFile] = useState(null);
   const set = k => e => setF(x => ({ ...x, [k]: e.target.value }));
   return (
@@ -429,9 +446,10 @@ function DocForm({ refs, onCancel, onSubmit }) {
       <Field label="Expire le" hint="Alerte 30 puis 7 jours avant"><input className="input" type="date" value={f.expires_on} onChange={set('expires_on')} /></Field>
       <Field label="Intitulé"><input className="input" maxLength={160} value={f.label} onChange={set('label')} placeholder={refs.doc_kinds[f.kind]} /></Field>
       <Field label="Référence"><input className="input" maxLength={80} value={f.reference} onChange={set('reference')} placeholder="N° de police, de PV…" /></Field>
+      <Field label="Montant à prévoir (FCFA)" hint="Apparaît dans la trésorerie de la Comptabilité à l’approche de l’échéance" className="full"><input className="input" type="number" min="0" value={f.amount_estimate} onChange={set('amount_estimate')} /></Field>
       <div className="full row" style={{ gap: 8, flexWrap: 'wrap' }}>
         <label className="btn"><Paperclip />{file ? file.name : 'Joindre le justificatif'}<input type="file" hidden accept="application/pdf,image/jpeg,image/png,image/webp" onChange={e => setFile(e.target.files[0] || null)} /></label>
-        <button className="btn btn-primary" onClick={() => onSubmit(formData({ ...f, label: f.label || refs.doc_kinds[f.kind], expires_on: f.expires_on || 'null', reference: f.reference || 'null' }, { file }))}><Check />Enregistrer</button>
+        <button className="btn btn-primary" onClick={() => onSubmit(formData({ ...f, label: f.label || refs.doc_kinds[f.kind], expires_on: f.expires_on || 'null', reference: f.reference || 'null', amount_estimate: f.amount_estimate || 'null' }, { file }))}><Check />Enregistrer</button>
         <button className="btn btn-ghost" onClick={onCancel}>Annuler</button>
       </div>
     </div>
@@ -443,9 +461,10 @@ function RenewDoc({ d, onSaved }) {
   const toast = useToast();
   const [open, setOpen] = useState(false);
   const [expires, setExpires] = useState(d.expires_on || '');
+  const [amount, setAmount] = useState(d.amount_estimate ?? '');
   const [file, setFile] = useState(null);
   const save = async () => {
-    try { onSaved(await api.patch(`${URL}/documents/${d.id}`, formData({ expires_on: expires || 'null' }, { file }))); setOpen(false); } catch (e) { toast(e.message, 'err'); }
+    try { onSaved(await api.patch(`${URL}/documents/${d.id}`, formData({ expires_on: expires || 'null', amount_estimate: amount === '' ? 'null' : amount }, { file }))); setOpen(false); } catch (e) { toast(e.message, 'err'); }
   };
   if (!open) return <button className="btn btn-ghost btn-icon" onClick={() => setOpen(true)} aria-label={`Renouveler ${d.label}`} title="Renouveler"><RefreshCw /></button>;
   return (
@@ -453,6 +472,7 @@ function RenewDoc({ d, onSaved }) {
       footer={<><button className="btn btn-ghost" onClick={() => setOpen(false)}>Annuler</button><button className="btn btn-primary" onClick={save}><Check />Enregistrer</button></>}>
       <div className="form-grid">
         <Field label="Nouvelle date d’expiration"><input className="input" type="date" value={expires} onChange={e => setExpires(e.target.value)} /></Field>
+        <Field label="Montant à prévoir (FCFA)" hint="Trésorerie de la Comptabilité"><input className="input" type="number" min="0" value={amount} onChange={e => setAmount(e.target.value)} /></Field>
         <Field label="Justificatif"><label className="btn" style={{ alignSelf: 'start' }}><Paperclip />{file ? file.name : 'Joindre'}<input type="file" hidden accept="application/pdf,image/jpeg,image/png,image/webp" onChange={e => setFile(e.target.files[0] || null)} /></label></Field>
       </div>
     </Modal>

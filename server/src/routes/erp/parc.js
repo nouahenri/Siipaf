@@ -4,7 +4,8 @@ const express = require('express');
 const { z } = require('zod');
 const { ah, parse, idParam, HttpError } = require('../../lib/http');
 const { requirePermission } = require('../../auth');
-const { ASSET_KINDS, ASSET_STATUSES, ASSET_ASSIGNMENT_KINDS, ASSET_DOC_KINDS, ASSET_COST_KINDS, RESERVATION_STATUSES, addMonths } = require('../../lib/domain');
+const { ASSET_KINDS, ASSET_STATUSES, ASSET_ASSIGNMENT_KINDS, ASSET_DOC_KINDS, ASSET_COST_KINDS, RESERVATION_STATUSES, ASSET_PAYMENT_MODES, COST_ACCOUNTING_STATUSES, addMonths } = require('../../lib/domain');
+const pc = require('../../services/parcCompta');
 const parc = require('../../services/parc');
 
 const day = z.string().regex(/^\d{4}-\d{2}-\d{2}$/, 'Date attendue au format AAAA-MM-JJ');
@@ -19,7 +20,7 @@ const assetSchema = z.object({
   supplier_id: num(z.number().int().positive()), meter_value: num(z.number().min(0)), manager_id: num(z.number().int().positive()),
   pool: z.boolean().optional(), notes: opt(z.string().trim().max(4000)),
 });
-const docSchema = z.object({ kind: z.enum(Object.keys(ASSET_DOC_KINDS)), label: z.string().trim().min(2).max(160), reference: opt(z.string().trim().max(80)), expires_on: opt(day) });
+const docSchema = z.object({ kind: z.enum(Object.keys(ASSET_DOC_KINDS)), label: z.string().trim().min(2).max(160), reference: opt(z.string().trim().max(80)), expires_on: opt(day), amount_estimate: num(z.number().int().min(0)) });
 const planSchema = z.object({
   label: z.string().trim().min(2).max(120), every_km: num(z.number().int().positive()), every_hours: num(z.number().int().positive()),
   every_months: num(z.number().int().min(1).max(120)), last_date: opt(day), last_meter: num(z.number().min(0)), active: z.boolean().optional(),
@@ -28,6 +29,9 @@ const costSchema = z.object({
   kind: z.enum(Object.keys(ASSET_COST_KINDS)), date: day, amount: z.number().int().min(0), label: opt(z.string().trim().max(200)),
   liters: num(z.number().positive()), meter_value: num(z.number().min(0)), project_id: num(z.number().int().positive()),
   plan_id: num(z.number().int().positive()), purchase_invoice_id: num(z.number().int().positive()),
+  payment_mode: z.enum(Object.keys(ASSET_PAYMENT_MODES), { errorMap: () => ({ message: 'Indiquez comment la dépense a été payée.' }) }),
+  supplier_id: num(z.number().int().positive()), vat_rate: z.preprocess(v => (blank(v) == null ? 0 : Number(v)), z.number().min(0).max(100)).optional(),
+  fuel_card_id: num(z.number().int().positive()), employee_id: num(z.number().int().positive()),
 });
 
 module.exports = function parcRoutes(db) {
@@ -50,7 +54,8 @@ module.exports = function parcRoutes(db) {
     res.json({
       kinds: ASSET_KINDS, statuses: ASSET_STATUSES, assignment_kinds: ASSET_ASSIGNMENT_KINDS, doc_kinds: ASSET_DOC_KINDS, cost_kinds: ASSET_COST_KINDS,
       reservation_statuses: RESERVATION_STATUSES, employees: employees.map(e => ({ id: e.id, name: `${e.last_name} ${e.first_name || ''}`.trim(), matricule: e.matricule })),
-      projects, users, suppliers,
+      projects, users, suppliers, payment_modes: ASSET_PAYMENT_MODES, cost_statuses: COST_ACCOUNTING_STATUSES,
+      cards: (await pc.cards(db)).filter(c => c.active).map(c => ({ id: c.id, label: c.label, supplier_name: c.supplier_name, balance: c.balance })),
     });
   }));
 
@@ -148,12 +153,7 @@ module.exports = function parcRoutes(db) {
     await parc.addCost(db, a, parse(costSchema, req.body), { userId: req.user.id });
     res.status(201).json(await parc.detail(db, a.id));
   }));
-  r.delete('/costs/:id', write, ah(async (req, res) => {
-    const c = await db('asset_costs').where({ id: idParam(req) }).first();
-    if (!c) throw new HttpError(404, 'Dépense introuvable.');
-    await db('asset_costs').where({ id: c.id }).del();
-    res.json(await parc.detail(db, c.asset_id));
-  }));
+  r.delete('/costs/:id', write, ah(async (req, res) => res.json(await parc.detail(db, await pc.deleteCost(db, idParam(req))))));
 
   r.get('/echeances', read, ah(async (req, res) => res.json(await parc.deadlines(db, { days: Math.min(Number(req.query.days) || 60, 400) }))));
   r.get('/couts', read, ah(async (req, res) => {
@@ -197,6 +197,47 @@ module.exports = function parcRoutes(db) {
     await db('asset_reservations').where({ id: resa.id }).update({ status: 'annulee', updated_at: new Date() });
     res.json(parc.resaRow(await parc.resaQuery(db).where('r.id', resa.id).first()));
   }));
+
+  // ─── Comptabilité (choix du client du 23/10) : validation des dépenses, cartes carburant, immobilisations ───
+  const can = (...perms) => (req, res, next) => (perms.some(p => req.can(p)) ? next() : next(new HttpError(403, 'Droits insuffisants.')));
+  r.get('/compta/depenses', can('achats:write', 'compta:read'), ah(async (req, res) => res.json(await pc.pendingCosts(db, { status: req.query.status ?? 'a_valider' }))));
+  r.post('/costs/:id/validate', requirePermission('achats:write'), ah(async (req, res) => res.json(await pc.validateCost(db, idParam(req), req.user))));
+  r.post('/costs/:id/reject', requirePermission('achats:write'), ah(async (req, res) => {
+    const { reason } = parse(z.object({ reason: z.string().trim().min(3, 'Indiquez le motif du rejet.').max(255) }), req.body);
+    res.json(await pc.rejectCost(db, idParam(req), reason, req.user));
+  }));
+
+  r.get('/cartes', can('parc:read', 'parc:write', 'compta:read'), ah(async (req, res) => res.json(await pc.cards(db))));
+  const cardSchema = z.object({ label: z.string().trim().min(2).max(120), number: opt(z.string().trim().max(40)), supplier_id: z.number().int().positive(), active: z.boolean().optional(), notes: opt(z.string().trim().max(500)) });
+  r.post('/cartes', requirePermission('achats:write'), ah(async (req, res) => { await pc.saveCard(db, parse(cardSchema, req.body)); res.status(201).json(await pc.cards(db)); }));
+  r.patch('/cartes/:id', requirePermission('achats:write'), ah(async (req, res) => { await pc.saveCard(db, parse(cardSchema.partial(), req.body), idParam(req)); res.json(await pc.cards(db)); }));
+  r.post('/cartes/:id/recharges', requirePermission('achats:pay'), ah(async (req, res) => {
+    const data = parse(z.object({ date: day, amount: z.number().int().positive(), journal_id: z.number().int().positive(), reference: opt(z.string().trim().max(120)) }), req.body);
+    await pc.loadCard(db, idParam(req), data, req.user);
+    res.status(201).json(await pc.cards(db));
+  }));
+
+  r.get('/immobilisations', can('compta:read'), ah(async (req, res) => res.json(await pc.register(db, { day: /^\d{4}-\d{2}-\d{2}$/.test(req.query.au || '') ? req.query.au : undefined }))));
+  r.patch('/assets/:id/immobilisation', requirePermission('compta:entries'), ah(async (req, res) => {
+    const data = parse(z.object({
+      fixed_value: num(z.number().int().positive()), in_service_on: opt(day), depreciation_years: num(z.number().int().min(1).max(50)),
+      prior_depreciation: z.preprocess(v => (blank(v) == null ? 0 : Number(v)), z.number().int().min(0)).optional(), prior_as_of: opt(day), purchase_invoice_id: num(z.number().int().positive()),
+    }), req.body);
+    await pc.updateFixed(db, idParam(req), data);
+    res.json(await pc.register(db));
+  }));
+  r.post('/immobilisations/dotations', requirePermission('compta:entries'), ah(async (req, res) => {
+    const { fiscal_year_id } = parse(z.object({ fiscal_year_id: z.number().int().positive() }), req.body);
+    const e = await pc.postDotations(db, fiscal_year_id, req.user);
+    res.status(201).json({ entry: { id: e.id, status: e.status }, register: await pc.register(db) });
+  }));
+  r.post('/assets/:id/sortie', requirePermission('compta:entries'), ah(async (req, res) => {
+    const data = parse(z.object({ date: day, price: z.number().int().min(0).optional(), journal_id: z.number().int().positive().nullable().optional() }), req.body);
+    await pc.dispose(db, idParam(req), data, req.user);
+    res.json(await pc.register(db));
+  }));
+
+  r.get('/a-payer', can('parc:read', 'parc:write', 'compta:read'), ah(async (req, res) => res.json(await pc.payables(db, { days: Math.min(Number(req.query.days) || 60, 365) }))));
 
   return r;
 };

@@ -11,6 +11,15 @@ const ACCOUNT_LABELS = {
   vat_deductible: 'TVA récupérable sur achats', sale_housing: 'Ventes de logements', sale_land: 'Ventes de terrains aménagés', expense_default: 'Charge proposée par défaut sur un achat',
   opening_balance: 'Compte d’attente (reprise)',
 };
+// Parc auto et matériel (choix du client du 23/10) : charge de chaque nature de dépense, immobilisations
+const PARC_ACCOUNT_LABELS = {
+  parc_carburant: 'Carburant', parc_entretien: 'Entretien planifié', parc_reparation: 'Pannes et réparations', parc_pneus: 'Pneumatiques', parc_location: 'Location',
+  parc_assurance: 'Assurances', parc_taxes: 'Vignette, visite, taxes', parc_autre: 'Autres dépenses', fuel_card: 'Cartes carburant prépayées (avance à la station)',
+  immo_vehicule: 'Immobilisation : véhicules', immo_engin: 'Immobilisation : engins de chantier', immo_materiel: 'Immobilisation : petit matériel et outillage',
+  immo_informatique: 'Immobilisation : informatique et bureau', immo_autre: 'Immobilisation : autre matériel', depreciation: 'Amortissements du matériel',
+  depreciation_expense: 'Dotations aux amortissements', disposal_value: 'Valeur nette des biens sortis de l’actif', disposal_income: 'Produits de cession',
+};
+const YEAR_LABELS = { vehicule: 'Véhicules', engin: 'Engins de chantier', materiel: 'Petit matériel et outillage', informatique: 'Informatique et bureau', autre: 'Autre matériel' };
 
 export default function Settings() {
   const { can } = useAuth();
@@ -122,7 +131,7 @@ function Rules({ meta, write, onChange }) {
   useEffect(() => setS(meta.settings), [meta.settings]);
   const save = async e => {
     e.preventDefault(); setError(null);
-    try { await api.put('/admin/erp/compta/settings', { ...s, vat_sales_rate: Number(s.vat_sales_rate), vat_purchases_rate: Number(s.vat_purchases_rate) }); saved('Réglages enregistrés'); onChange(); } catch (err) { setError(err); }
+    try { await api.put('/admin/erp/compta/settings', { ...s, vat_sales_rate: Number(s.vat_sales_rate), vat_purchases_rate: Number(s.vat_purchases_rate), depreciation_years: Object.fromEntries(Object.entries(s.depreciation_years || {}).map(([k, v]) => [k, Number(v)])) }); saved('Réglages enregistrés'); onChange(); } catch (err) { setError(err); }
   };
   return (
     <Card title="Règles comptables">
@@ -149,6 +158,18 @@ function Rules({ meta, write, onChange }) {
             <div className="form-grid" style={{ marginTop: 10 }}>
               {Object.entries(ACCOUNT_LABELS).map(([k, l]) => (
                 <Field key={k} label={l}><AccountInput value={s.accounts[k] || ''} onChange={v => setS(x => ({ ...x, accounts: { ...x.accounts, [k]: v } }))} /></Field>
+              ))}
+            </div>
+          </details>
+          <details>
+            <summary className="small" style={{ cursor: 'pointer', fontWeight: 600 }}>Parc auto et matériel : comptes et amortissements</summary>
+            <p className="small muted" style={{ margin: '8px 0 0' }}>Compte de charge de chaque nature de dépense saisie au Parc (facture ou écriture préparée pour validation), comptes des immobilisations et durée d’amortissement linéaire proposée pour chaque sorte de bien (modifiable sur chaque bien).</p>
+            <div className="form-grid" style={{ marginTop: 10 }}>
+              {Object.entries(PARC_ACCOUNT_LABELS).map(([k, l]) => (
+                <Field key={k} label={l}><AccountInput value={s.accounts[k] || ''} onChange={v => setS(x => ({ ...x, accounts: { ...x.accounts, [k]: v } }))} /></Field>
+              ))}
+              {Object.entries(YEAR_LABELS).map(([k, l]) => (
+                <Field key={k} label={`Durée d’amortissement : ${l.toLowerCase()} (années)`}><input className="input" type="number" min="1" max="50" value={s.depreciation_years?.[k] ?? ''} onChange={e => setS(x => ({ ...x, depreciation_years: { ...x.depreciation_years, [k]: e.target.value } }))} /></Field>
               ))}
             </div>
           </details>

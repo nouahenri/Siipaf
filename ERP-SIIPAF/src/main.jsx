@@ -107,6 +107,7 @@ function App() {
         <Route path="compta/achats" element={<Guard perm="compta:read"><Purchases /></Guard>} />
         <Route path="compta/etats" element={<Guard perm="compta:read"><Reports /></Guard>} />
         <Route path="compta/plan" element={<Guard perm="compta:read"><Chart /></Guard>} />
+        <Route path="compta/parc" element={<Guard perm="compta:read"><Parc /></Guard>} />
         <Route path="compta/paie" element={<Guard perm="paie:read"><Payroll /></Guard>} />
         <Route path="compta/paie/:id" element={<Guard perm="paie:read"><PayrollRun /></Guard>} />
         <Route path="compta/employes" element={<Guard perm={['paie:read', 'rh:read']}><Employees /></Guard>} />

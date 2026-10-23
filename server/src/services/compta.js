@@ -15,11 +15,17 @@ const day = v => isoDay(v);
 async function getSettings(db) {
   const row = await db('app_settings').where({ key: 'compta' }).first();
   const saved = json(row?.value, {}) || {};
-  return { ...DEFAULT_SETTINGS, ...saved, accounts: { ...DEFAULT_SETTINGS.accounts, ...(saved.accounts || {}) }, sage: { ...DEFAULT_SETTINGS.sage, ...(saved.sage || {}) } };
+  return {
+    ...DEFAULT_SETTINGS, ...saved, accounts: { ...DEFAULT_SETTINGS.accounts, ...(saved.accounts || {}) }, sage: { ...DEFAULT_SETTINGS.sage, ...(saved.sage || {}) },
+    depreciation_years: { ...DEFAULT_SETTINGS.depreciation_years, ...(saved.depreciation_years || {}) },
+  };
 }
 async function saveSettings(db, patch) {
   const current = await getSettings(db);
-  const next = { ...current, ...patch, accounts: { ...current.accounts, ...(patch.accounts || {}) }, sage: { ...current.sage, ...(patch.sage || {}) } };
+  const next = {
+    ...current, ...patch, accounts: { ...current.accounts, ...(patch.accounts || {}) }, sage: { ...current.sage, ...(patch.sage || {}) },
+    depreciation_years: { ...current.depreciation_years, ...(patch.depreciation_years || {}) },
+  };
   for (const code of Object.values(next.accounts)) {
     if (!(await db('acc_accounts').where({ code }).first())) throw new HttpError(400, `Compte ${code} absent du plan comptable.`);
   }
