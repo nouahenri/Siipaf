@@ -142,7 +142,7 @@ async function importClient(trx, row, ctx) {
 
   const sale = await openSale(trx, {
     lotId: lot.id, leadId: lead.id, price_fcfa: price ?? undefined, financing: fin || undefined,
-    reserved_at: reserved ? new Date(`${reserved}T00:00:00Z`) : undefined, notes: 'Repris par import', user: ctx.user,
+    reserved_at: reserved ? new Date(`${reserved}T00:00:00Z`) : undefined, notes: 'Repris par import', user: ctx.user, projectTerms: false,
   });
 
   const paid = money(row.paid);

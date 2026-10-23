@@ -13,9 +13,10 @@ const ICONS = { ville: Building, localisation: MapPin, equipement: Dumbbell, com
 // Explications des réglages généraux
 const SETTING_HELP = {
   option_days_default: 'S’applique aux projets dont la fiche ne précise pas de durée (site et dashboard).',
-  deposit_default: 'Acompte affiché sur la tuile et la fiche des projets dont la fiche ne précise pas d’acompte (0 = pas d’acompte affiché).',
-  balance_months_default: 'Nombre de mensualités de la formule Diaspora quand la fiche projet ne précise pas de délai de solde.',
-  balance_months_choices: 'Durées proposées dans la fiche projet, séparées par des virgules : 6, 12, 24, 36.',
+  request_dg_threshold: 'Demandes internes d’achat ou d’équipement (ERP › Mon espace) : à partir de ce montant estimé, la demande passe par la direction générale après le responsable direct, avant les services généraux. En dessous, elle ne passe pas par la DG.',
+  deposit_default: 'Pour les projets dont la fiche ne précise pas d’acompte : affiché sur la tuile et la fiche du site, et première échéance des nouveaux dossiers de vente en formule Diaspora (0 = pas d’acompte).',
+  balance_months_default: 'Pour les projets dont la fiche ne précise pas de délai de solde : nombre de mensualités de la formule Diaspora (site et échéancier des nouveaux dossiers de vente).',
+  balance_months_choices: 'Choix offerts dans le menu « Délai de solde » de chaque fiche projet, séparés par des virgules (ex. 6, 12, 24, 36). Le délai par défaut y est toujours ajouté.',
 };
 const HELP = {
   ville: 'Villes proposées dans la fiche projet.',

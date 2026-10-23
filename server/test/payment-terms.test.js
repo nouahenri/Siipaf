@@ -71,3 +71,45 @@ test('fiche projet et site : acompte, délai de solde, documents du bien', async
   assert.equal((await admin.patch(`/api/admin/projects/${projectId}`).send({ refs: [{ id: acd.id, state: 'perdu' }] })).status, 400);
   assert.equal((await admin.patch(`/api/admin/projects/${projectId}`).send({ balance_months: 200 })).status, 400);
 });
+
+test('dossiers de vente : un nouveau dossier Diaspora suit l’acompte et le délai du projet, les autres non', async () => {
+  const { openSale } = require('../src/services/sales');
+  const { regenerateSchedule, scheduleStatus } = require('../src/services/schedule');
+  const user = await db('users').where({ role: 'super_admin' }).first();
+  const id = r => (typeof r === 'object' ? r.id : r);
+  const lot = async code => id((await db('lots').insert({ project_id: projectId, code, status: 'disponible', price_fcfa: 2700000 }))[0]);
+  const lines = saleId => db('payment_schedule').where({ sale_id: saleId }).orderBy('seq');
+  await admin.patch(`/api/admin/projects/${projectId}`).send({ deposit_fcfa: 500000, balance_months: 24 });
+
+  // Nouveau dossier Diaspora : acompte puis 24 mensualités, libellé du financement à jour
+  const sale = await openSale(db, { lotId: await lot('D-1'), leadData: { name: 'Client Diaspora', phone: '0700000101' }, financing: 'diaspora', user });
+  assert.equal(Number(sale.terms_deposit_fcfa), 500000);
+  assert.equal(sale.terms_months, 24);
+  let rows = await lines(sale.id);
+  assert.equal(rows.length, 25);
+  assert.deepEqual([rows[0].label, Number(rows[0].amount_fcfa)], ['Acompte', 500000]);
+  assert.equal(rows[1].label, 'Mensualité 1/24');
+  assert.equal(rows.reduce((t, r) => t + Number(r.amount_fcfa), 0), 2700000, 'le total égale le prix');
+  assert.equal((await scheduleStatus(db, sale)).financing_label, 'Diaspora — acompte 500 000 FCFA puis 24 mensualités');
+
+  // Les conditions sont figées : changer le projet ne modifie pas ce dossier, même régénéré
+  await admin.patch(`/api/admin/projects/${projectId}`).send({ deposit_fcfa: 0, balance_months: 12 });
+  await db.transaction(trx => regenerateSchedule(trx, sale));
+  assert.equal((await lines(sale.id)).length, 25);
+  // Le comptable garde la main : un apport ou des mensualités saisis l'emportent
+  await db.transaction(trx => regenerateSchedule(trx, sale, { deposit_pct: 0, months: 10 }));
+  rows = await lines(sale.id);
+  assert.deepEqual([rows.length, rows[0].label], [10, 'Mensualité 1/10']);
+
+  // Autre financement : formule habituelle (apport 30 % + 36 mensualités)
+  const apport = await openSale(db, { lotId: await lot('D-2'), leadData: { name: 'Client Apport', phone: '0700000102' }, financing: 'apport', user });
+  rows = await lines(apport.id);
+  assert.deepEqual([rows.length, rows[0].label], [37, 'Apport initial (30 %)']);
+
+  // Dossier repris de l'ancienne plateforme, ou ouvert avant le 23/10 : formule Diaspora d'origine (36, sans apport)
+  const old = await openSale(db, { lotId: await lot('D-3'), leadData: { name: 'Client Repris', phone: '0700000103' }, financing: 'diaspora', user, projectTerms: false });
+  assert.equal(old.terms_months, null);
+  rows = await lines(old.id);
+  assert.deepEqual([rows.length, rows[0].label], [36, 'Mensualité 1/36']);
+  assert.equal((await scheduleStatus(db, old)).financing_label, 'Diaspora — sans apport, 36 mensualités');
+});

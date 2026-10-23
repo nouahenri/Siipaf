@@ -185,6 +185,21 @@ const FINANCING_PLANS = {
   credit: { label: 'Apport 30 % + crédit bancaire', deposit_pct: 30, months: 0, bank_months: 2 },
 };
 const FINANCINGS = Object.keys(FINANCING_PLANS);
+
+/**
+ * Conditions figées sur un dossier ouvert depuis le 23/10 (acompte et délai de solde du projet) : elles
+ * remplacent celles de la formule Diaspora. null pour un autre financement ou un dossier plus ancien.
+ */
+function saleTerms(sale) {
+  if (sale.financing !== 'diaspora' || sale.terms_months == null) return null;
+  return { deposit_fcfa: Number(sale.terms_deposit_fcfa || 0), months: Number(sale.terms_months) };
+}
+/** Libellé du financement du dossier : « Diaspora — acompte 500 000 FCFA puis 24 mensualités ». */
+function financingLabel(sale) {
+  const t = saleTerms(sale);
+  if (!t) return FINANCING_PLANS[sale.financing]?.label || null;
+  return `Diaspora — ${t.deposit_fcfa ? `acompte ${t.deposit_fcfa.toLocaleString('fr-FR').replace(/[  ]/g, ' ')} FCFA puis` : 'sans acompte,'} ${t.months} mensualités`;
+}
 const SCHEDULE_KINDS = ['apport', 'mensualite', 'solde'];
 // État d'une échéance, calculé en imputant les versements dans l'ordre des échéances
 const INSTALLMENT_STATUS_LABELS = { payee: 'Payée', partielle: 'Partiellement payée', en_retard: 'En retard', a_venir: 'À venir' };
@@ -255,7 +270,9 @@ function buildSchedule({ price_fcfa, financing, start_date, options = {} }) {
   if (deposit > 0) {
     const kind = deposit === price ? 'solde' : 'apport';
     const pctLabel = String(pct).replace('.', ',');
-    lines.push({ kind, label: kind === 'solde' ? 'Paiement comptant' : `Apport initial (${pctLabel} %)`, due_date: start_date, amount_fcfa: deposit });
+    // `deposit_label` : « Acompte » quand l'apport vient des conditions du projet
+    const label = kind === 'solde' ? 'Paiement comptant' : options.deposit_label || `Apport initial (${pctLabel} %)`;
+    lines.push({ kind, label, due_date: start_date, amount_fcfa: deposit });
   }
   const rest = price - deposit;
   if (rest > 0 && months > 0) {
@@ -1053,7 +1070,7 @@ module.exports = {
   LEAD_STAGES, CLIENT_STAGES, PUBLIC_LEAD_SOURCES, leadAlert, ROLES, ROLE_LABELS, PERMISSIONS, roleKey, can, checkLotTransition,
   SALE_STATUSES, PAYMENT_METHODS, DOCUMENT_STATUSES, DOCUMENT_TYPES, DEFAULT_DOCUMENTS,
   PERMISSION_CATALOG, PERMISSION_IDS,
-  FINANCING_PLANS, FINANCINGS, SCHEDULE_KINDS, INSTALLMENT_STATUS_LABELS, SITE_STAGES, SITE_STAGE_LABELS,
+  FINANCING_PLANS, FINANCINGS, saleTerms, financingLabel, SCHEDULE_KINDS, INSTALLMENT_STATUS_LABELS, SITE_STAGES, SITE_STAGE_LABELS,
   MESSAGE_SENDERS, CLIENT_PASSWORD_MIN, CLIENT_RESET_HOURS, CLIENT_VISIBLE_SALE_STATUSES,
   addMonths, buildSchedule, allocatePayments, phoneKey, looksLikeClientCode, PROTECTED_ROLES, DELETABLE_LOT_STATUSES, NEW_LOT_STATUSES, PROJECT_CATEGORIES,
   REF_KINDS, FEATURE_KINDS, VIABILISATION_STATES, APP_SETTINGS, THEMES, categoryForProjectType, monthChoices, paymentTerms, monthlyFor,

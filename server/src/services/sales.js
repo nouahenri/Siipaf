@@ -3,7 +3,8 @@
  * documents. Un seul dossier actif (en cours ou soldé) par lot.
  */
 const { HttpError } = require('../lib/http');
-const { DEFAULT_DOCUMENTS } = require('../lib/domain');
+const { DEFAULT_DOCUMENTS, paymentTerms } = require('../lib/domain');
+const { getSettings } = require('./settings');
 const { findOrCreateLead } = require('./lots');
 
 const ACTIVE = ['en_cours', 'solde'];
@@ -43,7 +44,11 @@ async function refreshSaleStatus(trx, saleId) {
  * Ouvre le dossier d'acquisition d'un lot pour un acquéreur.
  * Un lot disponible, en désistement ou en option passe « réservé » (l'option est confirmée).
  */
-async function openSale(db, { lotId, leadId, leadData, price_fcfa, financing, notes, reserved_at, signed_at, vefa = false, user }) {
+/**
+ * `projectTerms` : le dossier fige l'acompte et le délai de solde du projet (formule Diaspora) ; faux pour un
+ * dossier repris de l'ancienne plateforme, qui garde la formule d'origine.
+ */
+async function openSale(db, { lotId, leadId, leadData, price_fcfa, financing, notes, reserved_at, signed_at, vefa = false, user, projectTerms = true }) {
   return db.transaction(async trx => {
     const lot = await trx('lots').where({ id: lotId }).first();
     if (!lot) throw new HttpError(404, 'Lot introuvable.');
@@ -71,7 +76,13 @@ async function openSale(db, { lotId, leadId, leadData, price_fcfa, financing, no
 
     const price = price_fcfa ?? lot.price_fcfa;
     if (price == null) throw new HttpError(400, 'Indiquez le prix convenu.');
+    let terms = {};
+    if (projectTerms) {
+      const t = paymentTerms(await trx('projects').where({ id: lot.project_id }).first() || {}, await getSettings(trx));
+      terms = { terms_deposit_fcfa: t.deposit_fcfa, terms_months: t.balance_months };
+    }
     const [saleId] = await trx('sales').insert({
+      ...terms,
       lot_id: lot.id, lead_id: lead.id, price_fcfa: price, financing: financing || lead.financing || null,
       notes: notes || null, reserved_at: reserved_at || new Date(), signed_at: signed_at || null, vefa: !!vefa, created_by: user.id,
     });

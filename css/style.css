@@ -3126,7 +3126,7 @@ tr:hover .btn-ask-row { border-color: currentColor; }
 .prog-card-terms { display: flex; align-items: baseline; gap: 8px; margin: 0; font-size: 0.8rem; font-weight: 600; color: var(--dark2); }
 .prog-card-terms i, .prog-card-docs i { color: var(--gold); flex: none; }
 .prog-card-docs { display: flex; align-items: baseline; gap: 8px; margin: 0; font-size: 0.76rem; color: #555; line-height: 1.45; }
-.proj-docs { margin: 0 0 32px; }
+.proj-docs { margin: 28px 0 32px; }
 .proj-docs ul { list-style: none; margin: 0; padding: 0; display: flex; flex-wrap: wrap; gap: 10px; }
 .proj-docs li { display: inline-flex; align-items: center; gap: 8px; padding: 8px 16px; border-radius: 50px; background: var(--light); font-size: 0.82rem; font-weight: 500; color: var(--dark2); }
 .proj-docs li i { color: var(--gold); }

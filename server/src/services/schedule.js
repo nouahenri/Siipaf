@@ -3,7 +3,7 @@
  * saisie manuelle, et état de chaque échéance au vu des versements réels.
  */
 const { HttpError, isoDay } = require('../lib/http');
-const { buildSchedule, allocatePayments, FINANCING_PLANS } = require('../lib/domain');
+const { buildSchedule, allocatePayments, saleTerms, financingLabel } = require('../lib/domain');
 const { totals } = require('./sales');
 const vefa = require('./vefa');
 
@@ -25,7 +25,15 @@ async function regenerateSchedule(trx, sale, options = {}) {
   }
   await trx('fund_calls').where({ sale_id: sale.id }).del();
   const start = isoDay(options.start_date || sale.reserved_at) || isoDay(new Date());
-  const lines = buildSchedule({ price_fcfa: sale.price_fcfa, financing: sale.financing, start_date: start, options });
+  // Formule Diaspora d'un dossier récent : acompte et délai de solde du projet, figés à l'ouverture ; un choix
+  // explicite du comptable (apport, mensualités) l'emporte
+  const t = saleTerms(sale);
+  const opts = { ...options };
+  if (t) {
+    if (opts.months == null) opts.months = t.months;
+    if (opts.deposit_pct == null && opts.deposit_fcfa == null && t.deposit_fcfa > 0) Object.assign(opts, { deposit_fcfa: t.deposit_fcfa, deposit_label: 'Acompte' });
+  }
+  const lines = buildSchedule({ price_fcfa: sale.price_fcfa, financing: sale.financing, start_date: start, options: opts });
   await saveSchedule(trx, sale.id, lines);
   return lines;
 }
@@ -51,8 +59,7 @@ async function scheduleStatus(db, sale, t) {
   const rows = await db('payment_schedule').where({ sale_id: sale.id }).orderBy('seq');
   const paid = t ? t.paid_fcfa : (await totals(db, sale)).paid_fcfa;
   const lines = rows.map(r => ({ id: r.id, seq: r.seq, kind: r.kind, label: r.label, due_date: isoDay(r.due_date), amount_fcfa: Number(r.amount_fcfa) }));
-  const plan = FINANCING_PLANS[sale.financing];
-  return { financing_label: plan ? plan.label : null, ...allocatePayments(lines, paid) };
+  return { financing_label: financingLabel(sale), ...allocatePayments(lines, paid) };
 }
 
 module.exports = { regenerateSchedule, replaceSchedule, scheduleStatus };
