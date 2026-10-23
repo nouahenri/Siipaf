@@ -285,6 +285,8 @@ function ContractForm({ contract: c, refs, onClose, onSaved }) {
       // Champ vidé : « null » efface la valeur enregistrée
       const fields = Object.fromEntries(Object.entries(f).map(([k, v]) => [k, v === '' ? 'null' : v]));
       if (!f.frequency) Object.assign(fields, { amount_ttc: 'null', next_payment_date: 'null' });
+      // Sans tacite reconduction, pas de période de reconduction (le formulaire en propose 12 mois si on la coche)
+      if (!f.tacit_renewal) fields.renewal_months = 'null';
       const body = formData(fields, { file });
       const saved = c ? await api.patch(`${URL}/${c.id}`, body) : await api.post(URL, body);
       toast(c ? 'Contrat modifié' : `Contrat enregistré sous la référence ${saved.reference}`);
