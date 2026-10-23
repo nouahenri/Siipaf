@@ -1213,3 +1213,17 @@ body.temo-modal-open { overflow: hidden; }
 .cf-hint { margin: -8px 0 0; font-size: .8rem; color: var(--grey); display: flex; gap: 8px; align-items: baseline; }
 .cf-hint i { color: var(--red); }
 @media (max-width: 480px) { .cf-mode { font-size: .8rem; padding: 10px 8px; } }
+
+/* ─── Carrières : offres d'emploi et candidature ───────────── */
+.careers-grid { align-items: start; }
+.jobs-list { display: flex; flex-direction: column; gap: 16px; margin-top: 8px; }
+.jobs-empty { padding: 20px; border-radius: var(--radius); background: var(--light); color: #555; line-height: 1.6; }
+.jobs-empty i { color: var(--red); margin-right: 6px; }
+.job-card { background: var(--white); border: 1px solid #ececec; border-radius: var(--radius); padding: 20px 22px; box-shadow: 0 4px 18px rgba(0, 0, 0, .05); }
+.job-card h3 { margin: 0 0 8px; font-size: 1.1rem; font-weight: 700; color: var(--dark); }
+.job-card p { margin: 10px 0 0; color: #555; font-size: .92rem; line-height: 1.65; }
+.job-meta { display: flex; flex-wrap: wrap; gap: 6px; }
+.job-meta span { font-size: .78rem; font-weight: 600; padding: 4px 10px; border-radius: 999px; background: rgba(227, 6, 19, .07); color: var(--red-dk); }
+.job-foot { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin-top: 16px; flex-wrap: wrap; }
+.job-foot small { color: var(--grey); font-size: .82rem; }
+.job-foot .btn-sm { padding: 9px 18px; font-size: .85rem; }

@@ -239,7 +239,21 @@
       tr.addEventListener('click', function () { var l = state.lots.find(function (x) { return String(x.id) === tr.dataset.id; }); focusLot(l); select(l); });
     });
   }
-  function lotPrice(l) { return l.price_fcfa != null ? l.price_fcfa : (state.offers[l.offer_id] && state.offers[l.offer_id].price_fcfa) || null; }
+  /**
+   * Ligne de la grille de prix d'un lot : celle qui lui est rattachée, sinon celle de même surface (comme le
+   * dashboard, à 0,5 m² près). Le prix du lot lui-même, s'il est saisi, prime.
+   */
+  function gridLine(l) {
+    var own = state.offers[l.offer_id];
+    if (own && own.price_fcfa != null) return own;
+    if (!l.surface_m2) return own || null;
+    var all = Object.keys(state.offers).map(function (k) { return state.offers[k]; });
+    return all.filter(function (o) {
+      var m = String(o.surface || '').replace(',', '.').match(/\d+(?:\.\d+)?/);
+      return o.price_fcfa != null && m && Math.abs(Number(m[0]) - l.surface_m2) < 0.5;
+    })[0] || own || null;
+  }
+  function lotPrice(l) { var o = gridLine(l); return l.price_fcfa != null ? l.price_fcfa : (o && o.price_fcfa) || null; }
 
   function showTip(lot, e) {
     var r = el.viewport.getBoundingClientRect();
@@ -267,29 +281,57 @@
       return;
     }
     var st = STATUS[lot.status] || STATUS.bloque;
-    var offer = state.offers[lot.offer_id];
+    var p = state.project;
+    var offer = gridLine(lot);
     var price = lotPrice(lot);
-    var days = state.project.option_days || 7;
+    var days = p.option_days || 7;
+    var O = window.SiipafOffers;
+    var terms = O ? O.termsOf(p) : null;
+    var diaspora = offer && offer.diaspora_price_fcfa;
+    var fact = function (icon, label, value) { return '<div class="lot-fact"><i class="fas ' + icon + '" aria-hidden="true"></i><small>' + label + '</small><b>' + value + '</b></div>'; };
+    var chips = function (title, icon, list) {
+      if (!list || !list.length) return '';
+      return '<div class="lot-block"><h3><i class="fas ' + icon + '" aria-hidden="true"></i>' + title + '</h3><ul class="lot-chips">' + list.map(function (d) {
+        var done = !d.state || d.state === 'fait';
+        return '<li class="' + (done ? 'is-done' : 'is-pending') + '" title="' + esc(d.state_label || '') + '"><i class="fas ' + (done ? 'fa-check-circle' : 'fa-hourglass-half') + '" aria-hidden="true"></i>' + esc(d.label) +
+          (d.state_label && !done ? '<em>' + esc(d.state_label) + '</em>' : '') + '</li>';
+      }).join('') + '</ul></div>';
+    };
+
     var html = '<button type="button" class="lot-close" aria-label="Fermer"><i class="fas fa-times"></i></button>' +
-      '<h2>Lot ' + esc(lot.code) + '</h2>' +
-      '<span class="lot-status" style="background:' + st.color + '1f;color:' + st.color + '"><i style="background:' + st.color + '"></i>' + st.label + '</span>' +
-      '<dl class="lot-facts">' +
-        (lot.ilot ? '<dt>Îlot</dt><dd>' + esc(lot.ilot) + '</dd>' : '') +
-        '<dt>Surface</dt><dd>' + (lot.surface_m2 ? num(lot.surface_m2) + ' m²' : '—') + '</dd>' +
-        (offer ? '<dt>Type</dt><dd>' + esc(offer.label) + '</dd>' : '') +
-        '<dt>Projet</dt><dd>' + esc(state.project.name) + '</dd>' +
-      '</dl>' +
-      (lot.sellable ? '<div class="lot-price" style="margin-bottom:16px">' + (price ? money(price) : 'Prix sur demande') + '</div>' : '');
+      '<div class="lot-head"><h2>Lot ' + esc(lot.code) + '</h2>' +
+      '<span class="lot-status" style="background:' + st.color + '1f;color:' + st.color + '"><i style="background:' + st.color + '"></i>' + st.label + '</span></div>' +
+      '<p class="lot-project">' + esc(p.name) + (p.city ? ' · ' + esc(p.city) : '') + '</p>' +
+      '<div class="lot-facts-grid">' +
+        fact('fa-vector-square', 'Surface', lot.surface_m2 ? num(lot.surface_m2) + ' m²' : '—') +
+        (lot.ilot ? fact('fa-th-large', 'Îlot', esc(lot.ilot)) : '') +
+        (offer && offer.label ? fact('fa-tag', 'Type', esc(O ? O.offerName(offer) : offer.label)) : '') +
+      '</div>';
+
+    // Prix : comptant, équivalent en euros, et formule Diaspora (acompte et mensualités du projet)
+    if (lot.sellable) {
+      html += '<div class="lot-pricing">' + (price
+        ? '<div class="lot-price-main"><small>Prix comptant</small><strong>' + money(price) + '</strong>' + (O ? '<span>≈ ' + O.eur(price) + '</span>' : '') + '</div>' +
+          (diaspora && O ? '<div class="lot-price-diaspora"><small><i class="fas fa-globe-africa" aria-hidden="true"></i> Formule Diaspora</small><strong>' + money(diaspora) + '</strong><span>' + esc(O.diasporaText(diaspora, terms)) + '</span></div>' : '')
+        : '<div class="lot-price-main"><small>Prix</small><strong>Sur demande</strong><span>Un conseiller vous communique le prix de ce lot.</span></div>') +
+        (terms ? '<ul class="lot-terms">' + (terms.deposit ? '<li><i class="fas fa-hand-holding-usd" aria-hidden="true"></i>Acompte ' + money(terms.deposit) + '</li>' : '') +
+          '<li><i class="fas fa-calendar-alt" aria-hidden="true"></i>Solde en ' + terms.months + ' mois</li></ul>' : '') +
+        '</div>';
+    }
+    html += chips('Documents du bien', 'fa-file-signature', p.documents) + chips('Viabilisation', 'fa-road', p.viabilisation);
 
     if (message) html += '<div class="lot-msg ' + message.type + '">' + message.text + '</div>';
     else if (mode === 'option' || mode === 'interest') html += form(mode, days);
     else {
       html += '<div class="lot-actions">' +
-        (lot.sellable ? '<button type="button" class="btn btn-primary" data-act="option"><span>Pré-réserver ce lot ' + days + ' jours</span><i class="fas fa-lock"></i></button>' : '') +
-        '<button type="button" class="btn btn-ghost-dark" data-act="interest">' + (lot.sellable ? 'Je souhaite être rappelé' : 'Être prévenu si ce lot se libère') + '</button>' +
-        '<a class="btn btn-ghost-dark" href="contact.html?projet=' + encodeURIComponent(state.project.name) + '&lot=' + encodeURIComponent(lot.code) + '">Planifier une visite</a>' +
-        '</div>' +
-        (lot.sellable ? '<p class="small" style="font-size:.76rem;color:#888;margin-top:10px">La pré-réservation est gratuite : le lot vous est gardé ' + days + ' jours, le temps qu’un conseiller vous contacte.</p>' : '');
+        (lot.sellable ? '<button type="button" class="lot-btn lot-btn-primary" data-act="option"><i class="fas fa-lock" aria-hidden="true"></i><span>Pré-réserver ' + days + ' jours</span></button>' : '') +
+        '<div class="lot-actions-row">' +
+          '<button type="button" class="lot-btn" data-act="interest"><i class="fas fa-phone-alt" aria-hidden="true"></i><span>' + (lot.sellable ? 'Être rappelé' : 'Être prévenu') + '</span></button>' +
+          '<a class="lot-btn" href="contact.html?rdv=1&projet=' + encodeURIComponent(p.name) + '&lot=' + encodeURIComponent(lot.code) + '"><i class="fas fa-calendar-check" aria-hidden="true"></i><span>Visiter</span></a>' +
+          '<a class="lot-btn lot-btn-wa" target="_blank" rel="noopener" href="https://wa.me/2250102279595?text=' + encodeURIComponent('Bonjour, je suis intéressé(e) par le lot ' + lot.code + ' — ' + p.name + '.') + '" title="Écrire sur WhatsApp"><i class="fab fa-whatsapp" aria-hidden="true"></i><span>Écrire sur WhatsApp au sujet du lot ' + esc(lot.code) + '</span></a>' +
+        '</div></div>' +
+        (lot.sellable ? '<p class="lot-note"><i class="fas fa-info-circle" aria-hidden="true"></i> Pré-réservation gratuite : le lot vous est gardé ' + days + ' jours, le temps qu’un conseiller vous contacte.</p>'
+          : '<p class="lot-note"><i class="fas fa-info-circle" aria-hidden="true"></i> Ce lot n’est pas disponible. Laissez vos coordonnées : nous vous prévenons s’il se libère.</p>');
     }
     el.panel.innerHTML = html;
     el.panel.classList.add('open');

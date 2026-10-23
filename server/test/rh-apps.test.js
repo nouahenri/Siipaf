@@ -154,6 +154,13 @@ test('recrutement : candidature du site, étapes, refus motivé, embauche qui cr
   assert.equal(j.status, 'pourvu', 'poste pourvu');
   assert.equal(j.published, false);
   assert.equal((await request(app).get('/api/public/emplois')).body.length, 0);
+  // Poste avec candidatures : non supprimable (on le ferme) ; poste sans candidature : supprimé
+  assert.equal((await comptable.delete(`${R}/jobs/${job.id}`)).status, 409);
+  res = await comptable.post(`${R}/jobs`).send({ title: 'Assistant(e) de direction', department: 'direction', contract_type: 'cdi', openings: 1, published: true, closing_date: '2020-01-31' });
+  assert.equal((await request(app).get('/api/public/emplois')).body.length, 0, 'date limite passée : retirée du site');
+  assert.equal((await editeur.delete(`${R}/jobs/${res.body.id}`)).status, 403);
+  assert.equal((await comptable.delete(`${R}/jobs/${res.body.id}`)).status, 200);
+  assert.equal(await db('hr_jobs').where({ id: res.body.id }).first(), undefined);
 });
 
 test('compétences et formations : profil complété par l’employé, formation réalisée reportée au CV, organigramme', async () => {

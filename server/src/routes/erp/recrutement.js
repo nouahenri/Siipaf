@@ -38,6 +38,15 @@ module.exports = function recrutementRoutes(db) {
     if (!(await db('hr_jobs').where({ id: idParam(req) }).update({ ...data, updated_at: new Date() }))) throw new HttpError(404, 'Poste introuvable.');
     res.json(recrutement.serializeJob(await db('hr_jobs').where({ id: idParam(req) }).first()));
   }));
+  /** Suppression d'un poste sans candidature ; avec des candidatures, on le ferme pour garder l'historique des candidats. */
+  r.delete('/jobs/:id', write, ah(async (req, res) => {
+    const job = await db('hr_jobs').where({ id: idParam(req) }).first();
+    if (!job) throw new HttpError(404, 'Poste introuvable.');
+    const n = Number((await db('hr_applicants').where({ job_id: job.id }).count({ n: '*' }).first()).n || 0);
+    if (n) throw new HttpError(409, `${n} candidature(s) sont rattachées à ce poste : il ne peut pas être supprimé. Passez son statut à « Fermé » (il quitte alors le site) pour garder l’historique des candidats.`);
+    await db('hr_jobs').where({ id: job.id }).del();
+    res.json({ ok: true });
+  }));
 
   // ─── Candidatures ─────────────────────────────────────────
   r.get('/applicants', read, ah(async (req, res) => {
@@ -126,9 +135,11 @@ module.exports.publicCareers = function publicCareers(db) {
   const limiter = rateLimit({ windowMs: 15 * 60 * 1000, limit: isTest ? 1000 : 10, standardHeaders: true, legacyHeaders: false });
 
   r.get('/emplois', ah(async (req, res) => {
-    const rows = await db('hr_jobs').where({ published: true, status: 'ouvert' }).orderBy('created_at', 'desc')
+    // Une offre dont la date limite de candidature est passée quitte la page carrières
+    const today = new Date().toISOString().slice(0, 10);
+    const rows = await db('hr_jobs').where({ published: true, status: 'ouvert' }).where(w => w.whereNull('closing_date').orWhere('closing_date', '>=', today)).orderBy('created_at', 'desc')
       .select('id', 'title', 'department', 'contract_type', 'location', 'description', 'closing_date', 'openings');
-    res.json(rows.map(j => ({ ...recrutement.serializeJob(j), department_label: DEPARTMENTS[j.department], contract_label: CONTRACT_TYPES[j.contract_type] })));
+    res.json(rows.map(j => ({ ...recrutement.serializeJob(j), published: undefined, department_label: DEPARTMENTS[j.department], contract_label: CONTRACT_TYPES[j.contract_type] })));
   }));
 
   r.post('/candidatures', limiter, recrutement.cvUpload(), ah(async (req, res) => {

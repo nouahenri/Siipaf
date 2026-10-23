@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { Link } from 'react-router-dom';
-import { Plus, Pencil, Star, FileText, UserPlus, Ban, Globe, Search, Briefcase, RotateCcw, Paperclip } from 'lucide-react';
+import { Plus, Pencil, Star, FileText, UserPlus, Ban, Globe, Search, Briefcase, RotateCcw, Paperclip, Trash2 } from 'lucide-react';
 import { api, qs } from '@admin/lib/api';
 import { useAuth, useResource, useToast, useSaved } from '@admin/lib/app-context';
 import { Card, Empty, Skeleton, ErrorBox, Modal, Field, Drawer } from '@admin/components/ui';
@@ -30,6 +30,17 @@ export default function Recruitment() {
     try { await api.post(`${RH}/applicants/${a.id}/move`, { stage }); } catch (e) { toast(e.message, 'err'); }
     list.reload(); jobs.reload();
   };
+  const saved = useSaved();
+  const removeJob = async j => {
+    if (!window.confirm(`Supprimer le poste « ${j.title} » ? Il quitte aussi la page Carrières du site.`)) return;
+    try {
+      await api.del(`${RH}/jobs/${j.id}`);
+      setJobForm(null);
+      if (job === String(j.id)) setJob('');
+      jobs.reload();
+      saved('Poste supprimé');
+    } catch (e) { toast(e.message, 'err'); }
+  };
 
   return (
     <div className="recruit-layout">
@@ -44,12 +55,13 @@ export default function Recruitment() {
                   <span style={{ minWidth: 0 }}><span className="ellipsis">{j.title}</span><small className="muted" style={{ display: 'block', fontWeight: 400 }}>{meta?.job_statuses[j.status]}{j.published ? ' · sur le site' : ''} · {j.hired}/{j.openings} pourvu(s)</small></span>
                   <span className="muted">{j.applicants}</span>
                 </button>
-                {can('recrutement:write') && <button className="btn btn-ghost btn-icon btn-sm" onClick={() => setJobForm(j)} aria-label={`Modifier ${j.title}`}><Pencil /></button>}
+                {can('recrutement:write') && <button className="btn btn-ghost btn-icon btn-sm" onClick={() => setJobForm(j)} aria-label={`Modifier ${j.title}`} title="Modifier"><Pencil /></button>}
+                {can('recrutement:write') && <button className="btn btn-ghost btn-icon btn-sm" onClick={() => removeJob(j)} aria-label={`Supprimer ${j.title}`} title="Supprimer"><Trash2 /></button>}
               </div>
             ))}
           </div>
         )}
-        <p className="card-body small muted" style={{ borderTop: '1px solid var(--border)' }}><Globe className="ico" />Les postes « publiés » sont lus par le site (<code>/api/public/emplois</code>) ; les candidatures envoyées depuis le site (<code>/api/public/candidatures</code>, avec CV) arrivent ici et l’équipe est prévenue par e-mail.</p>
+        <p className="card-body small muted" style={{ borderTop: '1px solid var(--border)' }}><Globe className="ico" />Un poste « Ouvert » coché « Publier sur le site » apparaît sur la page Carrières du site (lien en bas de chaque page), jusqu’à sa date limite de candidature. Les candidatures envoyées depuis le site, avec CV, arrivent ici et l’équipe est prévenue par e-mail.</p>
       </Card>
 
       <div className="stack" style={{ minWidth: 0 }}>
@@ -91,13 +103,13 @@ export default function Recruitment() {
       </div>
 
       {open && <ApplicantDrawer id={open} onClose={() => setOpen(null)} onChange={() => { list.reload(); jobs.reload(); }} />}
-      {jobForm && <JobForm job={jobForm} onClose={() => setJobForm(null)} onSaved={() => { setJobForm(null); jobs.reload(); }} />}
+      {jobForm && <JobForm job={jobForm} onClose={() => setJobForm(null)} onSaved={() => { setJobForm(null); jobs.reload(); }} onDelete={() => removeJob(jobForm)} />}
       {creating && <ApplicantForm jobs={jobs.data || []} jobId={job && job !== 'none' ? job : ''} onClose={() => setCreating(false)} onSaved={a => { setCreating(false); list.reload(); jobs.reload(); setOpen(a.id); }} />}
     </div>
   );
 }
 
-function JobForm({ job, onClose, onSaved }) {
+function JobForm({ job, onClose, onSaved, onDelete }) {
   const { meta } = useRhMeta();
   const [f, setF] = useState({
     title: job.title || '', department: job.department || 'chantier', project_id: job.project_id || '', contract_type: job.contract_type || 'cdi', openings: job.openings || 1,
@@ -111,7 +123,10 @@ function JobForm({ job, onClose, onSaved }) {
     try { await (job.id ? api.patch(`${RH}/jobs/${job.id}`, body) : api.post(`${RH}/jobs`, body)); onSaved(); } catch (err) { setError(err); }
   };
   return (
-    <Modal title={job.id ? job.title : 'Nouveau poste'} onClose={onClose} footer={<><button className="btn btn-ghost" onClick={onClose}>Annuler</button><button className="btn btn-primary" form="job">Enregistrer</button></>}>
+    <Modal title={job.id ? job.title : 'Nouveau poste'} onClose={onClose} footer={<>
+      {job.id && <button className="btn btn-ghost" style={{ color: 'var(--danger)', marginRight: 'auto' }} onClick={onDelete}><Trash2 />Supprimer</button>}
+      <button className="btn btn-ghost" onClick={onClose}>Annuler</button><button className="btn btn-primary" form="job">Enregistrer</button>
+    </>}>
       <form id="job" className="form-grid wide-form" onSubmit={save}>
         <div className="full"><ErrorBox error={error} /></div>
         <Field label="Intitulé du poste" className="full"><input className="input" required minLength={3} value={f.title} onChange={set('title')} autoFocus /></Field>
