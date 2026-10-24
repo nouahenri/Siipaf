@@ -17,6 +17,7 @@ const MODULE_GROUPS = {
   sav: ['ERP · Client & SAV'],
   administration: ['ERP · Administration générale'],
   juridique: ['ERP · Juridique', 'Dossiers d’acquisition'],
+  chantiers: ['ERP · Chantiers'],
 };
 
 const dashboardUrl = () => `${window.location.protocol}//${window.location.host.replace(/^erp\./, 'admin.')}/roles`;

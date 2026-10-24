@@ -382,12 +382,13 @@ const PERMISSIONS = {
   ],
   conducteur_travaux: [
     'projects:read', 'lots:read', 'sales:read', 'documents:write', 'site_updates:write', 'client_messages',
-    'sav:read', 'sav:create', 'sav:handle', 'sav:reserves', 'sav:interventions', 'vefa:write', 'presence:write', ...CONTRACT_ACTIONS, ...LEGAL_ACTIONS, ...SELF_SERVICE,
+    'sav:read', 'sav:create', 'sav:handle', 'sav:reserves', 'sav:interventions', 'vefa:write', 'presence:write', ...CONTRACT_ACTIONS, ...LEGAL_ACTIONS,
+    'chantiers:read', 'chantiers:write', ...SELF_SERVICE,
   ],
   comptable: [
     'projects:read', 'lots:read', 'leads:read', 'appointments:read', 'sales:read', 'payments:write',
     'schedule:write', 'client_messages', 'commercial:read', 'leads:all', 'compta:read', ...COMPTA_ACTIONS,
-    'rh:read', ...RH_ACTIONS, 'presence:write', 'paie:read', ...PAIE_ACTIONS, 'contrats:read', 'parc:read', ...SELF_SERVICE,
+    'rh:read', ...RH_ACTIONS, 'presence:write', 'paie:read', ...PAIE_ACTIONS, 'contrats:read', 'parc:read', 'chantiers:read', ...SELF_SERVICE,
   ],
   resp_exploitation: [
     'projects:read', 'projects:write', 'plans:write', 'lots:read', 'lots:status', 'leads:read', 'leads:delete',
@@ -395,7 +396,8 @@ const PERMISSIONS = {
     'sales:read', 'sales:write', 'documents:write', 'testimonials:write',
     'client_access:write', 'client_messages', 'site_updates:write', 'schedule:write', 'settings:write',
     'leads:all', 'sav:read', ...SAV_ACTIONS, 'commercial:read', 'targets:write', 'vefa:write', 'property:write', 'compta:read',
-    'rh:read', ...RH_ACTIONS, 'presence:write', 'direction:read', ...COURRIER_ACTIONS, ...CONTRACT_ACTIONS, ...PARC_ACTIONS, ...DOCS_ACTIONS, ...REQUEST_ACTIONS, ...LEGAL_ACTIONS, ...SELF_SERVICE,
+    'rh:read', ...RH_ACTIONS, 'presence:write', 'direction:read', ...COURRIER_ACTIONS, ...CONTRACT_ACTIONS, ...PARC_ACTIONS, ...DOCS_ACTIONS, ...REQUEST_ACTIONS, ...LEGAL_ACTIONS,
+    'chantiers:read', 'chantiers:write', ...SELF_SERVICE,
   ],
 };
 
@@ -489,6 +491,11 @@ const PERMISSION_CATALOG = [
   { group: 'ERP · Juridique', items: [
     ['juridique:read', 'Consulter le Juridique', 'Circuit des ventes jusqu’à l’acte, litiges, cautions et retenues de garantie, impayés transmis'],
     ['juridique:write', 'Gérer le Juridique (juriste)', 'Dater les étapes jusqu’à l’acte, notaire ; ouvrir et suivre les litiges ; cautions et retenues ; réglages du module'],
+  ] },
+  { group: 'ERP · Chantiers', items: [
+    ['chantiers:read', 'Consulter les chantiers', 'Planning, phases, tâches, budget et coûts de tous les chantiers (le conducteur nommé voit et gère le sien sans autre droit)'],
+    ['chantiers:write', 'Gérer les chantiers (conducteur de travaux)', 'Créer un chantier, ses phases, ses tâches et son budget ; nommer le conducteur'],
+    ['chantiers:direction', 'Valider en direction (chantiers)', 'Déclarer une étape de chantier atteinte (elle émet les appels de fonds VEFA) et valider les situations des sous-traitants'],
   ] },
   { group: 'ERP · Client & SAV', items: [
     ['sav:read', 'Voir le SAV', 'Réclamations, réserves à la livraison, interventions, indicateurs'],
@@ -1227,7 +1234,85 @@ function unpaidAge(lines, today) {
   return { due_date: late[0].due_date, days: daysBetween(late[0].due_date, today), overdue_fcfa: late.reduce((t, l) => t + l.remaining_fcfa, 0), count: late.length };
 }
 
+/* ─── ERP · Chantiers ──────────────────────────────────────────────────────── */
+
+/**
+ * Choix du client du 24/10 (docs/cadrage-chantiers.md) : plusieurs chantiers par programme, chacun avec sa zone
+ * (tout le programme, des îlots, des bâtiments ou des lots), son conducteur de travaux, ses phases (Gantt), ses
+ * tâches (Kanban) et son budget par poste. Les phases reprennent les étapes du journal de chantier (SITE_STAGES).
+ */
+const CHANTIER_ACTIONS = ['chantiers:read', 'chantiers:write', 'chantiers:direction'];
+const WORKSITE_STATUSES = { preparation: 'En préparation', en_cours: 'En cours', suspendu: 'Suspendu', receptionne: 'Réceptionné', clos: 'Clos' };
+const WORKSITE_OPEN = ['preparation', 'en_cours', 'suspendu'];
+const WORKSITE_ZONES = { programme: 'Tout le programme', ilots: 'Des îlots', batiments: 'Des bâtiments', lots: 'Des lots' };
+const TASK_STATUSES = { a_faire: 'À faire', en_cours: 'En cours', bloque: 'Bloquée', fait: 'Faite' };
+const BUDGET_CATEGORIES = {
+  materiaux: 'Matériaux', main_oeuvre: 'Main-d’œuvre', sous_traitance: 'Sous-traitance', engins: 'Engins et matériel', frais: 'Frais de chantier', autre: 'Autre',
+};
+const PHASE_STATES = { a_venir: 'À venir', en_cours: 'En cours', en_retard: 'En retard', termine: 'Terminée' };
+
+/** Le lot fait-il partie de la zone du chantier ? `zone` : îlots (noms), bâtiments ou lots (identifiants). */
+function lotInZone(worksite, lot) {
+  if (Number(lot.project_id) !== Number(worksite.project_id)) return false;
+  const zone = Array.isArray(worksite.zone) ? worksite.zone : [];
+  if (worksite.zone_kind === 'ilots') return zone.map(String).includes(String(lot.ilot ?? ''));
+  if (worksite.zone_kind === 'batiments') return zone.map(Number).includes(Number(lot.building_id));
+  if (worksite.zone_kind === 'lots') return zone.map(Number).includes(Number(lot.id));
+  return true;
+}
+
+/**
+ * État d'une phase au jour donné : terminée (fin réelle ou 100 %), en retard (fin prévue passée, ou début prévu passé
+ * sans démarrage), en cours (démarrée), à venir. `late_days` : jours de retard sur la fin (ou le début) prévue.
+ */
+function phaseState(p, today) {
+  if (p.actual_end || Number(p.progress_pct) >= 100) {
+    const late = p.planned_end && p.actual_end ? Math.max(0, daysBetween(p.planned_end, p.actual_end)) : 0;
+    return { state: 'termine', late_days: late };
+  }
+  if (p.planned_end && today > p.planned_end) return { state: 'en_retard', late_days: daysBetween(p.planned_end, today) };
+  if (!p.actual_start && p.planned_start && today > p.planned_start) return { state: 'en_retard', late_days: daysBetween(p.planned_start, today) };
+  return { state: p.actual_start ? 'en_cours' : 'a_venir', late_days: 0 };
+}
+
+/** Avancement d'un chantier : moyenne des phases pondérée par leur durée prévue (1 jour au moins), arrondie. */
+function worksiteProgress(phases) {
+  if (!phases.length) return 0;
+  let weight = 0;
+  let sum = 0;
+  for (const p of phases) {
+    const w = p.planned_start && p.planned_end ? Math.max(1, daysBetween(p.planned_start, p.planned_end) + 1) : 1;
+    const pct = p.actual_end ? 100 : Math.min(100, Math.max(0, Number(p.progress_pct) || 0));
+    weight += w;
+    sum += w * pct;
+  }
+  return Math.round(sum / weight);
+}
+
+/**
+ * Refus d'une phase : fin avant début (prévu ou réel), fin réelle sans début réel, phase précédente d'un autre
+ * chantier ou qui ferait une boucle. `phases` : les autres phases du chantier (id, depends_on_id).
+ */
+function phaseRefusal(p, phases = []) {
+  if (p.planned_start && p.planned_end && p.planned_end < p.planned_start) return 'La fin prévue précède le début prévu.';
+  if (p.actual_end && !p.actual_start) return 'Indiquez le début réel avant la fin réelle.';
+  if (p.actual_start && p.actual_end && p.actual_end < p.actual_start) return 'La fin réelle précède le début réel.';
+  if (p.depends_on_id) {
+    const byId = new Map(phases.map(x => [Number(x.id), x]));
+    if (!byId.has(Number(p.depends_on_id))) return 'La phase précédente doit appartenir au même chantier.';
+    let cur = Number(p.depends_on_id);
+    const seen = new Set();
+    while (cur && !seen.has(cur)) {
+      if (p.id && cur === Number(p.id)) return 'Cet enchaînement de phases fait une boucle.';
+      seen.add(cur);
+      cur = Number(byId.get(cur)?.depends_on_id) || null;
+    }
+  }
+  return null;
+}
+
 module.exports = {
+  CHANTIER_ACTIONS, WORKSITE_STATUSES, WORKSITE_OPEN, WORKSITE_ZONES, TASK_STATUSES, BUDGET_CATEGORIES, PHASE_STATES, lotInZone, phaseState, worksiteProgress, phaseRefusal,
   DEED_STEPS, DEED_STEP_KEYS, deedProgress, deedStepRefusal, LITIGATION_ORIGINS, LITIGATION_STAGES, LITIGATION_OUTCOMES, litigationReminder,
   GUARANTEE_DIRECTIONS, DEFAULT_GUARANTEE_KINDS, GUARANTEE_STATUSES, guaranteeDeadline, LEGAL_SETTINGS, unpaidAge, LEGAL_ACTIONS,
   DOC_KINDS, DOC_AUDIENCES, DOC_STATUSES, DOC_ACTION_STATUSES, docReference, readReminder,

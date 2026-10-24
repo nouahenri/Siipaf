@@ -30,6 +30,8 @@ import Litiges from './pages/juridique/Litiges';
 import Cautions from './pages/juridique/Cautions';
 import Impayes from './pages/juridique/Impayes';
 import JuridiqueSettings from './pages/juridique/JuridiqueSettings';
+import Chantiers from './pages/chantiers/Chantiers';
+import Chantier from './pages/chantiers/Chantier';
 import ComptaDashboard from './pages/compta/ComptaDashboard';
 import Entries from './pages/compta/Entries';
 import Purchases from './pages/compta/Purchases';
@@ -142,6 +144,10 @@ function App() {
         <Route path="juridique/contrats" element={<Contrats />} />
         <Route path="juridique/reglages" element={<Guard perm={JURIDIQUE}><JuridiqueSettings /></Guard>} />
         <Route path="juridique/acces" element={<Guard perm="users:read"><ModuleAccess module="juridique" label="Juridique" /></Guard>} />
+        <Route path="chantiers" element={<Navigate to="/chantiers/liste" replace />} />
+        <Route path="chantiers/liste" element={<Chantiers />} />
+        <Route path="chantiers/:id" element={<Chantier />} />
+        <Route path="chantiers/acces" element={<Guard perm="users:read"><ModuleAccess module="chantiers" label="Chantiers" /></Guard>} />
         <Route path="compta/acces" element={<Guard perm="users:read"><ModuleAccess module="compta" label="Comptabilité et paie" /></Guard>} />
         <Route path="rh/acces" element={<Guard perm="users:read"><ModuleAccess module="rh" label="Ressources humaines" /></Guard>} />
         <Route path="sav/acces" element={<Guard perm="users:read"><ModuleAccess module="sav" label="Client & SAV" /></Guard>} />

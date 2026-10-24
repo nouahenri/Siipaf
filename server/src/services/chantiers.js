@@ -1,0 +1,382 @@
+/**
+ * ERP · Chantiers (choix du client du 24/10, docs/cadrage-chantiers.md). Plusieurs chantiers par programme : zone
+ * couverte, conducteur de travaux, phases (Gantt), tâches (Kanban), budget par poste. Le conducteur nommé gère son
+ * chantier sans autre droit ; chantiers:write gère tous les chantiers ; chantiers:read et la Direction consultent.
+ * Règles dans lib/domain.js (WORKSITE_*, TASK_STATUSES, BUDGET_CATEGORIES, phaseState, worksiteProgress…).
+ */
+const { HttpError, json, isoDay, isoTime } = require('../lib/http');
+const {
+  WORKSITE_STATUSES, WORKSITE_OPEN, WORKSITE_ZONES, TASK_STATUSES, BUDGET_CATEGORIES, PHASE_STATES, SITE_STAGES, SITE_STAGE_LABELS,
+  lotInZone, phaseState, worksiteProgress, phaseRefusal,
+} = require('../lib/domain');
+const { notify, employeeUser } = require('./notifications');
+
+const insertedId = r => (typeof r === 'object' ? r.id : r);
+const today = () => new Date().toISOString().slice(0, 10);
+const fr = d => (d ? d.split('-').reverse().join('/') : '');
+
+/** Lecture de tous les chantiers : chantiers:read, chantiers:write, validation en direction, Vue Direction. */
+const seesAll = v => ['chantiers:read', 'chantiers:write', 'chantiers:direction', 'direction:read'].some(p => v.can(p));
+const canSee = (w, v) => seesAll(v) || Number(w.manager_id) === Number(v.user.id);
+const canManage = (w, v) => v.can('chantiers:write') || Number(w.manager_id) === Number(v.user.id);
+
+/** Référence annuelle : CH-2026-0001. */
+async function nextReference(trx, date) {
+  const p = `CH-${date.slice(0, 4)}-`;
+  const last = await trx('worksites').where('reference', 'like', `${p}%`).orderBy('reference', 'desc').first('reference');
+  return `${p}${String(last ? Number(last.reference.slice(p.length)) + 1 : 1).padStart(4, '0')}`;
+}
+
+const worksiteQuery = db => db('worksites as w').join('projects as p', 'p.id', 'w.project_id').leftJoin('users as u', 'u.id', 'w.manager_id')
+  .select('w.*', 'p.name as project_name', 'u.name as manager_name');
+
+const serializePhase = (p, day = today()) => {
+  const row = {
+    id: p.id, worksite_id: p.worksite_id, stage: p.stage || null, stage_label: p.stage ? SITE_STAGE_LABELS[p.stage] : null, label: p.label,
+    planned_start: isoDay(p.planned_start), planned_end: isoDay(p.planned_end), actual_start: isoDay(p.actual_start), actual_end: isoDay(p.actual_end),
+    progress_pct: p.actual_end ? 100 : Number(p.progress_pct) || 0, depends_on_id: p.depends_on_id || null, sort: p.sort, notes: p.notes || null,
+  };
+  const s = phaseState(row, day);
+  return { ...row, state: s.state, state_label: PHASE_STATES[s.state], late_days: s.late_days };
+};
+
+const serializeTask = t => ({
+  id: t.id, worksite_id: t.worksite_id, phase_id: t.phase_id || null, phase_label: t.phase_label || null, title: t.title, description: t.description || null,
+  status: t.status, status_label: TASK_STATUSES[t.status], milestone: !!t.milestone, employee_id: t.employee_id || null,
+  employee_name: t.employee_last ? `${t.employee_last} ${t.employee_first}` : null, supplier_id: t.supplier_id || null, supplier_name: t.supplier_name || null,
+  team: t.team || null, start_on: isoDay(t.start_on), due_on: isoDay(t.due_on), done_on: isoDay(t.done_on), sort: t.sort,
+  late: t.status !== 'fait' && !!t.due_on && today() > isoDay(t.due_on),
+});
+
+const serializeBudget = b => ({
+  id: b.id, category: b.category, category_label: BUDGET_CATEGORIES[b.category], label: b.label, phase_id: b.phase_id || null,
+  amount_fcfa: Number(b.amount_fcfa), notes: b.notes || null, sort: b.sort,
+});
+
+/** Libellé de la zone : « Tout le programme », « Îlots A, B », « Bât. A, Bât. B », « 12 lots ». */
+function zoneLabel(w, buildings = []) {
+  const zone = json(w.zone, []) || [];
+  if (w.zone_kind === 'ilots') return zone.length ? `Îlot${zone.length > 1 ? 's' : ''} ${zone.join(', ')}` : 'Aucun îlot';
+  if (w.zone_kind === 'batiments') {
+    const codes = zone.map(id => buildings.find(b => Number(b.id) === Number(id))?.code).filter(Boolean);
+    return codes.length ? codes.join(', ') : 'Aucun bâtiment';
+  }
+  if (w.zone_kind === 'lots') return `${zone.length} lot${zone.length > 1 ? 's' : ''}`;
+  return WORKSITE_ZONES.programme;
+}
+
+function serializeWorksite(w, { phases = [], budget = 0, buildings = [] } = {}) {
+  const ph = phases.map(p => (p.state ? p : serializePhase(p)));
+  const late = ph.filter(p => p.state === 'en_retard');
+  return {
+    id: w.id, reference: w.reference, project_id: w.project_id, project_name: w.project_name, name: w.name,
+    zone_kind: w.zone_kind, zone: json(w.zone, []) || [], zone_label: zoneLabel(w, buildings),
+    manager_id: w.manager_id || null, manager_name: w.manager_name || null, status: w.status, status_label: WORKSITE_STATUSES[w.status],
+    planned_start: isoDay(w.planned_start), planned_end: isoDay(w.planned_end), actual_start: isoDay(w.actual_start), actual_end: isoDay(w.actual_end),
+    description: w.description || null, progress_pct: worksiteProgress(ph), phases_count: ph.length,
+    late_phases: late.length, late_days: late.reduce((m, p) => Math.max(m, p.late_days), 0), budget_fcfa: budget,
+    created_at: isoTime(w.created_at), updated_at: isoTime(w.updated_at),
+  };
+}
+
+async function loadWorksite(db, id) {
+  const w = await worksiteQuery(db).where('w.id', id).first();
+  if (!w) throw new HttpError(404, 'Chantier introuvable.');
+  return w;
+}
+async function visibleWorksite(db, id, v) {
+  const w = await loadWorksite(db, id);
+  if (!canSee(w, v)) throw new HttpError(404, 'Chantier introuvable.');
+  return w;
+}
+async function managedWorksite(db, id, v) {
+  const w = await visibleWorksite(db, id, v);
+  if (!canManage(w, v)) throw new HttpError(403, 'Seuls le conducteur du chantier et les gestionnaires des chantiers le modifient.');
+  return w;
+}
+
+// ─── Liste et fiche ───────────────────────────────────────────────────────
+
+async function list(db, v, { status = 'ouverts', projectId = null, q = '' } = {}) {
+  const query = worksiteQuery(db).orderBy([{ column: 'p.name' }, { column: 'w.reference' }]);
+  if (status === 'ouverts') query.whereIn('w.status', WORKSITE_OPEN);
+  else if (status) query.where('w.status', status);
+  if (projectId) query.where('w.project_id', projectId);
+  if (q) query.where(b => b.where('w.name', 'like', `%${q}%`).orWhere('w.reference', 'like', `%${q}%`).orWhere('p.name', 'like', `%${q}%`));
+  if (!seesAll(v)) query.where('w.manager_id', v.user.id);
+  const rows = await query;
+  if (!rows.length) return [];
+  const ids = rows.map(r => r.id);
+  const [phases, budgets, buildings] = await Promise.all([
+    db('worksite_phases').whereIn('worksite_id', ids),
+    db('worksite_budget_lines').whereIn('worksite_id', ids).groupBy('worksite_id').select('worksite_id').sum({ total: 'amount_fcfa' }),
+    db('buildings').whereIn('project_id', [...new Set(rows.map(r => r.project_id))]).select('id', 'code'),
+  ]);
+  const day = today();
+  return rows.map(w => serializeWorksite(w, {
+    phases: phases.filter(p => p.worksite_id === w.id).map(p => serializePhase(p, day)),
+    budget: Number(budgets.find(b => b.worksite_id === w.id)?.total || 0), buildings,
+  }));
+}
+
+/** Lots de la zone du chantier (code, îlot, statut) : le lot vendu se voit, pas son prix. */
+async function zoneLots(db, w) {
+  const lots = await db('lots').where({ project_id: w.project_id }).select('id', 'code', 'ilot', 'building_id', 'status', 'project_id');
+  const ws = { ...w, zone: json(w.zone, []) || [] };
+  return lots.filter(l => lotInZone(ws, l));
+}
+
+async function detail(db, w, v) {
+  const day = today();
+  const [phases, tasks, budget, buildings, lots] = await Promise.all([
+    db('worksite_phases').where({ worksite_id: w.id }).orderBy(['sort', 'id']),
+    db('worksite_tasks as t').leftJoin('worksite_phases as ph', 'ph.id', 't.phase_id').leftJoin('employees as e', 'e.id', 't.employee_id')
+      .leftJoin('suppliers as s', 's.id', 't.supplier_id').where('t.worksite_id', w.id).orderBy([{ column: 't.sort' }, { column: 't.id' }])
+      .select('t.*', 'ph.label as phase_label', 'e.last_name as employee_last', 'e.first_name as employee_first', 's.name as supplier_name'),
+    db('worksite_budget_lines').where({ worksite_id: w.id }).orderBy(['sort', 'id']),
+    db('buildings').where({ project_id: w.project_id }).select('id', 'code', 'ilot'),
+    zoneLots(db, w),
+  ]);
+  const ph = phases.map(p => serializePhase(p, day));
+  const lines = budget.map(serializeBudget);
+  const byCategory = Object.keys(BUDGET_CATEGORIES).map(k => ({ category: k, label: BUDGET_CATEGORIES[k], amount_fcfa: lines.filter(l => l.category === k).reduce((t, l) => t + l.amount_fcfa, 0) }));
+  const sold = lots.filter(l => ['reserve', 'vendu'].includes(l.status)).length;
+  return {
+    ...serializeWorksite(w, { phases: ph, budget: lines.reduce((t, l) => t + l.amount_fcfa, 0), buildings }),
+    can_manage: canManage(w, v), phases: ph, tasks: tasks.map(serializeTask), budget_lines: lines, budget_by_category: byCategory,
+    lots: { total: lots.length, sold, codes: lots.slice(0, 60).map(l => l.code) },
+  };
+}
+
+// ─── Création, modification ───────────────────────────────────────────────
+
+/** Contrôle la zone : îlots du programme, bâtiments ou lots du programme. */
+async function checkZone(db, projectId, kind, zone) {
+  const list = Array.isArray(zone) ? zone : [];
+  if (kind === 'programme') return [];
+  if (!list.length) throw new HttpError(400, 'Choisissez au moins un élément de la zone du chantier.');
+  if (kind === 'ilots') {
+    const ilots = (await db('lots').where({ project_id: projectId }).whereNotNull('ilot').distinct('ilot')).map(r => String(r.ilot));
+    const bad = list.map(String).filter(i => !ilots.includes(i));
+    if (bad.length) throw new HttpError(400, `Îlot inconnu dans ce programme : ${bad.join(', ')}.`);
+    return [...new Set(list.map(String))];
+  }
+  const table = kind === 'batiments' ? 'buildings' : 'lots';
+  const ids = [...new Set(list.map(Number))];
+  const found = await db(table).where({ project_id: projectId }).whereIn('id', ids).count({ n: '*' }).first();
+  if (Number(found.n) !== ids.length) throw new HttpError(400, kind === 'batiments' ? 'Bâtiment hors du programme.' : 'Lot hors du programme.');
+  return ids;
+}
+
+function checkDates(d) {
+  if (d.planned_start && d.planned_end && d.planned_end < d.planned_start) throw new HttpError(400, 'La fin prévue précède le début prévu.');
+  if (d.actual_start && d.actual_end && d.actual_end < d.actual_start) throw new HttpError(400, 'La fin réelle précède le début réel.');
+}
+
+/** Nomination du conducteur : cloche et e-mail au compte nommé. */
+async function announceManager(db, w, userId) {
+  if (!w.manager_id || Number(w.manager_id) === Number(userId)) return;
+  await notify(db, {
+    to: w.manager_id, module: 'chantiers', event: 'chantier.conducteur', priority: 'action', email: true,
+    title: `Vous êtes nommé conducteur du chantier ${w.reference}`, body: `${w.name} — ${w.project_name}`,
+    link: `/chantiers/${w.id}`, key: `chantier:${w.id}:conducteur:${w.manager_id}`,
+  });
+}
+
+async function create(db, data, user) {
+  const project = await db('projects').where({ id: data.project_id }).first('id');
+  if (!project) throw new HttpError(400, 'Programme introuvable.');
+  checkDates(data);
+  const zone = await checkZone(db, data.project_id, data.zone_kind || 'programme', data.zone);
+  const id = await db.transaction(async trx => {
+    const reference = await nextReference(trx, data.planned_start || today());
+    const [row] = await trx('worksites').insert({
+      reference, project_id: data.project_id, name: data.name, zone_kind: data.zone_kind || 'programme', zone: JSON.stringify(zone),
+      manager_id: data.manager_id || null, status: data.status || 'preparation', planned_start: data.planned_start || null, planned_end: data.planned_end || null,
+      actual_start: data.actual_start || null, actual_end: data.actual_end || null, description: data.description || null, created_by: user.id,
+    });
+    const wid = insertedId(row);
+    // Phases de départ : étapes du journal de chantier choisies dans le formulaire
+    const stages = (data.stages || []).filter(s => SITE_STAGES.includes(s)).sort((a, b) => SITE_STAGES.indexOf(a) - SITE_STAGES.indexOf(b));
+    if (stages.length) await trx('worksite_phases').insert(stages.map((stage, i) => ({ worksite_id: wid, stage, label: SITE_STAGE_LABELS[stage], sort: i + 1 })));
+    return wid;
+  });
+  const w = await loadWorksite(db, id);
+  await announceManager(db, w, user.id);
+  return w;
+}
+
+async function update(db, w, data, user) {
+  const next = { ...w, ...data };
+  checkDates({
+    planned_start: isoDay(next.planned_start), planned_end: isoDay(next.planned_end), actual_start: isoDay(next.actual_start), actual_end: isoDay(next.actual_end),
+  });
+  const row = { ...data, updated_at: new Date() };
+  if (data.zone_kind !== undefined || data.zone !== undefined) {
+    row.zone = JSON.stringify(await checkZone(db, w.project_id, next.zone_kind, data.zone !== undefined ? data.zone : json(w.zone, [])));
+  }
+  delete row.project_id; // un chantier ne change pas de programme
+  await db('worksites').where({ id: w.id }).update(row);
+  const after = await loadWorksite(db, w.id);
+  if (data.manager_id && Number(data.manager_id) !== Number(w.manager_id)) await announceManager(db, after, user.id);
+  return after;
+}
+
+async function remove(db, w) {
+  // Un chantier qui porte déjà du travail se clôt ; seul un chantier vide se supprime
+  const used = await db('worksite_tasks').where({ worksite_id: w.id }).first('id') || (await db('worksite_phases').where({ worksite_id: w.id }).where('progress_pct', '>', 0).first('id'));
+  if (used) throw new HttpError(409, 'Ce chantier a déjà des tâches ou de l’avancement : passez-le « Clos » pour garder son historique.');
+  await db('worksites').where({ id: w.id }).del();
+}
+
+// ─── Phases ───────────────────────────────────────────────────────────────
+
+async function savePhase(db, w, data, phaseId = null) {
+  const others = await db('worksite_phases').where({ worksite_id: w.id }).select('id', 'depends_on_id', 'sort');
+  let current = null;
+  if (phaseId) {
+    current = await db('worksite_phases').where({ id: phaseId, worksite_id: w.id }).first();
+    if (!current) throw new HttpError(404, 'Phase introuvable.');
+  }
+  const p = { ...(current ? serializePhase(current) : {}), ...data, id: phaseId };
+  if (p.stage && !SITE_STAGES.includes(p.stage)) throw new HttpError(400, 'Étape de chantier inconnue.');
+  const refusal = phaseRefusal(p, others.filter(o => o.id !== phaseId));
+  if (refusal) throw new HttpError(400, refusal);
+  // 100 % sans fin réelle : la phase se termine aujourd'hui ; une fin réelle vaut 100 %
+  const row = { ...data };
+  if (row.actual_end) row.progress_pct = 100;
+  if (row.progress_pct === 100 && !p.actual_end) { row.actual_end = today(); if (!p.actual_start) row.actual_start = row.actual_end; }
+  if (row.progress_pct > 0 && !p.actual_start && !row.actual_start) row.actual_start = today();
+  if (phaseId) {
+    await db('worksite_phases').where({ id: phaseId }).update({ ...row, updated_at: new Date() });
+    return phaseId;
+  }
+  const sort = others.reduce((m, o) => Math.max(m, o.sort), 0) + 1;
+  const [r] = await db('worksite_phases').insert({ worksite_id: w.id, label: data.label || SITE_STAGE_LABELS[data.stage], sort, ...row });
+  return insertedId(r);
+}
+
+async function deletePhase(db, w, phaseId) {
+  const p = await db('worksite_phases').where({ id: phaseId, worksite_id: w.id }).first();
+  if (!p) throw new HttpError(404, 'Phase introuvable.');
+  await db.transaction(async trx => {
+    // Les phases qui suivaient celle-ci reprennent sa propre phase précédente
+    await trx('worksite_phases').where({ worksite_id: w.id, depends_on_id: phaseId }).update({ depends_on_id: p.depends_on_id || null });
+    await trx('worksite_phases').where({ id: phaseId }).del();
+  });
+}
+
+async function reorderPhases(db, w, ids) {
+  const own = (await db('worksite_phases').where({ worksite_id: w.id }).select('id')).map(r => r.id);
+  if (ids.length !== own.length || ids.some(id => !own.includes(id))) throw new HttpError(400, 'Ordre des phases incomplet.');
+  await db.transaction(async trx => { for (const [i, id] of ids.entries()) await trx('worksite_phases').where({ id }).update({ sort: i + 1 }); });
+}
+
+// ─── Tâches ───────────────────────────────────────────────────────────────
+
+async function checkTaskLinks(db, w, data) {
+  if (data.phase_id && !(await db('worksite_phases').where({ id: data.phase_id, worksite_id: w.id }).first('id'))) throw new HttpError(400, 'Phase hors du chantier.');
+  if (data.start_on && data.due_on && data.due_on < data.start_on) throw new HttpError(400, 'L’échéance précède le début.');
+}
+
+/** Une tâche confiée à un employé relié à un compte le prévient (cloche). */
+async function announceTask(db, w, task, userId) {
+  if (!task.employee_id) return;
+  const u = await employeeUser(db, task.employee_id);
+  if (!u || u.id === userId) return;
+  await notify(db, {
+    to: u.id, module: 'chantiers', event: 'chantier.tache', title: `Tâche confiée : ${task.title}`,
+    body: `${w.reference} — ${w.name}${task.due_on ? ` · échéance le ${fr(isoDay(task.due_on))}` : ''}`,
+    link: `/chantiers/${w.id}?onglet=taches`, key: `chantier-tache:${task.id}:${task.employee_id}`,
+  });
+}
+
+async function saveTask(db, w, data, user, taskId = null) {
+  let current = null;
+  if (taskId) {
+    current = await db('worksite_tasks').where({ id: taskId, worksite_id: w.id }).first();
+    if (!current) throw new HttpError(404, 'Tâche introuvable.');
+  }
+  const next = { ...(current || {}), ...data };
+  await checkTaskLinks(db, w, { phase_id: next.phase_id, start_on: isoDay(next.start_on), due_on: isoDay(next.due_on) });
+  const row = { ...data };
+  if (data.status) row.done_on = data.status === 'fait' ? (current?.done_on && current.status === 'fait' ? current.done_on : data.done_on || today()) : null;
+  let id = taskId;
+  if (taskId) await db('worksite_tasks').where({ id: taskId }).update({ ...row, updated_at: new Date() });
+  else {
+    const max = await db('worksite_tasks').where({ worksite_id: w.id }).max({ m: 'sort' }).first();
+    const [r] = await db('worksite_tasks').insert({ worksite_id: w.id, status: 'a_faire', ...row, sort: Number(max?.m || 0) + 1, created_by: user.id });
+    id = insertedId(r);
+  }
+  const task = await db('worksite_tasks').where({ id }).first();
+  if (task.employee_id && Number(task.employee_id) !== Number(current?.employee_id)) await announceTask(db, w, task, user.id);
+  return id;
+}
+
+async function deleteTask(db, w, taskId) {
+  const n = await db('worksite_tasks').where({ id: taskId, worksite_id: w.id }).del();
+  if (!n) throw new HttpError(404, 'Tâche introuvable.');
+}
+
+// ─── Budget ───────────────────────────────────────────────────────────────
+
+async function saveBudgetLine(db, w, data, lineId = null) {
+  if (data.phase_id && !(await db('worksite_phases').where({ id: data.phase_id, worksite_id: w.id }).first('id'))) throw new HttpError(400, 'Phase hors du chantier.');
+  if (lineId) {
+    const n = await db('worksite_budget_lines').where({ id: lineId, worksite_id: w.id }).update({ ...data, updated_at: new Date() });
+    if (!n) throw new HttpError(404, 'Ligne de budget introuvable.');
+    return lineId;
+  }
+  const max = await db('worksite_budget_lines').where({ worksite_id: w.id }).max({ m: 'sort' }).first();
+  const [r] = await db('worksite_budget_lines').insert({ worksite_id: w.id, ...data, sort: Number(max?.m || 0) + 1 });
+  return insertedId(r);
+}
+
+async function deleteBudgetLine(db, w, lineId) {
+  const n = await db('worksite_budget_lines').where({ id: lineId, worksite_id: w.id }).del();
+  if (!n) throw new HttpError(404, 'Ligne de budget introuvable.');
+}
+
+// ─── Références et pastilles ──────────────────────────────────────────────
+
+async function refs(db) {
+  const [projects, users, employees, suppliers] = await Promise.all([
+    db('projects').orderBy('name').select('id', 'name'),
+    db('users').where({ active: true }).orderBy('name').select('id', 'name', 'role'),
+    db('employees').where({ active: true }).orderBy(['last_name', 'first_name']).select('id', 'last_name', 'first_name', 'job_title'),
+    db('suppliers').where({ active: true }).orderBy('name').select('id', 'name', 'kind'),
+  ]);
+  return {
+    statuses: WORKSITE_STATUSES, zones: WORKSITE_ZONES, task_statuses: TASK_STATUSES, budget_categories: BUDGET_CATEGORIES, phase_states: PHASE_STATES,
+    stages: SITE_STAGES.map(k => ({ key: k, label: SITE_STAGE_LABELS[k] })), projects, users,
+    employees: employees.map(e => ({ id: e.id, label: `${e.last_name} ${e.first_name}`, job_title: e.job_title || null })), suppliers,
+  };
+}
+
+/** Îlots, bâtiments et lots d'un programme (choix de la zone d'un chantier). */
+async function programme(db, projectId) {
+  const [lots, buildings] = await Promise.all([
+    db('lots').where({ project_id: projectId }).select('id', 'code', 'ilot', 'building_id', 'status'),
+    db('buildings').where({ project_id: projectId }).orderBy('code').select('id', 'code', 'name', 'ilot'),
+  ]);
+  const ilots = [...new Set(lots.map(l => l.ilot).filter(Boolean).map(String))].sort((a, b) => a.localeCompare(b, 'fr', { numeric: true }));
+  return { ilots, buildings, lots: lots.sort((a, b) => String(a.code).localeCompare(String(b.code), 'fr', { numeric: true })) };
+}
+
+/** Pastilles du menu : chantiers ouverts du compte (conducteur), phases en retard des chantiers visibles. */
+async function badges(db, v) {
+  const open = await db('worksites').whereIn('status', WORKSITE_OPEN).select('id', 'manager_id');
+  const visible = open.filter(w => canSee(w, v));
+  const phases = visible.length ? await db('worksite_phases').whereIn('worksite_id', visible.map(w => w.id)) : [];
+  const day = today();
+  return {
+    mine: open.filter(w => Number(w.manager_id) === Number(v.user.id)).length,
+    open: visible.length,
+    late_phases: phases.filter(p => serializePhase(p, day).state === 'en_retard').length,
+  };
+}
+
+module.exports = {
+  seesAll, canSee, canManage, loadWorksite, visibleWorksite, managedWorksite, list, detail, create, update, remove,
+  savePhase, deletePhase, reorderPhases, saveTask, deleteTask, saveBudgetLine, deleteBudgetLine, refs, programme, badges, zoneLots, serializeWorksite,
+};
