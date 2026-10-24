@@ -13,13 +13,34 @@ const USED_IN = ['purchase_invoices', 'asset_costs', 'hr_attendances', 'hr_expen
 
 const serialize = p => ({
   id: p.id, kind: p.kind, kind_label: p.kind === 'autre' && p.kind_other ? p.kind_other : PLACE_KINDS[p.kind], kind_other: p.kind_other || null,
-  name: p.name, address: p.address || null, city: p.city || null, active: !!p.active, sort: p.sort,
+  name: p.name, address: p.address || null, city_id: p.city_id || null, city_label: p.city_label || null,
+  location_id: p.location_id || null, location_label: p.location_label || null, active: !!p.active, sort: p.sort,
 });
 
 async function list(db, { all = false } = {}) {
-  const q = db('places').orderBy([{ column: 'sort' }, { column: 'name' }]);
-  if (!all) q.where({ active: true });
+  // Ville et localité : listes de référence du dashboard (Paramètres › Villes, Localisations)
+  const q = db('places as p').leftJoin('ref_items as c', 'c.id', 'p.city_id').leftJoin('ref_items as l', 'l.id', 'p.location_id')
+    .orderBy([{ column: 'p.sort' }, { column: 'p.name' }]).select('p.*', 'c.label as city_label', 'l.label as location_label');
+  if (!all) q.where('p.active', true);
   return (await q).map(serialize);
+}
+
+/** Villes et localités (non archivées) proposées dans le formulaire d'un lieu. */
+async function geography(db) {
+  const rows = await db('ref_items').whereIn('kind', ['ville', 'localisation']).where({ archived: false }).orderBy(['sort', 'label']).select('id', 'kind', 'label', 'parent_id');
+  return { cities: rows.filter(r => r.kind === 'ville').map(({ id, label }) => ({ id, label })), locations: rows.filter(r => r.kind === 'localisation').map(({ id, label, parent_id }) => ({ id, label, city_id: parent_id })) };
+}
+
+/** Ville et localité choisies : ville de la liste, localité de cette ville. */
+async function checkGeography(db, data, current) {
+  const cityId = data.city_id !== undefined ? data.city_id : current?.city_id;
+  const locationId = data.location_id !== undefined ? data.location_id : current?.location_id;
+  if (cityId && !(await db('ref_items').where({ id: cityId, kind: 'ville' }).first('id'))) throw new HttpError(400, 'Ville inconnue (Paramètres du dashboard › Villes).');
+  if (locationId) {
+    const l = await db('ref_items').where({ id: locationId, kind: 'localisation' }).first('parent_id');
+    if (!l) throw new HttpError(400, 'Localité inconnue (Paramètres du dashboard › Localisations).');
+    if (!cityId || Number(l.parent_id) !== Number(cityId)) throw new HttpError(400, 'Cette localité n’appartient pas à la ville choisie.');
+  }
 }
 
 /** Identifiant du siège social (créé par la migration ; recréé s'il a disparu). */
@@ -39,8 +60,11 @@ async function save(db, data, id = null) {
   if (kind === 'siege' && await db('places').where({ kind: 'siege' }).whereNot({ id: id || 0 }).first()) throw new HttpError(409, 'Le siège social existe déjà : choisissez un autre type.');
   if (current?.kind === 'siege' && data.kind && data.kind !== 'siege') throw new HttpError(409, 'Le siège social garde son type (il reçoit les pièces sans programme ni lieu).');
   if (current?.kind === 'siege' && data.active === false) throw new HttpError(409, 'Le siège social ne se désactive pas.');
+  await checkGeography(db, data, current);
   const name = data.name ?? current?.name;
-  if (await db('places').whereRaw('lower(name) = ?', [String(name).toLowerCase()]).whereNot({ id: id || 0 }).first()) throw new HttpError(409, 'Un lieu porte déjà ce nom.');
+  // Doublon de nom, accents compris (lower() de SQLite ne connaît pas les lettres accentuées)
+  const names = await db('places').whereNot({ id: id || 0 }).select('name');
+  if (names.some(p => p.name.toLocaleLowerCase('fr') === String(name).toLocaleLowerCase('fr'))) throw new HttpError(409, 'Un lieu porte déjà ce nom.');
   const row = { ...data, kind_other: kind === 'autre' ? data.kind_other ?? current?.kind_other : null };
   if (id) {
     await db('places').where({ id }).update({ ...row, updated_at: new Date() });
@@ -96,4 +120,4 @@ async function choices(db) {
   return { programmes, places, siege_id: await siegeId(db) };
 }
 
-module.exports = { PLACE_KINDS, PLACE_KEYS, list, siegeId, save, remove, resolvePlace, placeFields, choices, serialize };
+module.exports = { PLACE_KINDS, PLACE_KEYS, list, geography, siegeId, save, remove, resolvePlace, placeFields, choices, serialize };

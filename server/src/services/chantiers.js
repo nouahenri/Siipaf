@@ -2,11 +2,11 @@
  * ERP · Chantiers (choix du client du 24/10, docs/cadrage-chantiers.md). Plusieurs chantiers par programme : zone
  * couverte, conducteur de travaux, phases (Gantt), tâches (Kanban), budget par poste. Le conducteur nommé gère son
  * chantier sans autre droit ; chantiers:write gère tous les chantiers ; chantiers:read et la Direction consultent.
- * Règles dans lib/domain.js (WORKSITE_*, TASK_STATUSES, BUDGET_CATEGORIES, phaseState, worksiteProgress…).
+ * Règles dans lib/domain.js (WORKSITE_*, TASK_STATUSES, phaseState, worksiteProgress…).
  */
 const { HttpError, json, isoDay, isoTime } = require('../lib/http');
 const {
-  WORKSITE_STATUSES, WORKSITE_OPEN, WORKSITE_ZONES, TASK_STATUSES, BUDGET_CATEGORIES, PHASE_STATES, SITE_STAGES, SITE_STAGE_LABELS,
+  WORKSITE_STATUSES, WORKSITE_OPEN, WORKSITE_ZONES, TASK_STATUSES, PHASE_STATES, SITE_STAGES, SITE_STAGE_LABELS,
   lotInZone, phaseState, worksiteProgress, phaseRefusal, CHANTIER_SETTINGS, budgetAlertLevel,
 } = require('../lib/domain');
 const { computePayslip } = require('../lib/paie');
@@ -50,8 +50,8 @@ const serializeTask = t => ({
   late: t.status !== 'fait' && !!t.due_on && today() > isoDay(t.due_on),
 });
 
-const serializeBudget = b => ({
-  id: b.id, category: b.category, category_label: BUDGET_CATEGORIES[b.category], label: b.label, phase_id: b.phase_id || null,
+const serializeBudget = (b, labels = {}) => ({
+  id: b.id, category: b.category, category_label: labels[b.category] || b.category, label: b.label, phase_id: b.phase_id || null,
   amount_fcfa: Number(b.amount_fcfa), notes: b.notes || null, sort: b.sort,
 });
 
@@ -136,7 +136,7 @@ async function zoneLots(db, w) {
 
 async function detail(db, w, v) {
   const day = today();
-  const [phases, tasks, budget, buildings, lots] = await Promise.all([
+  const [phases, tasks, budget, buildings, lots, postes] = await Promise.all([
     db('worksite_phases').where({ worksite_id: w.id }).orderBy(['sort', 'id']),
     db('worksite_tasks as t').leftJoin('worksite_phases as ph', 'ph.id', 't.phase_id').leftJoin('employees as e', 'e.id', 't.employee_id')
       .leftJoin('suppliers as s', 's.id', 't.supplier_id').where('t.worksite_id', w.id).orderBy([{ column: 't.sort' }, { column: 't.id' }])
@@ -144,17 +144,21 @@ async function detail(db, w, v) {
     db('worksite_budget_lines').where({ worksite_id: w.id }).orderBy(['sort', 'id']),
     db('buildings').where({ project_id: w.project_id }).select('id', 'code', 'ilot'),
     zoneLots(db, w),
+    listItems(db, 'poste', { all: true }),
   ]);
   const ph = phases.map(p => serializePhase(p, day));
-  const lines = budget.map(serializeBudget);
-  const byCategory = Object.keys(BUDGET_CATEGORIES).map(k => ({ category: k, label: BUDGET_CATEGORIES[k], amount_fcfa: lines.filter(l => l.category === k).reduce((t, l) => t + l.amount_fcfa, 0) }));
+  const labels = Object.fromEntries(postes.map(p => [p.code, p.label]));
+  const lines = budget.map(b => serializeBudget(b, labels));
+  // Postes de la liste réglable (Chantiers › Réglages), dans son ordre ; un poste désactivé reste s'il est utilisé
+  const byCategory = postes.map(p => ({ category: p.code, label: p.label, amount_fcfa: lines.filter(l => l.category === p.code).reduce((t, l) => t + l.amount_fcfa, 0) }));
   const sold = lots.filter(l => ['reserve', 'vendu'].includes(l.status)).length;
   const cost = await costs(db, w.id);
   const budgetTotal = lines.reduce((t, l) => t + l.amount_fcfa, 0);
   for (const c of byCategory) c.spent_fcfa = cost.by_category[c.category] || 0;
+  const shown = byCategory.filter(c => c.amount_fcfa || c.spent_fcfa || postes.find(p => p.code === c.category)?.active);
   return {
     ...serializeWorksite(w, { phases: ph, budget: lines.reduce((t, l) => t + l.amount_fcfa, 0), buildings }),
-    can_manage: canManage(w, v), phases: ph, tasks: tasks.map(serializeTask), budget_lines: lines, budget_by_category: byCategory,
+    can_manage: canManage(w, v), phases: ph, tasks: tasks.map(serializeTask), budget_lines: lines, budget_by_category: shown,
     lots: { total: lots.length, sold, codes: lots.slice(0, 60).map(l => l.code) },
     costs: cost, spent_fcfa: cost.total, consumed_pct: budgetTotal ? Math.round((cost.total / budgetTotal) * 100) : null,
   };
@@ -333,6 +337,8 @@ async function deleteTask(db, w, taskId) {
 // ─── Budget ───────────────────────────────────────────────────────────────
 
 async function saveBudgetLine(db, w, data, lineId = null) {
+  const current = lineId ? await db('worksite_budget_lines').where({ id: lineId, worksite_id: w.id }).first('category') : null;
+  if (data.category !== undefined) await checkListCode(db, 'poste', data.category, current?.category);
   if (data.phase_id && !(await db('worksite_phases').where({ id: data.phase_id, worksite_id: w.id }).first('id'))) throw new HttpError(400, 'Phase hors du chantier.');
   if (lineId) {
     const n = await db('worksite_budget_lines').where({ id: lineId, worksite_id: w.id }).update({ ...data, updated_at: new Date() });
@@ -441,15 +447,15 @@ async function costs(db, worksiteId) {
     laborRows(db, [worksiteId]),
     purchasesQuery(db, [worksiteId]).join('purchase_payments as pp', 'pp.invoice_id', 'i.id').sum({ t: 'pp.amount' }).first(),
   ]);
-  const by = Object.fromEntries(Object.keys(BUDGET_CATEGORIES).map(k => [k, 0]));
+  const by = Object.fromEntries((await listItems(db, 'poste', { all: true })).map(p => [p.code, 0]));
   const p = purchases.map(r => ({
     id: r.id, number: r.number, date: isoDay(r.date), label: r.label, supplier_name: r.supplier_name, status: r.status,
     category: r.worksite_category || 'materiaux', amount_fcfa: Number(r.amount_ht),
   }));
-  for (const r of p) by[r.category] += r.amount_fcfa;
+  for (const r of p) by[r.category] = (by[r.category] || 0) + r.amount_fcfa;
   const a = parc.map(r => ({ id: r.id, date: isoDay(r.date), kind: r.kind, label: r.label, asset_id: r.asset_id, asset: `${r.code} ${r.name}`, amount_fcfa: htOf(r.amount, r.vat_rate) }));
-  by.engins += a.reduce((t, r) => t + r.amount_fcfa, 0);
-  by.main_oeuvre += labor.reduce((t, r) => t + r.amount_fcfa, 0);
+  by.engins = (by.engins || 0) + a.reduce((t, r) => t + r.amount_fcfa, 0);
+  by.main_oeuvre = (by.main_oeuvre || 0) + labor.reduce((t, r) => t + r.amount_fcfa, 0);
   return {
     by_category: by, total: Object.values(by).reduce((t, v) => t + v, 0), purchases: p, parc: a,
     labor: labor.map(({ worksite_id, ...r }) => r), paid_fcfa: Number(paid?.t) || 0,
@@ -485,17 +491,81 @@ async function tick(db) {
   return n;
 }
 
+// ─── Listes réglables (Chantiers › Réglages) : postes du budget, météo du journal ──
+
+const LIST_KINDS = { poste: 'Postes du budget', meteo: 'Météo du journal' };
+// Où chaque liste est utilisée (un élément utilisé se désactive au lieu d'être supprimé)
+const LIST_USES = { poste: [['worksite_budget_lines', 'category'], ['purchase_invoices', 'worksite_category']], meteo: [['worksite_journal', 'weather']] };
+
+async function listItems(db, kind, { all = false } = {}) {
+  const q = db('worksite_ref_items').where({ kind }).orderBy([{ column: 'sort' }, { column: 'id' }]);
+  if (!all) q.where({ active: true });
+  return (await q).map(r => ({ id: r.id, code: r.code, label: r.label, system: !!r.system, active: !!r.active, sort: r.sort }));
+}
+
+/** Refus d'un code inconnu ou désactivé (sauf s'il est déjà celui de la pièce). */
+async function checkListCode(db, kind, code, current = null) {
+  if (code == null || code === current) return;
+  if (!(await db('worksite_ref_items').where({ kind, code, active: true }).first('id'))) {
+    throw new HttpError(400, `${kind === 'poste' ? 'Poste du budget' : 'Météo'} inconnu ou désactivé (Chantiers › Réglages).`);
+  }
+}
+
+// Doublon de libellé, accents compris (lower() de SQLite ne connaît pas les lettres accentuées)
+const sameLabel = async (db, kind, label, exceptId = 0) => (await db('worksite_ref_items').where({ kind }).whereNot({ id: exceptId }).select('label'))
+  .some(r => r.label.toLocaleLowerCase('fr') === label.toLocaleLowerCase('fr'));
+const slug = label => String(label).normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase().replace(/[^a-z0-9]+/g, '_').replace(/^_+|_+$/g, '').slice(0, 24) || 'element';
+
+async function addListItem(db, kind, label) {
+  if (await sameLabel(db, kind, label)) throw new HttpError(409, 'Cet élément existe déjà.');
+  let code = slug(label);
+  for (let i = 2; await db('worksite_ref_items').where({ kind, code }).first(); i++) code = `${slug(label).slice(0, 20)}_${i}`;
+  const max = await db('worksite_ref_items').where({ kind }).max({ m: 'sort' }).first();
+  await db('worksite_ref_items').insert({ kind, code, label, sort: Number(max?.m || 0) + 1 });
+}
+
+async function updateListItem(db, id, data) {
+  const item = await db('worksite_ref_items').where({ id }).first();
+  if (!item) throw new HttpError(404, 'Élément introuvable.');
+  if (data.active === false && item.system) throw new HttpError(409, 'Ce poste sert au calcul des coûts réels : il se renomme mais ne se désactive pas.');
+  if (data.label && await sameLabel(db, item.kind, data.label, id)) throw new HttpError(409, 'Cet élément existe déjà.');
+  await db('worksite_ref_items').where({ id }).update({ ...data, updated_at: new Date() });
+  return item.kind;
+}
+
+async function removeListItem(db, id) {
+  const item = await db('worksite_ref_items').where({ id }).first();
+  if (!item) throw new HttpError(404, 'Élément introuvable.');
+  if (item.system) throw new HttpError(409, 'Ce poste sert au calcul des coûts réels : il ne se supprime pas.');
+  for (const [table, column] of LIST_USES[item.kind]) {
+    if (await db(table).where(column, item.code).first()) throw new HttpError(409, 'Cet élément est déjà utilisé : désactivez-le pour qu’il ne soit plus proposé.');
+  }
+  await db('worksite_ref_items').where({ id }).del();
+  return item.kind;
+}
+
+async function reorderList(db, kind, ids) {
+  const own = (await db('worksite_ref_items').where({ kind }).select('id')).map(r => r.id);
+  if (ids.length !== own.length || ids.some(id => !own.includes(id))) throw new HttpError(400, 'Ordre incomplet.');
+  await db.transaction(async trx => { for (const [i, id] of ids.entries()) await trx('worksite_ref_items').where({ id }).update({ sort: i }); });
+}
+
 // ─── Références et pastilles ──────────────────────────────────────────────
 
 async function refs(db) {
-  const [projects, users, employees, suppliers] = await Promise.all([
+  const [projects, users, employees, suppliers, postes, meteo] = await Promise.all([
     db('projects').orderBy('name').select('id', 'name'),
     db('users').where({ active: true }).orderBy('name').select('id', 'name', 'role'),
     db('employees').where({ active: true }).orderBy(['last_name', 'first_name']).select('id', 'last_name', 'first_name', 'job_title'),
     db('suppliers').where({ active: true }).orderBy('name').select('id', 'name', 'kind'),
+    listItems(db, 'poste', { all: true }), listItems(db, 'meteo', { all: true }),
   ]);
   return {
-    statuses: WORKSITE_STATUSES, zones: WORKSITE_ZONES, task_statuses: TASK_STATUSES, budget_categories: BUDGET_CATEGORIES, phase_states: PHASE_STATES,
+    statuses: WORKSITE_STATUSES, zones: WORKSITE_ZONES, task_statuses: TASK_STATUSES, phase_states: PHASE_STATES,
+    // Listes réglables : choix proposés (actifs) et libellés de tout ce qui est enregistré
+    budget_categories: Object.fromEntries(postes.filter(p => p.active).map(p => [p.code, p.label])), budget_labels: Object.fromEntries(postes.map(p => [p.code, p.label])),
+    weather: Object.fromEntries(meteo.filter(p => p.active).map(p => [p.code, p.label])), weather_labels: Object.fromEntries(meteo.map(p => [p.code, p.label])),
+    lists: { poste: postes, meteo },
     stages: SITE_STAGES.map(k => ({ key: k, label: SITE_STAGE_LABELS[k] })), projects, users,
     employees: employees.map(e => ({ id: e.id, label: `${e.last_name} ${e.first_name}`, job_title: e.job_title || null })), suppliers,
   };
@@ -517,7 +587,9 @@ async function badges(db, v) {
   const visible = open.filter(w => canSee(w, v));
   const phases = visible.length ? await db('worksite_phases').whereIn('worksite_id', visible.map(w => w.id)) : [];
   const day = today();
+  const toDeclare = v.can('chantiers:direction') ? Number((await db('stage_declarations').where({ status: 'signalee' }).count({ n: '*' }).first()).n) : 0;
   return {
+    to_declare: toDeclare,
     mine: open.filter(w => Number(w.manager_id) === Number(v.user.id)).length,
     open: visible.length,
     late_phases: phases.filter(p => serializePhase(p, day).state === 'en_retard').length,
@@ -528,4 +600,5 @@ module.exports = {
   seesAll, canSee, canManage, loadWorksite, visibleWorksite, managedWorksite, list, detail, create, update, remove,
   savePhase, deletePhase, reorderPhases, saveTask, deleteTask, saveBudgetLine, deleteBudgetLine, refs, programme, badges, zoneLots, serializeWorksite,
   resolveSite, places, settings, saveSettings, hourlyCost, costs, spentByWorksite, tick,
+  LIST_KINDS, listItems, checkListCode, addListItem, updateListItem, removeListItem, reorderList,
 };

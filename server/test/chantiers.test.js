@@ -170,3 +170,38 @@ test('tâches et budget : Kanban, employé prévenu, totaux par poste, chantier 
   const empty = await conducteur.post(URL).send({ project_id: other.id, name: 'Chantier à supprimer' });
   assert.equal((await conducteur.delete(`${URL}/${empty.body.id}`)).status, 204);
 });
+
+test('listes réglables : postes du budget et météo ; poste système protégé, élément utilisé désactivé et non supprimé', async () => {
+  const w = (await conducteur.get(URL)).body.find(x => x.name.startsWith('Tranche 1'));
+  const R = `${URL}/reglages/listes`;
+  assert.equal((await comptable.post(R).send({ kind: 'poste', label: 'Études et honoraires' })).status, 403);
+  let res = await conducteur.post(R).send({ kind: 'poste', label: 'Études et honoraires' });
+  assert.equal(res.status, 201, JSON.stringify(res.body));
+  const item = res.body.find(i => i.label === 'Études et honoraires');
+  assert.equal(item.code, 'etudes_et_honoraires');
+  assert.equal((await conducteur.post(R).send({ kind: 'poste', label: 'études et honoraires' })).status, 409, 'doublon');
+  res = await conducteur.post(`${URL}/${w.id}/budget`).send({ category: item.code, label: 'Bureau de contrôle', amount_fcfa: 1500000 });
+  assert.equal(res.status, 201, JSON.stringify(res.body));
+  assert.equal(res.body.budget_by_category.find(c => c.category === item.code).label, 'Études et honoraires');
+  assert.equal((await conducteur.post(`${URL}/${w.id}/budget`).send({ category: 'inconnu', label: 'X y', amount_fcfa: 1 })).status, 400);
+
+  assert.equal((await conducteur.delete(`${R}/${item.id}`)).status, 409, 'utilisé : se désactive');
+  res = await conducteur.patch(`${R}/${item.id}`).send({ active: false, label: 'Études, honoraires' });
+  assert.equal(res.status, 200);
+  const refs = (await conducteur.get(`${URL}/refs`)).body;
+  assert.equal(refs.budget_categories[item.code], undefined, 'plus proposé');
+  assert.equal(refs.budget_labels[item.code], 'Études, honoraires', 'libellé gardé pour l’existant');
+  assert.equal((await conducteur.post(`${URL}/${w.id}/budget`).send({ category: item.code, label: 'Autre ligne', amount_fcfa: 1 })).status, 400, 'désactivé : refusé pour une nouvelle ligne');
+
+  const mo = refs.lists.poste.find(p => p.code === 'main_oeuvre');
+  assert.equal((await conducteur.patch(`${R}/${mo.id}`).send({ active: false })).status, 409);
+  assert.equal((await conducteur.delete(`${R}/${mo.id}`)).status, 409);
+  assert.equal((await conducteur.patch(`${R}/${mo.id}`).send({ label: 'Main-d’œuvre pointée' })).status, 200, 'renommable');
+
+  res = await conducteur.post(R).send({ kind: 'meteo', label: 'Harmattan' });
+  const harmattan = res.body.find(i => i.label === 'Harmattan');
+  assert.equal((await conducteur.delete(`${R}/${harmattan.id}`)).status, 200, 'jamais utilisé : supprimé');
+  const ordre = refs.lists.meteo.map(m => m.id).reverse();
+  res = await conducteur.put(`${R}/meteo/ordre`).send({ ids: ordre });
+  assert.deepEqual(res.body.map(m => m.id), ordre);
+});

@@ -181,7 +181,7 @@ function InvoiceForm({ invoice, onClose, onSaved }) {
         <Field label="Objet" className="full"><input className="input" required minLength={2} maxLength={255} value={f.label} onChange={set('label')} placeholder="Ex. Fourniture de ciment, situation n° 2 gros œuvre…" /></Field>
         <Field label="Affectation (analytique)" hint="Programme, chantier précis, ou lieu (siège, bureau, dépôt)"><PlacePicker value={f.place} onChange={v => setF(x => ({ ...x, place: v }))} /></Field>
         {f.place.worksite_id ? (
-          <Field label="Poste du budget du chantier"><select className="select" value={f.worksite_category} onChange={set('worksite_category')}>{Object.entries(refs?.budget_categories || {}).map(([k, l]) => <option key={k} value={k}>{l}</option>)}</select></Field>
+          <Field label="Poste du budget du chantier" hint="Liste réglable dans Chantiers › Réglages"><select className="select" value={f.worksite_category} onChange={set('worksite_category')}>{Object.entries(refs?.budget_categories || {}).map(([k, l]) => <option key={k} value={k}>{l}</option>)}{invoice?.worksite_category && refs && !refs.budget_categories[invoice.worksite_category] && <option value={invoice.worksite_category}>{refs.budget_labels[invoice.worksite_category] || invoice.worksite_category} (désactivé)</option>}</select></Field>
         ) : null}
         <Field label="Compte de charge" hint="Classe 6 (ou 2 pour une immobilisation)"><AccountInput value={f.expense_account} onChange={v => setF(x => ({ ...x, expense_account: v }))} classes={[2, 6]} required /></Field>
         <Field label="Date de la facture"><input className="input" type="date" required value={f.date} onChange={set('date')} /></Field>

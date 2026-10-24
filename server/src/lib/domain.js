@@ -427,14 +427,14 @@ const PERMISSION_CATALOG = [
   { group: 'Espace client', items: [
     ['client_access:write', 'Gérer les accès clients', 'Créer ou réinitialiser le code et le mot de passe d’un client'],
     ['client_messages', 'Messagerie clients', 'Lire les messages des clients et leur répondre'],
-    ['site_updates:write', 'Publier l’avancement du chantier', 'Étapes, pourcentages, photos et vidéos'],
+    ['site_updates:write', 'Publier l’avancement du chantier', 'Étapes, pourcentages, photos et vidéos pour les acquéreurs ; n’émet pas d’appel de fonds (déclaration de la Direction)'],
     ['schedule:write', 'Gérer les échéanciers', 'Générer et modifier les échéances de paiement'],
   ] },
   { group: 'ERP · Service commercial', items: [
     ['commercial:read', 'Ouvrir le Service commercial', 'Tableau de bord, pipeline, activités, parc, ventes, appels de fonds, objectifs'],
     ['targets:write', 'Fixer les objectifs commerciaux', 'Objectifs mensuels par commercial'],
     ['property:write', 'Structurer le parc immobilier', 'Bâtiments, étages et caractéristiques des lots'],
-    ['vefa:write', 'Gérer les appels de fonds VEFA', 'Plans d’appels de fonds et constat d’avancement des travaux'],
+    ['vefa:write', 'Gérer les appels de fonds VEFA', 'Plans d’appels de fonds par programme (les étapes atteintes sont déclarées par la Direction)'],
   ] },
   { group: 'ERP · Comptabilité', items: [
     ['compta:read', 'Consulter la comptabilité', 'Écritures, états, trésorerie, achats, tableau de bord'],
@@ -1255,9 +1255,6 @@ const WORKSITE_STATUSES = { preparation: 'En préparation', en_cours: 'En cours'
 const WORKSITE_OPEN = ['preparation', 'en_cours', 'suspendu'];
 const WORKSITE_ZONES = { programme: 'Tout le programme', ilots: 'Des îlots', batiments: 'Des bâtiments', lots: 'Des lots' };
 const TASK_STATUSES = { a_faire: 'À faire', en_cours: 'En cours', bloque: 'Bloquée', fait: 'Faite' };
-const BUDGET_CATEGORIES = {
-  materiaux: 'Matériaux', main_oeuvre: 'Main-d’œuvre', sous_traitance: 'Sous-traitance', engins: 'Engins et matériel', frais: 'Frais de chantier', autre: 'Autre',
-};
 const PHASE_STATES = { a_venir: 'À venir', en_cours: 'En cours', en_retard: 'En retard', termine: 'Terminée' };
 
 /** Le lot fait-il partie de la zone du chantier ? `zone` : îlots (noms), bâtiments ou lots (identifiants). */
@@ -1304,6 +1301,25 @@ const CHANTIER_SETTINGS = {
   chantier_monthly_hours: { label: 'Heures de travail par mois (coût horaire tiré du salaire)', hint: 'Coût mensuel employeur (salaire, charges et taxes de la paie) divisé par ces heures, pour qui n’a pas de coût horaire de chantier sur sa fiche', default: 173, min: 100, max: 260 },
 };
 
+// Étapes déclarées (lot 3) ; la météo du journal et les postes du budget sont des listes réglables (table worksite_ref_items)
+const DECLARATION_STATUSES = { signalee: 'Signalée, à déclarer', declaree: 'Déclarée par la Direction', refusee: 'Refusée' };
+
+/**
+ * Livraison prévue d'un chantier : fin prévue de sa phase « Livraison », sinon fin prévue du chantier.
+ * `phases` : phases du chantier (stage, planned_end).
+ */
+function deliveryForecast(worksite, phases = []) {
+  const p = phases.find(x => x.stage === 'livraison' && x.planned_end);
+  return p ? p.planned_end : worksite.planned_end || null;
+}
+
+/** Retard prévu (jours) entre la date promise à l'acquéreur et la livraison prévue ; 0 si livré ou dans les temps. */
+function deliveryDelay(promised, forecast, deliveredAt = null) {
+  if (!promised || deliveredAt) return 0;
+  if (!forecast) return 0;
+  return Math.max(0, daysBetween(promised, forecast));
+}
+
 /** Niveau d'alerte du budget : null, 'seuil' (pct atteint) ou 'depasse' (au-delà de 100 %). Sans budget, aucune alerte. */
 function budgetAlertLevel(spent, budget, pct) {
   if (!budget || budget <= 0) return null;
@@ -1334,8 +1350,8 @@ function phaseRefusal(p, phases = []) {
 }
 
 module.exports = {
-  CHANTIER_ACTIONS, WORKSITE_STATUSES, WORKSITE_OPEN, WORKSITE_ZONES, TASK_STATUSES, BUDGET_CATEGORIES, PHASE_STATES, lotInZone, phaseState, worksiteProgress, phaseRefusal,
-  CHANTIER_SETTINGS, budgetAlertLevel, PLACE_KINDS,
+  CHANTIER_ACTIONS, WORKSITE_STATUSES, WORKSITE_OPEN, WORKSITE_ZONES, TASK_STATUSES, PHASE_STATES, lotInZone, phaseState, worksiteProgress, phaseRefusal,
+  CHANTIER_SETTINGS, budgetAlertLevel, PLACE_KINDS, DECLARATION_STATUSES, deliveryForecast, deliveryDelay,
   DEED_STEPS, DEED_STEP_KEYS, deedProgress, deedStepRefusal, LITIGATION_ORIGINS, LITIGATION_STAGES, LITIGATION_OUTCOMES, litigationReminder,
   GUARANTEE_DIRECTIONS, DEFAULT_GUARANTEE_KINDS, GUARANTEE_STATUSES, guaranteeDeadline, LEGAL_SETTINGS, unpaidAge, LEGAL_ACTIONS,
   DOC_KINDS, DOC_AUDIENCES, DOC_STATUSES, DOC_ACTION_STATUSES, docReference, readReminder,

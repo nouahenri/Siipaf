@@ -256,6 +256,7 @@ function SiteUpdateForm({ lot, onDone, onCancel }) {
   return (
     <Card title="Nouveau point d’avancement" actions={<button className="btn btn-sm btn-ghost btn-icon" onClick={onCancel} aria-label="Fermer"><X /></button>}>
       <ErrorBox error={error} />
+      <p className="small muted" style={{ marginTop: 0 }}>Ce point informe l’acquéreur dans son espace. Il n’émet aucun appel de fonds : l’étape atteinte est déclarée par la Direction (ERP › Chantiers › Étapes et appels de fonds).</p>
       <div className="form-grid">
         <Field label="Concerne">
           <select className="select" value={f.scope} onChange={set('scope')}>

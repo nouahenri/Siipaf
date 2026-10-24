@@ -168,6 +168,8 @@ function createApp(db) {
     setInterval(() => juridique.tick(db).catch(e => console.error('[juridique]', e.message)), 60 * 60 * 1000).unref();
     // Chantiers : alerte de budget (seuil réglé, puis dépassement)
     setInterval(() => require('./services/chantiers').tick(db).catch(e => console.error('[chantiers]', e.message)), 60 * 60 * 1000).unref();
+    // Chantiers : phases en retard (conducteur), livraisons prévues après la date promise (commercial, SAV, Direction)
+    setInterval(() => require('./services/chantiersSuivi').tick(db).catch(e => console.error('[chantiers]', e.message)), 60 * 60 * 1000).unref();
     // Changements de poste planifiés : appliqués à leur date d'effet
     const positions = require('./services/positions');
     setInterval(() => positions.tick(db).catch(e => console.error('[postes]', e.message)), 60 * 60 * 1000).unref();

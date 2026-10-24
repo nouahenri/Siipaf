@@ -126,6 +126,7 @@ function Overview({ d, sale, onOpened, onSaleChange, onLotChanged, onDeleted }) 
               <dt>Financement</dt><dd>{FINANCING[sale.financing] || '—'}</dd>
               <dt>Réservé le</dt><dd>{date(sale.reserved_at)}</dd>
               {sale.signed_at && <><dt>Contrat signé le</dt><dd>{date(sale.signed_at)}</dd></>}
+              {sale.promised_delivery_on && <><dt>Livraison promise le</dt><dd>{date(sale.promised_delivery_on)}</dd></>}
               {sale.notes && <><dt>Notes</dt><dd style={{ whiteSpace: 'pre-line' }}>{sale.notes}</dd></>}
             </dl>
           </Card>

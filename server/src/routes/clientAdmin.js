@@ -12,7 +12,6 @@ const { SITE_STAGES } = require('../lib/domain');
 const { grantAccess, accessStatus, siteUpdatesQuery, serializeUpdate, progressIndex } = require('../services/clients');
 const { totals } = require('../services/sales');
 const { scheduleStatus } = require('../services/schedule');
-const vefa = require('../services/vefa');
 const { createClient } = require('../services/importer');
 
 module.exports = function clientAdminRoutes(db) {
@@ -148,10 +147,9 @@ module.exports = function clientAdminRoutes(db) {
     const data = parse(z.object(updateFields).partial({ ilot: true, lot_id: true, body: true, media: true, visible_client: true, published_at: true }), req.body);
     await checkScope(projectId, data);
     const [id] = await db('site_updates').insert({ ...toRow(data), project_id: projectId, created_by: req.user.id });
-    // Une étape achevée sur le chantier déclenche les appels de fonds des dossiers VEFA concernés
+    // Information de l'acquéreur seulement : les appels de fonds partent de l'étape déclarée par la Direction (ERP › Chantiers)
     const update = await db('site_updates').where({ id }).first();
-    const fundCalls = await vefa.onSiteUpdate(db, update, req.user.id);
-    res.status(201).json({ ...(await adminUpdate(update)), fund_calls: fundCalls });
+    res.status(201).json(await adminUpdate(update));
   }));
 
   r.patch('/site-updates/:id', requirePermission('site_updates:write'), ah(async (req, res) => {
@@ -161,9 +159,7 @@ module.exports = function clientAdminRoutes(db) {
     const data = parse(z.object(updateFields).partial(), req.body);
     await checkScope(u.project_id, data);
     await db('site_updates').where({ id }).update({ ...toRow(data), updated_at: new Date() });
-    const update = await db('site_updates').where({ id }).first();
-    const fundCalls = data.stage ? await vefa.onSiteUpdate(db, update, req.user.id) : 0;
-    res.json({ ...(await adminUpdate(update)), fund_calls: fundCalls });
+    res.json(await adminUpdate(await db('site_updates').where({ id }).first()));
   }));
 
   r.delete('/site-updates/:id', requirePermission('site_updates:write'), ah(async (req, res) => {

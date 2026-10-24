@@ -212,7 +212,7 @@ export function SaleEditModal({ sale, onClose, onDone }) {
   const saved = useSaved();
   const [f, setF] = useState({
     price_fcfa: sale.price_fcfa ?? '', financing: sale.financing || '', reserved_at: day(sale.reserved_at),
-    signed_at: day(sale.signed_at), notes: sale.notes || '',
+    signed_at: day(sale.signed_at), promised_delivery_on: day(sale.promised_delivery_on), notes: sale.notes || '',
   });
   const [error, setError] = useState(null);
   const [busy, setBusy] = useState(false);
@@ -224,7 +224,7 @@ export function SaleEditModal({ sale, onClose, onDone }) {
     setBusy(true);
     const body = {
       price_fcfa: Math.round(toNumber(f.price_fcfa)), financing: f.financing || null,
-      reserved_at: f.reserved_at || null, signed_at: f.signed_at || null, notes: f.notes.trim() || null,
+      reserved_at: f.reserved_at || null, signed_at: f.signed_at || null, promised_delivery_on: f.promised_delivery_on || null, notes: f.notes.trim() || null,
     };
     try {
       const data = await api.patch(`/admin/sales/${sale.id}`, body);
@@ -251,6 +251,7 @@ export function SaleEditModal({ sale, onClose, onDone }) {
         </Field>
         <Field label="Date de réservation"><input className="input" type="date" value={f.reserved_at} onChange={set('reserved_at')} /></Field>
         <Field label="Date de signature du contrat"><input className="input" type="date" value={f.signed_at} onChange={set('signed_at')} /></Field>
+        <Field label="Livraison promise à l’acquéreur" hint="Comparée à la livraison prévue du chantier : un retard prévient le commercial, le SAV et la Direction"><input className="input" type="date" value={f.promised_delivery_on} onChange={set('promised_delivery_on')} /></Field>
         <Field label="Notes internes" className="full"><textarea className="textarea" rows={3} value={f.notes} onChange={set('notes')} /></Field>
       </div>
       {scheduleChanges && <p className="small" style={{ marginTop: 10, color: 'var(--warn)' }}>L’échéancier type sera recalculé ; les versements déjà enregistrés sont conservés.</p>}

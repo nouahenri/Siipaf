@@ -119,6 +119,7 @@ export function SaleDrawer({ id, onClose, onChange }) {
               <dt>Encaissé</dt><dd>{fcfa(d.paid_fcfa)} ({d.percent_paid} %) · reste {fcfa(d.remaining_fcfa)}</dd>
               <dt>Avancement chantier</dt><dd><Advance value={d.progress_pct} /></dd>
               <dt>Réservation</dt><dd>{date(d.reserved_at)}{d.signed_at ? ` · acte signé le ${date(d.signed_at)}` : ''}</dd>
+              {d.promised_delivery_on && <><dt>Livraison promise</dt><dd>{date(d.promised_delivery_on)}</dd></>}
               {d.overdue_count > 0 && <><dt>Retard</dt><dd style={{ color: 'var(--danger)' }}>{fcfa(d.overdue_fcfa)} sur {d.overdue_count} échéance(s)</dd></>}
             </dl>
           </section>

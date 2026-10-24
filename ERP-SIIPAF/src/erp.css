@@ -353,6 +353,10 @@ details > summary { list-style-position: inside; }
 .ws-figures { display: grid; grid-template-columns: repeat(auto-fit, minmax(170px, 1fr)); gap: 14px 20px; margin-top: 16px; padding-top: 14px; border-top: 1px solid var(--border); }
 .ws-figures > div { display: flex; flex-direction: column; gap: 4px; min-width: 0; }
 
+.journal-photo { position: relative; display: inline-block; }
+.journal-photo img { width: 96px; height: 72px; object-fit: cover; border-radius: var(--radius-sm); border: 1px solid var(--border); display: block; }
+.journal-photo .btn-icon { position: absolute; top: 2px; right: 2px; background: var(--surface); }
+
 /* Planning (Gantt) : la colonne des phases reste visible, la frise défile dans son cadre */
 .gantt-wrap { overflow-x: auto; border: 1px solid var(--border); border-radius: var(--radius-sm); }
 .gantt { min-width: calc(var(--track) + 200px); }

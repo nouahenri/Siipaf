@@ -92,7 +92,7 @@ function Progress({ projectId }) {
 
   const record = async e => {
     e.preventDefault(); setError(null); setResult(null);
-    if (!window.confirm(`Constater l’achèvement de « ${label(f.stage)} » ? Les appels de fonds correspondants seront émis et les clients prévenus dans leur espace.`)) return;
+    if (!window.confirm(`Déclarer « ${label(f.stage)} » atteinte ? Les appels de fonds correspondants seront émis et les clients prévenus dans leur espace.`)) return;
     try {
       const out = await api.post('/admin/erp/commercial/vefa/milestones', {
         project_id: Number(projectId), stage: f.stage, date: f.date,
@@ -116,8 +116,8 @@ function Progress({ projectId }) {
           </div>
         )}
       </Card>
-      {can('vefa:write') && (
-        <Card title="Constater l’achèvement d’une étape">
+      {can('chantiers:direction') ? (
+        <Card title="Déclarer une étape atteinte (Direction)">
           <form className="stack" style={{ gap: 12 }} onSubmit={record}>
             <ErrorBox error={error} />
             <p className="small muted">Sur attestation de l’architecte ou du maître d’œuvre : l’étape choisie et les précédentes sont appelées pour les dossiers VEFA concernés.</p>
@@ -152,10 +152,12 @@ function Progress({ projectId }) {
               </Field>
               <Field label="Date du constat"><input className="input" type="date" required value={f.date} onChange={e => setF(x => ({ ...x, date: e.target.value }))} /></Field>
             </div>
-            <div><button className="btn btn-primary"><CheckCircle2 />Constater et émettre les appels</button></div>
+            <div><button className="btn btn-primary"><CheckCircle2 />Déclarer et émettre les appels</button></div>
             {result && <div className="erp-panel small">{result.sales} dossier(s) VEFA concerné(s) · {result.calls} appel(s) émis · {fcfa(result.amount_fcfa)}</div>}
           </form>
         </Card>
+      ) : (
+        <p className="small muted">Les étapes atteintes sont déclarées par la Direction (ERP › Chantiers, onglet « Étapes et appels de fonds ») : seule la déclaration émet les appels de fonds.</p>
       )}
     </div>
   );

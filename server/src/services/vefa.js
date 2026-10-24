@@ -1,11 +1,11 @@
 /**
  * Appels de fonds VEFA : chaque dossier VEFA reçoit la suite des appels du plan de son programme ; un appel
- * passe « appelé » quand l'étape correspondante du chantier est constatée (point de chantier publié ou constat
- * manuel), avec une échéance de paiement. Les plafonds légaux sont contrôlés dans lib/domain (checkVefaPlan).
+ * passe « appelé » quand l'étape correspondante du chantier est déclarée par la Direction (choix du client du
+ * 24/10 : ERP › Chantiers ou Appels de fonds VEFA ; un point d'avancement publié n'appelle rien), avec une échéance. Les plafonds légaux sont contrôlés dans lib/domain (checkVefaPlan).
  */
 const { HttpError, json, isoDay } = require('../lib/http');
 const {
-  DEFAULT_VEFA_PLAN, VEFA_DUE_DAYS, SITE_STAGES, SITE_STAGE_LABELS, checkVefaPlan, splitVefaAmounts, milestoneReached,
+  DEFAULT_VEFA_PLAN, VEFA_DUE_DAYS, SITE_STAGES, SITE_STAGE_LABELS, checkVefaPlan, splitVefaAmounts,
 } = require('../lib/domain');
 
 const ACTIVE = ['en_cours', 'solde'];
@@ -27,14 +27,6 @@ async function savePlan(db, projectId, { milestones, due_days }, userId) {
   if (await db('vefa_plans').where({ project_id: projectId }).first()) await db('vefa_plans').where({ project_id: projectId }).update(row);
   else await db('vefa_plans').insert(row);
   return getPlan(db, projectId);
-}
-
-/** Étape la plus avancée déclarée au journal de chantier pour ce lot (projet entier, son îlot ou le lot). */
-async function siteStageFor(trx, lot) {
-  const rows = await trx('site_updates').where({ project_id: lot.project_id })
-    .where(q => q.where(b => b.whereNull('ilot').whereNull('lot_id')).orWhere(b => b.where('ilot', lot.ilot || '').whereNull('lot_id')).orWhere('lot_id', lot.id))
-    .select('stage');
-  return rows.map(r => r.stage).sort((a, b) => SITE_STAGES.indexOf(b) - SITE_STAGES.indexOf(a))[0] || null;
 }
 
 /** Message dans l'espace client annonçant les appels de fonds émis. */
@@ -88,8 +80,9 @@ async function ensureCalls(trx, sale, { userId = null } = {}) {
     sale_id: sale.id, seq: i + 1, stage: m.stage, label: m.label || SITE_STAGE_LABELS[m.stage] || 'Signature', pct: m.pct, amount_fcfa: m.amount_fcfa,
   })));
   const start = isoDay(sale.signed_at || sale.reserved_at) || isoDay(new Date());
-  const siteStage = await siteStageFor(trx, lot);
-  await emitCalls(trx, sale, stage => stage === 'signature' || (siteStage && milestoneReached(stage, siteStage)), { date: start, userId, notify: false });
+  // Étapes déjà déclarées par la Direction pour ce lot : appelées aussitôt
+  const siteStage = await require('./chantiersSuivi').declaredStageFor(trx, lot);
+  await emitCalls(trx, sale, stage => stage === 'signature' || (siteStage && SITE_STAGES.indexOf(stage) <= SITE_STAGES.indexOf(siteStage)), { date: start, userId, notify: false });
 }
 
 /** Dossiers VEFA actifs concernés par un point de chantier ou un constat (projet, îlot, bâtiment ou lot). */
@@ -102,32 +95,13 @@ function scopedSales(trx, { projectId, ilot = null, lotId = null, buildingId = n
   return q;
 }
 
-/** Point de chantier publié : les étapes achevées (le chantier est passé à la suivante) sont appelées. */
-async function onSiteUpdate(db, update, userId) {
-  return db.transaction(async trx => {
-    const sales = await scopedSales(trx, { projectId: update.project_id, ilot: update.ilot, lotId: update.lot_id });
-    const date = isoDay(update.published_at) || isoDay(new Date());
-    let n = 0;
-    for (const sale of sales) {
-      n += (await emitCalls(trx, sale, stage => milestoneReached(stage, update.stage), { date, siteUpdateId: update.id, userId })).length;
-    }
-    return n;
-  });
-}
-
-/** Constat manuel (attestation de l'architecte / du maître d'œuvre) : l'étape et les précédentes sont achevées. */
+/**
+ * Déclaration d'étape par la Direction depuis Appels de fonds VEFA (programme, îlot, bâtiment ou lot) : tracée
+ * avec les déclarations des chantiers ; l'étape et les précédentes sont achevées.
+ */
 async function recordMilestone(db, { projectId, ilot, buildingId, lotId, stage, date, userId }) {
-  if (!SITE_STAGES.includes(stage)) throw new HttpError(400, 'Étape de chantier inconnue.');
-  return db.transaction(async trx => {
-    const sales = await scopedSales(trx, { projectId, ilot, buildingId, lotId });
-    const upTo = SITE_STAGES.indexOf(stage);
-    const out = [];
-    for (const sale of sales) {
-      const emitted = await emitCalls(trx, sale, s => s !== 'signature' && SITE_STAGES.indexOf(s) <= upTo, { date, userId });
-      out.push(...emitted.map(c => ({ ...c, sale_id: sale.id })));
-    }
-    return { sales: sales.length, calls: out.length, amount_fcfa: out.reduce((s, c) => s + Number(c.amount_fcfa), 0) };
-  });
+  const r = await require('./chantiersSuivi').declare(db, { projectId, ilot, buildingId, lotId, stage, reached_on: date }, { userId });
+  return { sales: r.sales, calls: r.calls, amount_fcfa: r.amount_fcfa, declaration_id: r.declaration_id };
 }
 
 /** Lignes d'échéancier d'un dossier VEFA (appels émis) et liste complète des appels. */
@@ -141,4 +115,4 @@ async function vefaLines(db, sale) {
   return { lines, calls: all };
 }
 
-module.exports = { getPlan, savePlan, ensureCalls, onSiteUpdate, recordMilestone, vefaLines, scopedSales };
+module.exports = { getPlan, savePlan, ensureCalls, emitCalls, recordMilestone, vefaLines, scopedSales };

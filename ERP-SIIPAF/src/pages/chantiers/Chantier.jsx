@@ -5,7 +5,7 @@
  */
 import { useState } from 'react';
 import { Link, useNavigate, useParams, useSearchParams } from 'react-router-dom';
-import { ArrowLeft, Pencil, Plus, Check, Trash2, CalendarRange, ListChecks, Wallet, Flag, ArrowUp, ArrowDown, HardHat, MapPin, Gauge, AlertTriangle } from 'lucide-react';
+import { ArrowLeft, Pencil, Plus, Check, Trash2, CalendarRange, ListChecks, Wallet, Flag, BookText, Megaphone, Truck, ArrowUp, ArrowDown, HardHat, MapPin, Gauge, AlertTriangle } from 'lucide-react';
 import { api } from '@admin/lib/api';
 import { useAuth, useResource, useSaved, useToast } from '@admin/lib/app-context';
 import { Card, Empty, Skeleton, ErrorBox, Field, Modal, Badge, Advance } from '@admin/components/ui';
@@ -13,8 +13,12 @@ import { date, fcfa, num } from '@admin/lib/format';
 import Gantt from '../../components/Gantt';
 import { CH, WS_TONES, PHASE_TONES, TASK_COLORS, useChantierRefs, body } from '../../lib/chantiers';
 import { WorksiteForm } from './Chantiers';
+import { Journal, Progress, Stages, Deliveries } from './Suivi';
 
-const TABS = [['planning', 'Planning', CalendarRange], ['taches', 'Tâches', ListChecks], ['budget', 'Budget', Wallet]];
+const TABS = [
+  ['planning', 'Planning', CalendarRange], ['taches', 'Tâches', ListChecks], ['journal', 'Journal', BookText], ['avancement', 'Avancement client', Megaphone],
+  ['etapes', 'Étapes et appels de fonds', Flag], ['livraisons', 'Livraisons', Truck], ['budget', 'Budget', Wallet],
+];
 
 export default function Chantier() {
   const { id } = useParams();
@@ -65,6 +69,10 @@ export default function Chantier() {
       </div>
       {tab === 'planning' && <Planning w={w} refs={refs} onChange={update} />}
       {tab === 'taches' && <Tasks w={w} refs={refs} onChange={update} />}
+      {tab === 'journal' && <Journal w={w} refs={refs} />}
+      {tab === 'avancement' && <Progress w={w} refs={refs} />}
+      {tab === 'etapes' && <Stages w={w} refs={refs} onChange={() => res.reload()} />}
+      {tab === 'livraisons' && <Deliveries w={w} />}
       {tab === 'budget' && <Budget w={w} refs={refs} onChange={update} />}
 
       {editing && <WorksiteForm worksite={w} refs={refs} onClose={() => setEditing(false)} onSaved={data => { setEditing(false); update(data); }} />}
@@ -357,13 +365,13 @@ function Budget({ w, refs, onChange }) {
             <thead><tr><th>Source</th><th>Détail</th><th>Poste</th><th className="right">Montant HT</th></tr></thead>
             <tbody>
               {c.purchases.map(p => (
-                <tr key={`a${p.id}`}><td className="small nowrap">Achat {p.number}<div className="muted">{date(p.date)}</div></td><td>{p.label}<div className="small muted">{p.supplier_name}{p.status === 'brouillon' ? ' · à valider' : ''}</div></td><td className="small">{refs.budget_categories[p.category]}</td><td className="right tabular">{fcfa(p.amount_fcfa)}</td></tr>
+                <tr key={`a${p.id}`}><td className="small nowrap">Achat {p.number}<div className="muted">{date(p.date)}</div></td><td>{p.label}<div className="small muted">{p.supplier_name}{p.status === 'brouillon' ? ' · à valider' : ''}</div></td><td className="small">{refs.budget_labels[p.category] || p.category}</td><td className="right tabular">{fcfa(p.amount_fcfa)}</td></tr>
               ))}
               {c.parc.map(p => (
-                <tr key={`p${p.id}`}><td className="small nowrap">Parc<div className="muted">{date(p.date)}</div></td><td>{p.asset}<div className="small muted">{p.label || p.kind}</div></td><td className="small">{refs.budget_categories.engins}</td><td className="right tabular">{fcfa(p.amount_fcfa)}</td></tr>
+                <tr key={`p${p.id}`}><td className="small nowrap">Parc<div className="muted">{date(p.date)}</div></td><td>{p.asset}<div className="small muted">{p.label || p.kind}</div></td><td className="small">{refs.budget_labels.engins}</td><td className="right tabular">{fcfa(p.amount_fcfa)}</td></tr>
               ))}
               {c.labor.map(l => (
-                <tr key={`m${l.employee_id}`}><td className="small nowrap">Pointages</td><td>{l.name}<div className="small muted">{l.job_title} · {num(l.hours)} h × {fcfa(l.rate)}{l.source === 'salaire' ? ' (tiré du salaire)' : l.source === 'aucun' ? ' (aucun salaire ni taux)' : ''}</div></td><td className="small">{refs.budget_categories.main_oeuvre}</td><td className="right tabular">{fcfa(l.amount_fcfa)}</td></tr>
+                <tr key={`m${l.employee_id}`}><td className="small nowrap">Pointages</td><td>{l.name}<div className="small muted">{l.job_title} · {num(l.hours)} h × {fcfa(l.rate)}{l.source === 'salaire' ? ' (tiré du salaire)' : l.source === 'aucun' ? ' (aucun salaire ni taux)' : ''}</div></td><td className="small">{refs.budget_labels.main_oeuvre}</td><td className="right tabular">{fcfa(l.amount_fcfa)}</td></tr>
               ))}
             </tbody>
           </table></div>
@@ -402,7 +410,7 @@ function BudgetForm({ w, line: l, refs, onClose, onSaved }) {
       </>}>
       <form id="budget-form" className="form-grid" onSubmit={save}>
         <div className="full"><ErrorBox error={error} /></div>
-        <Field label="Poste"><select className="select" value={f.category} onChange={set('category')}>{Object.entries(refs.budget_categories).map(([k, x]) => <option key={k} value={k}>{x}</option>)}</select></Field>
+        <Field label="Poste" hint="Liste réglable dans Chantiers › Réglages"><select className="select" value={f.category} onChange={set('category')}>{Object.entries(refs.budget_categories).map(([k, x]) => <option key={k} value={k}>{x}</option>)}{l && !refs.budget_categories[l.category] && <option value={l.category}>{refs.budget_labels[l.category] || l.category} (désactivé)</option>}</select></Field>
         <Field label="Montant prévu (FCFA)"><input className="input" type="number" min="0" required value={f.amount_fcfa} onChange={set('amount_fcfa')} /></Field>
         <Field label="Libellé" className="full"><input className="input" required minLength={2} maxLength={160} value={f.label} onChange={set('label')} placeholder="Ciment et acier, lot VRD, location de pelle…" /></Field>
         <Field label="Phase" hint="Facultatif" className="full"><select className="select" value={f.phase_id} onChange={set('phase_id')}><option value="">— Tout le chantier —</option>{w.phases.map(p => <option key={p.id} value={p.id}>{p.label}</option>)}</select></Field>

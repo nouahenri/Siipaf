@@ -27,6 +27,7 @@ module.exports = function salesRoutes(db) {
       ...sale,
       reserved_at: isoDay(sale.reserved_at),
       signed_at: isoDay(sale.signed_at),
+      promised_delivery_on: isoDay(sale.promised_delivery_on),
       ...t,
       lead: lead && {
         id: lead.id, name: lead.name, email: lead.email, phone: lead.phone, country: lead.country,
@@ -93,6 +94,8 @@ module.exports = function salesRoutes(db) {
       financing: z.enum(['apport', 'diaspora', 'credit', 'comptant']).nullable(),
       reserved_at: day.nullable(),
       signed_at: day.nullable(),
+      // Livraison promise à l'acquéreur : comparée à la livraison prévue du chantier (ERP › Chantiers)
+      promised_delivery_on: day.nullable(),
       vefa: z.boolean(),
       notes: z.string().max(2000).nullable(),
     }).partial(), req.body);

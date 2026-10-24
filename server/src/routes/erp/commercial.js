@@ -354,7 +354,7 @@ module.exports = function commercialRoutes(db) {
         .select('p.*', 'u.name as recorded_by_name').orderBy([{ column: 'p.paid_at', order: 'desc' }, { column: 'p.id', order: 'desc' }]),
       scheduleStatus(db, s, t),
     ]);
-    res.json({ ...(await saleRow(s, await progressIndex(db))), notes: s.notes, schedule, payments: payments.map(p => ({ ...p, paid_at: isoDay(p.paid_at), amount_fcfa: Number(p.amount_fcfa) })) });
+    res.json({ ...(await saleRow(s, await progressIndex(db))), notes: s.notes, promised_delivery_on: isoDay(s.promised_delivery_on), schedule, payments: payments.map(p => ({ ...p, paid_at: isoDay(p.paid_at), amount_fcfa: Number(p.amount_fcfa) })) });
   }));
 
   // ─── VEFA : plans et appels de fonds ──────────────────────
@@ -396,21 +396,18 @@ module.exports = function commercialRoutes(db) {
     res.json(out);
   }));
 
-  // Avancement par îlot / bâtiment : étape la plus avancée déclarée au journal de chantier
+  // Avancement par îlot : étape la plus avancée déclarée par la Direction (programme entier, îlot, chantier qui les couvre)
   r.get('/vefa/progress', vefaRead, ah(async (req, res) => {
     const projectId = Number(req.query.project_id);
     if (!projectId) throw new HttpError(400, 'Choisissez un programme.');
-    const updates = await db('site_updates').where({ project_id: projectId }).select('ilot', 'lot_id', 'stage', 'published_at');
-    const best = list => list.map(u => u.stage).sort((a, b) => SITE_STAGES.indexOf(b) - SITE_STAGES.indexOf(a))[0] || null;
+    const { declaredStageFor } = require('../../services/chantiersSuivi');
     const ilots = [...new Set((await db('lots').where({ project_id: projectId }).whereNotNull('ilot').pluck('ilot')))].sort((a, b) => String(a).localeCompare(String(b), 'fr', { numeric: true }));
-    res.json({
-      project: best(updates.filter(u => !u.ilot && !u.lot_id)),
-      ilots: ilots.map(i => ({ ilot: i, stage: best(updates.filter(u => u.ilot === i && !u.lot_id)) })),
-    });
+    const at = ilot => declaredStageFor(db, { id: 0, project_id: projectId, ilot, building_id: null });
+    res.json({ project: await at(''), ilots: await Promise.all(ilots.map(async i => ({ ilot: i, stage: await at(i) }))) });
   }));
 
-  // Constat d'achèvement d'une étape (projet entier, un îlot, un bâtiment ou un lot)
-  r.post('/vefa/milestones', requirePermission('vefa:write'), ah(async (req, res) => {
+  // Étape atteinte déclarée par la Direction seule (choix du client du 24/10) : projet entier, un îlot, un bâtiment ou un lot
+  r.post('/vefa/milestones', requirePermission('chantiers:direction'), ah(async (req, res) => {
     const data = parse(z.object({
       project_id: z.number().int().positive(), stage: z.enum(SITE_STAGES), date: day,
       ilot: optText(40), building_id: z.number().int().positive().optional().nullable(), lot_id: z.number().int().positive().optional().nullable(),

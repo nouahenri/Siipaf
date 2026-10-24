@@ -141,18 +141,20 @@ test('VEFA : appels de fonds émis selon l’avancement du chantier', async () =
   const row = (await admin.get(`${M}/property?project_id=${project.id}`)).body.lots.find(l => l.id === lots[0].id);
   assert.deepEqual([row.buyer_name, row.sale_price_fcfa, row.paid_fcfa], [lead.name, 30000000, 0]);
 
-  // Les fondations sont en cours : rien n'est appelé ; le gros œuvre démarre : les fondations sont achevées
-  await admin.post(`/api/admin/projects/${project.id}/site-updates`).send({ stage: 'fondations', progress_pct: 20, title: 'Fondations en cours', published_at: '2026-10-01T08:00:00Z' });
+  // Un point d'avancement publié informe l'acquéreur sans rien appeler (choix du client du 24/10)
+  await admin.post(`/api/admin/projects/${project.id}/site-updates`).send({ stage: 'gros_oeuvre', progress_pct: 35, title: 'Élévation des murs', published_at: '2026-10-10T08:00:00Z' });
   assert.equal((await db('fund_calls').where({ sale_id: sale.id, status: 'appele' })).length, 1);
-  res = await admin.post(`/api/admin/projects/${project.id}/site-updates`).send({ stage: 'gros_oeuvre', progress_pct: 35, title: 'Élévation des murs', published_at: '2026-10-10T08:00:00Z' });
-  assert.equal(res.body.fund_calls, 1);
+  // Seule la Direction déclare l'étape atteinte : les fondations sont achevées
+  assert.equal((await conducteur.post(`${M}/vefa/milestones`).send({ project_id: project.id, stage: 'fondations', date: '2026-10-10' })).status, 403);
+  res = await admin.post(`${M}/vefa/milestones`).send({ project_id: project.id, stage: 'fondations', date: '2026-10-10' });
+  assert.equal(res.body.calls, 1);
   const called = await db('fund_calls').where({ sale_id: sale.id, status: 'appele' }).orderBy('seq');
   assert.deepEqual(called.map(c => c.stage), ['signature', 'fondations']);
   const msg = await db('client_messages').where({ lead_id: lead.id }).orderBy('id', 'desc').first();
   assert.match(msg.body, /Achèvement des fondations \(10 %\) : 3 000 000 FCFA, à régler avant le 20 octobre 2026/);
 
-  // Constat manuel : la mise hors d'eau de l'îlot 7 (le gros œuvre et la toiture sont appelés)
-  res = await conducteur.post(`${M}/vefa/milestones`).send({ project_id: project.id, ilot: '7', stage: 'toiture', date: '2026-10-15' });
+  // Déclaration de la Direction pour un îlot : la mise hors d'eau de l'îlot 7 (le gros œuvre et la toiture sont appelés)
+  res = await admin.post(`${M}/vefa/milestones`).send({ project_id: project.id, ilot: '7', stage: 'toiture', date: '2026-10-15' });
   assert.equal(res.status, 200, JSON.stringify(res.body));
   assert.deepEqual([res.body.sales, res.body.calls, res.body.amount_fcfa], [1, 2, 12000000]);
 

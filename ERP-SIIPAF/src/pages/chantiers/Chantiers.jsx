@@ -4,7 +4,7 @@
  */
 import { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Plus, Search, HardHat, Check } from 'lucide-react';
+import { Plus, Search, HardHat, Check, Flag } from 'lucide-react';
 import { api, qs } from '@admin/lib/api';
 import { useAuth, useResource, useSaved } from '@admin/lib/app-context';
 import { Card, Empty, Skeleton, ErrorBox, Field, Modal, Badge, Advance } from '@admin/components/ui';
@@ -21,6 +21,8 @@ export default function Chantiers() {
   const [q, setQ] = useState('');
   const [creating, setCreating] = useState(false);
   const list = useResource(`${CH}${qs({ status, project_id: project, q })}`);
+  // Direction : étapes signalées par les conducteurs, à déclarer (elles émettront les appels de fonds)
+  const pending = useResource(can('chantiers:direction') ? `${CH}/etapes?status=signalee` : null);
   useEffect(() => { const t = setTimeout(() => setQ(text.trim()), 300); return () => clearTimeout(t); }, [text]);
 
   return (
@@ -40,6 +42,21 @@ export default function Chantiers() {
         </div>
         {can('chantiers:write') && <button className="btn btn-primary" onClick={() => setCreating(true)}><Plus />Nouveau chantier</button>}
       </div>
+
+      {pending.data?.length > 0 && (
+        <Card title={`Étapes à déclarer (${pending.data.length})`} bodyClass="">
+          <ul className="list">
+            {pending.data.map(d => (
+              <li key={d.id}>
+                <button type="button" className="list-row btn-link" style={{ width: '100%' }} onClick={() => navigate(`/chantiers/${d.worksite_id}?onglet=etapes`)}>
+                  <span><Flag className="ico" /><b>{d.stage_label}</b> — {d.scope_label}<div className="small muted">{d.project_name} · atteinte le {date(d.reached_on)}{d.reported_by_name ? ` · signalée par ${d.reported_by_name}` : ''}</div></span>
+                  <span className="small">Déclarer ou refuser</span>
+                </button>
+              </li>
+            ))}
+          </ul>
+        </Card>
+      )}
 
       <Card bodyClass="">
         <ErrorBox error={list.error} />

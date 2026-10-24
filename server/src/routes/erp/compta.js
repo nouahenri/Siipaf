@@ -6,7 +6,6 @@ const { requirePermission } = require('../../auth');
 const { JOURNAL_KINDS, REVENUE_MODES, accountClass, partnerKindOf, splitVat } = require('../../lib/compta');
 const ct = require('../../services/compta');
 const lieux = require('../../services/lieux');
-const { BUDGET_CATEGORIES } = require('../../lib/domain');
 const { progressIndex, clientsProgress } = require('../../services/clients');
 
 const day = z.string().regex(/^\d{4}-\d{2}-\d{2}$/, 'Date attendue au format AAAA-MM-JJ');
@@ -287,7 +286,7 @@ module.exports = function comptaRoutes(db) {
   // Imputation : programme (et chantier, qui fixe le programme) ou lieu (siège, bureau, dépôt) ; sans rien, le siège.
   // Le poste range la facture dans le budget du chantier.
   const siteFields = {
-    worksite_id: z.number().int().positive().optional().nullable(), worksite_category: z.enum(Object.keys(BUDGET_CATEGORIES)).optional().nullable(),
+    worksite_id: z.number().int().positive().optional().nullable(), worksite_category: z.string().trim().max(30).optional().nullable(), // poste de la liste réglable des chantiers
     place_id: z.number().int().positive().optional().nullable(),
   };
   const purchaseSchema = z.object({
@@ -298,14 +297,16 @@ module.exports = function comptaRoutes(db) {
   });
   const siteOf = async data => {
     const site = await lieux.resolvePlace(db, { project_id: data.project_id ?? null, worksite_id: data.worksite_id ?? null, place_id: data.place_id ?? null });
-    return { ...site, worksite_category: site.worksite_id ? data.worksite_category || 'materiaux' : null };
+    const category = site.worksite_id ? data.worksite_category || 'materiaux' : null;
+    if (category) await require('../../services/chantiers').checkListCode(db, 'poste', category, data.current_category);
+    return { ...site, worksite_category: category };
   };
   const purchaseFields = async data => {
     const acc = await db('acc_accounts').where({ code: data.expense_account }).first();
     if (!acc || ![2, 6].includes(acc.class)) throw new HttpError(400, 'Imputez l’achat sur un compte de charge (classe 6) ou d’immobilisation (classe 2).');
     if (!(await db('suppliers').where({ id: data.supplier_id }).first())) throw new HttpError(404, 'Fournisseur introuvable.');
     const { ht, vat } = splitVat(data.amount_ttc, data.vat_rate);
-    const { expense_account, ...rest } = data;
+    const { expense_account, current_category, ...rest } = data;
     return { ...rest, ...(await siteOf(data)), expense_account_id: acc.id, amount_ht: ht, vat_amount: vat };
   };
 
@@ -322,7 +323,7 @@ module.exports = function comptaRoutes(db) {
     const inv = await db('purchase_invoices').where({ id: idParam(req) }).first();
     if (!inv) throw new HttpError(404, 'Facture introuvable.');
     if (inv.status !== 'brouillon') throw new HttpError(409, 'Facture validée : elle ne se modifie plus (contrepassez son écriture si besoin).');
-    const merged = { supplier_id: inv.supplier_id, project_id: inv.project_id, worksite_id: inv.worksite_id, worksite_category: inv.worksite_category, place_id: inv.place_id, date: isoDay(inv.date), label: inv.label, amount_ttc: Number(inv.amount_ttc), vat_rate: Number(inv.vat_rate), expense_account: (await db('acc_accounts').where({ id: inv.expense_account_id }).first()).code, ...parse(purchaseSchema.partial(), req.body) };
+    const merged = { supplier_id: inv.supplier_id, project_id: inv.project_id, worksite_id: inv.worksite_id, worksite_category: inv.worksite_category, current_category: inv.worksite_category, place_id: inv.place_id, date: isoDay(inv.date), label: inv.label, amount_ttc: Number(inv.amount_ttc), vat_rate: Number(inv.vat_rate), expense_account: (await db('acc_accounts').where({ id: inv.expense_account_id }).first()).code, ...parse(purchaseSchema.partial(), req.body) };
     await db('purchase_invoices').where({ id: inv.id }).update({ ...(await purchaseFields(merged)), updated_at: new Date() });
     res.json(await purchaseRow(await db('purchase_invoices').where({ id: inv.id }).first()));
   }));
@@ -336,6 +337,7 @@ module.exports = function comptaRoutes(db) {
     if (!inv) throw new HttpError(404, 'Facture introuvable.');
     const data = parse(z.object(siteFields), req.body);
     const site = await require('../../services/chantiers').resolveSite(db, { project_id: inv.project_id, worksite_id: data.worksite_id ?? null });
+    if (site.worksite_id && data.worksite_category) await require('../../services/chantiers').checkListCode(db, 'poste', data.worksite_category, inv.worksite_category);
     if (site.worksite_id && !inv.project_id && inv.status !== 'brouillon') throw new HttpError(409, 'Facture validée sans programme : son chantier ne peut plus être indiqué.');
     await db('purchase_invoices').where({ id: inv.id }).update({
       worksite_id: site.worksite_id, worksite_category: site.worksite_id ? data.worksite_category || inv.worksite_category || 'materiaux' : null,

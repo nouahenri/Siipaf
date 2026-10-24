@@ -30,9 +30,21 @@ after(() => db.destroy());
 
 test('lieux : siège unique et permanent, gérés par la Comptabilité et l’Administration générale', async () => {
   assert.equal((await commercial.post(L).send({ kind: 'annexe', name: 'Bureau de Yamoussoukro' })).status, 403);
-  let res = await comptable.post(L).send({ kind: 'annexe', name: 'Bureau de Yamoussoukro', city: 'Yamoussoukro' });
+  let res = await comptable.post(L).send({ kind: 'annexe', name: 'Bureau de Yamoussoukro' });
   assert.equal(res.status, 201, JSON.stringify(res.body));
   assert.equal((await comptable.post(L).send({ kind: 'siege', name: 'Autre siège' })).status, 409, 'un seul siège');
+  // Ville et localité : listes de référence du dashboard, la localité appartient à la ville
+  const city = insertedId((await db('ref_items').insert({ kind: 'ville', label: 'Yamoussoukro' }))[0]);
+  const otherCity = insertedId((await db('ref_items').insert({ kind: 'ville', label: 'Bouaké' }))[0]);
+  const loc = insertedId((await db('ref_items').insert({ kind: 'localisation', label: 'Habitat', parent_id: city }))[0]);
+  const bureau = (await db('places').where({ name: 'Bureau de Yamoussoukro' }).first()).id;
+  assert.equal((await comptable.patch(`${L}/${bureau}`).send({ city_id: otherCity, location_id: loc })).status, 400, 'localité d’une autre ville');
+  res = await comptable.patch(`${L}/${bureau}`).send({ city_id: city, location_id: loc });
+  assert.equal(res.status, 200, JSON.stringify(res.body));
+  const saved = res.body.find(p => p.id === bureau);
+  assert.deepEqual([saved.city_label, saved.location_label], ['Yamoussoukro', 'Habitat']);
+  const form = (await comptable.get(`${L}?tous=1`)).body;
+  assert.ok(form.cities.some(c => c.id === city) && form.locations.some(l => l.id === loc && l.city_id === city));
   assert.equal((await comptable.post(L).send({ kind: 'autre', name: 'Logement' })).status, 400, 'type « autre » précisé');
   assert.equal((await comptable.patch(`${L}/${siege}`).send({ active: false })).status, 409);
   assert.equal((await comptable.delete(`${L}/${siege}`)).status, 409);
