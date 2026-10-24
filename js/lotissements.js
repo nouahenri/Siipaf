@@ -68,6 +68,7 @@
         (p.tagline ? '<p class="prog-card-desc">' + esc(p.tagline) + '</p>' : (p.location ? '<p class="prog-card-desc">' + esc(p.location) + '</p>' : '')) +
         mini +
         (from ? '<div class="prog-card-price">À partir de <strong>' + O.fcfa(from) + '</strong></div>' : '') +
+        O.typesHtml(p, true) +
         '<p class="prog-card-terms"><i class="fas fa-hand-holding-usd" aria-hidden="true"></i> ' + esc(O.termsLine(p)) + '</p>' +
         O.documentsHtml(p, true) +
         stock +
@@ -106,6 +107,7 @@
             return '<div class="pinfo-card"><i class="' + esc(x[0]) + '"></i><span>' + esc(x[1]) + '</span><small>' + esc(x[2]) + '</small></div>';
           }).join('') + '</div>' : '') +
           O.termsHtml(p) +
+          O.typesHtml(p) +
           O.amenitiesHtml(p.amenities) +
           (p.description ? '<p class="prog-detail-text">' + esc(p.description) + '</p>' : '') +
           O.documentsHtml(p) +

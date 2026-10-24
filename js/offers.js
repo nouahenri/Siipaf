@@ -104,6 +104,21 @@
     }).join('') + '</ul></div>';
   }
 
+  /**
+   * Types de biens cochés dans la fiche projet du dashboard (« Villa basse · Duplex »), tous affichés :
+   * `compact` : ligne de la tuile ; sinon bloc de la fiche. Vide sans type coché.
+   */
+  function typesHtml(p, compact) {
+    var types = ((p && p.property_types) || []).filter(Boolean);
+    if (!types.length) return '';
+    if (compact) {
+      return '<p class="prog-card-types"><i class="fas fa-home" aria-hidden="true"></i> ' + types.map(esc).join(' · ') + '</p>';
+    }
+    return '<div class="proj-docs proj-types"><h4 class="pricing-title">' + (types.length > 1 ? 'Types de biens' : 'Type de bien') + '</h4><ul>' + types.map(function (t) {
+      return '<li class="doc-fait"><i class="fas fa-home" aria-hidden="true"></i><span>' + esc(t) + '</span></li>';
+    }).join('') + '</ul></div>';
+  }
+
   /** Tableau des prix d'un projet ; chaque ligne a son bouton « Infos & réservation ». `p` : projet (conditions de paiement). */
   function priceTable(offers, slug, p) {
     var t = termsOf(p);
@@ -154,5 +169,6 @@
     highlightsOf: highlightsOf, amenityIcon: amenityIcon, amenitiesHtml: amenitiesHtml, figuresHtml: figuresHtml,
     contactHref: contactHref, askLink: askLink, priceTable: priceTable, budgetFor: budgetFor,
     termsOf: termsOf, monthly: monthly, diasporaText: diasporaText, termsLine: termsLine, termsHtml: termsHtml, documentsHtml: documentsHtml,
+    typesHtml: typesHtml,
   };
 })();

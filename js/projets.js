@@ -139,15 +139,16 @@
   function applyTerms(p, api, cardEl) {
     var drop = function (root, sel) { Array.prototype.forEach.call(root.querySelectorAll(sel), function (e) { e.remove(); }); };
     if (cardEl) {
-      drop(cardEl, '.prog-card-terms, .prog-card-docs');
-      cardEl.querySelector('.prog-card-stock').insertAdjacentHTML('beforebegin',
+      drop(cardEl, '.prog-card-types, .prog-card-terms, .prog-card-docs');
+      // Types de biens cochés : tous affichés sur leur ligne (en chiffre parmi les 3 chiffres clés, ils disparaissaient)
+      cardEl.querySelector('.prog-card-stock').insertAdjacentHTML('beforebegin', O.typesHtml(api, true) +
         '<p class="prog-card-terms"><i class="fas fa-hand-holding-usd" aria-hidden="true"></i> ' + esc(O.termsLine(api)) + '</p>' + O.documentsHtml(api, true));
     }
     var body = p.block.querySelector('.proj-body');
     if (!body) return;
     drop(body, '.proj-terms, .proj-docs');
     var wrap = document.createElement('div');
-    wrap.innerHTML = O.termsHtml(api) + O.documentsHtml(api);
+    wrap.innerHTML = O.termsHtml(api) + O.typesHtml(api) + O.documentsHtml(api);
     var before = body.querySelector('.pricing-title, .pricing-table-wrap, .pricing-cards-grid, .proj-price-hero, .proj-footer-btns');
     while (wrap.firstChild) body.insertBefore(wrap.firstChild, before || null);
   }
@@ -434,7 +435,8 @@
           var lo = Math.min.apply(null, areas), hi = Math.max.apply(null, areas);
           p.stats.push({ icon: 'fas fa-ruler-combined', value: (lo === hi ? lo : lo + '–' + hi) + ' m²', label: 'Surface' });
         }
-        if (kinds.length && !has(/types?/i)) p.stats.push({ icon: 'fas fa-home', value: String(kinds.length), label: kinds.length > 1 ? 'Types de biens' : 'Type de bien', title: kinds.join(' · ') });
+        // Sans type coché dans la fiche : nombre de lignes distinctes de la grille (les types cochés ont leur propre ligne sur la tuile)
+        if (kinds.length && !(api.property_types || []).length && !has(/types?/i)) p.stats.push({ icon: 'fas fa-home', value: String(kinds.length), label: kinds.length > 1 ? 'Types de biens' : 'Type de bien', title: kinds.join(' · ') });
         if (total && !has(/biens$|logements/i)) p.stats.push({ icon: 'fas fa-th-large', value: String(total), label: 'Biens' });
         renderStats(p);
         if (total && cardEl) {
