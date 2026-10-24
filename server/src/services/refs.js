@@ -276,7 +276,15 @@ async function withTypeLabels(db, projects) {
   });
 }
 
+/** Le type d'un bien est l'un des types cochés sur la fiche de son projet (dashboard et ERP). */
+async function checkLotType(trx, projectId, typeId) {
+  if (!typeId) return;
+  if (!(await trx('project_property_types').where({ project_id: projectId, item_id: typeId }).first())) {
+    throw new HttpError(400, 'Ce type de bien n’est pas coché dans la fiche du projet.');
+  }
+}
+
 module.exports = {
-  DEFAULT_REFS, PROJECT_REF_COLUMNS, backfill, seedDefaultLists, linkProjectTypes, scopePropertyTypes, defaultScope, syncProjectText, applyProjectRefs, applyProjectTypes, withTypeLabels,
+  DEFAULT_REFS, checkLotType, PROJECT_REF_COLUMNS, backfill, seedDefaultLists, linkProjectTypes, scopePropertyTypes, defaultScope, syncProjectText, applyProjectRefs, applyProjectTypes, withTypeLabels,
   projectRefs, projectsUsing, norm, sameLabel, stateLabels, defaultStateLabels, STATE_KEYS,
 };

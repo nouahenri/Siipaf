@@ -64,15 +64,25 @@ const pick = (arr, i) => arr[i % arr.length];
     });
   }
 
-  // Types de lots
+  // Pièces des villas ; les types de biens sont ceux des Paramètres cochés sur chaque projet
   const projects = await db('projects').select('id', 'name');
   const byName = n => projects.find(p => p.name.includes(n));
   const bing = byName('BINGERVILLE'), yam = byName('YAMOUSSOUKRO'), aho = byName('AHOUTOUE'), angre = byName('ANGRÉ') || byName('ANGRE');
-  if (bing) await db('lots').where({ project_id: bing.id }).update({ lot_type: 'parcelle' });
-  for (const p of [yam, aho].filter(Boolean)) await db('lots').where({ project_id: p.id }).update({ lot_type: 'villa', rooms: 4 });
+  for (const p of [yam, aho].filter(Boolean)) await db('lots').where({ project_id: p.id }).update({ rooms: 4 });
 
   // Résidence d'appartements en immeubles, vendue en VEFA
   if (angre) {
+    // Appartements et local commercial : types des Paramètres, cochés sur le projet
+    const typeId = async label => {
+      const t = await db('ref_items').where({ kind: 'type_bien', label }).first();
+      const id = t ? t.id : (await db('ref_items').insert({ kind: 'type_bien', label, sort: 50 }))[0];
+      const itemId = typeof id === 'object' ? id.id : id;
+      if (!(await db('project_property_types').where({ project_id: angre.id, item_id: itemId }).first())) {
+        await db('project_property_types').insert({ project_id: angre.id, item_id: itemId, sort: 10 });
+      }
+      return itemId;
+    };
+    const flatType = await typeId('Appartement'), shopType = await typeId('Local commercial');
     const blocks = [{ code: 'Bât. A', name: 'Résidence Les Flamboyants', floors: 4 }, { code: 'Bât. B', name: 'Résidence Les Flamboyants', floors: 3 }];
     const lotIds = [];
     for (const b of blocks) {
@@ -82,7 +92,7 @@ const pick = (arr, i) => arr[i % arr.length];
         for (let u = 1; u <= 2; u++) {
           const rooms = u === 1 ? 3 : 4;
           const [lid] = await db('lots').insert({
-            project_id: angre.id, code: `${b.code.slice(-1)}-${f}0${u}`, lot_type: f === 0 && u === 1 ? 'commerce' : 'appartement', building_id: buildingId, floor: f, rooms,
+            project_id: angre.id, code: `${b.code.slice(-1)}-${f}0${u}`, property_type_id: f === 0 && u === 1 ? shopType : flatType, building_id: buildingId, floor: f, rooms,
             surface_m2: rooms === 3 ? 92 : 118, price_fcfa: (rooms === 3 ? 58e6 : 74e6) + f * 2e6, tantiemes: rooms === 3 ? 45 : 58, status: 'disponible',
           });
           lotIds.push(typeof lid === 'object' ? lid.id : lid);

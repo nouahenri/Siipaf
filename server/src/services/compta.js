@@ -4,6 +4,7 @@
  * états (journal, grand livre, balance, bilan, compte de résultat, TVA, marge par programme) et export Sage.
  */
 const { HttpError, isoDay, json } = require('../lib/http');
+const { isLandType } = require('../lib/domain');
 const {
   DEFAULT_SETTINGS, METHOD_JOURNAL, checkEntry, splitVat, BALANCE_SHEET, INCOME_STATEMENT, sageDate,
 } = require('../lib/compta');
@@ -179,7 +180,7 @@ async function partnerNames(db, lines) {
 
 // ─── Écritures automatiques (données du dashboard et de l'ERP) ─────────────────
 const saleLabel = s => `${s.client_name} — ${s.project_name}, lot ${s.lot_code}`;
-const saleAccount = (settings, s) => (s.lot_type === 'parcelle' || s.project_category === 'lotissement' ? settings.accounts.sale_land : settings.accounts.sale_housing);
+const saleAccount = (settings, s) => (isLandType(s.property_type) || s.project_category === 'lotissement' ? settings.accounts.sale_land : settings.accounts.sale_housing);
 
 /** Lignes « vente constatée » : client (ou avances) au débit, produit HT et TVA au crédit. */
 function revenueLines(settings, s, ttc, debits) {
@@ -203,8 +204,8 @@ async function syncAutoEntries(db, userId = null) {
   if (!years.length) return { ...stats, no_fiscal_year: true };
   const inOpenYear = date => years.some(y => date >= day(y.start_date) && date <= day(y.end_date) && !(y.lock_date && date <= day(y.lock_date)));
   const has = new Set((await db('acc_entries').whereNotNull('source_key').pluck('source_key')));
-  const sales = await db('sales as s').join('lots as l', 'l.id', 's.lot_id').join('projects as p', 'p.id', 'l.project_id').join('leads as ld', 'ld.id', 's.lead_id')
-    .select('s.*', 'l.code as lot_code', 'l.lot_type', 'l.project_id', 'p.name as project_name', 'p.category as project_category', 'ld.name as client_name');
+  const sales = await db('sales as s').join('lots as l', 'l.id', 's.lot_id').join('projects as p', 'p.id', 'l.project_id').join('leads as ld', 'ld.id', 's.lead_id').leftJoin('ref_items as pt', 'pt.id', 'l.property_type_id')
+    .select('s.*', 'l.code as lot_code', 'pt.label as property_type', 'l.project_id', 'p.name as project_name', 'p.category as project_category', 'ld.name as client_name');
   const saleBy = Object.fromEntries(sales.map(s => [s.id, s]));
   const validate = !!settings.auto_validate;
   const make = async (key, entry) => {

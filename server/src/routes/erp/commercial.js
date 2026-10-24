@@ -7,7 +7,7 @@ const { z } = require('zod');
 const { ah, parse, idParam, HttpError, isoDay, isoTime } = require('../../lib/http');
 const { requirePermission } = require('../../auth');
 const {
-  LEAD_STAGES, PIPELINE_STAGES, STAGE_PROBABILITY, LOST_REASONS, ACTIVITY_KINDS, LEAD_KINDS, LOT_TYPES, BUILDING_KINDS,
+  LEAD_STAGES, PIPELINE_STAGES, STAGE_PROBABILITY, LOST_REASONS, ACTIVITY_KINDS, LEAD_KINDS, BUILDING_KINDS,
   TARGET_METRICS, LOT_STATUSES, LOT_STATUS_LABELS, SITE_STAGES, SITE_STAGE_LABELS, VEFA_LEGAL_CAPS, DEFAULT_VEFA_PLAN, FINANCING_PLANS,
 } = require('../../lib/domain');
 const cm = require('../../services/commercial');
@@ -15,6 +15,7 @@ const vefa = require('../../services/vefa');
 const { totals } = require('../../services/sales');
 const { scheduleStatus } = require('../../services/schedule');
 const { progressIndex } = require('../../services/clients');
+const { checkLotType, withTypeLabels } = require('../../services/refs');
 
 const optText = max => z.string().trim().max(max).optional().nullable().transform(v => v || null);
 const month = z.string().regex(/^\d{4}-(0[1-9]|1[0-2])$/, 'Mois attendu au format AAAA-MM');
@@ -39,13 +40,14 @@ module.exports = function commercialRoutes(db) {
     res.json({
       stages: LEAD_STAGES.map(s => ({ id: s, label: cm.STAGE_LABELS[s], probability: STAGE_PROBABILITY[s] })),
       pipeline_stages: PIPELINE_STAGES, lost_reasons: LOST_REASONS, activity_kinds: ACTIVITY_KINDS, lead_kinds: LEAD_KINDS,
-      lot_types: LOT_TYPES, building_kinds: BUILDING_KINDS, target_metrics: TARGET_METRICS,
+      building_kinds: BUILDING_KINDS, target_metrics: TARGET_METRICS,
       lot_statuses: LOT_STATUSES.map(s => ({ id: s, label: LOT_STATUS_LABELS[s] })),
       site_stages: SITE_STAGES.map(s => ({ id: s, label: SITE_STAGE_LABELS[s] })),
       vefa_caps: VEFA_LEGAL_CAPS, vefa_default: DEFAULT_VEFA_PLAN,
       financings: Object.fromEntries(Object.entries(FINANCING_PLANS).map(([k, p]) => [k, p.label])),
       sellers: await cm.sellers(db),
-      projects: await db('projects').orderBy('name').select('id', 'name', 'category'),
+      // Même ordre que le dashboard (Biens & disponibilités)
+      projects: await db('projects').orderBy(['sort', 'name']).select('id', 'name', 'category'),
     });
   }));
 
@@ -199,20 +201,29 @@ module.exports = function commercialRoutes(db) {
   r.get('/property', read, requirePermission('lots:read'), ah(async (req, res) => {
     const projectId = Number(req.query.project_id);
     if (!projectId) throw new HttpError(400, 'Choisissez un programme.');
-    const project = await db('projects').where({ id: projectId }).first('id', 'name', 'category', 'city');
-    if (!project) throw new HttpError(404, 'Projet introuvable.');
+    const row = await db('projects').where({ id: projectId }).first('id', 'name', 'category', 'city', 'project_type_id', 'property_type_id');
+    if (!row) throw new HttpError(404, 'Projet introuvable.');
+    // Types de biens cochés sur la fiche du projet (dashboard) : ceux que l'on peut donner aux lots
+    const [project] = await withTypeLabels(db, [row]);
     const [buildings, lots, plan] = await Promise.all([
       db('buildings').where({ project_id: projectId }).orderBy(['ilot', 'code']),
       db('lots as l').leftJoin('sales as s', b => b.on('s.lot_id', 'l.id').andOnIn('s.status', ['en_cours', 'solde']))
-        .leftJoin('leads as ld', 'ld.id', 's.lead_id').where('l.project_id', projectId)
-        .select('l.id', 'l.code', 'l.ilot', 'l.status', 'l.price_fcfa', 'l.surface_m2', 'l.lot_type', 'l.building_id', 'l.floor', 'l.rooms',
-          'l.title_number', 'l.tantiemes', 's.id as sale_id', 's.vefa', 'ld.name as buyer_name'),
+        .leftJoin('leads as ld', 'ld.id', 's.lead_id').leftJoin('ref_items as pt', 'pt.id', 'l.property_type_id')
+        .leftJoin('lot_options as o', b => b.on('o.lot_id', 'l.id').andOn('o.state', db.raw('?', ['active']))).leftJoin('leads as ol', 'ol.id', 'o.lead_id')
+        .where('l.project_id', projectId)
+        .select('l.id', 'l.code', 'l.ilot', 'l.status', 'l.price_fcfa', 'l.surface_m2', 'l.property_type_id', 'pt.label as property_type', 'l.building_id', 'l.floor', 'l.rooms',
+          'l.title_number', 'l.tantiemes', 's.id as sale_id', 's.vefa', 's.price_fcfa as sale_price_fcfa', 'ld.name as buyer_name',
+          'o.expires_at as option_expires_at', 'ol.name as option_lead_name',
+          db.raw('(select coalesce(sum(p.amount_fcfa), 0) from payments p where p.sale_id = s.id) as paid_fcfa')),
       vefa.getPlan(db, projectId),
     ]);
     const stock = lots.filter(l => ['disponible', 'desistement'].includes(l.status));
     res.json({
       project, buildings, vefa_plan: plan,
-      lots: lots.map(l => ({ ...l, price_fcfa: l.price_fcfa == null ? null : Number(l.price_fcfa), surface_m2: l.surface_m2 == null ? null : Number(l.surface_m2), vefa: !!l.vefa })),
+      lots: lots.map(l => ({
+        ...l, price_fcfa: l.price_fcfa == null ? null : Number(l.price_fcfa), surface_m2: l.surface_m2 == null ? null : Number(l.surface_m2), vefa: !!l.vefa,
+        paid_fcfa: l.sale_id ? Number(l.paid_fcfa) : null, sale_price_fcfa: l.sale_price_fcfa == null ? null : Number(l.sale_price_fcfa),
+      })),
       summary: {
         lots: lots.length,
         by_status: lots.reduce((o, l) => ({ ...o, [l.status]: (o[l.status] || 0) + 1 }), {}),
@@ -259,7 +270,7 @@ module.exports = function commercialRoutes(db) {
   }));
 
   const lotPropertySchema = z.object({
-    lot_type: z.enum(Object.keys(LOT_TYPES)).nullable(), building_id: z.number().int().positive().nullable(),
+    property_type_id: z.number().int().positive().nullable(), building_id: z.number().int().positive().nullable(),
     floor: z.number().int().min(-3).max(60).nullable(), rooms: z.number().int().min(0).max(30).nullable(),
     title_number: optText(80), tantiemes: z.number().int().min(0).max(100000).nullable(),
     surface_m2: z.number().min(0).max(1e7).nullable(), price_fcfa: z.number().int().min(0).nullable(), ilot: optText(40),
@@ -278,6 +289,7 @@ module.exports = function commercialRoutes(db) {
     const lot = await db('lots').where({ id: idParam(req) }).first();
     if (!lot) throw new HttpError(404, 'Lot introuvable.');
     const data = parse(lotPropertySchema, req.body);
+    await checkLotType(db, lot.project_id, data.property_type_id);
     await checkBuilding(lot, data);
     if (data.building_id === null) data.floor = null;
     await db('lots').where({ id: lot.id }).update({ ...data, updated_at: new Date() });
@@ -286,12 +298,13 @@ module.exports = function commercialRoutes(db) {
 
   // Affectation groupée : plusieurs lots dans un bâtiment / à un étage / d'un même type
   r.post('/lots/bulk', read, requirePermission('property:write'), ah(async (req, res) => {
-    const { lot_ids, ...data } = parse(lotPropertySchema.pick({ lot_type: true, building_id: true, floor: true }).extend({
+    const { lot_ids, ...data } = parse(lotPropertySchema.pick({ property_type_id: true, building_id: true, floor: true }).extend({
       lot_ids: z.array(z.number().int().positive()).min(1).max(500),
     }), req.body);
     const lots = await db('lots').whereIn('id', lot_ids);
     if (lots.length !== lot_ids.length) throw new HttpError(400, 'Lot introuvable.');
     if (new Set(lots.map(l => l.project_id)).size > 1) throw new HttpError(400, 'Les lots doivent appartenir au même programme.');
+    await checkLotType(db, lots[0].project_id, data.property_type_id);
     await checkBuilding(lots[0], data);
     if (data.building_id === null) data.floor = null;
     await db('lots').whereIn('id', lot_ids).update({ ...data, updated_at: new Date() });

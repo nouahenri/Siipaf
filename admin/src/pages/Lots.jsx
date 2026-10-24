@@ -4,14 +4,18 @@ import LotDrawer from '../components/LotDrawer';
 import { LotFormModal, LotStatusModal } from '../components/LotForms';
 import { api, qs } from '../lib/api';
 import { useAuth, useResource, useToast } from '../lib/app-context';
-import { Card, Modal, Field, StatusBadge, Empty, ErrorBox, Skeleton, DistributionBar, Pagination, naturalCompare } from '../components/ui';
+import { useSearchParams } from 'react-router-dom';
+import { Card, Modal, Field, StatusBadge, Empty, ErrorBox, Skeleton, DistributionBar, Pagination, PaidCell, BuyerCell, naturalCompare } from '../components/ui';
 import { LOT_STATUSES, lotStatus, bienButton } from '../lib/domain';
-import { fcfa, num, dateTime, relative } from '../lib/format';
+import { fcfa, num } from '../lib/format';
 
 export default function Lots() {
   const { can } = useAuth();
   const projects = useResource('/admin/projects');
-  const [projectId, setProjectId] = useState('');
+  // Projet dans l'adresse (?project_id=), comme le Parc immobilier de l'ERP
+  const [params, setParams] = useSearchParams();
+  const projectId = params.get('project_id') || '';
+  const setProjectId = id => setParams({ project_id: id }, { replace: true });
   const [status, setStatus] = useState('');
   const [q, setQ] = useState('');
   const [action, setAction] = useState(null); // { lot, kind: 'status' }
@@ -24,12 +28,11 @@ export default function Lots() {
 
   useEffect(() => {
     if (!projectId && projects.data?.length) setProjectId(String(projects.data[0].id));
-  }, [projects.data, projectId]);
+  }, [projects.data, projectId]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const lots = useResource(projectId ? `/admin/lots${qs({ project_id: projectId })}` : null);
   const project = projects.data?.find(p => String(p.id) === projectId);
-  // Projet à plusieurs types de biens : colonne « Type » et bouton « Nouveau bien »
-  const multiType = (project?.property_types || []).length > 1;
+  // Projet à plusieurs types de biens : bouton « Nouveau bien »
 
   const rows = useMemo(() => (lots.data || []).filter(l =>
     (!status || l.status === status) && (!q || `${l.code} ${l.ilot || ''}`.toLowerCase().includes(q.toLowerCase())))
@@ -78,19 +81,17 @@ export default function Lots() {
           ) : (
             <div className="table-wrap">
               <table className="table">
-                <thead><tr><th>Lot</th><th>Îlot</th>{multiType && <th>Type</th>}<th className="right">Surface</th><th className="right">Prix</th><th>Statut</th><th>Acquéreur / option</th><th className="right">Payé</th><th /></tr></thead>
+                <thead><tr><th>Lot</th><th>Îlot</th><th>Type</th><th className="right">Surface</th><th className="right">Prix</th><th>Statut</th><th>Acquéreur / option</th><th className="right">Payé</th><th /></tr></thead>
                 <tbody>
                   {pageRows.map(l => (
                     <tr key={l.id} className="clickable" tabIndex={0} onClick={() => setOpenLot(l.id)} onKeyDown={e => e.key === 'Enter' && setOpenLot(l.id)}>
                       <td><strong>{l.code}</strong></td>
                       <td>{l.ilot || '—'}</td>
-                      {multiType && <td className="small">{l.property_type || '—'}</td>}
+                      <td className="small">{l.property_type || <span className="muted">—</span>}</td>
                       <td className="right tabular">{l.surface_m2 ? `${num(l.surface_m2)} m²` : '—'}</td>
                       <td className="right tabular nowrap">{fcfa(l.price_fcfa)}</td>
                       <td><StatusBadge status={l.status} /></td>
-                      <td className="small">{l.buyer_name ? <strong>{l.buyer_name}</strong>
-                        : l.status === 'option' && l.option_expires_at ? <>{l.option_lead_name || 'Option'}<div className="muted">expire {relative(l.option_expires_at)}</div></>
-                        : <span className="muted">—</span>}</td>
+                      <td className="small"><BuyerCell lot={l} /></td>
                       <td className="right small tabular nowrap">{l.sale_id && l.sale_price_fcfa ? <PaidCell paid={l.paid_fcfa} price={l.sale_price_fcfa} /> : <span className="muted">—</span>}</td>
                       <td className="right"><ChevronRight size={16} className="muted" aria-hidden="true" /></td>
                     </tr>
@@ -110,16 +111,6 @@ export default function Lots() {
     </div>
   );
 }
-
-const PaidCell = ({ paid, price }) => {
-  const pct = Math.min(100, Math.round((Number(paid) / Number(price)) * 100));
-  return (
-    <div title={`${fcfa(paid)} sur ${fcfa(price)}`}>
-      {pct >= 100 ? <span style={{ color: 'var(--ok)', fontWeight: 600 }}>Soldé</span> : `${pct} %`}
-      <div className="progress progress-sm"><div style={{ width: `${pct}%` }} /></div>
-    </div>
-  );
-};
 
 /** Import par copier-coller depuis Excel : colonnes N° lot, Îlot, Surface (m²), Prix (FCFA). */
 function ImportModal({ project, onClose, onDone }) {

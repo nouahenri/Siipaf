@@ -1,6 +1,7 @@
 import { useEffect } from 'react';
 import { X, Inbox } from 'lucide-react';
 import { lotStatus } from '../lib/domain';
+import { fcfa, relative } from '../lib/format';
 
 export const Card = ({ title, actions, children, bodyClass = 'card-body', style }) => (
   <section className="card" style={style}>
@@ -35,6 +36,22 @@ export const StatusBadge = ({ status }) => {
   const s = lotStatus(status);
   return <span className="badge status-badge"><i style={{ background: s.color }} />{s.label}</span>;
 };
+
+/** Avancement des versements d'un bien vendu (Biens & disponibilités, Parc immobilier de l'ERP). */
+export const PaidCell = ({ paid, price }) => {
+  const pct = Math.min(100, Math.round((Number(paid) / Number(price)) * 100));
+  return (
+    <div title={`${fcfa(paid)} sur ${fcfa(price)}`}>
+      {pct >= 100 ? <span style={{ color: 'var(--ok)', fontWeight: 600 }}>Soldé</span> : `${pct} %`}
+      <div className="progress progress-sm"><div style={{ width: `${pct}%` }} /></div>
+    </div>
+  );
+};
+
+/** Acquéreur, ou prospect qui a posé une option et son expiration (mêmes écrans). */
+export const BuyerCell = ({ lot }) => (lot.buyer_name ? <strong>{lot.buyer_name}</strong>
+  : lot.status === 'option' && lot.option_expires_at ? <>{lot.option_lead_name || 'Option'}<div className="muted">expire {relative(lot.option_expires_at)}</div></>
+  : <span className="muted">—</span>);
 
 export const Badge = ({ tone = '', dot, children }) => (
   <span className={`badge ${tone ? `badge-${tone}` : ''} ${dot ? 'badge-dot' : ''}`}>{children}</span>

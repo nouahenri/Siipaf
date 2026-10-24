@@ -40,3 +40,9 @@ test('plusieurs types de biens par projet ; chaque bien porte un type coché du 
   // Un type coché sur un projet est « utilisé » : il ne se supprime pas de Paramètres
   assert.ok((await require('../src/services/refs').projectsUsing(db, types.Appartement)).includes(project.id));
 });
+
+test('comptabilité : un bien de type « terrain » se vend au compte des terrains', () => {
+  const { isLandType } = require('../src/lib/domain');
+  assert.ok(isLandType('Terrain nu') && isLandType('Parcelle viabilisée'));
+  assert.ok(!isLandType('Villa basse') && !isLandType(null));
+});

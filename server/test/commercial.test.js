@@ -100,14 +100,24 @@ test('parc immobilier : bâtiments, étages, types de lots', async () => {
   const b = res.body;
   assert.equal((await admin.post(`${M}/projects/${project.id}/buildings`).send({ code: 'Bât. A' })).status, 409);
   assert.equal((await admin.patch(`${M}/lots/${lots[0].id}`).send({ building_id: b.id, floor: 5 })).status, 400, 'étage hors bâtiment');
-  res = await admin.patch(`${M}/lots/${lots[0].id}`).send({ building_id: b.id, floor: 2, lot_type: 'appartement', rooms: 4, title_number: 'TF 12345', tantiemes: 120 });
+  // Types de biens : ceux des Paramètres cochés sur la fiche du projet (même liste que le dashboard)
+  const villa = await db('ref_items').where({ kind: 'type_bien', label: 'Villa basse' }).first();
+  const flat = await db('ref_items').where({ kind: 'type_bien', label: 'Appartement' }).first();
+  assert.equal((await admin.patch(`/api/admin/projects/${project.id}`).send({ property_type_ids: [villa.id, flat.id] })).status, 200);
+  const ticked = [villa.id, flat.id];
+  const other = await db('ref_items').where({ kind: 'type_bien' }).whereNotIn('id', ticked).first();
+  assert.equal((await admin.patch(`${M}/lots/${lots[0].id}`).send({ property_type_id: other.id })).status, 400, 'type non coché sur le projet');
+  res = await admin.patch(`${M}/lots/${lots[0].id}`).send({ building_id: b.id, floor: 2, property_type_id: ticked[0], rooms: 4, title_number: 'TF 12345', tantiemes: 120 });
   assert.equal(res.status, 200, JSON.stringify(res.body));
-  res = await admin.post(`${M}/lots/bulk`).send({ lot_ids: [lots[1].id, lots[2].id], building_id: b.id, floor: 1, lot_type: 'appartement' });
+  res = await admin.post(`${M}/lots/bulk`).send({ lot_ids: [lots[1].id, lots[2].id], building_id: b.id, floor: 1, property_type_id: ticked[0] });
   assert.equal(res.body.updated, 2);
   assert.equal((await commercial.patch(`${M}/lots/${lots[0].id}`).send({ rooms: 3 })).status, 403, 'le commercial ne structure pas le parc');
   res = await admin.get(`${M}/property?project_id=${project.id}`);
   assert.equal(res.body.lots.filter(l => l.building_id === b.id).length, 3);
   assert.equal(res.body.lots.find(l => l.id === lots[0].id).title_number, 'TF 12345');
+  const typeLabel = (await db('ref_items').where({ id: ticked[0] }).first()).label;
+  assert.equal(res.body.lots.find(l => l.id === lots[1].id).property_type, typeLabel);
+  assert.deepEqual(res.body.project.property_types.map(t => t.id), ticked);
   const tmp = (await admin.post(`${M}/projects/${project.id}/buildings`).send({ code: 'Bât. Z', floors: 1 })).body;
   await admin.patch(`${M}/lots/${lots[2].id}`).send({ building_id: tmp.id, floor: 0 });
   await admin.delete(`${M}/buildings/${tmp.id}`);
@@ -127,6 +137,9 @@ test('VEFA : appels de fonds émis selon l’avancement du chantier', async () =
   assert.equal(sale.schedule.vefa, true);
   assert.equal(sale.schedule.calls.length, 6);
   assert.deepEqual(sale.schedule.lines.map(l => [l.label, l.amount_fcfa, l.due_date]), [['Signature de l’acte notarié', 3000000, '2026-09-11']], 'seule la signature est appelée');
+  // Parc immobilier : acquéreur, prix de vente et montant payé, comme dans Biens & disponibilités
+  const row = (await admin.get(`${M}/property?project_id=${project.id}`)).body.lots.find(l => l.id === lots[0].id);
+  assert.deepEqual([row.buyer_name, row.sale_price_fcfa, row.paid_fcfa], [lead.name, 30000000, 0]);
 
   // Les fondations sont en cours : rien n'est appelé ; le gros œuvre démarre : les fondations sont achevées
   await admin.post(`/api/admin/projects/${project.id}/site-updates`).send({ stage: 'fondations', progress_pct: 20, title: 'Fondations en cours', published_at: '2026-10-01T08:00:00Z' });

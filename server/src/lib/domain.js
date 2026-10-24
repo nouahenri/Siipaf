@@ -633,11 +633,10 @@ const ACTIVITY_KINDS = {
 };
 const LEAD_KINDS = { acquereur: 'Acquéreur (résidence)', investisseur: 'Investisseur', entreprise: 'Entreprise / institution' };
 
-// Parc immobilier : projet › îlot › bâtiment › étage › lot
-const LOT_TYPES = {
-  parcelle: 'Parcelle de terrain', villa: 'Villa', duplex: 'Duplex', appartement: 'Appartement',
-  studio: 'Studio', commerce: 'Local commercial', bureau: 'Bureau', autre: 'Autre',
-};
+// Parc immobilier : projet › îlot › bâtiment › étage › lot. Le type d'un bien est un type de biens des Paramètres
+// coché sur la fiche du projet : même liste dans le dashboard et l'ERP.
+/** Type de biens « terrain » d'après son libellé (compte de vente de terrains en comptabilité). */
+const isLandType = label => /terrain|parcelle/i.test(String(label || '').normalize('NFD').replace(/[̀-ͯ]/g, ''));
 const BUILDING_KINDS = { immeuble: 'Immeuble collectif', residence: 'Résidence (villas groupées)', bloc: 'Bloc / rangée', autre: 'Autre' };
 
 // Objectifs mensuels par commercial
@@ -1233,6 +1232,6 @@ module.exports = {
   offerSurface, gridOfferFor, GRID_PRICED_STATUSES,
   SAV_CATEGORIES, SAV_PRIORITIES, SAV_STATUSES, SAV_STATUS_LABELS, SAV_OPEN_STATUSES, SAV_TRANSITIONS, SAV_SOURCES,
   WARRANTIES, warrantyFor, warrantyDates, SAV_LAND_CATEGORIES, SAV_RESERVE_STATUSES, SAV_INTERVENTION_STATUSES,
-  STAGE_PROBABILITY, PIPELINE_STAGES, WON_STAGES, LOST_REASONS, ACTIVITY_KINDS, LEAD_KINDS, LOT_TYPES, BUILDING_KINDS,
+  STAGE_PROBABILITY, PIPELINE_STAGES, WON_STAGES, LOST_REASONS, ACTIVITY_KINDS, LEAD_KINDS, isLandType, BUILDING_KINDS,
   TARGET_METRICS, VEFA_LEGAL_CAPS, DEFAULT_VEFA_PLAN, VEFA_DUE_DAYS, checkVefaPlan, splitVefaAmounts, milestoneReached, activityState,
 };

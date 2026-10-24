@@ -3,7 +3,7 @@ import { useSearchParams } from 'react-router-dom';
 import { Building2, Plus, Pencil, Trash2, Layers, Map as MapIcon, LandPlot, Ruler, Wallet } from 'lucide-react';
 import { api } from '@admin/lib/api';
 import { useAuth, useResource, useToast, useSaved } from '@admin/lib/app-context';
-import { Card, Empty, Skeleton, ErrorBox, Modal, Drawer, Field, StatusBadge, DistributionBar, naturalCompare } from '@admin/components/ui';
+import { Card, Empty, Skeleton, ErrorBox, Modal, Drawer, Field, StatusBadge, DistributionBar, PaidCell, BuyerCell, naturalCompare } from '@admin/components/ui';
 import { LOT_STATUSES, lotStatus } from '@admin/lib/domain';
 import { fcfa, num } from '@admin/lib/format';
 import { useCommercialMeta, compact, floorLabel } from '../../lib/commercial';
@@ -91,7 +91,7 @@ export default function Property() {
                           <div className="floor-lots">
                             {fl.length ? fl.map(l => (
                               <button key={l.id} className="unit" style={{ '--c': lotStatus(l.status).color }} onClick={() => setEditLot(l)} title={`${lotStatus(l.status).label}${l.buyer_name ? ` — ${l.buyer_name}` : ''}`}>
-                                <b>{l.code}</b><span>{l.lot_type ? meta?.lot_types[l.lot_type] : ''}{l.rooms ? ` · ${l.rooms} p.` : ''}</span>
+                                <b>{l.code}</b><span>{l.property_type || ''}{l.rooms ? ` · ${l.rooms} p.` : ''}</span>
                               </button>
                             )) : <span className="muted small">—</span>}
                           </div>
@@ -108,19 +108,22 @@ export default function Property() {
                   <div className="table-wrap"><table className="table">
                     <thead><tr>
                       {write && <th><input type="checkbox" aria-label="Tout sélectionner" checked={selected.length === shown.length} onChange={e => setSelected(e.target.checked ? shown.map(l => l.id) : [])} /></th>}
-                      <th>Lot</th><th>Type</th><th>Bâtiment · étage</th><th className="right">Surface</th><th className="right">Prix</th><th>Statut</th><th>Acquéreur</th>
+                      <th>Lot</th><th>Îlot</th><th>Type</th><th>Bâtiment · étage</th><th className="right">Pièces</th><th className="right">Surface</th><th className="right">Prix</th><th>Statut</th><th>Acquéreur / option</th><th className="right">Payé</th>
                     </tr></thead>
                     <tbody>
                       {shown.map(l => (
                         <tr key={l.id} className="clickable" onClick={() => setEditLot(l)}>
                           {write && <td onClick={e => e.stopPropagation()}><input type="checkbox" aria-label={`Sélectionner le lot ${l.code}`} checked={selected.includes(l.id)} onChange={e => setSelected(s => (e.target.checked ? [...s, l.id] : s.filter(x => x !== l.id)))} /></td>}
-                          <td><b>{l.code}</b>{l.ilot && <div className="small muted">îlot {l.ilot}</div>}</td>
-                          <td className="small">{l.lot_type ? meta?.lot_types[l.lot_type] : <span className="muted">—</span>}{l.rooms ? ` · ${l.rooms} p.` : ''}</td>
+                          <td><strong>{l.code}</strong></td>
+                          <td>{l.ilot || '—'}</td>
+                          <td className="small">{l.property_type || <span className="muted">—</span>}</td>
                           <td className="small">{l.building_id ? `${bName(l.building_id)} · ${floorLabel(l.floor)}` : <span className="muted">—</span>}</td>
+                          <td className="right tabular small">{l.rooms ?? '—'}</td>
                           <td className="right tabular small">{l.surface_m2 ? `${num(l.surface_m2)} m²` : '—'}</td>
-                          <td className="right tabular small">{l.price_fcfa ? compact(l.price_fcfa) : '—'}</td>
+                          <td className="right tabular nowrap">{fcfa(l.price_fcfa)}</td>
                           <td><StatusBadge status={l.status} /></td>
-                          <td className="small">{l.buyer_name || <span className="muted">—</span>}{l.vefa && <span className="muted"> · VEFA</span>}</td>
+                          <td className="small"><BuyerCell lot={l} />{l.vefa && <span className="muted"> · VEFA</span>}</td>
+                          <td className="right small tabular nowrap">{l.sale_id && l.sale_price_fcfa ? <PaidCell paid={l.paid_fcfa} price={l.sale_price_fcfa} /> : <span className="muted">—</span>}</td>
                         </tr>
                       ))}
                     </tbody>
@@ -131,9 +134,9 @@ export default function Property() {
           </div>
         </>
       )}
-      {editLot && <LotEditor lot={editLot} buildings={d?.buildings || []} write={write} onClose={() => setEditLot(null)} onSaved={() => { setEditLot(null); data.reload(); }} />}
+      {editLot && <LotEditor lot={editLot} buildings={d?.buildings || []} types={d?.project.property_types || []} write={write} onClose={() => setEditLot(null)} onSaved={() => { setEditLot(null); data.reload(); }} />}
       {editBuilding && <BuildingModal projectId={projectId} building={editBuilding} ilots={ilots} onClose={() => setEditBuilding(null)} onSaved={() => { setEditBuilding(null); data.reload(); }} />}
-      {bulk && <BulkModal lotIds={selected} buildings={d?.buildings || []} onClose={() => setBulk(false)} onSaved={() => { setBulk(false); setSelected([]); data.reload(); }} />}
+      {bulk && <BulkModal lotIds={selected} buildings={d?.buildings || []} types={d?.project.property_types || []} onClose={() => setBulk(false)} onSaved={() => { setBulk(false); setSelected([]); data.reload(); }} />}
     </div>
   );
 }
@@ -186,12 +189,11 @@ function BuildingModal({ projectId, building, ilots, onClose, onSaved }) {
   );
 }
 
-function LotEditor({ lot, buildings, write, onClose, onSaved }) {
+function LotEditor({ lot, buildings, types, write, onClose, onSaved }) {
   const saved = useSaved();
   const { can } = useAuth();
-  const meta = useCommercialMeta();
   const [f, setF] = useState({
-    lot_type: lot.lot_type || '', building_id: lot.building_id || '', floor: lot.floor ?? '', rooms: lot.rooms ?? '',
+    property_type_id: lot.property_type_id || '', building_id: lot.building_id || '', floor: lot.floor ?? '', rooms: lot.rooms ?? '',
     surface_m2: lot.surface_m2 ?? '', price_fcfa: lot.price_fcfa ?? '', title_number: lot.title_number || '', tantiemes: lot.tantiemes ?? '',
   });
   const [error, setError] = useState(null);
@@ -203,7 +205,7 @@ function LotEditor({ lot, buildings, write, onClose, onSaved }) {
     e.preventDefault(); setError(null);
     try {
       await api.patch(`/admin/erp/commercial/lots/${lot.id}`, {
-        lot_type: f.lot_type || null, building_id: n(f.building_id), floor: f.building_id ? n(f.floor) : null, rooms: n(f.rooms),
+        property_type_id: n(f.property_type_id), building_id: n(f.building_id), floor: f.building_id ? n(f.floor) : null, rooms: n(f.rooms),
         surface_m2: n(f.surface_m2), price_fcfa: n(f.price_fcfa), title_number: f.title_number || null, tantiemes: n(f.tantiemes),
       });
       saved("Lot enregistré"); onSaved();
@@ -219,10 +221,10 @@ function LotEditor({ lot, buildings, write, onClose, onSaved }) {
         <ErrorBox error={error} />
         <form id="lot-edit" onSubmit={save}>
           <fieldset disabled={!write} className="form-grid">
-            <Field label="Type de bien">
-              <select className="select" value={f.lot_type} onChange={set('lot_type')}>
+            <Field label="Type de bien" hint="Types cochés dans la fiche du projet (dashboard › Projets)">
+              <select className="select" value={f.property_type_id} onChange={set('property_type_id')}>
                 <option value="">—</option>
-                {meta && Object.entries(meta.lot_types).map(([k, v]) => <option key={k} value={k}>{v}</option>)}
+                {types.map(t => <option key={t.id} value={t.id}>{t.label}</option>)}
               </select>
             </Field>
             <Field label="Pièces"><input className="input" type="number" min="0" max="30" value={f.rooms} onChange={set('rooms')} /></Field>
@@ -272,27 +274,26 @@ function LeadPicker({ onPick }) {
   );
 }
 
-function BulkModal({ lotIds, buildings, onClose, onSaved }) {
+function BulkModal({ lotIds, buildings, types, onClose, onSaved }) {
   const saved = useSaved();
-  const meta = useCommercialMeta();
-  const [f, setF] = useState({ lot_type: '', building_id: '', floor: '' });
+  const [f, setF] = useState({ property_type_id: '', building_id: '', floor: '' });
   const [error, setError] = useState(null);
   const b = buildings.find(x => x.id === Number(f.building_id));
   const save = async () => {
     const body = { lot_ids: lotIds };
-    if (f.lot_type) body.lot_type = f.lot_type;
+    if (f.property_type_id) body.property_type_id = Number(f.property_type_id);
     if (f.building_id === 'none') body.building_id = null;
     else if (f.building_id) { body.building_id = Number(f.building_id); if (f.floor !== '') body.floor = Number(f.floor); }
-    try { await api.post('/admin/erp/commercial/lots/bulk', body); saved("Lots créés"); onSaved(); } catch (e) { setError(e); }
+    try { await api.post('/admin/erp/commercial/lots/bulk', body); saved("Lots affectés"); onSaved(); } catch (e) { setError(e); }
   };
   return (
     <Modal title={`Affecter ${lotIds.length} lot(s)`} onClose={onClose} footer={<><button className="btn btn-ghost" onClick={onClose}>Annuler</button><button className="btn btn-primary" onClick={save}>Appliquer</button></>}>
       <div className="form-grid">
         <div className="full"><ErrorBox error={error} /></div>
         <Field label="Type de bien">
-          <select className="select" value={f.lot_type} onChange={e => setF(x => ({ ...x, lot_type: e.target.value }))}>
+          <select className="select" value={f.property_type_id} onChange={e => setF(x => ({ ...x, property_type_id: e.target.value }))}>
             <option value="">— Inchangé —</option>
-            {meta && Object.entries(meta.lot_types).map(([k, v]) => <option key={k} value={k}>{v}</option>)}
+            {types.map(t => <option key={t.id} value={t.id}>{t.label}</option>)}
           </select>
         </Field>
         <Field label="Bâtiment">

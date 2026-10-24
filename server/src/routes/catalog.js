@@ -7,7 +7,7 @@ const { LOT_STATUSES, DELETABLE_LOT_STATUSES, NEW_LOT_STATUSES, PROJECT_CATEGORI
 const { changeLotStatus, placeOption, throttledExpiry } = require('../services/lots');
 const multer = require('multer');
 const { parseCad } = require('../services/cad');
-const { applyProjectRefs, applyProjectTypes, withTypeLabels, projectRefs } = require('../services/refs');
+const { applyProjectRefs, applyProjectTypes, withTypeLabels, projectRefs, checkLotType } = require('../services/refs');
 const { projectOffers, followsGrid, applyPriceGrid } = require('../services/priceGrid');
 
 // Plans AutoCAD lus en mémoire (jamais enregistrés tels quels sur le serveur)
@@ -304,13 +304,6 @@ module.exports = function catalogRoutes(db) {
   };
   const encodeLot = d => ('shape' in d ? { ...d, shape: d.shape ? JSON.stringify(d.shape) : null } : d);
   /** Le type d'un bien doit être coché sur son projet. */
-  const checkLotType = async (trx, projectId, typeId) => {
-    if (!typeId) return;
-    if (!(await trx('project_property_types').where({ project_id: projectId, item_id: typeId }).first())) {
-      throw new HttpError(400, 'Ce type de bien n’est pas coché dans la fiche du projet.');
-    }
-  };
-
   /**
    * Import / mise à jour en masse depuis l'éditeur de plan ou un fichier Excel/CSV :
    * un lot est identifié par son code dans le projet. Le statut n'est pas modifiable ici

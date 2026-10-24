@@ -359,7 +359,7 @@ export function NewSale({ lead, onClose, onDone, lot: fixedLot }) {
             <Field label="Lot disponible" hint={projectId && property.data ? `${free.length} lot(s) disponible(s)` : undefined}>
               <select className="select" value={lotId} onChange={e => setLotId(e.target.value)} required>
                 <option value="">— Choisir —</option>
-                {free.map(l => <option key={l.id} value={l.id}>{l.ilot ? `Îlot ${l.ilot} · ` : ''}Lot {l.code}{l.lot_type ? ` · ${meta?.lot_types[l.lot_type]}` : ''}{l.price_fcfa ? ` · ${compact(l.price_fcfa)}` : ''}{l.status === 'option' ? ' (option)' : ''}</option>)}
+                {free.map(l => <option key={l.id} value={l.id}>{l.ilot ? `Îlot ${l.ilot} · ` : ''}Lot {l.code}{l.property_type ? ` · ${l.property_type}` : ''}{l.price_fcfa ? ` · ${compact(l.price_fcfa)}` : ''}{l.status === 'option' ? ' (option)' : ''}</option>)}
               </select>
             </Field>
           </div>

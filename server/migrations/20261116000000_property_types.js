@@ -28,9 +28,28 @@ exports.up = async function (knex) {
   const offers = Object.fromEntries((await knex('project_offers').select('id', 'label')).map(o => [o.id, o.label]));
   const projectType = Object.fromEntries((await knex('projects').select('id', 'property_type_id')).map(p => [p.id, p.property_type_id]));
   const checked = new Set((await knex('project_property_types').select('project_id', 'item_id')).map(r => `${r.project_id}:${r.item_id}`));
-  for (const l of await knex('lots').select('id', 'project_id', 'offer_id')) {
+  // Type saisi dans le Parc immobilier de l'ERP (ancienne liste figée) : il prime quand il contredit le type déduit,
+  // car il est propre au bien. Il devient le type des Paramètres de la même famille (créé au besoin).
+  const LOT_FAMILIES = {
+    parcelle: [/terrain|parcelle/, 'Terrain nu'], villa: [/villa/, 'Villa'], duplex: [/duplex/, 'Duplex'], appartement: [/appartement/, 'Appartement'],
+    studio: [/studio/, 'Studio'], commerce: [/commerc|boutique|magasin/, 'Local commercial'], bureau: [/bureau/, 'Bureau'],
+  };
+  const typeLabel = id => norm(types.find(t => t.id === id)?.label);
+  async function familyType(lotType, projectId) {
+    const [re, label] = LOT_FAMILIES[lotType];
+    const ticked = types.filter(t => checked.has(`${projectId}:${t.id}`) && re.test(norm(t.label)));
+    const hit = ticked[0] || types.filter(t => re.test(norm(t.label)))[0];
+    if (hit) return hit.id;
+    const [id] = await knex('ref_items').insert({ kind: 'type_bien', label, sort: types.length });
+    const created = { id: typeof id === 'object' ? id.id : id, label };
+    types.push(created);
+    return created.id;
+  }
+  const hasLotType = await knex.schema.hasColumn('lots', 'lot_type');
+  for (const l of await knex('lots').select('id', 'project_id', 'offer_id', ...(hasLotType ? ['lot_type'] : []))) {
     const fromOffer = l.offer_id ? byLabel.get(norm(offers[l.offer_id])) : null;
-    const type = fromOffer || projectType[l.project_id] || null;
+    let type = fromOffer || projectType[l.project_id] || null;
+    if (LOT_FAMILIES[l.lot_type] && !(type && LOT_FAMILIES[l.lot_type][0].test(typeLabel(type)))) type = await familyType(l.lot_type, l.project_id);
     if (!type) continue;
     await knex('lots').where({ id: l.id }).update({ property_type_id: type });
     // Un type présent dans la grille du projet devient un type coché du projet
