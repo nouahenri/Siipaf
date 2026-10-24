@@ -40,7 +40,7 @@ module.exports = function publicRoutes(db) {
   const mediaUrl = id => (id ? `/uploads/by-id/${id}` : null);
 
   r.get('/content', ah(async (req, res) => {
-    const rows = await db('site_content').whereIn('key', ['hero', 'site', 'ticker', 'stats']);
+    const rows = await db('site_content').whereIn('key', ['hero', 'site', 'ticker', 'stats', 'editorial']);
     res.json({ ...Object.fromEntries(rows.map(row => [row.key, json(row.value)])), images: await publicSiteImages(db) });
   }));
 

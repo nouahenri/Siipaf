@@ -9,6 +9,7 @@ const { ah, parse, idParam, HttpError, json } = require('../lib/http');
 const { requirePermission } = require('../auth');
 const { uploadsDir } = require('../config');
 const { slotById, imageAssignments, imagePlacements, assignImage } = require('../services/siteImages');
+const { catalog: editorialCatalog, cleanEditorial } = require('../services/editorial');
 
 // Clés de contenu connues et leur forme
 const heroSlide = z.object({
@@ -53,10 +54,15 @@ module.exports = function contentRoutes(db) {
     res.json(Object.fromEntries(rows.map(row => [row.key, json(row.value)])));
   }));
 
+  // Éditorial : pages, sections, champs et textes d'origine du site public
+  r.get('/content/editorial-catalog', requirePermission('content:write'), ah(async (req, res) => {
+    res.json(editorialCatalog);
+  }));
+
   r.put('/content/:key', requirePermission('content:write'), ah(async (req, res) => {
     const schema = CONTENT_SCHEMAS[req.params.key];
-    if (!schema) throw new HttpError(404, 'Clé de contenu inconnue.');
-    const value = parse(schema, req.body);
+    if (!schema && req.params.key !== 'editorial') throw new HttpError(404, 'Clé de contenu inconnue.');
+    const value = schema ? parse(schema, req.body) : cleanEditorial(req.body);
     const row = { key: req.params.key, value: JSON.stringify(value), updated_by: req.user.id, updated_at: new Date() };
     await db('site_content').insert(row).onConflict('key').merge();
     res.json(value);

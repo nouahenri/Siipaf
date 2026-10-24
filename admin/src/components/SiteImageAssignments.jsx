@@ -37,8 +37,9 @@ export default function SiteImageAssignments({ candidate, onConsumed }) {
   const save = async () => {
     setBusy(true); setError(null);
     try {
-      const saved = await api.put(`/admin/media-placements/${slot.id}`, { media_id: chosen?.id || null, alt });
-      resource.setData(previous => ({ ...previous, assignments: { ...previous.assignments, [slot.id]: saved } }));
+      // (le résultat ne doit pas s'appeler « saved » : il masquait l'accusé et l'enregistrement finissait en erreur)
+      const stored = await api.put(`/admin/media-placements/${slot.id}`, { media_id: chosen?.id || null, alt });
+      resource.setData(previous => ({ ...previous, assignments: { ...previous.assignments, [slot.id]: stored } }));
       onConsumed(); setDirty(false);
       saved(chosen ? 'Image affectée à cet emplacement' : 'Image d’origine rétablie');
     } catch (e) { setError(e); }

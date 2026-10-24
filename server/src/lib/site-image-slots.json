@@ -34,6 +34,11 @@
       "id": "contact",
       "label": "Contact",
       "path": "contact.html"
+    },
+    {
+      "id": "careers",
+      "label": "Carrières",
+      "path": "carrieres.html"
     }
   ],
   "slots": [
@@ -332,6 +337,13 @@
       "section": "Partenaires",
       "label": "Logo BNI",
       "fallback": "images/partenaires/logo_BNI.jpg"
+    },
+    {
+      "id": "careers.hero",
+      "page": "careers",
+      "section": "En-tête de page",
+      "label": "Bannière principale",
+      "fallback": "images/contact/bureau-siipaf.jpg"
     }
   ]
 }

@@ -1,6 +1,6 @@
 /**
  * Contenu du site géré dans le dashboard (rubrique « Contenu du site ») :
- * diaporama et bandeau de l'accueil, chiffres clés, coordonnées sur toutes les pages.
+ * diaporama et bandeau de l'accueil, chiffres clés, coordonnées sur toutes les pages, textes de chaque section (Éditorial).
  * Accueil › « Nos projets phares » : nom, type de projet et prix de chaque projet (fiche projet du dashboard).
  * Si l'API ne répond pas, la page garde le contenu écrit dans le HTML.
  */
@@ -165,6 +165,85 @@
     });
   }
 
+  // Éditorial (Contenu du site › Éditorial) : textes, boutons, listes et sections masquées de chaque page.
+  // Les éléments portent leur clé dans le HTML (data-edit…) ; seules les valeurs modifiées dans le dashboard arrivent.
+  function isKeptNode(n) { return n.nodeType === 1 && (n.tagName === 'SMALL' || (n.tagName === 'I' && /\bfa/.test(n.className))); }
+  function isBlank(n) { return n.nodeType === 3 && !n.nodeValue.trim(); }
+  function attrsOf(el) {
+    return el ? Array.prototype.map.call(el.attributes, function (a) { return /^data-edit/.test(a.name) ? '' : ' ' + a.name + '="' + esc(a.value) + '"'; }).join('') : '';
+  }
+  // *mot* : partie en couleur ; **mot** : gras ; [texte](lien) : lien ; retour à la ligne : <br>
+  function markup(v, el) {
+    var em = attrsOf(el.querySelector('em')), strong = attrsOf(el.querySelector('strong, b')), link = el.querySelector('a');
+    return esc(v)
+      .replace(/\[([^\]\n]+)\]\(([^)\s]+)\)/g, function (m, t, h) { return '<a href="' + esc(safeHref(h.replace(/&amp;/g, '&'))) + '"' + (link && link.className ? ' class="' + esc(link.className) + '"' : '') + '>' + t + '</a>'; })
+      .replace(/\*\*([^*\n]+)\*\*/g, '<strong' + strong + '>$1</strong>')
+      .replace(/\*([^*\n]+)\*/g, '<em' + em + '>$1</em>')
+      .replace(/\n/g, '<br/>');
+  }
+  // Remplace le texte d'un élément en gardant ses pictogrammes et ses précisions <small> (mêmes nœuds : leurs propres textes restent éditables)
+  function setText(el, v) {
+    var kids = Array.prototype.slice.call(el.childNodes), i = 0, j = kids.length - 1, lead = [], trail = [];
+    while (i < kids.length && (isKeptNode(kids[i]) || isBlank(kids[i]))) { if (isKeptNode(kids[i])) lead.push(kids[i]); i++; }
+    while (j >= i && (isKeptNode(kids[j]) || isBlank(kids[j]))) { if (isKeptNode(kids[j])) trail.unshift(kids[j]); j--; }
+    var spaceAfter = lead.length && i > 0 && isBlank(kids[i - 1]);
+    var spaceBefore = trail.length && j < kids.length - 1 && isBlank(kids[j + 1]);
+    var html = markup(String(v), el);
+    while (el.firstChild) el.removeChild(el.firstChild);
+    lead.forEach(function (n) { el.appendChild(n); });
+    if (spaceAfter) el.appendChild(document.createTextNode(' '));
+    var box = document.createElement('span');
+    box.innerHTML = html;
+    while (box.firstChild) el.appendChild(box.firstChild);
+    if (spaceBefore) el.appendChild(document.createTextNode(' '));
+    trail.forEach(function (n) { el.appendChild(n); });
+  }
+  // Bouton ou lien : libellé (dans son <span> s'il en a un) et adresse
+  function setLink(el, v) {
+    if (v == null) return;
+    var label = typeof v === 'string' ? v : v.label;
+    var span = null;
+    Array.prototype.forEach.call(el.childNodes, function (n) { if (n.nodeType === 1 && n.tagName === 'SPAN' && !span) span = n; });
+    var direct = Array.prototype.some.call(el.childNodes, function (n) { return n.nodeType === 3 && n.nodeValue.trim(); });
+    if (label != null) setText(span && !direct ? span : el, label);
+    if (typeof v === 'object' && v.href && el.tagName === 'A') el.setAttribute('href', safeHref(v.href));
+  }
+  function setField(el, v) { if (el.tagName === 'A' || el.tagName === 'BUTTON') setLink(el, v); else setText(el, v); }
+  // Liste : le premier élément d'origine sert de modèle (pictogramme, classes) ; on peut en ajouter, en retirer, les réordonner
+  function setList(box, items) {
+    var originals = Array.prototype.filter.call(box.children, function (c) { return c.matches('[data-edit-li]') || c.querySelector('[data-edit-li]'); });
+    if (!originals.length || !Array.isArray(items)) return;
+    var model = originals[0].cloneNode(true), anchor = originals[originals.length - 1].nextSibling;
+    originals.forEach(function (c) { box.removeChild(c); });
+    items.forEach(function (it, n) {
+      var item = model.cloneNode(true);
+      var field = item.matches('[data-edit-li]') ? item : item.querySelector('[data-edit-li]');
+      setField(field, it);
+      if (n) box.insertBefore(document.createTextNode('\n'), anchor);
+      box.insertBefore(item, anchor);
+    });
+  }
+  function applyEditorial(ed) {
+    if (!ed) return;
+    var texts = ed.texts || {}, hidden = ed.hidden || [];
+    var page = document.body.getAttribute('data-edit-page');
+    if (page && texts[page + '.meta.title']) document.title = texts[page + '.meta.title'];
+    var desc = document.querySelector('meta[name="description"]');
+    if (page && desc && texts[page + '.meta.description']) desc.setAttribute('content', texts[page + '.meta.description']);
+    Array.prototype.forEach.call(document.querySelectorAll('[data-edit-section], [data-edit-card]'), function (el) {
+      if (hidden.indexOf(el.getAttribute('data-edit-section') || el.getAttribute('data-edit-card')) !== -1) el.hidden = true;
+    });
+    Array.prototype.forEach.call(document.querySelectorAll('[data-edit]'), function (el) {
+      var v = texts[el.getAttribute('data-edit')];
+      if (v != null && v !== '') try { setField(el, v); } catch (e) { /* on garde le texte d'origine */ }
+    });
+    Array.prototype.forEach.call(document.querySelectorAll('[data-edit-list]'), function (el) {
+      var v = texts[el.getAttribute('data-edit-list')];
+      if (Array.isArray(v)) try { setList(el, v); } catch (e) {}
+    });
+    if (window.AOS && typeof window.AOS.refreshHard === 'function') window.AOS.refreshHard();
+  }
+
   function applyImages(images) {
     if (!images) return;
     Array.prototype.forEach.call(document.querySelectorAll('[data-media-slot]'), function (el) {
@@ -187,6 +266,8 @@
     fetch(API + '/api/public/content', { credentials: 'omit' })
       .then(function (r) { if (!r.ok) throw new Error(r.status); return r.json(); })
       .then(function (c) {
+        // L'éditorial d'abord : les coordonnées (applySite) s'appliquent ensuite aussi aux textes modifiés
+        try { applyEditorial(c.editorial); } catch (e) {}
         try { applyHero(c.hero); } catch (e) { /* on garde le HTML d'origine */ }
         try { applyTicker(c.ticker); } catch (e) {}
         try { applyStats(c.stats); } catch (e) {}

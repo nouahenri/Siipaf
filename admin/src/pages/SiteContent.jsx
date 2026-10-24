@@ -4,8 +4,10 @@ import { api } from '../lib/api';
 import { useResource, useToast, useSaved } from '../lib/app-context';
 import { Card, Field, ErrorBox, Skeleton } from '../components/ui';
 import { MediaPicker } from '../components/MediaLibrary';
+import EditorialEditor from '../components/EditorialEditor';
 
 const TABS = [
+  { id: 'editorial', label: 'Éditorial' },
   { id: 'hero', label: 'Diaporama d’accueil' },
   { id: 'ticker', label: 'Bandeau défilant' },
   { id: 'stats', label: 'Chiffres clés' },
@@ -25,14 +27,14 @@ export default function SiteContent() {
   const toast = useToast();
   const saved = useSaved();
   const content = useResource('/admin/content');
-  const [tab, setTab] = useState('hero');
+  const [tab, setTab] = useState('editorial');
   const [value, setValue] = useState(null);
   const [valueTab, setValueTab] = useState(null);
   const [error, setError] = useState(null);
   const [busy, setBusy] = useState(false);
 
   useEffect(() => {
-    if (content.data) {
+    if (content.data && tab !== 'editorial') {
       setValue(structuredClone({ ...DEFAULTS[tab], ...(content.data[tab] || {}) }));
       setValueTab(tab);
     }
@@ -55,6 +57,8 @@ export default function SiteContent() {
       <div className="tabs" role="tablist">
         {TABS.map(t => <button key={t.id} role="tab" aria-selected={tab === t.id} className={`tab ${tab === t.id ? 'active' : ''}`} onClick={() => setTab(t.id)}>{t.label}</button>)}
       </div>
+      {/* Éditorial : son propre enregistrement (textes de toutes les pages et images des sections) */}
+      {tab === 'editorial' ? (content.data ? <EditorialEditor content={content} onOpenTab={setTab} /> : content.error ? <ErrorBox error={content.error} /> : <Skeleton h={300} />) : <>
       <ErrorBox error={error} />
       {/* Au changement d’onglet, attendre ses données avant de monter son éditeur. */}
       {!value || valueTab !== tab ? <Skeleton h={300} /> : (
@@ -68,6 +72,7 @@ export default function SiteContent() {
           </div>
         </>
       )}
+      </>}
     </div>
   );
 }

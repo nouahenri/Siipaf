@@ -19,24 +19,24 @@
   <link rel="stylesheet" href="css/pages.css"/>
   <link rel="stylesheet" href="css/plans.css"/>
 </head>
-<body class="page-inner">
+<body data-edit-page="about" class="page-inner">
 
 <!-- NAV -->
-<nav id="navbar" class="scrolled">
+<nav data-edit-section="shared.menu" id="navbar" class="scrolled">
   <div class="nav-container">
     <a href="index.html" class="nav-logo"><img data-media-slot="shared.logo" src="images/logo-siipaf.png" alt="SIIPAF SA"/></a>
     <ul class="nav-menu" id="navMenu">
-      <li><a href="index.html" class="nav-link">Accueil</a></li>
-      <li><a href="a-propos.html" class="nav-link active">À Propos</a></li>
+      <li><a data-edit="shared.menu.lien" href="index.html" class="nav-link">Accueil</a></li>
+      <li><a data-edit="shared.menu.lien-2" href="a-propos.html" class="nav-link active">À Propos</a></li>
       <li class="nav-has-sub">
-        <button type="button" class="nav-link nav-sub-toggle" aria-haspopup="true">Projets <i class="fas fa-chevron-down nav-caret" aria-hidden="true"></i></button>
+        <button data-edit="shared.menu.bouton" type="button" class="nav-link nav-sub-toggle" aria-haspopup="true">Projets <i class="fas fa-chevron-down nav-caret" aria-hidden="true"></i></button>
         <ul class="nav-sub">
-          <li><a href="projets.html"><i class="fas fa-building"></i><span>Promotions immobilières<small>Appartements, villas, duplex</small></span></a></li>
-          <li><a href="lotissements.html"><i class="fas fa-map-marked-alt"></i><span>Lotissements<small>Terrains et plans interactifs</small></span></a></li>
+          <li data-edit-card="shared.menu.carte-1"><a data-edit="shared.menu.carte-1.lien" href="projets.html"><i class="fas fa-building"></i><span>Promotions immobilières<small data-edit="shared.menu.carte-1.precision">Appartements, villas, duplex</small></span></a></li>
+          <li data-edit-card="shared.menu.carte-2"><a data-edit="shared.menu.carte-2.lien" href="lotissements.html"><i class="fas fa-map-marked-alt"></i><span>Lotissements<small data-edit="shared.menu.carte-2.precision">Terrains et plans interactifs</small></span></a></li>
         </ul>
       </li>
-      <li><a href="financement.html" class="nav-link">Financement</a></li>
-      <li><a href="contact.html" class="nav-link">Contact</a></li>
+      <li><a data-edit="shared.menu.lien-3" href="financement.html" class="nav-link">Financement</a></li>
+      <li><a data-edit="shared.menu.lien-4" href="contact.html" class="nav-link">Contact</a></li>
       <li><a href="tel:+2250102279595" class="nav-cta"><i class="fas fa-phone"></i> Nous Appeler</a></li>
     </ul>
     <button class="hamburger" id="hamburger"><span></span><span></span><span></span></button>
@@ -44,19 +44,19 @@
 </nav>
 
 <!-- PAGE HERO -->
-<div data-media-slot="about.hero" class="page-hero" style="background-image:url('images/a-propos.jpg')">
+<div data-edit-section="about.bandeau-de-titre" data-media-slot="about.hero" class="page-hero" style="background-image:url('images/a-propos.jpg')">
   <div class="page-hero-overlay"></div>
   <div class="page-hero-content" data-aos="fade-up">
     <div class="breadcrumb"><a href="index.html">Accueil</a> <i class="fas fa-chevron-right"></i> <span>À Propos</span></div>
-    <h1>À Propos de <em>SIIPAF SA</em></h1>
-    <p>Promoteur & Aménageur Agréé MCLU — Votre partenaire immobilier de confiance en Côte d'Ivoire.</p>
+    <h1 data-edit="about.bandeau-de-titre.titre">À Propos de <em>SIIPAF SA</em></h1>
+    <p data-edit="about.bandeau-de-titre.texte">Promoteur & Aménageur Agréé MCLU — Votre partenaire immobilier de confiance en Côte d'Ivoire.</p>
   </div>
 </div>
 
 <!-- ══════════════════════════════════════════
      IDENTITÉ — Image grande + texte enrichi
 ══════════════════════════════════════════ -->
-<section class="section ap-identity">
+<section data-edit-section="about.notre-identite" class="section ap-identity">
   <div class="container">
     <div class="ap-id-grid">
 
@@ -66,7 +66,7 @@
           <div class="ap-id-img-overlay"></div>
           <div class="ap-id-img-badge">
             <i class="fas fa-award"></i>
-            <span>Agréé MCLU</span>
+            <span data-edit="about.notre-identite.texte-court">Agréé MCLU</span>
           </div>
         </div>
         <div data-media-slot="about.about.accent" class="ap-id-accent" data-bg="images/about/about-accent.jpg"></div>
@@ -74,26 +74,26 @@
 
       <!-- Texte -->
       <div class="ap-id-text" data-aos="fade-left" data-aos-duration="900">
-        <div class="section-label">Notre Identité</div>
-        <h2 class="section-title">Qui est <em>SIIPAF SA ?</em></h2>
-        <p class="ap-lead">SIIPAF SA est une société ivoirienne de droit privé agréée par le Ministère de la Construction, du Logement et de l'Urbanisme (MCLU), spécialisée dans la <strong>promotion immobilière</strong>, l'<strong>aménagement foncier</strong> et les <strong>travaux de bâtiment</strong>.</p>
-        <p>Présente sur les grands axes de développement de la Côte d'Ivoire — Abidjan, Yamoussoukro, Bingerville — SIIPAF SA conçoit des projets résidentiels inclusifs, accessibles à toutes les familles, du logement social aux résidences de prestige.</p>
-        <p>Grâce à ses agréments officiels et ses partenariats bancaires sécurisés, SIIPAF SA garantit à chaque acquéreur un investissement transparent, sûr et rentable.</p>
+        <div data-edit="about.notre-identite.etiquette" class="section-label">Notre Identité</div>
+        <h2 data-edit="about.notre-identite.titre" class="section-title">Qui est <em>SIIPAF SA ?</em></h2>
+        <p data-edit="about.notre-identite.introduction" class="ap-lead">SIIPAF SA est une société ivoirienne de droit privé agréée par le Ministère de la Construction, du Logement et de l'Urbanisme (MCLU), spécialisée dans la <strong>promotion immobilière</strong>, l'<strong>aménagement foncier</strong> et les <strong>travaux de bâtiment</strong>.</p>
+        <p data-edit="about.notre-identite.texte">Présente sur les grands axes de développement de la Côte d'Ivoire — Abidjan, Yamoussoukro, Bingerville — SIIPAF SA conçoit des projets résidentiels inclusifs, accessibles à toutes les familles, du logement social aux résidences de prestige.</p>
+        <p data-edit="about.notre-identite.texte-2">Grâce à ses agréments officiels et ses partenariats bancaires sécurisés, SIIPAF SA garantit à chaque acquéreur un investissement transparent, sûr et rentable.</p>
 
         <div class="ap-id-stats">
-          <div class="ap-id-stat">
-            <span class="ap-id-stat-num">5</span>
-            <span class="ap-id-stat-label">Projets actifs</span>
+          <div data-edit-card="about.notre-identite.carte-1" class="ap-id-stat">
+            <span data-edit="about.notre-identite.carte-1.numero" class="ap-id-stat-num">5</span>
+            <span data-edit="about.notre-identite.carte-1.etiquette" class="ap-id-stat-label">Projets actifs</span>
           </div>
           <div class="ap-id-stat-sep"></div>
-          <div class="ap-id-stat">
-            <span class="ap-id-stat-num">59<small>ha</small></span>
-            <span class="ap-id-stat-label">Surface aménagée</span>
+          <div data-edit-card="about.notre-identite.carte-2" class="ap-id-stat">
+            <span data-edit="about.notre-identite.carte-2.numero" class="ap-id-stat-num">59<small data-edit="about.notre-identite.carte-2.precision">ha</small></span>
+            <span data-edit="about.notre-identite.carte-2.etiquette" class="ap-id-stat-label">Surface aménagée</span>
           </div>
           <div class="ap-id-stat-sep"></div>
-          <div class="ap-id-stat">
-            <span class="ap-id-stat-num">3</span>
-            <span class="ap-id-stat-label">Villes couvertes</span>
+          <div data-edit-card="about.notre-identite.carte-3" class="ap-id-stat">
+            <span data-edit="about.notre-identite.carte-3.numero" class="ap-id-stat-num">3</span>
+            <span data-edit="about.notre-identite.carte-3.etiquette" class="ap-id-stat-label">Villes couvertes</span>
           </div>
         </div>
       </div>
@@ -104,32 +104,32 @@
 <!-- ══════════════════════════════════════════
      MISSION & VISION — Split section
 ══════════════════════════════════════════ -->
-<div class="mv-split">
-  <div class="mv-side mv-side-light" data-aos="fade-right">
+<div data-edit-section="about.mission-et-vision" class="mv-split">
+  <div data-edit-card="about.mission-et-vision.carte-1" class="mv-side mv-side-light" data-aos="fade-right">
     <div class="mv-inner">
       <div class="mv-icon"><i class="fas fa-bullseye"></i></div>
-      <div class="section-label">Notre Mission</div>
-      <h3>Rendre la propriété <em>accessible à tous</em></h3>
-      <p>SIIPAF SA s'engage à démocratiser l'accès à la propriété immobilière en Côte d'Ivoire. Du logement social à 9 millions FCFA jusqu'aux penthouses exclusifs, nous créons des solutions adaptées à chaque budget, chaque famille, chaque rêve.</p>
-      <ul class="mv-list">
-        <li><i class="fas fa-check"></i> Logements de qualité pour tous les revenus</li>
-        <li><i class="fas fa-check"></i> Paiement échelonné jusqu'à 36 mois</li>
-        <li><i class="fas fa-check"></i> Option spéciale Diaspora sans apport</li>
-        <li><i class="fas fa-check"></i> Livraison clé en main garantie</li>
+      <div data-edit="about.mission-et-vision.carte-1.etiquette" class="section-label">Notre Mission</div>
+      <h3 data-edit="about.mission-et-vision.carte-1.titre">Rendre la propriété <em>accessible à tous</em></h3>
+      <p data-edit="about.mission-et-vision.carte-1.texte">SIIPAF SA s'engage à démocratiser l'accès à la propriété immobilière en Côte d'Ivoire. Du logement social à 9 millions FCFA jusqu'aux penthouses exclusifs, nous créons des solutions adaptées à chaque budget, chaque famille, chaque rêve.</p>
+      <ul data-edit-list="about.mission-et-vision.carte-1.liste" class="mv-list">
+        <li data-edit-li><i class="fas fa-check"></i> Logements de qualité pour tous les revenus</li>
+        <li data-edit-li><i class="fas fa-check"></i> Paiement échelonné jusqu'à 36 mois</li>
+        <li data-edit-li><i class="fas fa-check"></i> Option spéciale Diaspora sans apport</li>
+        <li data-edit-li><i class="fas fa-check"></i> Livraison clé en main garantie</li>
       </ul>
     </div>
   </div>
-  <div class="mv-side mv-side-dark" data-aos="fade-left">
+  <div data-edit-card="about.mission-et-vision.carte-2" class="mv-side mv-side-dark" data-aos="fade-left">
     <div class="mv-inner">
       <div class="mv-icon"><i class="fas fa-eye"></i></div>
-      <div class="section-label" style="background:rgba(255,255,255,0.15);color:rgba(255,255,255,0.8);">Notre Vision</div>
-      <h3 style="color:#fff;">Devenir le <em style="color:var(--gold-lt);">leader immobilier</em> de Côte d'Ivoire</h3>
-      <p style="color:rgba(255,255,255,0.75);">Construire un Ivoirien propriétaire — tel est notre leitmotiv. SIIPAF SA aspire à être le promoteur immobilier de référence en Afrique de l'Ouest, reconnu pour la qualité de ses réalisations, l'intégrité de ses pratiques et l'impact social de ses projets.</p>
-      <ul class="mv-list mv-list-white">
-        <li><i class="fas fa-check"></i> Expansion nationale et sous-régionale</li>
-        <li><i class="fas fa-check"></i> Innovation dans l'habitat durable</li>
-        <li><i class="fas fa-check"></i> Partenariats institutionnels renforcés</li>
-        <li><i class="fas fa-check"></i> Impact social mesurable</li>
+      <div data-edit="about.mission-et-vision.carte-2.etiquette" class="section-label" style="background:rgba(255,255,255,0.15);color:rgba(255,255,255,0.8);">Notre Vision</div>
+      <h3 data-edit="about.mission-et-vision.carte-2.titre" style="color:#fff;">Devenir le <em style="color:var(--gold-lt);">leader immobilier</em> de Côte d'Ivoire</h3>
+      <p data-edit="about.mission-et-vision.carte-2.texte" style="color:rgba(255,255,255,0.75);">Construire un Ivoirien propriétaire — tel est notre leitmotiv. SIIPAF SA aspire à être le promoteur immobilier de référence en Afrique de l'Ouest, reconnu pour la qualité de ses réalisations, l'intégrité de ses pratiques et l'impact social de ses projets.</p>
+      <ul data-edit-list="about.mission-et-vision.carte-2.liste" class="mv-list mv-list-white">
+        <li data-edit-li><i class="fas fa-check"></i> Expansion nationale et sous-régionale</li>
+        <li data-edit-li><i class="fas fa-check"></i> Innovation dans l'habitat durable</li>
+        <li data-edit-li><i class="fas fa-check"></i> Partenariats institutionnels renforcés</li>
+        <li data-edit-li><i class="fas fa-check"></i> Impact social mesurable</li>
       </ul>
     </div>
   </div>
@@ -138,60 +138,60 @@
 <!-- ══════════════════════════════════════════
      AGRÉMENTS OFFICIELS
 ══════════════════════════════════════════ -->
-<section class="section agrements-section">
+<section data-edit-section="about.certifications" class="section agrements-section">
   <div class="container">
     <div class="section-header" data-aos="fade-up">
-      <div class="section-label">Certifications</div>
-      <h2 class="section-title">Nos <em>Agréments Officiels</em></h2>
-      <p class="section-sub">SIIPAF SA détient tous les agréments légaux requis pour exercer ses activités en toute conformité sur le territoire ivoirien.</p>
+      <div data-edit="about.certifications.etiquette" class="section-label">Certifications</div>
+      <h2 data-edit="about.certifications.titre" class="section-title">Nos <em>Agréments Officiels</em></h2>
+      <p data-edit="about.certifications.sous-titre" class="section-sub">SIIPAF SA détient tous les agréments légaux requis pour exercer ses activités en toute conformité sur le territoire ivoirien.</p>
     </div>
     <div class="agr-grid">
 
-      <div class="agr-card" data-aos="fade-up" data-aos-delay="100">
+      <div data-edit-card="about.certifications.carte-1" class="agr-card" data-aos="fade-up" data-aos-delay="100">
         <div class="agr-badge agr-badge-red">
           <i class="fas fa-home"></i>
         </div>
-        <div class="agr-number">01</div>
-        <h3>Promoteur Immobilier Agréé</h3>
-        <p>Agrément délivré par le <strong>Ministère de la Construction, du Logement et de l'Urbanisme (MCLU)</strong> — habilitation à développer et commercialiser des programmes résidentiels en Côte d'Ivoire.</p>
+        <div data-edit="about.certifications.carte-1.numero" class="agr-number">01</div>
+        <h3 data-edit="about.certifications.carte-1.titre">Promoteur Immobilier Agréé</h3>
+        <p data-edit="about.certifications.carte-1.texte">Agrément délivré par le <strong>Ministère de la Construction, du Logement et de l'Urbanisme (MCLU)</strong> — habilitation à développer et commercialiser des programmes résidentiels en Côte d'Ivoire.</p>
         <div class="agr-footer">
-          <span class="agr-tag"><i class="fas fa-shield-check"></i> Certifié MCLU</span>
+          <span data-edit="about.certifications.carte-1.etiquette" class="agr-tag"><i class="fas fa-shield-check"></i> Certifié MCLU</span>
         </div>
       </div>
 
-      <div class="agr-card" data-aos="fade-up" data-aos-delay="200">
+      <div data-edit-card="about.certifications.carte-2" class="agr-card" data-aos="fade-up" data-aos-delay="200">
         <div class="agr-badge agr-badge-gold">
           <i class="fas fa-map"></i>
         </div>
-        <div class="agr-number">02</div>
-        <h3>Aménageur Foncier Agréé</h3>
-        <p>Agrément <strong>MCLU</strong> autorisant la viabilisation, le lotissement et l'aménagement de grandes superficies foncières, intégrées aux plans directeurs d'urbanisme.</p>
+        <div data-edit="about.certifications.carte-2.numero" class="agr-number">02</div>
+        <h3 data-edit="about.certifications.carte-2.titre">Aménageur Foncier Agréé</h3>
+        <p data-edit="about.certifications.carte-2.texte">Agrément <strong>MCLU</strong> autorisant la viabilisation, le lotissement et l'aménagement de grandes superficies foncières, intégrées aux plans directeurs d'urbanisme.</p>
         <div class="agr-footer">
-          <span class="agr-tag"><i class="fas fa-shield-check"></i> Certifié MCLU</span>
+          <span data-edit="about.certifications.carte-2.etiquette" class="agr-tag"><i class="fas fa-shield-check"></i> Certifié MCLU</span>
         </div>
       </div>
 
-      <div class="agr-card" data-aos="fade-up" data-aos-delay="300">
+      <div data-edit-card="about.certifications.carte-3" class="agr-card" data-aos="fade-up" data-aos-delay="300">
         <div class="agr-badge agr-badge-red">
           <i class="fas fa-bolt"></i>
         </div>
-        <div class="agr-number">03</div>
-        <h3>Agréé CI-Énergie & CIE</h3>
-        <p>Habilitation délivrée par <strong>CI-Énergie</strong> et la <strong>Compagnie Ivoirienne d'Électricité (CIE)</strong> pour les travaux d'électrification publique, réseaux basse et haute tension.</p>
+        <div data-edit="about.certifications.carte-3.numero" class="agr-number">03</div>
+        <h3 data-edit="about.certifications.carte-3.titre">Agréé CI-Énergie & CIE</h3>
+        <p data-edit="about.certifications.carte-3.texte">Habilitation délivrée par <strong>CI-Énergie</strong> et la <strong>Compagnie Ivoirienne d'Électricité (CIE)</strong> pour les travaux d'électrification publique, réseaux basse et haute tension.</p>
         <div class="agr-footer">
-          <span class="agr-tag"><i class="fas fa-shield-check"></i> Certifié CI-Énergie & CIE</span>
+          <span data-edit="about.certifications.carte-3.etiquette" class="agr-tag"><i class="fas fa-shield-check"></i> Certifié CI-Énergie & CIE</span>
         </div>
       </div>
 
-      <div class="agr-card" data-aos="fade-up" data-aos-delay="400">
+      <div data-edit-card="about.certifications.carte-4" class="agr-card" data-aos="fade-up" data-aos-delay="400">
         <div class="agr-badge agr-badge-gold">
           <i class="fas fa-university"></i>
         </div>
-        <div class="agr-number">04</div>
-        <h3>Comptes Séquestres Certifiés</h3>
-        <p>Fonds clients sécurisés dans des comptes séquestres dédiés auprès de <strong>Orange Bank</strong>, <strong>BHCI</strong> et <strong>BNI</strong> — vos versements sont intouchables jusqu'à la livraison.</p>
+        <div data-edit="about.certifications.carte-4.numero" class="agr-number">04</div>
+        <h3 data-edit="about.certifications.carte-4.titre">Comptes Séquestres Certifiés</h3>
+        <p data-edit="about.certifications.carte-4.texte">Fonds clients sécurisés dans des comptes séquestres dédiés auprès de <strong>Orange Bank</strong>, <strong>BHCI</strong> et <strong>BNI</strong> — vos versements sont intouchables jusqu'à la livraison.</p>
         <div class="agr-footer">
-          <span class="agr-tag"><i class="fas fa-shield-check"></i> Orange Bank · BHCI · BNI</span>
+          <span data-edit="about.certifications.carte-4.etiquette" class="agr-tag"><i class="fas fa-shield-check"></i> Orange Bank · BHCI · BNI</span>
         </div>
       </div>
 
@@ -202,7 +202,7 @@
 <!-- ══════════════════════════════════════════
      CHIFFRES CLÉS PARALLAX
 ══════════════════════════════════════════ -->
-<div data-media-slot="about.stats.background" class="counters-bar parallax-section" data-bg="images/parallax/parallax-why.jpg">
+<div data-edit-section="about.bandeau-de-chiffres" data-media-slot="about.stats.background" class="counters-bar parallax-section" data-bg="images/parallax/parallax-why.jpg">
   <div class="counters-overlay"></div>
   <div class="container">
     <div class="counters-grid">
@@ -217,19 +217,19 @@
 <!-- ══════════════════════════════════════════
      NOS ACTIVITÉS — Timeline verticale
 ══════════════════════════════════════════ -->
-<section class="section bg-light" id="activities">
+<section data-edit-section="about.ce-que-nous-faisons" class="section bg-light" id="activities">
   <div class="container">
     <div class="section-header" data-aos="fade-up">
-      <div class="section-label">Ce que nous faisons</div>
-      <h2 class="section-title">Nos <em>Domaines d'Expertise</em></h2>
-      <p class="section-sub">De la conception à la livraison, SIIPAF SA maîtrise l'ensemble de la chaîne immobilière.</p>
+      <div data-edit="about.ce-que-nous-faisons.etiquette" class="section-label">Ce que nous faisons</div>
+      <h2 data-edit="about.ce-que-nous-faisons.titre" class="section-title">Nos <em>Domaines d'Expertise</em></h2>
+      <p data-edit="about.ce-que-nous-faisons.sous-titre" class="section-sub">De la conception à la livraison, SIIPAF SA maîtrise l'ensemble de la chaîne immobilière.</p>
     </div>
 
     <div class="act-timeline">
 
-      <div class="act-tl-item" data-aos="fade-up">
+      <div data-edit-card="about.ce-que-nous-faisons.carte-1" class="act-tl-item" data-aos="fade-up">
         <div class="act-tl-left">
-          <div class="act-tl-num">01</div>
+          <div data-edit="about.ce-que-nous-faisons.carte-1.numero" class="act-tl-num">01</div>
           <div class="act-tl-line"></div>
         </div>
         <div class="act-tl-body">
@@ -239,20 +239,20 @@
             </div>
           </div>
           <div class="act-tl-content">
-            <h3>Promoteur Immobilier</h3>
-            <p>Développement de programmes résidentiels modernes pour tous les profils — du logement social accessible dès 9 millions FCFA à l'appartement haut standing. Agréé MCLU.</p>
-            <div class="act-tl-tags">
-              <span><i class="fas fa-check"></i> Appartements & Villas</span>
-              <span><i class="fas fa-check"></i> Duplex & Penthouses</span>
-              <span><i class="fas fa-check"></i> Livraison clé en main</span>
+            <h3 data-edit="about.ce-que-nous-faisons.carte-1.titre">Promoteur Immobilier</h3>
+            <p data-edit="about.ce-que-nous-faisons.carte-1.texte">Développement de programmes résidentiels modernes pour tous les profils — du logement social accessible dès 9 millions FCFA à l'appartement haut standing. Agréé MCLU.</p>
+            <div data-edit-list="about.ce-que-nous-faisons.carte-1.liste" class="act-tl-tags">
+              <span data-edit-li><i class="fas fa-check"></i> Appartements & Villas</span>
+              <span data-edit-li><i class="fas fa-check"></i> Duplex & Penthouses</span>
+              <span data-edit-li><i class="fas fa-check"></i> Livraison clé en main</span>
             </div>
           </div>
         </div>
       </div>
 
-      <div class="act-tl-item" data-aos="fade-up">
+      <div data-edit-card="about.ce-que-nous-faisons.carte-2" class="act-tl-item" data-aos="fade-up">
         <div class="act-tl-left">
-          <div class="act-tl-num">02</div>
+          <div data-edit="about.ce-que-nous-faisons.carte-2.numero" class="act-tl-num">02</div>
           <div class="act-tl-line"></div>
         </div>
         <div class="act-tl-body">
@@ -262,20 +262,20 @@
             </div>
           </div>
           <div class="act-tl-content">
-            <h3>Aménageur Foncier</h3>
-            <p>Viabilisation et lotissement de grandes superficies foncières intégrées aux plans directeurs d'urbanisme. SIIPAF crée des cités résidentielles complètes avec toutes les infrastructures. Agréé MCLU.</p>
-            <div class="act-tl-tags">
-              <span><i class="fas fa-check"></i> Lotissements viabilisés</span>
-              <span><i class="fas fa-check"></i> Cités résidentielles</span>
-              <span><i class="fas fa-check"></i> Plans d'urbanisme</span>
+            <h3 data-edit="about.ce-que-nous-faisons.carte-2.titre">Aménageur Foncier</h3>
+            <p data-edit="about.ce-que-nous-faisons.carte-2.texte">Viabilisation et lotissement de grandes superficies foncières intégrées aux plans directeurs d'urbanisme. SIIPAF crée des cités résidentielles complètes avec toutes les infrastructures. Agréé MCLU.</p>
+            <div data-edit-list="about.ce-que-nous-faisons.carte-2.liste" class="act-tl-tags">
+              <span data-edit-li><i class="fas fa-check"></i> Lotissements viabilisés</span>
+              <span data-edit-li><i class="fas fa-check"></i> Cités résidentielles</span>
+              <span data-edit-li><i class="fas fa-check"></i> Plans d'urbanisme</span>
             </div>
           </div>
         </div>
       </div>
 
-      <div class="act-tl-item" data-aos="fade-up">
+      <div data-edit-card="about.ce-que-nous-faisons.carte-3" class="act-tl-item" data-aos="fade-up">
         <div class="act-tl-left">
-          <div class="act-tl-num">03</div>
+          <div data-edit="about.ce-que-nous-faisons.carte-3.numero" class="act-tl-num">03</div>
           <div class="act-tl-line"></div>
         </div>
         <div class="act-tl-body">
@@ -285,20 +285,20 @@
             </div>
           </div>
           <div class="act-tl-content">
-            <h3>BTP — Bâtiment & Travaux Publics</h3>
-            <p>Réalisation de tous types de constructions : logements, immeubles résidentiels, équipements collectifs et ouvrages d'art. Du gros œuvre à la finition, SIIPAF garantit qualité et respect des délais.</p>
-            <div class="act-tl-tags">
-              <span><i class="fas fa-check"></i> Génie civil</span>
-              <span><i class="fas fa-check"></i> Gros & Second œuvre</span>
-              <span><i class="fas fa-check"></i> VRD & Assainissement</span>
+            <h3 data-edit="about.ce-que-nous-faisons.carte-3.titre">BTP — Bâtiment & Travaux Publics</h3>
+            <p data-edit="about.ce-que-nous-faisons.carte-3.texte">Réalisation de tous types de constructions : logements, immeubles résidentiels, équipements collectifs et ouvrages d'art. Du gros œuvre à la finition, SIIPAF garantit qualité et respect des délais.</p>
+            <div data-edit-list="about.ce-que-nous-faisons.carte-3.liste" class="act-tl-tags">
+              <span data-edit-li><i class="fas fa-check"></i> Génie civil</span>
+              <span data-edit-li><i class="fas fa-check"></i> Gros & Second œuvre</span>
+              <span data-edit-li><i class="fas fa-check"></i> VRD & Assainissement</span>
             </div>
           </div>
         </div>
       </div>
 
-      <div class="act-tl-item" data-aos="fade-up">
+      <div data-edit-card="about.ce-que-nous-faisons.carte-4" class="act-tl-item" data-aos="fade-up">
         <div class="act-tl-left">
-          <div class="act-tl-num">04</div>
+          <div data-edit="about.ce-que-nous-faisons.carte-4.numero" class="act-tl-num">04</div>
           <div class="act-tl-line"></div>
         </div>
         <div class="act-tl-body">
@@ -308,20 +308,20 @@
             </div>
           </div>
           <div class="act-tl-content">
-            <h3>Travaux & Électrification Publique</h3>
-            <p>Travaux d'infrastructure publique et d'électrification de quartiers et cités résidentielles. Agréée par CI-Énergie et CIE pour les réseaux basse et haute tension.</p>
-            <div class="act-tl-tags">
-              <span><i class="fas fa-check"></i> Réseaux BT/HT</span>
-              <span><i class="fas fa-check"></i> Éclairage public</span>
-              <span><i class="fas fa-check"></i> Agrément CI-Énergie</span>
+            <h3 data-edit="about.ce-que-nous-faisons.carte-4.titre">Travaux & Électrification Publique</h3>
+            <p data-edit="about.ce-que-nous-faisons.carte-4.texte">Travaux d'infrastructure publique et d'électrification de quartiers et cités résidentielles. Agréée par CI-Énergie et CIE pour les réseaux basse et haute tension.</p>
+            <div data-edit-list="about.ce-que-nous-faisons.carte-4.liste" class="act-tl-tags">
+              <span data-edit-li><i class="fas fa-check"></i> Réseaux BT/HT</span>
+              <span data-edit-li><i class="fas fa-check"></i> Éclairage public</span>
+              <span data-edit-li><i class="fas fa-check"></i> Agrément CI-Énergie</span>
             </div>
           </div>
         </div>
       </div>
 
-      <div class="act-tl-item act-tl-last" data-aos="fade-up">
+      <div data-edit-card="about.ce-que-nous-faisons.carte-5" class="act-tl-item act-tl-last" data-aos="fade-up">
         <div class="act-tl-left">
-          <div class="act-tl-num">05</div>
+          <div data-edit="about.ce-que-nous-faisons.carte-5.numero" class="act-tl-num">05</div>
         </div>
         <div class="act-tl-body">
           <div data-media-slot="about.activities.conseil" class="act-tl-img" data-bg="images/activites/act-conseil.jpg">
@@ -330,12 +330,12 @@
             </div>
           </div>
           <div class="act-tl-content">
-            <h3>Assistance & Conseils Immobiliers</h3>
-            <p>Accompagnement personnalisé de A à Z : choix du bien, constitution du dossier de financement, assistance juridique et suivi de chantier jusqu'à la remise des clés.</p>
-            <div class="act-tl-tags">
-              <span><i class="fas fa-check"></i> Conseil immobilier</span>
-              <span><i class="fas fa-check"></i> Aide au financement</span>
-              <span><i class="fas fa-check"></i> Suivi juridique</span>
+            <h3 data-edit="about.ce-que-nous-faisons.carte-5.titre">Assistance & Conseils Immobiliers</h3>
+            <p data-edit="about.ce-que-nous-faisons.carte-5.texte">Accompagnement personnalisé de A à Z : choix du bien, constitution du dossier de financement, assistance juridique et suivi de chantier jusqu'à la remise des clés.</p>
+            <div data-edit-list="about.ce-que-nous-faisons.carte-5.liste" class="act-tl-tags">
+              <span data-edit-li><i class="fas fa-check"></i> Conseil immobilier</span>
+              <span data-edit-li><i class="fas fa-check"></i> Aide au financement</span>
+              <span data-edit-li><i class="fas fa-check"></i> Suivi juridique</span>
             </div>
           </div>
         </div>
@@ -348,33 +348,33 @@
 <!-- ══════════════════════════════════════════
      NOS VALEURS — Dark section
 ══════════════════════════════════════════ -->
-<section class="values-section">
+<section data-edit-section="about.notre-adn" class="values-section">
   <div class="container">
     <div class="section-header" data-aos="fade-up">
-      <div class="section-label" style="background:rgba(255,255,255,0.12);color:rgba(255,255,255,0.75);">Notre ADN</div>
-      <h2 class="section-title" style="color:#fff;">Les valeurs qui nous <em style="color:var(--gold-lt);">définissent</em></h2>
-      <p class="section-sub" style="color:rgba(255,255,255,0.6);">Des principes ancrés dans chaque décision, chaque projet, chaque interaction avec nos clients.</p>
+      <div data-edit="about.notre-adn.etiquette" class="section-label" style="background:rgba(255,255,255,0.12);color:rgba(255,255,255,0.75);">Notre ADN</div>
+      <h2 data-edit="about.notre-adn.titre" class="section-title" style="color:#fff;">Les valeurs qui nous <em style="color:var(--gold-lt);">définissent</em></h2>
+      <p data-edit="about.notre-adn.sous-titre" class="section-sub" style="color:rgba(255,255,255,0.6);">Des principes ancrés dans chaque décision, chaque projet, chaque interaction avec nos clients.</p>
     </div>
     <div class="values-grid">
-      <div class="value-card" data-aos="fade-up" data-aos-delay="100">
+      <div data-edit-card="about.notre-adn.carte-1" class="value-card" data-aos="fade-up" data-aos-delay="100">
         <div class="val-icon"><i class="fas fa-handshake"></i></div>
-        <h3>Intégrité</h3>
-        <p>Transparence totale dans nos transactions, nos prix et nos délais. Ce que nous promettons, nous le livrons.</p>
+        <h3 data-edit="about.notre-adn.carte-1.titre">Intégrité</h3>
+        <p data-edit="about.notre-adn.carte-1.texte">Transparence totale dans nos transactions, nos prix et nos délais. Ce que nous promettons, nous le livrons.</p>
       </div>
-      <div class="value-card" data-aos="fade-up" data-aos-delay="200">
+      <div data-edit-card="about.notre-adn.carte-2" class="value-card" data-aos="fade-up" data-aos-delay="200">
         <div class="val-icon"><i class="fas fa-star"></i></div>
-        <h3>Excellence</h3>
-        <p>Normes de construction rigoureuses, matériaux de qualité, finitions soignées sur chacun de nos programmes.</p>
+        <h3 data-edit="about.notre-adn.carte-2.titre">Excellence</h3>
+        <p data-edit="about.notre-adn.carte-2.texte">Normes de construction rigoureuses, matériaux de qualité, finitions soignées sur chacun de nos programmes.</p>
       </div>
-      <div class="value-card" data-aos="fade-up" data-aos-delay="300">
+      <div data-edit-card="about.notre-adn.carte-3" class="value-card" data-aos="fade-up" data-aos-delay="300">
         <div class="val-icon"><i class="fas fa-users"></i></div>
-        <h3>Inclusion</h3>
-        <p>Proposer des logements pour tous les revenus — de la famille modeste au cadre supérieur, chacun mérite un toit de qualité.</p>
+        <h3 data-edit="about.notre-adn.carte-3.titre">Inclusion</h3>
+        <p data-edit="about.notre-adn.carte-3.texte">Proposer des logements pour tous les revenus — de la famille modeste au cadre supérieur, chacun mérite un toit de qualité.</p>
       </div>
-      <div class="value-card" data-aos="fade-up" data-aos-delay="400">
+      <div data-edit-card="about.notre-adn.carte-4" class="value-card" data-aos="fade-up" data-aos-delay="400">
         <div class="val-icon"><i class="fas fa-leaf"></i></div>
-        <h3>Responsabilité</h3>
-        <p>Construire avec conscience — respect de l'environnement, des riverains et des plans directeurs d'urbanisme des villes.</p>
+        <h3 data-edit="about.notre-adn.carte-4.titre">Responsabilité</h3>
+        <p data-edit="about.notre-adn.carte-4.texte">Construire avec conscience — respect de l'environnement, des riverains et des plans directeurs d'urbanisme des villes.</p>
       </div>
     </div>
   </div>
@@ -383,96 +383,96 @@
 <!-- ══════════════════════════════════════════
      ENGAGEMENTS PARALLAX
 ══════════════════════════════════════════ -->
-<div data-media-slot="about.why.background" class="why-parallax parallax-section" data-bg="images/parallax/parallax-why.jpg">
+<div data-edit-section="about.nos-engagements" data-media-slot="about.why.background" class="why-parallax parallax-section" data-bg="images/parallax/parallax-why.jpg">
   <div class="why-overlay"></div>
   <div class="container">
     <div class="why-content">
       <div data-aos="fade-right">
-        <div class="section-label" style="background:rgba(196,30,46,0.25);color:rgba(255,255,255,0.8);">Nos Engagements</div>
-        <h2 class="section-title" style="color:#fff;">Votre confiance, <br/><em>notre priorité</em></h2>
+        <div data-edit="about.nos-engagements.etiquette" class="section-label" style="background:rgba(196,30,46,0.25);color:rgba(255,255,255,0.8);">Nos Engagements</div>
+        <h2 data-edit="about.nos-engagements.titre" class="section-title" style="color:#fff;">Votre confiance, <br/><em>notre priorité</em></h2>
       </div>
       <div class="why-grid" data-aos="fade-left" data-aos-delay="200">
-        <div class="why-item"><i class="fas fa-certificate"></i><div><h4>Agrément Officiel</h4><p>Promoteur & Aménageur agréés MCLU — garantie légale de vos investissements.</p></div></div>
-        <div class="why-item"><i class="fas fa-shield-alt"></i><div><h4>Comptes Séquestres Sécurisés</h4><p>Fonds protégés : Orange Bank, BHCI, BNI — intouchables jusqu'à la livraison.</p></div></div>
-        <div class="why-item"><i class="fas fa-hand-holding-usd"></i><div><h4>Prix Accessibles</h4><p>Du logement social à 9M FCFA aux penthouses de prestige — pour tous les budgets.</p></div></div>
-        <div class="why-item"><i class="fas fa-clock"></i><div><h4>Délais Contractuels</h4><p>30 mois ou 180 jours selon les projets — nos délais sont garantis par contrat.</p></div></div>
+        <div data-edit-card="about.nos-engagements.carte-1" class="why-item"><i class="fas fa-certificate"></i><div><h4 data-edit="about.nos-engagements.carte-1.titre">Agrément Officiel</h4><p data-edit="about.nos-engagements.carte-1.texte">Promoteur & Aménageur agréés MCLU — garantie légale de vos investissements.</p></div></div>
+        <div data-edit-card="about.nos-engagements.carte-2" class="why-item"><i class="fas fa-shield-alt"></i><div><h4 data-edit="about.nos-engagements.carte-2.titre">Comptes Séquestres Sécurisés</h4><p data-edit="about.nos-engagements.carte-2.texte">Fonds protégés : Orange Bank, BHCI, BNI — intouchables jusqu'à la livraison.</p></div></div>
+        <div data-edit-card="about.nos-engagements.carte-3" class="why-item"><i class="fas fa-hand-holding-usd"></i><div><h4 data-edit="about.nos-engagements.carte-3.titre">Prix Accessibles</h4><p data-edit="about.nos-engagements.carte-3.texte">Du logement social à 9M FCFA aux penthouses de prestige — pour tous les budgets.</p></div></div>
+        <div data-edit-card="about.nos-engagements.carte-4" class="why-item"><i class="fas fa-clock"></i><div><h4 data-edit="about.nos-engagements.carte-4.titre">Délais Contractuels</h4><p data-edit="about.nos-engagements.carte-4.texte">30 mois ou 180 jours selon les projets — nos délais sont garantis par contrat.</p></div></div>
       </div>
     </div>
   </div>
 </div>
 
 <!-- ILS NOUS ONT FAIT CONFIANCE -->
-<section class="section confiance-section">
+<section data-edit-section="about.nos-partenaires" class="section confiance-section">
   <div class="container">
     <div class="section-header" data-aos="fade-up">
-      <div class="section-label">Nos Partenaires</div>
-      <h2 class="section-title">Ils nous ont fait <em>confiance</em></h2>
-      <p class="section-sub">Des institutions bancaires, ministères et organismes officiels qui attestent du sérieux et de la conformité légale de SIIPAF SA.</p>
+      <div data-edit="about.nos-partenaires.etiquette" class="section-label">Nos Partenaires</div>
+      <h2 data-edit="about.nos-partenaires.titre" class="section-title">Ils nous ont fait <em>confiance</em></h2>
+      <p data-edit="about.nos-partenaires.sous-titre" class="section-sub">Des institutions bancaires, ministères et organismes officiels qui attestent du sérieux et de la conformité légale de SIIPAF SA.</p>
     </div>
 
     <!-- Partenaires institutionnels -->
     <div class="confiance-partners" data-aos="fade-up" data-aos-delay="100">
-      <div class="cp-card">
+      <div data-edit-card="about.nos-partenaires.carte-1" class="cp-card">
         <div class="cp-logo"><img data-media-slot="about.partners.MCLU" src="images/partenaires/logo_MCLU.jpg" alt="MCLU" loading="lazy" decoding="async"/></div>
         <div class="cp-info">
-          <strong>Ministère de la Construction (MCLU)</strong>
-          <span>Agrément Promoteur & Aménageur Foncier</span>
+          <strong data-edit="about.nos-partenaires.carte-1.nom">Ministère de la Construction (MCLU)</strong>
+          <span data-edit="about.nos-partenaires.carte-1.texte-court">Agrément Promoteur & Aménageur Foncier</span>
         </div>
       </div>
-      <div class="cp-card">
+      <div data-edit-card="about.nos-partenaires.carte-2" class="cp-card">
         <div class="cp-logo"><img data-media-slot="about.partners.orange_bank" src="images/partenaires/logo_orange_bank.jpg" alt="Orange Bank" loading="lazy" decoding="async"/></div>
         <div class="cp-info">
-          <strong>Orange Bank CI</strong>
-          <span>Compte séquestre certifié</span>
+          <strong data-edit="about.nos-partenaires.carte-2.nom">Orange Bank CI</strong>
+          <span data-edit="about.nos-partenaires.carte-2.texte-court">Compte séquestre certifié</span>
         </div>
       </div>
-      <div class="cp-card">
+      <div data-edit-card="about.nos-partenaires.carte-3" class="cp-card">
         <div class="cp-logo"><img data-media-slot="about.partners.BHCI" src="images/partenaires/logo_BHCI.jpg" alt="BHCI" loading="lazy" decoding="async"/></div>
         <div class="cp-info">
-          <strong>BHCI</strong>
-          <span>Banque de l'Habitat — Compte séquestre</span>
+          <strong data-edit="about.nos-partenaires.carte-3.nom">BHCI</strong>
+          <span data-edit="about.nos-partenaires.carte-3.texte-court">Banque de l'Habitat — Compte séquestre</span>
         </div>
       </div>
-      <div class="cp-card">
+      <div data-edit-card="about.nos-partenaires.carte-4" class="cp-card">
         <div class="cp-logo"><img data-media-slot="about.partners.BNI" src="images/partenaires/logo_BNI.jpg" alt="BNI" loading="lazy" decoding="async"/></div>
         <div class="cp-info">
-          <strong>BNI</strong>
-          <span>Banque Nationale d'Investissement — Séquestre</span>
+          <strong data-edit="about.nos-partenaires.carte-4.nom">BNI</strong>
+          <span data-edit="about.nos-partenaires.carte-4.texte-court">Banque Nationale d'Investissement — Séquestre</span>
         </div>
       </div>
-      <div class="cp-card">
+      <div data-edit-card="about.nos-partenaires.carte-5" class="cp-card">
         <div class="cp-logo"><img data-media-slot="about.partners.CIE" src="images/partenaires/logo_CIE.jpg" alt="CIE" loading="lazy" decoding="async"/></div>
         <div class="cp-info">
-          <strong>CI-Énergie & CIE</strong>
-          <span>Agrément travaux électrification publique</span>
+          <strong data-edit="about.nos-partenaires.carte-5.nom">CI-Énergie & CIE</strong>
+          <span data-edit="about.nos-partenaires.carte-5.texte-court">Agrément travaux électrification publique</span>
         </div>
       </div>
     </div>
 
     <!-- Témoignages clients -->
     <div class="confiance-temos" data-aos="fade-up" data-aos-delay="200">
-      <div class="ct-card">
+      <div data-edit-card="about.nos-partenaires.carte-6" class="ct-card">
         <div class="ct-stars"><i class="fas fa-star"></i><i class="fas fa-star"></i><i class="fas fa-star"></i><i class="fas fa-star"></i><i class="fas fa-star"></i></div>
-        <p>"Un promoteur sérieux et agréé — la sécurité des comptes séquestres nous a convaincus. Notre appartement à Yamoussoukro a été livré dans les délais contractuels."</p>
+        <p data-edit="about.nos-partenaires.carte-6.texte">"Un promoteur sérieux et agréé — la sécurité des comptes séquestres nous a convaincus. Notre appartement à Yamoussoukro a été livré dans les délais contractuels."</p>
         <div class="ct-author">
           <div class="ct-avatar temo-avatar-img" data-bg="https://images.unsplash.com/photo-1522529599102-193c0d76b5b6?w=100&h=100&fit=crop&crop=face"></div>
-          <div><strong>Kouamé A.</strong><span>Diaspora France · Yamoussoukro</span></div>
+          <div><strong data-edit="about.nos-partenaires.carte-6.nom">Kouamé A.</strong><span data-edit="about.nos-partenaires.carte-6.texte-court">Diaspora France · Yamoussoukro</span></div>
         </div>
       </div>
-      <div class="ct-card ct-card-accent">
+      <div data-edit-card="about.nos-partenaires.carte-7" class="ct-card ct-card-accent">
         <div class="ct-stars"><i class="fas fa-star"></i><i class="fas fa-star"></i><i class="fas fa-star"></i><i class="fas fa-star"></i><i class="fas fa-star"></i></div>
-        <p>"SIIPAF SA m'a accompagné de A à Z dans mon acquisition à Bingerville. Livraison en 180 jours tenue, finitions impeccables. Je recommande à toute la diaspora !"</p>
+        <p data-edit="about.nos-partenaires.carte-7.texte">"SIIPAF SA m'a accompagné de A à Z dans mon acquisition à Bingerville. Livraison en 180 jours tenue, finitions impeccables. Je recommande à toute la diaspora !"</p>
         <div class="ct-author">
           <div class="ct-avatar temo-avatar-img" data-bg="https://images.unsplash.com/photo-1531123897727-8f129e1688ce?w=100&h=100&fit=crop&crop=face"></div>
-          <div><strong>Bamba S.</strong><span>Cadre · Bingerville</span></div>
+          <div><strong data-edit="about.nos-partenaires.carte-7.nom">Bamba S.</strong><span data-edit="about.nos-partenaires.carte-7.texte-court">Cadre · Bingerville</span></div>
         </div>
       </div>
-      <div class="ct-card">
+      <div data-edit-card="about.nos-partenaires.carte-8" class="ct-card">
         <div class="ct-stars"><i class="fas fa-star"></i><i class="fas fa-star"></i><i class="fas fa-star"></i><i class="fas fa-star"></i><i class="fas fa-star"></i></div>
-        <p>"L'appartement F4 à Cocody Angré correspond parfaitement à ce qui nous a été présenté. Transparence totale, équipe professionnelle. SIIPAF honore ses engagements."</p>
+        <p data-edit="about.nos-partenaires.carte-8.texte">"L'appartement F4 à Cocody Angré correspond parfaitement à ce qui nous a été présenté. Transparence totale, équipe professionnelle. SIIPAF honore ses engagements."</p>
         <div class="ct-author">
           <div class="ct-avatar temo-avatar-img" data-bg="https://images.unsplash.com/photo-1506277886164-e25aa3f4ef7f?w=100&h=100&fit=crop&crop=face"></div>
-          <div><strong>N'Goran E.</strong><span>Entrepreneur · Cocody Angré</span></div>
+          <div><strong data-edit="about.nos-partenaires.carte-8.nom">N'Goran E.</strong><span data-edit="about.nos-partenaires.carte-8.texte-court">Entrepreneur · Cocody Angré</span></div>
         </div>
       </div>
     </div>
@@ -481,29 +481,29 @@
 </section>
 
 <!-- CTA -->
-<section class="cta-section">
+<section data-edit-section="about.pret-a-acquerir-votre-bien" class="cta-section">
   <div class="container">
     <div class="cta-inner" data-aos="zoom-in">
       <div class="cta-text">
-        <h2>Prêt à acquérir votre bien ?</h2>
-        <p>Nos conseillers SIIPAF sont disponibles pour étudier votre dossier gratuitement.</p>
+        <h2 data-edit="about.pret-a-acquerir-votre-bien.titre">Prêt à acquérir votre bien ?</h2>
+        <p data-edit="about.pret-a-acquerir-votre-bien.texte">Nos conseillers SIIPAF sont disponibles pour étudier votre dossier gratuitement.</p>
       </div>
       <div class="cta-btns">
-        <a href="projets.html" class="btn btn-white"><span>Voir nos projets</span><i class="fas fa-arrow-right"></i></a>
-        <a href="contact.html" class="btn btn-outline-white"><span>Nous contacter</span><i class="fas fa-envelope"></i></a>
+        <a data-edit="about.pret-a-acquerir-votre-bien.bouton" href="projets.html" class="btn btn-white"><span>Voir nos projets</span><i class="fas fa-arrow-right"></i></a>
+        <a data-edit="about.pret-a-acquerir-votre-bien.bouton-2" href="contact.html" class="btn btn-outline-white"><span>Nous contacter</span><i class="fas fa-envelope"></i></a>
       </div>
     </div>
   </div>
 </section>
 
 <!-- FOOTER -->
-<footer id="footer">
+<footer data-edit-section="shared.pied-de-page" id="footer">
   <div class="footer-top">
     <div class="container">
       <div class="footer-grid">
         <div class="footer-brand">
           <img data-media-slot="shared.logo" src="images/logo-siipaf.png" alt="SIIPAF SA" class="footer-logo"/>
-          <p>SIIPAF SA — Votre Réseau Immobilier. Promoteur & Aménageur Agréé MCLU. Côte d'Ivoire.</p>
+          <p data-edit="shared.pied-de-page.texte">SIIPAF SA — Votre Réseau Immobilier. Promoteur & Aménageur Agréé MCLU. Côte d'Ivoire.</p>
           <div class="footer-social">
             <a href="#"><i class="fab fa-facebook-f"></i></a>
             <a href="#"><i class="fab fa-instagram"></i></a>
@@ -511,29 +511,29 @@
             <a href="#"><i class="fab fa-linkedin-in"></i></a>
           </div>
         </div>
-        <div class="footer-col">
-          <h5>Nos Projets</h5>
-          <ul>
-            <li><a href="projets.html#yamoussoukro">SIIPAF CITY YAMOUSSOUKRO</a></li>
-            <li><a href="projets.html#ahoutoue">SIIPAF CITY AHOUTOUE</a></li>
-            <li><a href="projets.html#riviera">RIVIERA II</a></li>
-            <li><a href="projets.html#bingerville">MINI-CITÉS BINGERVILLE</a></li>
-            <li><a href="projets.html#cly">C & LY ANGRÉ</a></li>
+        <div data-edit-card="shared.pied-de-page.carte-1" class="footer-col">
+          <h5 data-edit="shared.pied-de-page.carte-1.titre">Nos Projets</h5>
+          <ul data-edit-list="shared.pied-de-page.carte-1.liste">
+            <li><a data-edit-li href="projets.html#yamoussoukro">SIIPAF CITY YAMOUSSOUKRO</a></li>
+            <li><a data-edit-li href="projets.html#ahoutoue">SIIPAF CITY AHOUTOUE</a></li>
+            <li><a data-edit-li href="projets.html#riviera">RIVIERA II</a></li>
+            <li><a data-edit-li href="projets.html#bingerville">MINI-CITÉS BINGERVILLE</a></li>
+            <li><a data-edit-li href="projets.html#cly">C & LY ANGRÉ</a></li>
           </ul>
         </div>
-        <div class="footer-col">
-          <h5>Navigation</h5>
-          <ul>
-            <li><a href="index.html">Accueil</a></li>
-            <li><a href="a-propos.html">À Propos</a></li>
-            <li><a href="projets.html">Nos Projets</a></li>
-            <li><a href="financement.html">Financement</a></li>
-            <li><a href="contact.html">Contact</a></li>
-            <li><a href="carrieres.html">Carrières</a></li>
+        <div data-edit-card="shared.pied-de-page.carte-2" class="footer-col">
+          <h5 data-edit="shared.pied-de-page.carte-2.titre">Navigation</h5>
+          <ul data-edit-list="shared.pied-de-page.carte-2.liste">
+            <li><a data-edit-li href="index.html">Accueil</a></li>
+            <li><a data-edit-li href="a-propos.html">À Propos</a></li>
+            <li><a data-edit-li href="projets.html">Nos Projets</a></li>
+            <li><a data-edit-li href="financement.html">Financement</a></li>
+            <li><a data-edit-li href="contact.html">Contact</a></li>
+            <li><a data-edit-li href="carrieres.html">Carrières</a></li>
           </ul>
         </div>
-        <div class="footer-col">
-          <h5>Contact</h5>
+        <div data-edit-card="shared.pied-de-page.carte-3" class="footer-col">
+          <h5 data-edit="shared.pied-de-page.carte-3.titre">Contact</h5>
           <ul class="footer-contact">
             <li><i class="fas fa-map-marker-alt"></i> Cocody 2 Plateaux 7ème Tranche, Abidjan</li>
             <li><i class="fas fa-phone"></i><a href="tel:+2250102279595">+225 01 02 27 95 95</a></li>
@@ -543,7 +543,7 @@
       </div>
     </div>
   </div>
-  <div class="footer-bottom"><div class="container"><p>&copy; 2025 SIIPAF SA — Tous droits réservés</p></div></div>
+  <div class="footer-bottom"><div class="container"><p data-edit="shared.pied-de-page.texte-2">&copy; 2025 SIIPAF SA — Tous droits réservés</p></div></div>
 </footer>
 
 <a href="https://wa.me/2250102279595" class="whatsapp-float" target="_blank" rel="noopener"><i class="fab fa-whatsapp"></i><span class="wa-tooltip">WhatsApp</span><span class="wa-pulse"></span></a>

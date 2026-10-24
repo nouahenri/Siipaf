@@ -1,0 +1,3211 @@
+{
+  "pages": [
+    {
+      "id": "home",
+      "label": "Accueil",
+      "path": "index.html",
+      "meta": {
+        "title": "SIIPAF SA — Accueil | Promoteur & Aménageur Immobilier Agréé",
+        "description": "SIIPAF SA - Promoteur Immobilier & Aménageur Foncier Agréé MCLU en Côte d'Ivoire. Construction, BTP, logements sociaux et haut standing à Abidjan, Yamoussoukro, Bingerville."
+      },
+      "sections": [
+        {
+          "key": "home.hero",
+          "label": "Diaporama d’accueil",
+          "managed": "hero",
+          "blocks": [],
+          "images": []
+        },
+        {
+          "key": "home.ticker",
+          "label": "Bandeau défilant",
+          "managed": "ticker",
+          "blocks": [],
+          "images": []
+        },
+        {
+          "key": "home.stats",
+          "label": "Chiffres clés",
+          "managed": "stats",
+          "blocks": [],
+          "images": []
+        },
+        {
+          "key": "home.a-propos-de-siipaf",
+          "label": "À Propos de SIIPAF",
+          "images": [
+            "home.about.main",
+            "home.about.accent"
+          ],
+          "blocks": [
+            {
+              "type": "field",
+              "key": "home.a-propos-de-siipaf.texte-court",
+              "label": "Texte court",
+              "kind": "text",
+              "default": "Agréé MCLU"
+            },
+            {
+              "type": "field",
+              "key": "home.a-propos-de-siipaf.etiquette",
+              "label": "Étiquette",
+              "kind": "text",
+              "default": "À Propos de SIIPAF"
+            },
+            {
+              "type": "field",
+              "key": "home.a-propos-de-siipaf.titre",
+              "label": "Titre",
+              "kind": "text",
+              "default": "Bâtissons ensemble\n*votre avenir*"
+            },
+            {
+              "type": "field",
+              "key": "home.a-propos-de-siipaf.introduction",
+              "label": "Introduction",
+              "kind": "long",
+              "default": "SIIPAF SA est une société ivoirienne spécialisée dans la promotion immobilière et l'aménagement foncier, agréée par le Ministère de la Construction, du Logement et de l'Urbanisme (MCLU)."
+            },
+            {
+              "type": "field",
+              "key": "home.a-propos-de-siipaf.texte",
+              "label": "Texte",
+              "kind": "long",
+              "default": "Présente sur les grands axes de développement de la Côte d'Ivoire — Abidjan, Yamoussoukro, Bingerville — SIIPAF conçoit des projets résidentiels inclusifs, accessibles à toutes les familles."
+            },
+            {
+              "type": "list",
+              "key": "home.a-propos-de-siipaf.liste",
+              "label": "Liste",
+              "kind": "text",
+              "default": [
+                "Agrément Promoteur Immobilier MCLU",
+                "Agrément Aménageur Foncier MCLU",
+                "Agréé CI-Énergie & CIE",
+                "Comptes séquestres : Orange Bank, BHCI, BNI"
+              ]
+            },
+            {
+              "type": "field",
+              "key": "home.a-propos-de-siipaf.bouton",
+              "label": "Bouton",
+              "kind": "link",
+              "default": {
+                "label": "En savoir plus",
+                "href": "a-propos.html"
+              }
+            }
+          ]
+        },
+        {
+          "key": "home.bandeau-de-chiffres",
+          "label": "Bandeau de chiffres",
+          "note": "Les chiffres de ce bandeau sont ceux de l’onglet « Chiffres clés ».",
+          "images": [],
+          "blocks": []
+        },
+        {
+          "key": "home.expertises",
+          "label": "Expertises",
+          "images": [],
+          "blocks": [
+            {
+              "type": "field",
+              "key": "home.expertises.etiquette",
+              "label": "Étiquette",
+              "kind": "text",
+              "default": "Expertises"
+            },
+            {
+              "type": "field",
+              "key": "home.expertises.titre",
+              "label": "Titre",
+              "kind": "text",
+              "default": "Nos *Domaines d'Activité*"
+            },
+            {
+              "type": "field",
+              "key": "home.expertises.sous-titre",
+              "label": "Sous-titre",
+              "kind": "long",
+              "default": "De la conception à la livraison, SIIPAF maîtrise toute la chaîne immobilière."
+            },
+            {
+              "type": "card",
+              "key": "home.expertises.carte-1",
+              "label": "Carte 1",
+              "name": "Promoteur Immobilier",
+              "images": [
+                "home.activities.promoteur"
+              ],
+              "blocks": [
+                {
+                  "type": "field",
+                  "key": "home.expertises.carte-1.numero",
+                  "label": "Numéro",
+                  "kind": "text",
+                  "default": "01"
+                },
+                {
+                  "type": "field",
+                  "key": "home.expertises.carte-1.titre",
+                  "label": "Titre",
+                  "kind": "text",
+                  "default": "Promoteur Immobilier"
+                },
+                {
+                  "type": "field",
+                  "key": "home.expertises.carte-1.texte",
+                  "label": "Texte",
+                  "kind": "long",
+                  "default": "Développement de programmes résidentiels modernes pour tous les profils — du logement social accessible à l'appartement haut standing. Agréé par le Ministère de la Construction, du Logement et de l'Urbanisme (MCLU)."
+                },
+                {
+                  "type": "list",
+                  "key": "home.expertises.carte-1.liste",
+                  "label": "Liste",
+                  "kind": "text",
+                  "default": [
+                    "Appartements & Villas",
+                    "Duplex & Penthouses",
+                    "Livraison clé en main"
+                  ]
+                },
+                {
+                  "type": "field",
+                  "key": "home.expertises.carte-1.bouton",
+                  "label": "Bouton",
+                  "kind": "link",
+                  "default": {
+                    "label": "En savoir plus",
+                    "href": "a-propos.html#activities"
+                  }
+                }
+              ]
+            },
+            {
+              "type": "card",
+              "key": "home.expertises.carte-2",
+              "label": "Carte 2",
+              "name": "Aménageur Foncier",
+              "images": [
+                "home.activities.amenageur"
+              ],
+              "blocks": [
+                {
+                  "type": "field",
+                  "key": "home.expertises.carte-2.numero",
+                  "label": "Numéro",
+                  "kind": "text",
+                  "default": "02"
+                },
+                {
+                  "type": "field",
+                  "key": "home.expertises.carte-2.titre",
+                  "label": "Titre",
+                  "kind": "text",
+                  "default": "Aménageur Foncier"
+                },
+                {
+                  "type": "field",
+                  "key": "home.expertises.carte-2.texte",
+                  "label": "Texte",
+                  "kind": "long",
+                  "default": "Viabilisation et lotissement de grandes superficies foncières, intégrées aux plans directeurs d'urbanisme des villes. SIIPAF crée des cités résidentielles complètes avec toutes les infrastructures nécessaires. Agréé MCLU."
+                },
+                {
+                  "type": "list",
+                  "key": "home.expertises.carte-2.liste",
+                  "label": "Liste",
+                  "kind": "text",
+                  "default": [
+                    "Lotissements viabilisés",
+                    "Cités résidentielles",
+                    "Plan d'urbanisme"
+                  ]
+                },
+                {
+                  "type": "field",
+                  "key": "home.expertises.carte-2.bouton",
+                  "label": "Bouton",
+                  "kind": "link",
+                  "default": {
+                    "label": "En savoir plus",
+                    "href": "a-propos.html#activities"
+                  }
+                }
+              ]
+            },
+            {
+              "type": "card",
+              "key": "home.expertises.carte-3",
+              "label": "Carte 3",
+              "name": "BTP — Bâtiment & Travaux Publics",
+              "images": [
+                "home.activities.btp"
+              ],
+              "blocks": [
+                {
+                  "type": "field",
+                  "key": "home.expertises.carte-3.numero",
+                  "label": "Numéro",
+                  "kind": "text",
+                  "default": "03"
+                },
+                {
+                  "type": "field",
+                  "key": "home.expertises.carte-3.titre",
+                  "label": "Titre",
+                  "kind": "text",
+                  "default": "BTP — Bâtiment & Travaux Publics"
+                },
+                {
+                  "type": "field",
+                  "key": "home.expertises.carte-3.texte",
+                  "label": "Texte",
+                  "kind": "long",
+                  "default": "Réalisation de tous types de constructions : logements, immeubles résidentiels, équipements publics. Du gros œuvre à la finition, SIIPAF garantit qualité et délais."
+                },
+                {
+                  "type": "list",
+                  "key": "home.expertises.carte-3.liste",
+                  "label": "Liste",
+                  "kind": "text",
+                  "default": [
+                    "Génie civil",
+                    "Gros œuvre",
+                    "VRD & Assainissement"
+                  ]
+                },
+                {
+                  "type": "field",
+                  "key": "home.expertises.carte-3.bouton",
+                  "label": "Bouton",
+                  "kind": "link",
+                  "default": {
+                    "label": "En savoir plus",
+                    "href": "a-propos.html#activities"
+                  }
+                }
+              ]
+            },
+            {
+              "type": "card",
+              "key": "home.expertises.carte-4",
+              "label": "Carte 4",
+              "name": "Travaux & Électrification Publique",
+              "images": [
+                "home.activities.electricite"
+              ],
+              "blocks": [
+                {
+                  "type": "field",
+                  "key": "home.expertises.carte-4.numero",
+                  "label": "Numéro",
+                  "kind": "text",
+                  "default": "04"
+                },
+                {
+                  "type": "field",
+                  "key": "home.expertises.carte-4.titre",
+                  "label": "Titre",
+                  "kind": "text",
+                  "default": "Travaux & Électrification Publique"
+                },
+                {
+                  "type": "field",
+                  "key": "home.expertises.carte-4.texte",
+                  "label": "Texte",
+                  "kind": "long",
+                  "default": "Travaux d'infrastructure publique et d'électrification de quartiers et cités résidentielles. Agréée par CI-Énergie et CIE pour les réseaux basse et haute tension."
+                },
+                {
+                  "type": "list",
+                  "key": "home.expertises.carte-4.liste",
+                  "label": "Liste",
+                  "kind": "text",
+                  "default": [
+                    "Réseaux BT/HT",
+                    "Éclairage public",
+                    "Agrément CI-Énergie"
+                  ]
+                },
+                {
+                  "type": "field",
+                  "key": "home.expertises.carte-4.bouton",
+                  "label": "Bouton",
+                  "kind": "link",
+                  "default": {
+                    "label": "En savoir plus",
+                    "href": "a-propos.html#activities"
+                  }
+                }
+              ]
+            },
+            {
+              "type": "card",
+              "key": "home.expertises.carte-5",
+              "label": "Carte 5",
+              "name": "Assistance & Conseils Immobiliers",
+              "images": [
+                "home.activities.conseil"
+              ],
+              "blocks": [
+                {
+                  "type": "field",
+                  "key": "home.expertises.carte-5.numero",
+                  "label": "Numéro",
+                  "kind": "text",
+                  "default": "05"
+                },
+                {
+                  "type": "field",
+                  "key": "home.expertises.carte-5.titre",
+                  "label": "Titre",
+                  "kind": "text",
+                  "default": "Assistance & Conseils Immobiliers"
+                },
+                {
+                  "type": "field",
+                  "key": "home.expertises.carte-5.texte",
+                  "label": "Texte",
+                  "kind": "long",
+                  "default": "Accompagnement personnalisé dans votre projet de A à Z : choix du bien, constitution du dossier de financement, assistance juridique jusqu'à la remise des clés."
+                },
+                {
+                  "type": "list",
+                  "key": "home.expertises.carte-5.liste",
+                  "label": "Liste",
+                  "kind": "text",
+                  "default": [
+                    "Conseil immobilier",
+                    "Aide au financement",
+                    "Suivi juridique"
+                  ]
+                },
+                {
+                  "type": "field",
+                  "key": "home.expertises.carte-5.bouton",
+                  "label": "Bouton",
+                  "kind": "link",
+                  "default": {
+                    "label": "Nous consulter",
+                    "href": "contact.html"
+                  }
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "key": "home.portfolio",
+          "label": "Portfolio",
+          "note": "Les cartes des projets reprennent le nom, le type de projet et le prix de chaque fiche projet ; leurs images se choisissent ci-dessous.",
+          "images": [],
+          "blocks": [
+            {
+              "type": "field",
+              "key": "home.portfolio.etiquette",
+              "label": "Étiquette",
+              "kind": "text",
+              "default": "Portfolio"
+            },
+            {
+              "type": "field",
+              "key": "home.portfolio.titre",
+              "label": "Titre",
+              "kind": "text",
+              "default": "Nos *Projets Phares*"
+            },
+            {
+              "type": "field",
+              "key": "home.portfolio.sous-titre",
+              "label": "Sous-titre",
+              "kind": "long",
+              "default": "5 programmes immobiliers pour tous les budgets, de l'accessible au prestige."
+            },
+            {
+              "type": "field",
+              "key": "home.portfolio.bouton",
+              "label": "Bouton",
+              "kind": "link",
+              "default": {
+                "label": "Tous nos projets",
+                "href": "projets.html"
+              }
+            }
+          ]
+        },
+        {
+          "key": "home.nos-engagements",
+          "label": "Nos Engagements",
+          "images": [],
+          "blocks": [
+            {
+              "type": "field",
+              "key": "home.nos-engagements.etiquette",
+              "label": "Étiquette",
+              "kind": "text",
+              "default": "Nos Engagements"
+            },
+            {
+              "type": "field",
+              "key": "home.nos-engagements.titre",
+              "label": "Titre",
+              "kind": "text",
+              "default": "Pourquoi choisir *SIIPAF SA ?*"
+            },
+            {
+              "type": "field",
+              "key": "home.nos-engagements.sous-titre",
+              "label": "Sous-titre",
+              "kind": "long",
+              "default": "Des garanties solides, une expertise reconnue et un accompagnement sur mesure pour chaque acquéreur."
+            },
+            {
+              "type": "card",
+              "key": "home.nos-engagements.carte-1",
+              "label": "Carte 1",
+              "name": "Agrément Officiel MCLU",
+              "images": [],
+              "blocks": [
+                {
+                  "type": "field",
+                  "key": "home.nos-engagements.carte-1.numero",
+                  "label": "Numéro",
+                  "kind": "text",
+                  "default": "01"
+                },
+                {
+                  "type": "field",
+                  "key": "home.nos-engagements.carte-1.titre",
+                  "label": "Titre",
+                  "kind": "text",
+                  "default": "Agrément Officiel MCLU"
+                },
+                {
+                  "type": "field",
+                  "key": "home.nos-engagements.carte-1.texte",
+                  "label": "Texte",
+                  "kind": "long",
+                  "default": "Promoteur Immobilier & Aménageur Foncier agréés par le Ministère de la Construction — garantie légale totale de votre investissement."
+                }
+              ]
+            },
+            {
+              "type": "card",
+              "key": "home.nos-engagements.carte-2",
+              "label": "Carte 2",
+              "name": "Fonds Sécurisés",
+              "images": [],
+              "blocks": [
+                {
+                  "type": "field",
+                  "key": "home.nos-engagements.carte-2.numero",
+                  "label": "Numéro",
+                  "kind": "text",
+                  "default": "02"
+                },
+                {
+                  "type": "field",
+                  "key": "home.nos-engagements.carte-2.titre",
+                  "label": "Titre",
+                  "kind": "text",
+                  "default": "Fonds Sécurisés"
+                },
+                {
+                  "type": "field",
+                  "key": "home.nos-engagements.carte-2.texte",
+                  "label": "Texte",
+                  "kind": "long",
+                  "default": "Vos versements sont déposés sur des comptes séquestres certifiés auprès d'Orange Bank, BHCI et BNI — vos fonds sont intouchables jusqu'à la livraison."
+                }
+              ]
+            },
+            {
+              "type": "card",
+              "key": "home.nos-engagements.carte-3",
+              "label": "Carte 3",
+              "name": "Tous les Budgets",
+              "images": [],
+              "blocks": [
+                {
+                  "type": "field",
+                  "key": "home.nos-engagements.carte-3.numero",
+                  "label": "Numéro",
+                  "kind": "text",
+                  "default": "03"
+                },
+                {
+                  "type": "field",
+                  "key": "home.nos-engagements.carte-3.titre",
+                  "label": "Titre",
+                  "kind": "text",
+                  "default": "Tous les Budgets"
+                },
+                {
+                  "type": "field",
+                  "key": "home.nos-engagements.carte-3.texte",
+                  "label": "Texte",
+                  "kind": "long",
+                  "default": "De 9 millions FCFA (logement social) à 300 millions FCFA (appartement prestige) — SIIPAF a une solution pour chaque famille et chaque budget."
+                }
+              ]
+            },
+            {
+              "type": "card",
+              "key": "home.nos-engagements.carte-4",
+              "label": "Carte 4",
+              "name": "Option Diaspora",
+              "images": [],
+              "blocks": [
+                {
+                  "type": "field",
+                  "key": "home.nos-engagements.carte-4.numero",
+                  "label": "Numéro",
+                  "kind": "text",
+                  "default": "04"
+                },
+                {
+                  "type": "field",
+                  "key": "home.nos-engagements.carte-4.titre",
+                  "label": "Titre",
+                  "kind": "text",
+                  "default": "Option Diaspora"
+                },
+                {
+                  "type": "field",
+                  "key": "home.nos-engagements.carte-4.texte",
+                  "label": "Texte",
+                  "kind": "long",
+                  "default": "Achetez sans apport initial depuis l'étranger. Payez 100% du prix sur 36 mois. Une offre exclusive pour la diaspora ivoirienne et africaine."
+                }
+              ]
+            },
+            {
+              "type": "card",
+              "key": "home.nos-engagements.carte-5",
+              "label": "Carte 5",
+              "name": "Qualité & Délais Garantis",
+              "images": [],
+              "blocks": [
+                {
+                  "type": "field",
+                  "key": "home.nos-engagements.carte-5.numero",
+                  "label": "Numéro",
+                  "kind": "text",
+                  "default": "05"
+                },
+                {
+                  "type": "field",
+                  "key": "home.nos-engagements.carte-5.titre",
+                  "label": "Titre",
+                  "kind": "text",
+                  "default": "Qualité & Délais Garantis"
+                },
+                {
+                  "type": "field",
+                  "key": "home.nos-engagements.carte-5.texte",
+                  "label": "Texte",
+                  "kind": "long",
+                  "default": "Nos constructions respectent les normes techniques ivoiriennes. Délais contractuellement garantis : 30 mois ou 180 jours selon les projets."
+                }
+              ]
+            },
+            {
+              "type": "card",
+              "key": "home.nos-engagements.carte-6",
+              "label": "Carte 6",
+              "name": "Un conseiller dédié",
+              "images": [
+                "home.why.adviser"
+              ],
+              "blocks": [
+                {
+                  "type": "field",
+                  "key": "home.nos-engagements.carte-6.titre",
+                  "label": "Titre",
+                  "kind": "text",
+                  "default": "Un conseiller dédié"
+                },
+                {
+                  "type": "field",
+                  "key": "home.nos-engagements.carte-6.texte",
+                  "label": "Texte",
+                  "kind": "long",
+                  "default": "De la réservation à la remise des clés, un expert SIIPAF vous accompagne à chaque étape."
+                },
+                {
+                  "type": "field",
+                  "key": "home.nos-engagements.carte-6.bouton",
+                  "label": "Bouton",
+                  "kind": "link",
+                  "default": {
+                    "label": "Contacter un conseiller",
+                    "href": "contact.html"
+                  }
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "key": "home.temoignages",
+          "label": "Témoignages",
+          "note": "Les témoignages se gèrent dans le menu « Témoignages ».",
+          "images": [],
+          "blocks": [
+            {
+              "type": "field",
+              "key": "home.temoignages.etiquette",
+              "label": "Étiquette",
+              "kind": "text",
+              "default": "Témoignages"
+            },
+            {
+              "type": "field",
+              "key": "home.temoignages.titre",
+              "label": "Titre",
+              "kind": "text",
+              "default": "Ce que disent *nos clients*"
+            },
+            {
+              "type": "field",
+              "key": "home.temoignages.sous-titre",
+              "label": "Sous-titre",
+              "kind": "long",
+              "default": "Des familles et investisseurs qui ont fait confiance à SIIPAF SA pour réaliser leur projet immobilier."
+            }
+          ]
+        },
+        {
+          "key": "home.passez-a-l-action",
+          "label": "Passez à l'action",
+          "images": [
+            "home.contact.image"
+          ],
+          "blocks": [
+            {
+              "type": "field",
+              "key": "home.passez-a-l-action.etiquette",
+              "label": "Étiquette",
+              "kind": "text",
+              "default": "Passez à l'action"
+            },
+            {
+              "type": "field",
+              "key": "home.passez-a-l-action.titre",
+              "label": "Titre",
+              "kind": "text",
+              "default": "Concrétisez votre\n*projet immobilier*"
+            },
+            {
+              "type": "field",
+              "key": "home.passez-a-l-action.texte",
+              "label": "Texte",
+              "kind": "long",
+              "default": "Nos conseillers sont disponibles pour répondre à toutes vos questions et vous accompagner dans votre acquisition en Côte d'Ivoire."
+            },
+            {
+              "type": "field",
+              "key": "home.passez-a-l-action.bouton",
+              "label": "Bouton",
+              "kind": "link",
+              "default": {
+                "label": "Voir les projets",
+                "href": "projets.html"
+              }
+            },
+            {
+              "type": "field",
+              "key": "home.passez-a-l-action.bouton-2",
+              "label": "Bouton 2",
+              "kind": "link",
+              "default": {
+                "label": "Prendre RDV",
+                "href": "contact.html?rdv=1"
+              }
+            }
+          ]
+        },
+        {
+          "key": "home.restez-informe-de-nos-nouveaux-projets",
+          "label": "Restez informé de nos nouveaux projets",
+          "images": [],
+          "blocks": [
+            {
+              "type": "field",
+              "key": "home.restez-informe-de-nos-nouveaux-projets.titre",
+              "label": "Titre",
+              "kind": "text",
+              "default": "Restez informé de nos *nouveaux projets*"
+            },
+            {
+              "type": "field",
+              "key": "home.restez-informe-de-nos-nouveaux-projets.texte",
+              "label": "Texte",
+              "kind": "long",
+              "default": "Recevez en avant-première nos nouvelles offres, prix et disponibilités."
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "about",
+      "label": "À propos",
+      "path": "a-propos.html",
+      "meta": {
+        "title": "À Propos — SIIPAF SA | Promoteur & Aménageur Agréé MCLU",
+        "description": "Découvrez SIIPAF SA — ses agréments officiels, sa mission, ses valeurs et son engagement pour l'immobilier en Côte d'Ivoire."
+      },
+      "sections": [
+        {
+          "key": "about.bandeau-de-titre",
+          "label": "Bandeau de titre",
+          "images": [
+            "about.hero"
+          ],
+          "blocks": [
+            {
+              "type": "field",
+              "key": "about.bandeau-de-titre.titre",
+              "label": "Titre",
+              "kind": "text",
+              "default": "À Propos de *SIIPAF SA*"
+            },
+            {
+              "type": "field",
+              "key": "about.bandeau-de-titre.texte",
+              "label": "Texte",
+              "kind": "long",
+              "default": "Promoteur & Aménageur Agréé MCLU — Votre partenaire immobilier de confiance en Côte d'Ivoire."
+            }
+          ]
+        },
+        {
+          "key": "about.notre-identite",
+          "label": "Notre Identité",
+          "images": [
+            "about.about.main",
+            "about.about.accent"
+          ],
+          "blocks": [
+            {
+              "type": "field",
+              "key": "about.notre-identite.texte-court",
+              "label": "Texte court",
+              "kind": "text",
+              "default": "Agréé MCLU"
+            },
+            {
+              "type": "field",
+              "key": "about.notre-identite.etiquette",
+              "label": "Étiquette",
+              "kind": "text",
+              "default": "Notre Identité"
+            },
+            {
+              "type": "field",
+              "key": "about.notre-identite.titre",
+              "label": "Titre",
+              "kind": "text",
+              "default": "Qui est *SIIPAF SA ?*"
+            },
+            {
+              "type": "field",
+              "key": "about.notre-identite.introduction",
+              "label": "Introduction",
+              "kind": "long",
+              "default": "SIIPAF SA est une société ivoirienne de droit privé agréée par le Ministère de la Construction, du Logement et de l'Urbanisme (MCLU), spécialisée dans la **promotion immobilière**, l'**aménagement foncier** et les **travaux de bâtiment**."
+            },
+            {
+              "type": "field",
+              "key": "about.notre-identite.texte",
+              "label": "Texte",
+              "kind": "long",
+              "default": "Présente sur les grands axes de développement de la Côte d'Ivoire — Abidjan, Yamoussoukro, Bingerville — SIIPAF SA conçoit des projets résidentiels inclusifs, accessibles à toutes les familles, du logement social aux résidences de prestige."
+            },
+            {
+              "type": "field",
+              "key": "about.notre-identite.texte-2",
+              "label": "Texte 2",
+              "kind": "long",
+              "default": "Grâce à ses agréments officiels et ses partenariats bancaires sécurisés, SIIPAF SA garantit à chaque acquéreur un investissement transparent, sûr et rentable."
+            },
+            {
+              "type": "card",
+              "key": "about.notre-identite.carte-1",
+              "label": "Carte 1",
+              "name": "Projets actifs",
+              "images": [],
+              "blocks": [
+                {
+                  "type": "field",
+                  "key": "about.notre-identite.carte-1.numero",
+                  "label": "Numéro",
+                  "kind": "text",
+                  "default": "5"
+                },
+                {
+                  "type": "field",
+                  "key": "about.notre-identite.carte-1.etiquette",
+                  "label": "Étiquette",
+                  "kind": "text",
+                  "default": "Projets actifs"
+                }
+              ]
+            },
+            {
+              "type": "card",
+              "key": "about.notre-identite.carte-2",
+              "label": "Carte 2",
+              "name": "Surface aménagée",
+              "images": [],
+              "blocks": [
+                {
+                  "type": "field",
+                  "key": "about.notre-identite.carte-2.numero",
+                  "label": "Numéro",
+                  "kind": "text",
+                  "default": "59"
+                },
+                {
+                  "type": "field",
+                  "key": "about.notre-identite.carte-2.precision",
+                  "label": "Précision",
+                  "kind": "text",
+                  "default": "ha"
+                },
+                {
+                  "type": "field",
+                  "key": "about.notre-identite.carte-2.etiquette",
+                  "label": "Étiquette",
+                  "kind": "text",
+                  "default": "Surface aménagée"
+                }
+              ]
+            },
+            {
+              "type": "card",
+              "key": "about.notre-identite.carte-3",
+              "label": "Carte 3",
+              "name": "Villes couvertes",
+              "images": [],
+              "blocks": [
+                {
+                  "type": "field",
+                  "key": "about.notre-identite.carte-3.numero",
+                  "label": "Numéro",
+                  "kind": "text",
+                  "default": "3"
+                },
+                {
+                  "type": "field",
+                  "key": "about.notre-identite.carte-3.etiquette",
+                  "label": "Étiquette",
+                  "kind": "text",
+                  "default": "Villes couvertes"
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "key": "about.mission-et-vision",
+          "label": "Mission et vision",
+          "images": [],
+          "blocks": [
+            {
+              "type": "card",
+              "key": "about.mission-et-vision.carte-1",
+              "label": "Carte 1",
+              "name": "Rendre la propriété accessible à tous",
+              "images": [],
+              "blocks": [
+                {
+                  "type": "field",
+                  "key": "about.mission-et-vision.carte-1.etiquette",
+                  "label": "Étiquette",
+                  "kind": "text",
+                  "default": "Notre Mission"
+                },
+                {
+                  "type": "field",
+                  "key": "about.mission-et-vision.carte-1.titre",
+                  "label": "Titre",
+                  "kind": "text",
+                  "default": "Rendre la propriété *accessible à tous*"
+                },
+                {
+                  "type": "field",
+                  "key": "about.mission-et-vision.carte-1.texte",
+                  "label": "Texte",
+                  "kind": "long",
+                  "default": "SIIPAF SA s'engage à démocratiser l'accès à la propriété immobilière en Côte d'Ivoire. Du logement social à 9 millions FCFA jusqu'aux penthouses exclusifs, nous créons des solutions adaptées à chaque budget, chaque famille, chaque rêve."
+                },
+                {
+                  "type": "list",
+                  "key": "about.mission-et-vision.carte-1.liste",
+                  "label": "Liste",
+                  "kind": "text",
+                  "default": [
+                    "Logements de qualité pour tous les revenus",
+                    "Paiement échelonné jusqu'à 36 mois",
+                    "Option spéciale Diaspora sans apport",
+                    "Livraison clé en main garantie"
+                  ]
+                }
+              ]
+            },
+            {
+              "type": "card",
+              "key": "about.mission-et-vision.carte-2",
+              "label": "Carte 2",
+              "name": "Devenir le leader immobilier de Côte d'Ivoire",
+              "images": [],
+              "blocks": [
+                {
+                  "type": "field",
+                  "key": "about.mission-et-vision.carte-2.etiquette",
+                  "label": "Étiquette",
+                  "kind": "text",
+                  "default": "Notre Vision"
+                },
+                {
+                  "type": "field",
+                  "key": "about.mission-et-vision.carte-2.titre",
+                  "label": "Titre",
+                  "kind": "text",
+                  "default": "Devenir le *leader immobilier* de Côte d'Ivoire"
+                },
+                {
+                  "type": "field",
+                  "key": "about.mission-et-vision.carte-2.texte",
+                  "label": "Texte",
+                  "kind": "long",
+                  "default": "Construire un Ivoirien propriétaire — tel est notre leitmotiv. SIIPAF SA aspire à être le promoteur immobilier de référence en Afrique de l'Ouest, reconnu pour la qualité de ses réalisations, l'intégrité de ses pratiques et l'impact social de ses projets."
+                },
+                {
+                  "type": "list",
+                  "key": "about.mission-et-vision.carte-2.liste",
+                  "label": "Liste",
+                  "kind": "text",
+                  "default": [
+                    "Expansion nationale et sous-régionale",
+                    "Innovation dans l'habitat durable",
+                    "Partenariats institutionnels renforcés",
+                    "Impact social mesurable"
+                  ]
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "key": "about.certifications",
+          "label": "Certifications",
+          "images": [],
+          "blocks": [
+            {
+              "type": "field",
+              "key": "about.certifications.etiquette",
+              "label": "Étiquette",
+              "kind": "text",
+              "default": "Certifications"
+            },
+            {
+              "type": "field",
+              "key": "about.certifications.titre",
+              "label": "Titre",
+              "kind": "text",
+              "default": "Nos *Agréments Officiels*"
+            },
+            {
+              "type": "field",
+              "key": "about.certifications.sous-titre",
+              "label": "Sous-titre",
+              "kind": "long",
+              "default": "SIIPAF SA détient tous les agréments légaux requis pour exercer ses activités en toute conformité sur le territoire ivoirien."
+            },
+            {
+              "type": "card",
+              "key": "about.certifications.carte-1",
+              "label": "Carte 1",
+              "name": "Promoteur Immobilier Agréé",
+              "images": [],
+              "blocks": [
+                {
+                  "type": "field",
+                  "key": "about.certifications.carte-1.numero",
+                  "label": "Numéro",
+                  "kind": "text",
+                  "default": "01"
+                },
+                {
+                  "type": "field",
+                  "key": "about.certifications.carte-1.titre",
+                  "label": "Titre",
+                  "kind": "text",
+                  "default": "Promoteur Immobilier Agréé"
+                },
+                {
+                  "type": "field",
+                  "key": "about.certifications.carte-1.texte",
+                  "label": "Texte",
+                  "kind": "long",
+                  "default": "Agrément délivré par le **Ministère de la Construction, du Logement et de l'Urbanisme (MCLU)** — habilitation à développer et commercialiser des programmes résidentiels en Côte d'Ivoire."
+                },
+                {
+                  "type": "field",
+                  "key": "about.certifications.carte-1.etiquette",
+                  "label": "Étiquette",
+                  "kind": "text",
+                  "default": "Certifié MCLU"
+                }
+              ]
+            },
+            {
+              "type": "card",
+              "key": "about.certifications.carte-2",
+              "label": "Carte 2",
+              "name": "Aménageur Foncier Agréé",
+              "images": [],
+              "blocks": [
+                {
+                  "type": "field",
+                  "key": "about.certifications.carte-2.numero",
+                  "label": "Numéro",
+                  "kind": "text",
+                  "default": "02"
+                },
+                {
+                  "type": "field",
+                  "key": "about.certifications.carte-2.titre",
+                  "label": "Titre",
+                  "kind": "text",
+                  "default": "Aménageur Foncier Agréé"
+                },
+                {
+                  "type": "field",
+                  "key": "about.certifications.carte-2.texte",
+                  "label": "Texte",
+                  "kind": "long",
+                  "default": "Agrément **MCLU** autorisant la viabilisation, le lotissement et l'aménagement de grandes superficies foncières, intégrées aux plans directeurs d'urbanisme."
+                },
+                {
+                  "type": "field",
+                  "key": "about.certifications.carte-2.etiquette",
+                  "label": "Étiquette",
+                  "kind": "text",
+                  "default": "Certifié MCLU"
+                }
+              ]
+            },
+            {
+              "type": "card",
+              "key": "about.certifications.carte-3",
+              "label": "Carte 3",
+              "name": "Agréé CI-Énergie & CIE",
+              "images": [],
+              "blocks": [
+                {
+                  "type": "field",
+                  "key": "about.certifications.carte-3.numero",
+                  "label": "Numéro",
+                  "kind": "text",
+                  "default": "03"
+                },
+                {
+                  "type": "field",
+                  "key": "about.certifications.carte-3.titre",
+                  "label": "Titre",
+                  "kind": "text",
+                  "default": "Agréé CI-Énergie & CIE"
+                },
+                {
+                  "type": "field",
+                  "key": "about.certifications.carte-3.texte",
+                  "label": "Texte",
+                  "kind": "long",
+                  "default": "Habilitation délivrée par **CI-Énergie** et la **Compagnie Ivoirienne d'Électricité (CIE)** pour les travaux d'électrification publique, réseaux basse et haute tension."
+                },
+                {
+                  "type": "field",
+                  "key": "about.certifications.carte-3.etiquette",
+                  "label": "Étiquette",
+                  "kind": "text",
+                  "default": "Certifié CI-Énergie & CIE"
+                }
+              ]
+            },
+            {
+              "type": "card",
+              "key": "about.certifications.carte-4",
+              "label": "Carte 4",
+              "name": "Comptes Séquestres Certifiés",
+              "images": [],
+              "blocks": [
+                {
+                  "type": "field",
+                  "key": "about.certifications.carte-4.numero",
+                  "label": "Numéro",
+                  "kind": "text",
+                  "default": "04"
+                },
+                {
+                  "type": "field",
+                  "key": "about.certifications.carte-4.titre",
+                  "label": "Titre",
+                  "kind": "text",
+                  "default": "Comptes Séquestres Certifiés"
+                },
+                {
+                  "type": "field",
+                  "key": "about.certifications.carte-4.texte",
+                  "label": "Texte",
+                  "kind": "long",
+                  "default": "Fonds clients sécurisés dans des comptes séquestres dédiés auprès de **Orange Bank**, **BHCI** et **BNI** — vos versements sont intouchables jusqu'à la livraison."
+                },
+                {
+                  "type": "field",
+                  "key": "about.certifications.carte-4.etiquette",
+                  "label": "Étiquette",
+                  "kind": "text",
+                  "default": "Orange Bank · BHCI · BNI"
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "key": "about.bandeau-de-chiffres",
+          "label": "Bandeau de chiffres",
+          "note": "Les chiffres de ce bandeau sont ceux de l’onglet « Chiffres clés ».",
+          "images": [
+            "about.stats.background"
+          ],
+          "blocks": []
+        },
+        {
+          "key": "about.ce-que-nous-faisons",
+          "label": "Ce que nous faisons",
+          "images": [],
+          "blocks": [
+            {
+              "type": "field",
+              "key": "about.ce-que-nous-faisons.etiquette",
+              "label": "Étiquette",
+              "kind": "text",
+              "default": "Ce que nous faisons"
+            },
+            {
+              "type": "field",
+              "key": "about.ce-que-nous-faisons.titre",
+              "label": "Titre",
+              "kind": "text",
+              "default": "Nos *Domaines d'Expertise*"
+            },
+            {
+              "type": "field",
+              "key": "about.ce-que-nous-faisons.sous-titre",
+              "label": "Sous-titre",
+              "kind": "long",
+              "default": "De la conception à la livraison, SIIPAF SA maîtrise l'ensemble de la chaîne immobilière."
+            },
+            {
+              "type": "card",
+              "key": "about.ce-que-nous-faisons.carte-1",
+              "label": "Carte 1",
+              "name": "Promoteur Immobilier",
+              "images": [
+                "about.activities.promoteur"
+              ],
+              "blocks": [
+                {
+                  "type": "field",
+                  "key": "about.ce-que-nous-faisons.carte-1.numero",
+                  "label": "Numéro",
+                  "kind": "text",
+                  "default": "01"
+                },
+                {
+                  "type": "field",
+                  "key": "about.ce-que-nous-faisons.carte-1.titre",
+                  "label": "Titre",
+                  "kind": "text",
+                  "default": "Promoteur Immobilier"
+                },
+                {
+                  "type": "field",
+                  "key": "about.ce-que-nous-faisons.carte-1.texte",
+                  "label": "Texte",
+                  "kind": "long",
+                  "default": "Développement de programmes résidentiels modernes pour tous les profils — du logement social accessible dès 9 millions FCFA à l'appartement haut standing. Agréé MCLU."
+                },
+                {
+                  "type": "list",
+                  "key": "about.ce-que-nous-faisons.carte-1.liste",
+                  "label": "Liste",
+                  "kind": "text",
+                  "default": [
+                    "Appartements & Villas",
+                    "Duplex & Penthouses",
+                    "Livraison clé en main"
+                  ]
+                }
+              ]
+            },
+            {
+              "type": "card",
+              "key": "about.ce-que-nous-faisons.carte-2",
+              "label": "Carte 2",
+              "name": "Aménageur Foncier",
+              "images": [
+                "about.activities.amenageur"
+              ],
+              "blocks": [
+                {
+                  "type": "field",
+                  "key": "about.ce-que-nous-faisons.carte-2.numero",
+                  "label": "Numéro",
+                  "kind": "text",
+                  "default": "02"
+                },
+                {
+                  "type": "field",
+                  "key": "about.ce-que-nous-faisons.carte-2.titre",
+                  "label": "Titre",
+                  "kind": "text",
+                  "default": "Aménageur Foncier"
+                },
+                {
+                  "type": "field",
+                  "key": "about.ce-que-nous-faisons.carte-2.texte",
+                  "label": "Texte",
+                  "kind": "long",
+                  "default": "Viabilisation et lotissement de grandes superficies foncières intégrées aux plans directeurs d'urbanisme. SIIPAF crée des cités résidentielles complètes avec toutes les infrastructures. Agréé MCLU."
+                },
+                {
+                  "type": "list",
+                  "key": "about.ce-que-nous-faisons.carte-2.liste",
+                  "label": "Liste",
+                  "kind": "text",
+                  "default": [
+                    "Lotissements viabilisés",
+                    "Cités résidentielles",
+                    "Plans d'urbanisme"
+                  ]
+                }
+              ]
+            },
+            {
+              "type": "card",
+              "key": "about.ce-que-nous-faisons.carte-3",
+              "label": "Carte 3",
+              "name": "BTP — Bâtiment & Travaux Publics",
+              "images": [
+                "about.activities.btp"
+              ],
+              "blocks": [
+                {
+                  "type": "field",
+                  "key": "about.ce-que-nous-faisons.carte-3.numero",
+                  "label": "Numéro",
+                  "kind": "text",
+                  "default": "03"
+                },
+                {
+                  "type": "field",
+                  "key": "about.ce-que-nous-faisons.carte-3.titre",
+                  "label": "Titre",
+                  "kind": "text",
+                  "default": "BTP — Bâtiment & Travaux Publics"
+                },
+                {
+                  "type": "field",
+                  "key": "about.ce-que-nous-faisons.carte-3.texte",
+                  "label": "Texte",
+                  "kind": "long",
+                  "default": "Réalisation de tous types de constructions : logements, immeubles résidentiels, équipements collectifs et ouvrages d'art. Du gros œuvre à la finition, SIIPAF garantit qualité et respect des délais."
+                },
+                {
+                  "type": "list",
+                  "key": "about.ce-que-nous-faisons.carte-3.liste",
+                  "label": "Liste",
+                  "kind": "text",
+                  "default": [
+                    "Génie civil",
+                    "Gros & Second œuvre",
+                    "VRD & Assainissement"
+                  ]
+                }
+              ]
+            },
+            {
+              "type": "card",
+              "key": "about.ce-que-nous-faisons.carte-4",
+              "label": "Carte 4",
+              "name": "Travaux & Électrification Publique",
+              "images": [
+                "about.activities.electricite"
+              ],
+              "blocks": [
+                {
+                  "type": "field",
+                  "key": "about.ce-que-nous-faisons.carte-4.numero",
+                  "label": "Numéro",
+                  "kind": "text",
+                  "default": "04"
+                },
+                {
+                  "type": "field",
+                  "key": "about.ce-que-nous-faisons.carte-4.titre",
+                  "label": "Titre",
+                  "kind": "text",
+                  "default": "Travaux & Électrification Publique"
+                },
+                {
+                  "type": "field",
+                  "key": "about.ce-que-nous-faisons.carte-4.texte",
+                  "label": "Texte",
+                  "kind": "long",
+                  "default": "Travaux d'infrastructure publique et d'électrification de quartiers et cités résidentielles. Agréée par CI-Énergie et CIE pour les réseaux basse et haute tension."
+                },
+                {
+                  "type": "list",
+                  "key": "about.ce-que-nous-faisons.carte-4.liste",
+                  "label": "Liste",
+                  "kind": "text",
+                  "default": [
+                    "Réseaux BT/HT",
+                    "Éclairage public",
+                    "Agrément CI-Énergie"
+                  ]
+                }
+              ]
+            },
+            {
+              "type": "card",
+              "key": "about.ce-que-nous-faisons.carte-5",
+              "label": "Carte 5",
+              "name": "Assistance & Conseils Immobiliers",
+              "images": [
+                "about.activities.conseil"
+              ],
+              "blocks": [
+                {
+                  "type": "field",
+                  "key": "about.ce-que-nous-faisons.carte-5.numero",
+                  "label": "Numéro",
+                  "kind": "text",
+                  "default": "05"
+                },
+                {
+                  "type": "field",
+                  "key": "about.ce-que-nous-faisons.carte-5.titre",
+                  "label": "Titre",
+                  "kind": "text",
+                  "default": "Assistance & Conseils Immobiliers"
+                },
+                {
+                  "type": "field",
+                  "key": "about.ce-que-nous-faisons.carte-5.texte",
+                  "label": "Texte",
+                  "kind": "long",
+                  "default": "Accompagnement personnalisé de A à Z : choix du bien, constitution du dossier de financement, assistance juridique et suivi de chantier jusqu'à la remise des clés."
+                },
+                {
+                  "type": "list",
+                  "key": "about.ce-que-nous-faisons.carte-5.liste",
+                  "label": "Liste",
+                  "kind": "text",
+                  "default": [
+                    "Conseil immobilier",
+                    "Aide au financement",
+                    "Suivi juridique"
+                  ]
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "key": "about.notre-adn",
+          "label": "Notre ADN",
+          "images": [],
+          "blocks": [
+            {
+              "type": "field",
+              "key": "about.notre-adn.etiquette",
+              "label": "Étiquette",
+              "kind": "text",
+              "default": "Notre ADN"
+            },
+            {
+              "type": "field",
+              "key": "about.notre-adn.titre",
+              "label": "Titre",
+              "kind": "text",
+              "default": "Les valeurs qui nous *définissent*"
+            },
+            {
+              "type": "field",
+              "key": "about.notre-adn.sous-titre",
+              "label": "Sous-titre",
+              "kind": "long",
+              "default": "Des principes ancrés dans chaque décision, chaque projet, chaque interaction avec nos clients."
+            },
+            {
+              "type": "card",
+              "key": "about.notre-adn.carte-1",
+              "label": "Carte 1",
+              "name": "Intégrité",
+              "images": [],
+              "blocks": [
+                {
+                  "type": "field",
+                  "key": "about.notre-adn.carte-1.titre",
+                  "label": "Titre",
+                  "kind": "text",
+                  "default": "Intégrité"
+                },
+                {
+                  "type": "field",
+                  "key": "about.notre-adn.carte-1.texte",
+                  "label": "Texte",
+                  "kind": "long",
+                  "default": "Transparence totale dans nos transactions, nos prix et nos délais. Ce que nous promettons, nous le livrons."
+                }
+              ]
+            },
+            {
+              "type": "card",
+              "key": "about.notre-adn.carte-2",
+              "label": "Carte 2",
+              "name": "Excellence",
+              "images": [],
+              "blocks": [
+                {
+                  "type": "field",
+                  "key": "about.notre-adn.carte-2.titre",
+                  "label": "Titre",
+                  "kind": "text",
+                  "default": "Excellence"
+                },
+                {
+                  "type": "field",
+                  "key": "about.notre-adn.carte-2.texte",
+                  "label": "Texte",
+                  "kind": "long",
+                  "default": "Normes de construction rigoureuses, matériaux de qualité, finitions soignées sur chacun de nos programmes."
+                }
+              ]
+            },
+            {
+              "type": "card",
+              "key": "about.notre-adn.carte-3",
+              "label": "Carte 3",
+              "name": "Inclusion",
+              "images": [],
+              "blocks": [
+                {
+                  "type": "field",
+                  "key": "about.notre-adn.carte-3.titre",
+                  "label": "Titre",
+                  "kind": "text",
+                  "default": "Inclusion"
+                },
+                {
+                  "type": "field",
+                  "key": "about.notre-adn.carte-3.texte",
+                  "label": "Texte",
+                  "kind": "long",
+                  "default": "Proposer des logements pour tous les revenus — de la famille modeste au cadre supérieur, chacun mérite un toit de qualité."
+                }
+              ]
+            },
+            {
+              "type": "card",
+              "key": "about.notre-adn.carte-4",
+              "label": "Carte 4",
+              "name": "Responsabilité",
+              "images": [],
+              "blocks": [
+                {
+                  "type": "field",
+                  "key": "about.notre-adn.carte-4.titre",
+                  "label": "Titre",
+                  "kind": "text",
+                  "default": "Responsabilité"
+                },
+                {
+                  "type": "field",
+                  "key": "about.notre-adn.carte-4.texte",
+                  "label": "Texte",
+                  "kind": "long",
+                  "default": "Construire avec conscience — respect de l'environnement, des riverains et des plans directeurs d'urbanisme des villes."
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "key": "about.nos-engagements",
+          "label": "Nos Engagements",
+          "images": [
+            "about.why.background"
+          ],
+          "blocks": [
+            {
+              "type": "field",
+              "key": "about.nos-engagements.etiquette",
+              "label": "Étiquette",
+              "kind": "text",
+              "default": "Nos Engagements"
+            },
+            {
+              "type": "field",
+              "key": "about.nos-engagements.titre",
+              "label": "Titre",
+              "kind": "text",
+              "default": "Votre confiance,\n*notre priorité*"
+            },
+            {
+              "type": "card",
+              "key": "about.nos-engagements.carte-1",
+              "label": "Carte 1",
+              "name": "Agrément Officiel",
+              "images": [],
+              "blocks": [
+                {
+                  "type": "field",
+                  "key": "about.nos-engagements.carte-1.titre",
+                  "label": "Titre",
+                  "kind": "text",
+                  "default": "Agrément Officiel"
+                },
+                {
+                  "type": "field",
+                  "key": "about.nos-engagements.carte-1.texte",
+                  "label": "Texte",
+                  "kind": "long",
+                  "default": "Promoteur & Aménageur agréés MCLU — garantie légale de vos investissements."
+                }
+              ]
+            },
+            {
+              "type": "card",
+              "key": "about.nos-engagements.carte-2",
+              "label": "Carte 2",
+              "name": "Comptes Séquestres Sécurisés",
+              "images": [],
+              "blocks": [
+                {
+                  "type": "field",
+                  "key": "about.nos-engagements.carte-2.titre",
+                  "label": "Titre",
+                  "kind": "text",
+                  "default": "Comptes Séquestres Sécurisés"
+                },
+                {
+                  "type": "field",
+                  "key": "about.nos-engagements.carte-2.texte",
+                  "label": "Texte",
+                  "kind": "long",
+                  "default": "Fonds protégés : Orange Bank, BHCI, BNI — intouchables jusqu'à la livraison."
+                }
+              ]
+            },
+            {
+              "type": "card",
+              "key": "about.nos-engagements.carte-3",
+              "label": "Carte 3",
+              "name": "Prix Accessibles",
+              "images": [],
+              "blocks": [
+                {
+                  "type": "field",
+                  "key": "about.nos-engagements.carte-3.titre",
+                  "label": "Titre",
+                  "kind": "text",
+                  "default": "Prix Accessibles"
+                },
+                {
+                  "type": "field",
+                  "key": "about.nos-engagements.carte-3.texte",
+                  "label": "Texte",
+                  "kind": "long",
+                  "default": "Du logement social à 9M FCFA aux penthouses de prestige — pour tous les budgets."
+                }
+              ]
+            },
+            {
+              "type": "card",
+              "key": "about.nos-engagements.carte-4",
+              "label": "Carte 4",
+              "name": "Délais Contractuels",
+              "images": [],
+              "blocks": [
+                {
+                  "type": "field",
+                  "key": "about.nos-engagements.carte-4.titre",
+                  "label": "Titre",
+                  "kind": "text",
+                  "default": "Délais Contractuels"
+                },
+                {
+                  "type": "field",
+                  "key": "about.nos-engagements.carte-4.texte",
+                  "label": "Texte",
+                  "kind": "long",
+                  "default": "30 mois ou 180 jours selon les projets — nos délais sont garantis par contrat."
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "key": "about.nos-partenaires",
+          "label": "Nos Partenaires",
+          "images": [],
+          "blocks": [
+            {
+              "type": "field",
+              "key": "about.nos-partenaires.etiquette",
+              "label": "Étiquette",
+              "kind": "text",
+              "default": "Nos Partenaires"
+            },
+            {
+              "type": "field",
+              "key": "about.nos-partenaires.titre",
+              "label": "Titre",
+              "kind": "text",
+              "default": "Ils nous ont fait *confiance*"
+            },
+            {
+              "type": "field",
+              "key": "about.nos-partenaires.sous-titre",
+              "label": "Sous-titre",
+              "kind": "long",
+              "default": "Des institutions bancaires, ministères et organismes officiels qui attestent du sérieux et de la conformité légale de SIIPAF SA."
+            },
+            {
+              "type": "card",
+              "key": "about.nos-partenaires.carte-1",
+              "label": "Carte 1",
+              "name": "Ministère de la Construction (MCLU)",
+              "images": [
+                "about.partners.MCLU"
+              ],
+              "blocks": [
+                {
+                  "type": "field",
+                  "key": "about.nos-partenaires.carte-1.nom",
+                  "label": "Nom",
+                  "kind": "text",
+                  "default": "Ministère de la Construction (MCLU)"
+                },
+                {
+                  "type": "field",
+                  "key": "about.nos-partenaires.carte-1.texte-court",
+                  "label": "Texte court",
+                  "kind": "text",
+                  "default": "Agrément Promoteur & Aménageur Foncier"
+                }
+              ]
+            },
+            {
+              "type": "card",
+              "key": "about.nos-partenaires.carte-2",
+              "label": "Carte 2",
+              "name": "Orange Bank CI",
+              "images": [
+                "about.partners.orange_bank"
+              ],
+              "blocks": [
+                {
+                  "type": "field",
+                  "key": "about.nos-partenaires.carte-2.nom",
+                  "label": "Nom",
+                  "kind": "text",
+                  "default": "Orange Bank CI"
+                },
+                {
+                  "type": "field",
+                  "key": "about.nos-partenaires.carte-2.texte-court",
+                  "label": "Texte court",
+                  "kind": "text",
+                  "default": "Compte séquestre certifié"
+                }
+              ]
+            },
+            {
+              "type": "card",
+              "key": "about.nos-partenaires.carte-3",
+              "label": "Carte 3",
+              "name": "BHCI",
+              "images": [
+                "about.partners.BHCI"
+              ],
+              "blocks": [
+                {
+                  "type": "field",
+                  "key": "about.nos-partenaires.carte-3.nom",
+                  "label": "Nom",
+                  "kind": "text",
+                  "default": "BHCI"
+                },
+                {
+                  "type": "field",
+                  "key": "about.nos-partenaires.carte-3.texte-court",
+                  "label": "Texte court",
+                  "kind": "text",
+                  "default": "Banque de l'Habitat — Compte séquestre"
+                }
+              ]
+            },
+            {
+              "type": "card",
+              "key": "about.nos-partenaires.carte-4",
+              "label": "Carte 4",
+              "name": "BNI",
+              "images": [
+                "about.partners.BNI"
+              ],
+              "blocks": [
+                {
+                  "type": "field",
+                  "key": "about.nos-partenaires.carte-4.nom",
+                  "label": "Nom",
+                  "kind": "text",
+                  "default": "BNI"
+                },
+                {
+                  "type": "field",
+                  "key": "about.nos-partenaires.carte-4.texte-court",
+                  "label": "Texte court",
+                  "kind": "text",
+                  "default": "Banque Nationale d'Investissement — Séquestre"
+                }
+              ]
+            },
+            {
+              "type": "card",
+              "key": "about.nos-partenaires.carte-5",
+              "label": "Carte 5",
+              "name": "CI-Énergie & CIE",
+              "images": [
+                "about.partners.CIE"
+              ],
+              "blocks": [
+                {
+                  "type": "field",
+                  "key": "about.nos-partenaires.carte-5.nom",
+                  "label": "Nom",
+                  "kind": "text",
+                  "default": "CI-Énergie & CIE"
+                },
+                {
+                  "type": "field",
+                  "key": "about.nos-partenaires.carte-5.texte-court",
+                  "label": "Texte court",
+                  "kind": "text",
+                  "default": "Agrément travaux électrification publique"
+                }
+              ]
+            },
+            {
+              "type": "card",
+              "key": "about.nos-partenaires.carte-6",
+              "label": "Carte 6",
+              "name": "Kouamé A.",
+              "images": [],
+              "blocks": [
+                {
+                  "type": "field",
+                  "key": "about.nos-partenaires.carte-6.texte",
+                  "label": "Texte",
+                  "kind": "long",
+                  "default": "\"Un promoteur sérieux et agréé — la sécurité des comptes séquestres nous a convaincus. Notre appartement à Yamoussoukro a été livré dans les délais contractuels.\""
+                },
+                {
+                  "type": "field",
+                  "key": "about.nos-partenaires.carte-6.nom",
+                  "label": "Nom",
+                  "kind": "text",
+                  "default": "Kouamé A."
+                },
+                {
+                  "type": "field",
+                  "key": "about.nos-partenaires.carte-6.texte-court",
+                  "label": "Texte court",
+                  "kind": "text",
+                  "default": "Diaspora France · Yamoussoukro"
+                }
+              ]
+            },
+            {
+              "type": "card",
+              "key": "about.nos-partenaires.carte-7",
+              "label": "Carte 7",
+              "name": "Bamba S.",
+              "images": [],
+              "blocks": [
+                {
+                  "type": "field",
+                  "key": "about.nos-partenaires.carte-7.texte",
+                  "label": "Texte",
+                  "kind": "long",
+                  "default": "\"SIIPAF SA m'a accompagné de A à Z dans mon acquisition à Bingerville. Livraison en 180 jours tenue, finitions impeccables. Je recommande à toute la diaspora !\""
+                },
+                {
+                  "type": "field",
+                  "key": "about.nos-partenaires.carte-7.nom",
+                  "label": "Nom",
+                  "kind": "text",
+                  "default": "Bamba S."
+                },
+                {
+                  "type": "field",
+                  "key": "about.nos-partenaires.carte-7.texte-court",
+                  "label": "Texte court",
+                  "kind": "text",
+                  "default": "Cadre · Bingerville"
+                }
+              ]
+            },
+            {
+              "type": "card",
+              "key": "about.nos-partenaires.carte-8",
+              "label": "Carte 8",
+              "name": "N'Goran E.",
+              "images": [],
+              "blocks": [
+                {
+                  "type": "field",
+                  "key": "about.nos-partenaires.carte-8.texte",
+                  "label": "Texte",
+                  "kind": "long",
+                  "default": "\"L'appartement F4 à Cocody Angré correspond parfaitement à ce qui nous a été présenté. Transparence totale, équipe professionnelle. SIIPAF honore ses engagements.\""
+                },
+                {
+                  "type": "field",
+                  "key": "about.nos-partenaires.carte-8.nom",
+                  "label": "Nom",
+                  "kind": "text",
+                  "default": "N'Goran E."
+                },
+                {
+                  "type": "field",
+                  "key": "about.nos-partenaires.carte-8.texte-court",
+                  "label": "Texte court",
+                  "kind": "text",
+                  "default": "Entrepreneur · Cocody Angré"
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "key": "about.pret-a-acquerir-votre-bien",
+          "label": "Prêt à acquérir votre bien ?",
+          "images": [],
+          "blocks": [
+            {
+              "type": "field",
+              "key": "about.pret-a-acquerir-votre-bien.titre",
+              "label": "Titre",
+              "kind": "text",
+              "default": "Prêt à acquérir votre bien ?"
+            },
+            {
+              "type": "field",
+              "key": "about.pret-a-acquerir-votre-bien.texte",
+              "label": "Texte",
+              "kind": "long",
+              "default": "Nos conseillers SIIPAF sont disponibles pour étudier votre dossier gratuitement."
+            },
+            {
+              "type": "field",
+              "key": "about.pret-a-acquerir-votre-bien.bouton",
+              "label": "Bouton",
+              "kind": "link",
+              "default": {
+                "label": "Voir nos projets",
+                "href": "projets.html"
+              }
+            },
+            {
+              "type": "field",
+              "key": "about.pret-a-acquerir-votre-bien.bouton-2",
+              "label": "Bouton 2",
+              "kind": "link",
+              "default": {
+                "label": "Nous contacter",
+                "href": "contact.html"
+              }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "projects",
+      "label": "Projets",
+      "path": "projets.html",
+      "meta": {
+        "title": "Nos Projets — SIIPAF SA | 5 Programmes Immobiliers en Côte d'Ivoire",
+        "description": "Découvrez les 5 projets immobiliers SIIPAF : SIIPAF CITY YAMOUSSOUKRO, AHOUTOUE, RIVIERA II, MINI-CITÉS BINGERVILLE et C&LY ANGRÉ."
+      },
+      "sections": [
+        {
+          "key": "projects.bandeau-de-titre",
+          "label": "Bandeau de titre",
+          "images": [
+            "projects.hero"
+          ],
+          "blocks": [
+            {
+              "type": "field",
+              "key": "projects.bandeau-de-titre.titre",
+              "label": "Titre",
+              "kind": "text",
+              "default": "Nos *Projets Phares*"
+            },
+            {
+              "type": "field",
+              "key": "projects.bandeau-de-titre.texte",
+              "label": "Texte",
+              "kind": "long",
+              "default": "5 programmes immobiliers — du logement accessible aux résidences de prestige."
+            }
+          ]
+        },
+        {
+          "key": "projects.choisissez-votre-programme",
+          "label": "Choisissez votre programme",
+          "note": "Les fiches des projets (textes, prix, équipements, chiffres clés) se règlent dans Projets › fiche projet. Les lotissements affichés viennent des fiches projet publiées.",
+          "images": [],
+          "blocks": [
+            {
+              "type": "field",
+              "key": "projects.choisissez-votre-programme.titre",
+              "label": "Titre",
+              "kind": "text",
+              "default": "Choisissez votre *programme*"
+            },
+            {
+              "type": "field",
+              "key": "projects.choisissez-votre-programme.sous-titre",
+              "label": "Sous-titre",
+              "kind": "long",
+              "default": "Logement social, villas et résidences haut standing : ouvrez un programme pour découvrir ses prix, ses prestations et son emplacement."
+            },
+            {
+              "type": "field",
+              "key": "projects.choisissez-votre-programme.titre-2",
+              "label": "Titre 2",
+              "kind": "text",
+              "default": "Nos Projets"
+            },
+            {
+              "type": "field",
+              "key": "projects.choisissez-votre-programme.texte",
+              "label": "Texte",
+              "kind": "text",
+              "default": "Intéressé par un projet ?"
+            },
+            {
+              "type": "field",
+              "key": "projects.choisissez-votre-programme.bouton",
+              "label": "Bouton",
+              "kind": "link",
+              "default": {
+                "label": "Réserver",
+                "href": "contact.html"
+              }
+            }
+          ]
+        },
+        {
+          "key": "projects.un-projet-vous-interesse",
+          "label": "Un projet vous intéresse ?",
+          "images": [],
+          "blocks": [
+            {
+              "type": "field",
+              "key": "projects.un-projet-vous-interesse.titre",
+              "label": "Titre",
+              "kind": "text",
+              "default": "Un projet vous intéresse ?"
+            },
+            {
+              "type": "field",
+              "key": "projects.un-projet-vous-interesse.texte",
+              "label": "Texte",
+              "kind": "text",
+              "default": "Contactez nos conseillers pour une étude personnalisée et gratuite."
+            },
+            {
+              "type": "field",
+              "key": "projects.un-projet-vous-interesse.bouton",
+              "label": "Bouton",
+              "kind": "link",
+              "default": {
+                "label": "Nous contacter",
+                "href": "contact.html"
+              }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "lotissements",
+      "label": "Lotissements",
+      "path": "lotissements.html",
+      "meta": {
+        "title": "Lotissements — SIIPAF SA | Terrains viabilisés et plans interactifs",
+        "description": "Lotissements SIIPAF en Côte d’Ivoire : terrains viabilisés, plans de masse interactifs, disponibilité des lots en temps réel et pré-réservation en ligne."
+      },
+      "sections": [
+        {
+          "key": "lotissements.bandeau-de-titre",
+          "label": "Bandeau de titre",
+          "images": [
+            "lotissements.hero"
+          ],
+          "blocks": [
+            {
+              "type": "field",
+              "key": "lotissements.bandeau-de-titre.titre",
+              "label": "Titre",
+              "kind": "text",
+              "default": "Nos *Lotissements*"
+            },
+            {
+              "type": "field",
+              "key": "lotissements.bandeau-de-titre.texte",
+              "label": "Texte",
+              "kind": "long",
+              "default": "Des terrains viabilisés, choisis lot par lot sur le plan de masse interactif."
+            }
+          ]
+        },
+        {
+          "key": "lotissements.amenageur-foncier-agree-mclu",
+          "label": "Aménageur foncier agréé MCLU",
+          "note": "Les lotissements affichés viennent des fiches projet publiées.",
+          "images": [],
+          "blocks": [
+            {
+              "type": "field",
+              "key": "lotissements.amenageur-foncier-agree-mclu.etiquette",
+              "label": "Étiquette",
+              "kind": "text",
+              "default": "Aménageur foncier agréé MCLU"
+            },
+            {
+              "type": "field",
+              "key": "lotissements.amenageur-foncier-agree-mclu.titre",
+              "label": "Titre",
+              "kind": "text",
+              "default": "Choisissez votre *terrain*"
+            },
+            {
+              "type": "field",
+              "key": "lotissements.amenageur-foncier-agree-mclu.sous-titre",
+              "label": "Sous-titre",
+              "kind": "long",
+              "default": "Ouvrez le plan de masse, repérez les lots disponibles en vert et pré-réservez gratuitement celui qui vous plaît pendant 7 jours."
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "plan",
+      "label": "Plan interactif",
+      "path": "plan-interactif.html",
+      "meta": {
+        "title": "Plan interactif — SIIPAF SA | Disponibilité des lots",
+        "description": "Plan de masse interactif SIIPAF : disponibilité des lots en temps réel, surfaces, prix et pré-réservation en ligne."
+      },
+      "sections": [
+        {
+          "key": "plan.en-tete-du-plan",
+          "label": "En-tête du plan",
+          "images": [],
+          "blocks": []
+        },
+        {
+          "key": "plan.plan",
+          "label": "Plan",
+          "note": "Le plan vient des plans de masse publiés (Projets › plan de masse).",
+          "images": [],
+          "blocks": []
+        }
+      ]
+    },
+    {
+      "id": "financing",
+      "label": "Financement",
+      "path": "financement.html",
+      "meta": {
+        "title": "Financement — SIIPAF SA | Solutions de Paiement Flexibles",
+        "description": "SIIPAF SA propose des solutions de financement flexibles : avec apport, sans apport (Diaspora), crédit bancaire sur 36 mois. Orange Bank, BHCI, BNI."
+      },
+      "sections": [
+        {
+          "key": "financing.bandeau-de-titre",
+          "label": "Bandeau de titre",
+          "images": [
+            "financing.hero"
+          ],
+          "blocks": [
+            {
+              "type": "field",
+              "key": "financing.bandeau-de-titre.titre",
+              "label": "Titre",
+              "kind": "text",
+              "default": "Options de *Financement*"
+            },
+            {
+              "type": "field",
+              "key": "financing.bandeau-de-titre.texte",
+              "label": "Texte",
+              "kind": "long",
+              "default": "Des solutions de paiement flexibles pour rendre votre projet immobilier accessible."
+            }
+          ]
+        },
+        {
+          "key": "financing.flexibilite",
+          "label": "Flexibilité",
+          "images": [],
+          "blocks": [
+            {
+              "type": "field",
+              "key": "financing.flexibilite.etiquette",
+              "label": "Étiquette",
+              "kind": "text",
+              "default": "Flexibilité"
+            },
+            {
+              "type": "field",
+              "key": "financing.flexibilite.titre",
+              "label": "Titre",
+              "kind": "text",
+              "default": "Votre acquisition, *à votre rythme*"
+            },
+            {
+              "type": "field",
+              "key": "financing.flexibilite.sous-titre",
+              "label": "Sous-titre",
+              "kind": "long",
+              "default": "SIIPAF SA rend l'accession à la propriété possible pour tous grâce à des solutions de paiement adaptées à chaque situation."
+            },
+            {
+              "type": "card",
+              "key": "financing.flexibilite.carte-1",
+              "label": "Carte 1",
+              "name": "Avec apport initial",
+              "images": [],
+              "blocks": [
+                {
+                  "type": "field",
+                  "key": "financing.flexibilite.carte-1.titre",
+                  "label": "Titre",
+                  "kind": "text",
+                  "default": "Avec apport initial"
+                },
+                {
+                  "type": "field",
+                  "key": "financing.flexibilite.carte-1.introduction",
+                  "label": "Introduction",
+                  "kind": "long",
+                  "default": "La solution classique pour les résidents en Côte d'Ivoire et à l'international."
+                },
+                {
+                  "type": "field",
+                  "key": "financing.flexibilite.carte-1.chiffre",
+                  "label": "Chiffre",
+                  "kind": "text",
+                  "default": "30 %"
+                },
+                {
+                  "type": "field",
+                  "key": "financing.flexibilite.carte-1.legende",
+                  "label": "Légende",
+                  "kind": "text",
+                  "default": "à la réservation du bien"
+                },
+                {
+                  "type": "field",
+                  "key": "financing.flexibilite.carte-1.chiffre-2",
+                  "label": "Chiffre 2",
+                  "kind": "text",
+                  "default": "70 %"
+                },
+                {
+                  "type": "field",
+                  "key": "financing.flexibilite.carte-1.legende-2",
+                  "label": "Légende 2",
+                  "kind": "text",
+                  "default": "soldés en 36 mensualités"
+                },
+                {
+                  "type": "field",
+                  "key": "financing.flexibilite.carte-1.texte-court",
+                  "label": "Texte court",
+                  "kind": "text",
+                  "default": "Livraison en 30 mois, ou en 12 / 24 mois en cas de paiement intégral."
+                },
+                {
+                  "type": "field",
+                  "key": "financing.flexibilite.carte-1.bouton",
+                  "label": "Bouton",
+                  "kind": "link",
+                  "default": {
+                    "label": "Démarrer",
+                    "href": "contact.html"
+                  }
+                }
+              ]
+            },
+            {
+              "type": "card",
+              "key": "financing.flexibilite.carte-2",
+              "label": "Carte 2",
+              "name": "Sans apport — Diaspora",
+              "images": [],
+              "blocks": [
+                {
+                  "type": "field",
+                  "key": "financing.flexibilite.carte-2.etiquette",
+                  "label": "Étiquette",
+                  "kind": "text",
+                  "default": "Option Diaspora"
+                },
+                {
+                  "type": "field",
+                  "key": "financing.flexibilite.carte-2.titre",
+                  "label": "Titre",
+                  "kind": "text",
+                  "default": "Sans apport — Diaspora"
+                },
+                {
+                  "type": "field",
+                  "key": "financing.flexibilite.carte-2.introduction",
+                  "label": "Introduction",
+                  "kind": "long",
+                  "default": "Spécialement conçu pour la diaspora ivoirienne et africaine à l'étranger."
+                },
+                {
+                  "type": "field",
+                  "key": "financing.flexibilite.carte-2.chiffre",
+                  "label": "Chiffre",
+                  "kind": "text",
+                  "default": "0 %"
+                },
+                {
+                  "type": "field",
+                  "key": "financing.flexibilite.carte-2.legende",
+                  "label": "Légende",
+                  "kind": "text",
+                  "default": "aucun apport requis"
+                },
+                {
+                  "type": "field",
+                  "key": "financing.flexibilite.carte-2.chiffre-2",
+                  "label": "Chiffre 2",
+                  "kind": "text",
+                  "default": "36 mois"
+                },
+                {
+                  "type": "field",
+                  "key": "financing.flexibilite.carte-2.legende-2",
+                  "label": "Légende 2",
+                  "kind": "text",
+                  "default": "pour régler la totalité du prix"
+                },
+                {
+                  "type": "field",
+                  "key": "financing.flexibilite.carte-2.texte-court",
+                  "label": "Texte court",
+                  "kind": "text",
+                  "default": "Prix légèrement majoré : voir les [tableaux de prix de chaque projet](projets.html)."
+                },
+                {
+                  "type": "field",
+                  "key": "financing.flexibilite.carte-2.bouton",
+                  "label": "Bouton",
+                  "kind": "link",
+                  "default": {
+                    "label": "Démarrer",
+                    "href": "contact.html"
+                  }
+                }
+              ]
+            },
+            {
+              "type": "card",
+              "key": "financing.flexibilite.carte-3",
+              "label": "Carte 3",
+              "name": "Crédit bancaire",
+              "images": [],
+              "blocks": [
+                {
+                  "type": "field",
+                  "key": "financing.flexibilite.carte-3.titre",
+                  "label": "Titre",
+                  "kind": "text",
+                  "default": "Crédit bancaire"
+                },
+                {
+                  "type": "field",
+                  "key": "financing.flexibilite.carte-3.introduction",
+                  "label": "Introduction",
+                  "kind": "long",
+                  "default": "Bénéficiez d'un financement auprès de nos banques partenaires avec des conditions préférentielles."
+                },
+                {
+                  "type": "field",
+                  "key": "financing.flexibilite.carte-3.chiffre",
+                  "label": "Chiffre",
+                  "kind": "text",
+                  "default": "Apport"
+                },
+                {
+                  "type": "field",
+                  "key": "financing.flexibilite.carte-3.legende",
+                  "label": "Légende",
+                  "kind": "text",
+                  "default": "à la réservation"
+                },
+                {
+                  "type": "field",
+                  "key": "financing.flexibilite.carte-3.chiffre-2",
+                  "label": "Chiffre 2",
+                  "kind": "text",
+                  "default": "Prêt"
+                },
+                {
+                  "type": "field",
+                  "key": "financing.flexibilite.carte-3.legende-2",
+                  "label": "Légende 2",
+                  "kind": "text",
+                  "default": "banque ou microfinance agréée, acquisition sécurisée"
+                },
+                {
+                  "type": "field",
+                  "key": "financing.flexibilite.carte-3.texte-court",
+                  "label": "Texte court",
+                  "kind": "text",
+                  "default": "Nos conseillers vous accompagnent dans la constitution du dossier."
+                },
+                {
+                  "type": "field",
+                  "key": "financing.flexibilite.carte-3.bouton",
+                  "label": "Bouton",
+                  "kind": "link",
+                  "default": {
+                    "label": "Nous contacter",
+                    "href": "contact.html"
+                  }
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "key": "financing.securite",
+          "label": "Sécurité",
+          "images": [],
+          "blocks": [
+            {
+              "type": "field",
+              "key": "financing.securite.etiquette",
+              "label": "Étiquette",
+              "kind": "text",
+              "default": "Sécurité"
+            },
+            {
+              "type": "field",
+              "key": "financing.securite.titre",
+              "label": "Titre",
+              "kind": "text",
+              "default": "Banques *Partenaires*"
+            },
+            {
+              "type": "field",
+              "key": "financing.securite.sous-titre",
+              "label": "Sous-titre",
+              "kind": "long",
+              "default": "Vos fonds sont déposés dans des comptes séquestres certifiés auprès de banques agréées, garantissant la sécurité totale de votre investissement."
+            },
+            {
+              "type": "card",
+              "key": "financing.securite.carte-1",
+              "label": "Carte 1",
+              "name": "Orange Bank",
+              "images": [
+                "financing.partners.orange_bank"
+              ],
+              "blocks": [
+                {
+                  "type": "field",
+                  "key": "financing.securite.carte-1.titre",
+                  "label": "Titre",
+                  "kind": "text",
+                  "default": "Orange Bank"
+                },
+                {
+                  "type": "field",
+                  "key": "financing.securite.carte-1.texte",
+                  "label": "Texte",
+                  "kind": "long",
+                  "default": "Banque digitale de référence en Côte d'Ivoire. Compte séquestre sécurisé pour tous nos projets."
+                }
+              ]
+            },
+            {
+              "type": "card",
+              "key": "financing.securite.carte-2",
+              "label": "Carte 2",
+              "name": "BHCI",
+              "images": [
+                "financing.partners.BHCI"
+              ],
+              "blocks": [
+                {
+                  "type": "field",
+                  "key": "financing.securite.carte-2.titre",
+                  "label": "Titre",
+                  "kind": "text",
+                  "default": "BHCI"
+                },
+                {
+                  "type": "field",
+                  "key": "financing.securite.carte-2.texte",
+                  "label": "Texte",
+                  "kind": "long",
+                  "default": "Banque de l'Habitat de Côte d'Ivoire — partenaire historique du financement immobilier en Côte d'Ivoire."
+                }
+              ]
+            },
+            {
+              "type": "card",
+              "key": "financing.securite.carte-3",
+              "label": "Carte 3",
+              "name": "BNI",
+              "images": [
+                "financing.partners.BNI"
+              ],
+              "blocks": [
+                {
+                  "type": "field",
+                  "key": "financing.securite.carte-3.titre",
+                  "label": "Titre",
+                  "kind": "text",
+                  "default": "BNI"
+                },
+                {
+                  "type": "field",
+                  "key": "financing.securite.carte-3.texte",
+                  "label": "Texte",
+                  "kind": "long",
+                  "default": "Banque Nationale d'Investissement — établissement public au service du développement économique ivoirien."
+                }
+              ]
+            },
+            {
+              "type": "field",
+              "key": "financing.securite.titre-2",
+              "label": "Titre 2",
+              "kind": "text",
+              "default": "Qu'est-ce qu'un compte séquestre ?"
+            },
+            {
+              "type": "field",
+              "key": "financing.securite.texte",
+              "label": "Texte",
+              "kind": "long",
+              "default": "Un compte séquestre est un compte bancaire spécial ouvert au nom du projet, sur lequel vos paiements sont versés et conservés jusqu'à la livraison. Cette disposition légale protège vos fonds et garantit que l'argent ne peut être utilisé qu'aux fins du projet immobilier."
+            }
+          ]
+        },
+        {
+          "key": "financing.processus",
+          "label": "Processus",
+          "images": [],
+          "blocks": [
+            {
+              "type": "field",
+              "key": "financing.processus.etiquette",
+              "label": "Étiquette",
+              "kind": "text",
+              "default": "Processus"
+            },
+            {
+              "type": "field",
+              "key": "financing.processus.titre",
+              "label": "Titre",
+              "kind": "text",
+              "default": "Comment *acquérir votre bien* ?"
+            },
+            {
+              "type": "field",
+              "key": "financing.processus.sous-titre",
+              "label": "Sous-titre",
+              "kind": "text",
+              "default": "Un processus simple, transparent et sécurisé en 5 étapes."
+            },
+            {
+              "type": "card",
+              "key": "financing.processus.carte-1",
+              "label": "Carte 1",
+              "name": "Choisissez votre bien",
+              "images": [],
+              "blocks": [
+                {
+                  "type": "field",
+                  "key": "financing.processus.carte-1.numero",
+                  "label": "Numéro",
+                  "kind": "text",
+                  "default": "01"
+                },
+                {
+                  "type": "field",
+                  "key": "financing.processus.carte-1.titre",
+                  "label": "Titre",
+                  "kind": "text",
+                  "default": "Choisissez votre bien"
+                },
+                {
+                  "type": "field",
+                  "key": "financing.processus.carte-1.texte",
+                  "label": "Texte",
+                  "kind": "long",
+                  "default": "Consultez nos 5 projets immobiliers et sélectionnez le type de logement adapté à votre budget et vos besoins."
+                }
+              ]
+            },
+            {
+              "type": "card",
+              "key": "financing.processus.carte-2",
+              "label": "Carte 2",
+              "name": "Contactez nos conseillers",
+              "images": [],
+              "blocks": [
+                {
+                  "type": "field",
+                  "key": "financing.processus.carte-2.numero",
+                  "label": "Numéro",
+                  "kind": "text",
+                  "default": "02"
+                },
+                {
+                  "type": "field",
+                  "key": "financing.processus.carte-2.titre",
+                  "label": "Titre",
+                  "kind": "text",
+                  "default": "Contactez nos conseillers"
+                },
+                {
+                  "type": "field",
+                  "key": "financing.processus.carte-2.texte",
+                  "label": "Texte",
+                  "kind": "long",
+                  "default": "Appelez-nous ou venez à notre bureau à Cocody 2 Plateaux 7ème Tranche. Nos experts étudient votre dossier gratuitement."
+                }
+              ]
+            },
+            {
+              "type": "card",
+              "key": "financing.processus.carte-3",
+              "label": "Carte 3",
+              "name": "Signez votre contrat de réservation",
+              "images": [],
+              "blocks": [
+                {
+                  "type": "field",
+                  "key": "financing.processus.carte-3.numero",
+                  "label": "Numéro",
+                  "kind": "text",
+                  "default": "03"
+                },
+                {
+                  "type": "field",
+                  "key": "financing.processus.carte-3.titre",
+                  "label": "Titre",
+                  "kind": "text",
+                  "default": "Signez votre contrat de réservation"
+                },
+                {
+                  "type": "field",
+                  "key": "financing.processus.carte-3.texte",
+                  "label": "Texte",
+                  "kind": "long",
+                  "default": "Formalisez votre acquisition par un contrat légal. Versement de 30% (ou 0% option Diaspora) sur compte séquestre."
+                }
+              ]
+            },
+            {
+              "type": "card",
+              "key": "financing.processus.carte-4",
+              "label": "Carte 4",
+              "name": "Suivez l'avancement du chantier",
+              "images": [],
+              "blocks": [
+                {
+                  "type": "field",
+                  "key": "financing.processus.carte-4.numero",
+                  "label": "Numéro",
+                  "kind": "text",
+                  "default": "04"
+                },
+                {
+                  "type": "field",
+                  "key": "financing.processus.carte-4.titre",
+                  "label": "Titre",
+                  "kind": "text",
+                  "default": "Suivez l'avancement du chantier"
+                },
+                {
+                  "type": "field",
+                  "key": "financing.processus.carte-4.texte",
+                  "label": "Texte",
+                  "kind": "long",
+                  "default": "Vous recevez des rapports réguliers d'avancement. Nos délais sont contractuellement garantis (30 mois ou 180 jours selon les projets)."
+                }
+              ]
+            },
+            {
+              "type": "card",
+              "key": "financing.processus.carte-5",
+              "label": "Carte 5",
+              "name": "Remise des clés",
+              "images": [],
+              "blocks": [
+                {
+                  "type": "field",
+                  "key": "financing.processus.carte-5.numero",
+                  "label": "Numéro",
+                  "kind": "text",
+                  "default": "05"
+                },
+                {
+                  "type": "field",
+                  "key": "financing.processus.carte-5.titre",
+                  "label": "Titre",
+                  "kind": "text",
+                  "default": "Remise des clés"
+                },
+                {
+                  "type": "field",
+                  "key": "financing.processus.carte-5.texte",
+                  "label": "Texte",
+                  "kind": "long",
+                  "default": "Après inspection et validation, vous prenez possession de votre bien. Transfert de titre de propriété."
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "key": "financing.commencons-ensemble",
+          "label": "Commençons ensemble",
+          "images": [],
+          "blocks": [
+            {
+              "type": "field",
+              "key": "financing.commencons-ensemble.titre",
+              "label": "Titre",
+              "kind": "text",
+              "default": "Commençons ensemble"
+            },
+            {
+              "type": "field",
+              "key": "financing.commencons-ensemble.texte",
+              "label": "Texte",
+              "kind": "long",
+              "default": "Parlez à un conseiller SIIPAF pour étudier votre plan de financement personnalisé."
+            },
+            {
+              "type": "field",
+              "key": "financing.commencons-ensemble.bouton",
+              "label": "Bouton",
+              "kind": "link",
+              "default": {
+                "label": "Prendre RDV",
+                "href": "contact.html?rdv=1"
+              }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "contact",
+      "label": "Contact",
+      "path": "contact.html",
+      "meta": {
+        "title": "Contact — SIIPAF SA | Cocody 2 Plateaux Abidjan",
+        "description": "Contactez SIIPAF SA — Cocody 2 Plateaux 7ème Tranche, Abidjan. Tél: +225 01 02 27 95 95. Email: info@siipaf.com. WhatsApp disponible."
+      },
+      "sections": [
+        {
+          "key": "contact.bandeau-de-titre",
+          "label": "Bandeau de titre",
+          "images": [
+            "contact.hero"
+          ],
+          "blocks": [
+            {
+              "type": "field",
+              "key": "contact.bandeau-de-titre.titre",
+              "label": "Titre",
+              "kind": "text",
+              "default": "Contactez *SIIPAF SA*"
+            },
+            {
+              "type": "field",
+              "key": "contact.bandeau-de-titre.texte",
+              "label": "Texte",
+              "kind": "long",
+              "default": "Notre équipe est à votre disposition pour répondre à toutes vos questions immobilières."
+            }
+          ]
+        },
+        {
+          "key": "contact.coordonnees",
+          "label": "Coordonnées",
+          "images": [],
+          "blocks": [
+            {
+              "type": "field",
+              "key": "contact.coordonnees.etiquette",
+              "label": "Étiquette",
+              "kind": "text",
+              "default": "Coordonnées"
+            },
+            {
+              "type": "field",
+              "key": "contact.coordonnees.titre",
+              "label": "Titre",
+              "kind": "text",
+              "default": "Nos *Bureaux*"
+            },
+            {
+              "type": "field",
+              "key": "contact.coordonnees.sous-titre",
+              "label": "Sous-titre",
+              "kind": "long",
+              "default": "Retrouvez-nous à Abidjan pour discuter de votre futur projet immobilier."
+            },
+            {
+              "type": "card",
+              "key": "contact.coordonnees.carte-1",
+              "label": "Carte 1",
+              "name": "Localisation",
+              "images": [],
+              "blocks": [
+                {
+                  "type": "field",
+                  "key": "contact.coordonnees.carte-1.titre",
+                  "label": "Titre",
+                  "kind": "text",
+                  "default": "Localisation"
+                },
+                {
+                  "type": "field",
+                  "key": "contact.coordonnees.carte-1.texte",
+                  "label": "Texte",
+                  "kind": "text",
+                  "default": "Cocody 2 Plateaux, 7ème Tranche\nAbidjan, Côte d'Ivoire"
+                }
+              ]
+            },
+            {
+              "type": "card",
+              "key": "contact.coordonnees.carte-2",
+              "label": "Carte 2",
+              "name": "Téléphone",
+              "images": [],
+              "blocks": [
+                {
+                  "type": "field",
+                  "key": "contact.coordonnees.carte-2.titre",
+                  "label": "Titre",
+                  "kind": "text",
+                  "default": "Téléphone"
+                }
+              ]
+            },
+            {
+              "type": "card",
+              "key": "contact.coordonnees.carte-3",
+              "label": "Carte 3",
+              "name": "Email",
+              "images": [],
+              "blocks": [
+                {
+                  "type": "field",
+                  "key": "contact.coordonnees.carte-3.titre",
+                  "label": "Titre",
+                  "kind": "text",
+                  "default": "Email"
+                }
+              ]
+            },
+            {
+              "type": "field",
+              "key": "contact.coordonnees.etiquette-2",
+              "label": "Étiquette 2",
+              "kind": "text",
+              "default": "Formulaire"
+            },
+            {
+              "type": "field",
+              "key": "contact.coordonnees.bouton",
+              "label": "Bouton",
+              "kind": "label",
+              "default": "Envoyer un message"
+            },
+            {
+              "type": "field",
+              "key": "contact.coordonnees.bouton-2",
+              "label": "Bouton 2",
+              "kind": "label",
+              "default": "Prendre rendez-vous"
+            },
+            {
+              "type": "field",
+              "key": "contact.coordonnees.bouton-3",
+              "label": "Bouton 3",
+              "kind": "link",
+              "default": {
+                "label": "Obtenir l'itinéraire (Google Maps)",
+                "href": "https://maps.app.goo.gl/1gXdjxMeij6pTwHY9"
+              }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "careers",
+      "label": "Carrières",
+      "path": "carrieres.html",
+      "meta": {
+        "title": "Carrières — SIIPAF SA | Rejoignez nos équipes",
+        "description": "Offres d’emploi de SIIPAF SA, promoteur et aménageur immobilier agréé à Abidjan : postulez en ligne ou envoyez une candidature spontanée."
+      },
+      "sections": [
+        {
+          "key": "careers.bandeau-de-titre",
+          "label": "Bandeau de titre",
+          "images": [
+            "careers.hero"
+          ],
+          "blocks": [
+            {
+              "type": "field",
+              "key": "careers.bandeau-de-titre.titre",
+              "label": "Titre",
+              "kind": "text",
+              "default": "Rejoignez *SIIPAF SA*"
+            },
+            {
+              "type": "field",
+              "key": "careers.bandeau-de-titre.texte",
+              "label": "Texte",
+              "kind": "long",
+              "default": "Nos offres d’emploi sur les chantiers, au siège et sur le terrain commercial."
+            }
+          ]
+        },
+        {
+          "key": "careers.recrutement",
+          "label": "Recrutement",
+          "note": "Les offres d’emploi viennent de l’ERP › RH › Recrutement.",
+          "images": [],
+          "blocks": [
+            {
+              "type": "field",
+              "key": "careers.recrutement.etiquette",
+              "label": "Étiquette",
+              "kind": "text",
+              "default": "Recrutement"
+            },
+            {
+              "type": "field",
+              "key": "careers.recrutement.titre",
+              "label": "Titre",
+              "kind": "text",
+              "default": "Nos offres *d’emploi*"
+            },
+            {
+              "type": "field",
+              "key": "careers.recrutement.etiquette-2",
+              "label": "Étiquette 2",
+              "kind": "text",
+              "default": "Candidature"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "shared",
+      "label": "Menu et pied de page",
+      "hint": "Communs à toutes les pages du site.",
+      "path": null,
+      "sections": [
+        {
+          "key": "shared.menu",
+          "label": "Menu",
+          "images": [
+            "shared.logo"
+          ],
+          "blocks": [
+            {
+              "type": "field",
+              "key": "shared.menu.lien",
+              "label": "Lien",
+              "kind": "link",
+              "default": {
+                "label": "Accueil",
+                "href": "index.html"
+              }
+            },
+            {
+              "type": "field",
+              "key": "shared.menu.lien-2",
+              "label": "Lien 2",
+              "kind": "link",
+              "default": {
+                "label": "À Propos",
+                "href": "a-propos.html"
+              }
+            },
+            {
+              "type": "field",
+              "key": "shared.menu.bouton",
+              "label": "Bouton",
+              "kind": "label",
+              "default": "Projets"
+            },
+            {
+              "type": "card",
+              "key": "shared.menu.carte-1",
+              "label": "Carte 1",
+              "name": "Promotions immobilières",
+              "images": [],
+              "blocks": [
+                {
+                  "type": "field",
+                  "key": "shared.menu.carte-1.lien",
+                  "label": "Lien",
+                  "kind": "link",
+                  "default": {
+                    "label": "Promotions immobilières",
+                    "href": "projets.html"
+                  }
+                },
+                {
+                  "type": "field",
+                  "key": "shared.menu.carte-1.precision",
+                  "label": "Précision",
+                  "kind": "text",
+                  "default": "Appartements, villas, duplex"
+                }
+              ]
+            },
+            {
+              "type": "card",
+              "key": "shared.menu.carte-2",
+              "label": "Carte 2",
+              "name": "Lotissements",
+              "images": [],
+              "blocks": [
+                {
+                  "type": "field",
+                  "key": "shared.menu.carte-2.lien",
+                  "label": "Lien",
+                  "kind": "link",
+                  "default": {
+                    "label": "Lotissements",
+                    "href": "lotissements.html"
+                  }
+                },
+                {
+                  "type": "field",
+                  "key": "shared.menu.carte-2.precision",
+                  "label": "Précision",
+                  "kind": "text",
+                  "default": "Terrains et plans interactifs"
+                }
+              ]
+            },
+            {
+              "type": "field",
+              "key": "shared.menu.lien-3",
+              "label": "Lien 3",
+              "kind": "link",
+              "default": {
+                "label": "Financement",
+                "href": "financement.html"
+              }
+            },
+            {
+              "type": "field",
+              "key": "shared.menu.lien-4",
+              "label": "Lien 4",
+              "kind": "link",
+              "default": {
+                "label": "Contact",
+                "href": "contact.html"
+              }
+            }
+          ]
+        },
+        {
+          "key": "shared.pied-de-page",
+          "label": "Pied de page",
+          "note": "Adresse, téléphones et e-mail : onglet « Coordonnées ». Réseaux sociaux : onglet « Coordonnées ».",
+          "images": [
+            "shared.logo"
+          ],
+          "blocks": [
+            {
+              "type": "field",
+              "key": "shared.pied-de-page.texte",
+              "label": "Texte",
+              "kind": "long",
+              "default": "SIIPAF SA — Votre Réseau Immobilier. Promoteur Immobilier Agréé & Aménageur Foncier Agréé MCLU. Côte d'Ivoire."
+            },
+            {
+              "type": "card",
+              "key": "shared.pied-de-page.carte-1",
+              "label": "Carte 1",
+              "name": "Nos Projets",
+              "images": [],
+              "blocks": [
+                {
+                  "type": "field",
+                  "key": "shared.pied-de-page.carte-1.titre",
+                  "label": "Titre",
+                  "kind": "text",
+                  "default": "Nos Projets"
+                },
+                {
+                  "type": "list",
+                  "key": "shared.pied-de-page.carte-1.liste",
+                  "label": "Liste",
+                  "kind": "link",
+                  "default": [
+                    {
+                      "label": "SIIPAF CITY YAMOUSSOUKRO",
+                      "href": "projets.html#yamoussoukro"
+                    },
+                    {
+                      "label": "SIIPAF CITY AHOUTOUE",
+                      "href": "projets.html#ahoutoue"
+                    },
+                    {
+                      "label": "RIVIERA II — Abidjan",
+                      "href": "projets.html#riviera"
+                    },
+                    {
+                      "label": "MINI-CITÉS BINGERVILLE",
+                      "href": "projets.html#bingerville"
+                    },
+                    {
+                      "label": "C & LY COCODY ANGRÉ",
+                      "href": "projets.html#cly"
+                    }
+                  ]
+                }
+              ]
+            },
+            {
+              "type": "card",
+              "key": "shared.pied-de-page.carte-2",
+              "label": "Carte 2",
+              "name": "Navigation",
+              "images": [],
+              "blocks": [
+                {
+                  "type": "field",
+                  "key": "shared.pied-de-page.carte-2.titre",
+                  "label": "Titre",
+                  "kind": "text",
+                  "default": "Navigation"
+                },
+                {
+                  "type": "list",
+                  "key": "shared.pied-de-page.carte-2.liste",
+                  "label": "Liste",
+                  "kind": "link",
+                  "default": [
+                    {
+                      "label": "Accueil",
+                      "href": "index.html"
+                    },
+                    {
+                      "label": "À Propos",
+                      "href": "a-propos.html"
+                    },
+                    {
+                      "label": "Nos Projets",
+                      "href": "projets.html"
+                    },
+                    {
+                      "label": "Financement",
+                      "href": "financement.html"
+                    },
+                    {
+                      "label": "Contact",
+                      "href": "contact.html"
+                    },
+                    {
+                      "label": "Carrières",
+                      "href": "carrieres.html"
+                    }
+                  ]
+                }
+              ]
+            },
+            {
+              "type": "card",
+              "key": "shared.pied-de-page.carte-3",
+              "label": "Carte 3",
+              "name": "Contact",
+              "images": [],
+              "blocks": [
+                {
+                  "type": "field",
+                  "key": "shared.pied-de-page.carte-3.titre",
+                  "label": "Titre",
+                  "kind": "text",
+                  "default": "Contact"
+                }
+              ]
+            },
+            {
+              "type": "field",
+              "key": "shared.pied-de-page.texte-2",
+              "label": "Texte 2",
+              "kind": "long",
+              "default": "© 2025 SIIPAF SA — Tous droits réservés | Promoteur Immobilier Agréé MCLU | Aménageur Foncier Agréé MCLU"
+            }
+          ]
+        }
+      ]
+    }
+  ]
+}

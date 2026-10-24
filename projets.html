@@ -19,24 +19,24 @@
   <link rel="stylesheet" href="css/pages.css"/>
   <link rel="stylesheet" href="css/plans.css"/>
 </head>
-<body class="page-inner">
+<body data-edit-page="projects" class="page-inner">
 
 <!-- NAV -->
-<nav id="navbar" class="scrolled">
+<nav data-edit-section="shared.menu" id="navbar" class="scrolled">
   <div class="nav-container">
     <a href="index.html" class="nav-logo"><img data-media-slot="shared.logo" src="images/logo-siipaf.png" alt="SIIPAF SA"/></a>
     <ul class="nav-menu" id="navMenu">
-      <li><a href="index.html" class="nav-link">Accueil</a></li>
-      <li><a href="a-propos.html" class="nav-link">À Propos</a></li>
+      <li><a data-edit="shared.menu.lien" href="index.html" class="nav-link">Accueil</a></li>
+      <li><a data-edit="shared.menu.lien-2" href="a-propos.html" class="nav-link">À Propos</a></li>
       <li class="nav-has-sub">
-        <button type="button" class="nav-link active nav-sub-toggle" aria-haspopup="true">Projets <i class="fas fa-chevron-down nav-caret" aria-hidden="true"></i></button>
+        <button data-edit="shared.menu.bouton" type="button" class="nav-link active nav-sub-toggle" aria-haspopup="true">Projets <i class="fas fa-chevron-down nav-caret" aria-hidden="true"></i></button>
         <ul class="nav-sub">
-          <li><a href="projets.html"><i class="fas fa-building"></i><span>Promotions immobilières<small>Appartements, villas, duplex</small></span></a></li>
-          <li><a href="lotissements.html"><i class="fas fa-map-marked-alt"></i><span>Lotissements<small>Terrains et plans interactifs</small></span></a></li>
+          <li data-edit-card="shared.menu.carte-1"><a data-edit="shared.menu.carte-1.lien" href="projets.html"><i class="fas fa-building"></i><span>Promotions immobilières<small data-edit="shared.menu.carte-1.precision">Appartements, villas, duplex</small></span></a></li>
+          <li data-edit-card="shared.menu.carte-2"><a data-edit="shared.menu.carte-2.lien" href="lotissements.html"><i class="fas fa-map-marked-alt"></i><span>Lotissements<small data-edit="shared.menu.carte-2.precision">Terrains et plans interactifs</small></span></a></li>
         </ul>
       </li>
-      <li><a href="financement.html" class="nav-link">Financement</a></li>
-      <li><a href="contact.html" class="nav-link">Contact</a></li>
+      <li><a data-edit="shared.menu.lien-3" href="financement.html" class="nav-link">Financement</a></li>
+      <li><a data-edit="shared.menu.lien-4" href="contact.html" class="nav-link">Contact</a></li>
       <li><a href="tel:+2250102279595" class="nav-cta"><i class="fas fa-phone"></i> Nous Appeler</a></li>
     </ul>
     <button class="hamburger" id="hamburger" aria-label="Menu"><span></span><span></span><span></span></button>
@@ -44,25 +44,25 @@
 </nav>
 
 <!-- PAGE HERO -->
-<div data-media-slot="projects.hero" class="page-hero" style="background-image:url('images/projets.jpg')">
+<div data-edit-section="projects.bandeau-de-titre" data-media-slot="projects.hero" class="page-hero" style="background-image:url('images/projets.jpg')">
   <div class="page-hero-overlay"></div>
   <div class="page-hero-content" data-aos="fade-up">
     <div class="breadcrumb"><a href="index.html">Accueil</a> <i class="fas fa-chevron-right"></i> <span>Nos Projets</span></div>
-    <h1>Nos <em>Projets Phares</em></h1>
-    <p>5 programmes immobiliers — du logement accessible aux résidences de prestige.</p>
+    <h1 data-edit="projects.bandeau-de-titre.titre">Nos <em>Projets Phares</em></h1>
+    <p data-edit="projects.bandeau-de-titre.texte">5 programmes immobiliers — du logement accessible aux résidences de prestige.</p>
   </div>
 </div>
 
 <!-- PROJECTS SECTION -->
-<section class="section" id="projects">
+<section data-edit-section="projects.choisissez-votre-programme" class="section" id="projects">
   <div class="container">
 
     <!-- Grille des programmes, construite par js/projets.js à partir des fiches ci-dessous
          (sans JavaScript, les fiches restent affichées comme une longue page) -->
     <div class="prog-catalog" id="catalogue" hidden>
       <div class="section-header" data-aos="fade-up">
-        <h2 class="section-title">Choisissez votre <em>programme</em></h2>
-        <p class="section-sub">Logement social, villas et résidences haut standing : ouvrez un programme pour découvrir ses prix, ses prestations et son emplacement.</p>
+        <h2 data-edit="projects.choisissez-votre-programme.titre" class="section-title">Choisissez votre <em>programme</em></h2>
+        <p data-edit="projects.choisissez-votre-programme.sous-titre" class="section-sub">Logement social, villas et résidences haut standing : ouvrez un programme pour découvrir ses prix, ses prestations et son emplacement.</p>
       </div>
       <div class="lots-grid" id="programmesList"></div>
     </div>
@@ -71,7 +71,7 @@
     <div class="proj-layout">
       <aside class="proj-sidebar">
         <div class="sidebar-sticky">
-          <h4 class="sidebar-title">Nos Projets</h4>
+          <h4 data-edit="projects.choisissez-votre-programme.titre-2" class="sidebar-title">Nos Projets</h4>
           <nav class="sidebar-nav">
             <a href="#yamoussoukro" class="snav-link active"><i class="fas fa-city"></i>SIIPAF CITY YAMOUSSOUKRO</a>
             <a href="#ahoutoue" class="snav-link"><i class="fas fa-city"></i>SIIPAF CITY AHOUTOUE</a>
@@ -80,8 +80,8 @@
             <a href="#cly" class="snav-link"><i class="fas fa-star"></i>C & LY ANGRÉ</a>
           </nav>
           <div class="sidebar-cta">
-            <p>Intéressé par un projet ?</p>
-            <a href="contact.html" class="btn btn-primary btn-sm"><span>Réserver</span><i class="fas fa-arrow-right"></i></a>
+            <p data-edit="projects.choisissez-votre-programme.texte">Intéressé par un projet ?</p>
+            <a data-edit="projects.choisissez-votre-programme.bouton" href="contact.html" class="btn btn-primary btn-sm"><span>Réserver</span><i class="fas fa-arrow-right"></i></a>
           </div>
         </div>
       </aside>
@@ -324,15 +324,15 @@
 </section>
 
 <!-- CTA -->
-<section class="cta-section">
+<section data-edit-section="projects.un-projet-vous-interesse" class="cta-section">
   <div class="container">
     <div class="cta-inner" data-aos="zoom-in">
       <div class="cta-text">
-        <h2>Un projet vous intéresse ?</h2>
-        <p>Contactez nos conseillers pour une étude personnalisée et gratuite.</p>
+        <h2 data-edit="projects.un-projet-vous-interesse.titre">Un projet vous intéresse ?</h2>
+        <p data-edit="projects.un-projet-vous-interesse.texte">Contactez nos conseillers pour une étude personnalisée et gratuite.</p>
       </div>
       <div class="cta-btns">
-        <a href="contact.html" class="btn btn-white"><span>Nous contacter</span><i class="fas fa-envelope"></i></a>
+        <a data-edit="projects.un-projet-vous-interesse.bouton" href="contact.html" class="btn btn-white"><span>Nous contacter</span><i class="fas fa-envelope"></i></a>
         <a href="https://wa.me/2250102279595" class="btn btn-whatsapp-cta" target="_blank"><i class="fab fa-whatsapp"></i><span>WhatsApp</span></a>
       </div>
     </div>
@@ -340,13 +340,13 @@
 </section>
 
 <!-- FOOTER -->
-<footer id="footer">
+<footer data-edit-section="shared.pied-de-page" id="footer">
   <div class="footer-top">
     <div class="container">
       <div class="footer-grid">
         <div class="footer-brand">
           <img data-media-slot="shared.logo" src="images/logo-siipaf.png" alt="SIIPAF SA" class="footer-logo"/>
-          <p>SIIPAF SA — Votre Réseau Immobilier. Promoteur & Aménageur Agréé MCLU. Côte d'Ivoire.</p>
+          <p data-edit="shared.pied-de-page.texte">SIIPAF SA — Votre Réseau Immobilier. Promoteur & Aménageur Agréé MCLU. Côte d'Ivoire.</p>
           <div class="footer-social">
             <a href="#"><i class="fab fa-facebook-f"></i></a>
             <a href="#"><i class="fab fa-instagram"></i></a>
@@ -354,29 +354,29 @@
             <a href="#"><i class="fab fa-linkedin-in"></i></a>
           </div>
         </div>
-        <div class="footer-col">
-          <h5>Nos Projets</h5>
-          <ul>
-            <li><a href="#yamoussoukro">SIIPAF CITY YAMOUSSOUKRO</a></li>
-            <li><a href="#ahoutoue">SIIPAF CITY AHOUTOUE</a></li>
-            <li><a href="#riviera">RIVIERA II — Abidjan</a></li>
-            <li><a href="#bingerville">MINI-CITÉS BINGERVILLE</a></li>
-            <li><a href="#cly">C & LY COCODY ANGRÉ</a></li>
+        <div data-edit-card="shared.pied-de-page.carte-1" class="footer-col">
+          <h5 data-edit="shared.pied-de-page.carte-1.titre">Nos Projets</h5>
+          <ul data-edit-list="shared.pied-de-page.carte-1.liste">
+            <li><a data-edit-li href="#yamoussoukro">SIIPAF CITY YAMOUSSOUKRO</a></li>
+            <li><a data-edit-li href="#ahoutoue">SIIPAF CITY AHOUTOUE</a></li>
+            <li><a data-edit-li href="#riviera">RIVIERA II — Abidjan</a></li>
+            <li><a data-edit-li href="#bingerville">MINI-CITÉS BINGERVILLE</a></li>
+            <li><a data-edit-li href="#cly">C & LY COCODY ANGRÉ</a></li>
           </ul>
         </div>
-        <div class="footer-col">
-          <h5>Navigation</h5>
-          <ul>
-            <li><a href="index.html">Accueil</a></li>
-            <li><a href="a-propos.html">À Propos</a></li>
-            <li><a href="projets.html">Nos Projets</a></li>
-            <li><a href="financement.html">Financement</a></li>
-            <li><a href="contact.html">Contact</a></li>
-            <li><a href="carrieres.html">Carrières</a></li>
+        <div data-edit-card="shared.pied-de-page.carte-2" class="footer-col">
+          <h5 data-edit="shared.pied-de-page.carte-2.titre">Navigation</h5>
+          <ul data-edit-list="shared.pied-de-page.carte-2.liste">
+            <li><a data-edit-li href="index.html">Accueil</a></li>
+            <li><a data-edit-li href="a-propos.html">À Propos</a></li>
+            <li><a data-edit-li href="projets.html">Nos Projets</a></li>
+            <li><a data-edit-li href="financement.html">Financement</a></li>
+            <li><a data-edit-li href="contact.html">Contact</a></li>
+            <li><a data-edit-li href="carrieres.html">Carrières</a></li>
           </ul>
         </div>
-        <div class="footer-col">
-          <h5>Contact</h5>
+        <div data-edit-card="shared.pied-de-page.carte-3" class="footer-col">
+          <h5 data-edit="shared.pied-de-page.carte-3.titre">Contact</h5>
           <ul class="footer-contact">
             <li><i class="fas fa-map-marker-alt"></i> Cocody 2 Plateaux 7ème Tranche, Abidjan</li>
             <li><i class="fas fa-phone"></i><a href="tel:+2250102279595">+225 01 02 27 95 95</a></li>
@@ -388,7 +388,7 @@
   </div>
   <div class="footer-bottom">
     <div class="container">
-      <p>&copy; 2025 SIIPAF SA — Tous droits réservés | Promoteur Immobilier Agréé MCLU</p>
+      <p data-edit="shared.pied-de-page.texte-2">&copy; 2025 SIIPAF SA — Tous droits réservés | Promoteur Immobilier Agréé MCLU</p>
     </div>
   </div>
 </footer>

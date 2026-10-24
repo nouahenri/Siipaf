@@ -3137,3 +3137,6 @@ tr:hover .btn-ask-row { border-color: currentColor; }
 .proj-docs li small { font-size: 0.72rem; color: var(--grey); }
 .proj-docs li small::before { content: '·'; margin-right: 6px; }
 .pricing-table td.td-terms { font-size: 0.82rem; color: #6f5a12; }
+
+/* Sections et cartes masquées dans le dashboard (Contenu du site › Éditorial) */
+[data-edit-section][hidden], [data-edit-card][hidden] { display: none !important; }
