@@ -116,6 +116,10 @@ async function fields(db, data, current = {}) {
   if (!m.supplier_id && !m.counterparty) throw new HttpError(400, 'Indiquez le cocontractant (fournisseur ou nom).');
   if (m.supplier_id && !(await db('suppliers').where({ id: m.supplier_id }).first())) throw new HttpError(404, 'Fournisseur introuvable.');
   if (m.end_date && m.end_date < m.start_date) throw new HttpError(400, 'La fin du contrat précède son début.');
+  // Marché de sous-traitance créé sans taux : retenue de garantie par défaut (Chantiers › Réglages, 5 %)
+  if (!Object.keys(current).length && m.kind === 'sous_traitance' && m.retention_pct == null) {
+    data.retention_pct = (await require('./chantiers').settings(db)).chantier_retention_pct;
+  }
   // Imputation : programme (et chantier) ou lieu (bail du siège, abonnements d'un bureau…) ; sans rien, le siège
   Object.assign(data, await require('./lieux').placeFields(db, data, Object.keys(current).length ? current : null));
   if (m.owner_id && !(await db('users').where({ id: m.owner_id, active: true }).first())) throw new HttpError(400, 'Responsable introuvable ou inactif.');

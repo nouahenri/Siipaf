@@ -158,6 +158,7 @@ function ContractDrawer({ id, refs, onClose, onChange, onEdit }) {
             {c.notice_days ? <div className="kv"><span>Préavis</span><b>{c.notice_days} jours</b></div> : null}
             {c.contract_amount ? <div className="kv"><span>Montant du contrat</span><b>{fcfa(c.contract_amount)}</b></div> : null}
             {c.retention_pct ? <div className="kv"><span>Retenue de garantie</span><b>{c.retention_pct} %</b></div> : null}
+            {c.kind === 'sous_traitance' && <div className="kv"><span>Situations</span><b>TVA {c.vat_rate || 0} % · compte {c.expense_account || 'du sous-traitant'}</b></div>}
             {c.frequency && <div className="kv"><span>Paiement</span><b>{c.frequency_label} · {fcfa(c.amount_ttc)} TTC{c.vat_rate ? ` (TVA ${c.vat_rate} %)` : ''} · compte {c.expense_account || '—'}</b></div>}
             {c.revision_date && <div className="kv"><span>Révision de prix</span><b>{date(c.revision_date)}{c.revision_note ? ` · ${c.revision_note}` : ''}</b></div>}
             {c.status !== 'actif' && <div className="kv"><span>{c.status === 'resilie' ? 'Résilié le' : 'Terminé le'}</span><b>{date(c.closed_on)}{c.close_reason ? ` · ${c.close_reason}` : ''}</b></div>}
@@ -267,14 +268,16 @@ function DocForm({ contract, doc, refs, onClose, onSaved }) {
   );
 }
 
-function ContractForm({ contract: c, refs, onClose, onSaved }) {
+/** Contrat : création ou modification ; `preset` propose des valeurs (marché de sous-traitance créé depuis un chantier). */
+export function ContractForm({ contract: c, preset = null, refs, onClose, onSaved }) {
+  const p = c || preset || {};
   const toast = useToast();
   const [f, setF] = useState({
-    kind: c?.kind || 'fournisseur', kind_other: c?.kind_other || '', title: c?.title || '', supplier_id: c?.supplier_id || '', counterparty: c?.counterparty || '',
-    site: { project_id: c?.project_id || null, worksite_id: c?.worksite_id || null, place_id: c?.place_id || null }, owner_id: c?.owner_id || '', start_date: c?.start_date || today(), end_date: c?.end_date || '',
-    tacit_renewal: c?.tacit_renewal || false, renewal_months: c?.renewal_months || 12, notice_days: c?.notice_days ?? '', contract_amount: c?.contract_amount ?? '',
-    retention_pct: c?.retention_pct ?? '', frequency: c?.frequency || '', amount_ttc: c?.amount_ttc ?? '', vat_rate: c?.vat_rate ?? 0,
-    expense_account: c?.expense_account || '', next_payment_date: c?.next_payment_date || '', revision_date: c?.revision_date || '', revision_note: c?.revision_note || '', notes: c?.notes || '',
+    kind: p.kind || 'fournisseur', kind_other: p.kind_other || '', title: p.title || '', supplier_id: p.supplier_id || '', counterparty: p.counterparty || '',
+    site: { project_id: p.project_id || null, worksite_id: p.worksite_id || null, place_id: p.place_id || null }, owner_id: p.owner_id || '', start_date: p.start_date || today(), end_date: p.end_date || '',
+    tacit_renewal: p.tacit_renewal || false, renewal_months: p.renewal_months || 12, notice_days: p.notice_days ?? '', contract_amount: p.contract_amount ?? '',
+    retention_pct: p.retention_pct ?? '', frequency: p.frequency || '', amount_ttc: p.amount_ttc ?? '', vat_rate: p.vat_rate ?? 0,
+    expense_account: p.expense_account || '', next_payment_date: p.next_payment_date || '', revision_date: p.revision_date || '', revision_note: p.revision_note || '', notes: p.notes || '',
   });
   const [file, setFile] = useState(null);
   const [error, setError] = useState(null);
@@ -318,16 +321,21 @@ function ContractForm({ contract: c, refs, onClose, onSaved }) {
           {f.tacit_renewal && <Field label="Par périodes de (mois)"><input className="input" type="number" min="1" max="120" style={{ width: 120 }} value={f.renewal_months} onChange={set('renewal_months')} /></Field>}
           <Field label="Préavis (jours)"><input className="input" type="number" min="0" max="730" style={{ width: 120 }} value={f.notice_days} onChange={set('notice_days')} /></Field>
         </div>
-        <Field label={sub ? 'Montant du marché (FCFA)' : 'Montant du contrat (FCFA)'} hint="Pour information"><input className="input" type="number" min="0" value={f.contract_amount} onChange={set('contract_amount')} /></Field>
-        {sub ? <Field label="Retenue de garantie (%)"><input className="input" type="number" min="0" max="100" step="0.5" value={f.retention_pct} onChange={set('retention_pct')} /></Field> : <div />}
+        <Field label={sub ? 'Montant du marché HT (FCFA)' : 'Montant du contrat (FCFA)'} hint={sub ? 'Base des situations de travaux (avancement en %) ; vide : montants saisis à chaque situation' : 'Pour information'}><input className="input" type="number" min="0" value={f.contract_amount} onChange={set('contract_amount')} /></Field>
+        {sub ? <Field label="Retenue de garantie (%)" hint="Vide : taux par défaut réglé dans Chantiers › Réglages"><input className="input" type="number" min="0" max="100" step="0.5" value={f.retention_pct} onChange={set('retention_pct')} /></Field> : <div />}
+        {/* Marché de sous-traitance : TVA et compte des factures préparées à chaque situation validée */}
+        {sub && <>
+          <Field label="TVA des situations"><select className="select" value={f.vat_rate} onChange={set('vat_rate')}><option value="0">0 %</option><option value="9">9 %</option><option value="18">18 %</option></select></Field>
+          <Field label="Compte de charge" hint="Vide : celui de la fiche du sous-traitant"><input className="input" maxLength={12} value={f.expense_account} onChange={set('expense_account')} placeholder="604 (sous-traitance)…" /></Field>
+        </>}
 
         <Field label="Paiement périodique" hint="Prépare une facture d’achat en brouillon 7 jours avant chaque échéance"><select className="select" value={f.frequency} onChange={set('frequency')}><option value="">Aucun</option>{Object.entries(refs.frequencies).map(([k, x]) => <option key={k} value={k}>{x.label}</option>)}</select></Field>
         {f.frequency ? (
           <>
             <Field label="Prochaine échéance"><input className="input" type="date" required value={f.next_payment_date} onChange={set('next_payment_date')} /></Field>
             <Field label="Montant de chaque paiement (TTC)"><input className="input" type="number" min="1" required value={f.amount_ttc} onChange={set('amount_ttc')} /></Field>
-            <Field label="TVA incluse"><select className="select" value={f.vat_rate} onChange={set('vat_rate')}><option value="0">0 %</option><option value="9">9 %</option><option value="18">18 %</option></select></Field>
-            <Field label="Compte de charge" hint="Vide : celui de la fiche du fournisseur" className="full"><input className="input" maxLength={12} value={f.expense_account} onChange={set('expense_account')} placeholder="622200 (loyers), 625 (assurances)…" /></Field>
+            {!sub && <Field label="TVA incluse"><select className="select" value={f.vat_rate} onChange={set('vat_rate')}><option value="0">0 %</option><option value="9">9 %</option><option value="18">18 %</option></select></Field>}
+            {!sub && <Field label="Compte de charge" hint="Vide : celui de la fiche du fournisseur" className="full"><input className="input" maxLength={12} value={f.expense_account} onChange={set('expense_account')} placeholder="622200 (loyers), 625 (assurances)…" /></Field>}
           </>
         ) : <div />}
 

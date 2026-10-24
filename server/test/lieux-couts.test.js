@@ -118,6 +118,6 @@ test('coûts réels du chantier : achats, parc et main-d’œuvre pointée ; ale
   // Réglages : seuil et heures mensuelles, dans les bornes
   assert.equal((await conducteur.put(`${W}/reglages`).send({ chantier_budget_alert_pct: 20 })).status, 400);
   res = await conducteur.put(`${W}/reglages`).send({ chantier_budget_alert_pct: 80, chantier_monthly_hours: 200 });
-  assert.deepEqual(res.body, { chantier_budget_alert_pct: 80, chantier_monthly_hours: 200 });
+  assert.deepEqual([res.body.chantier_budget_alert_pct, res.body.chantier_monthly_hours], [80, 200]);
   assert.equal((await commercial.put(`${W}/reglages`).send({ chantier_budget_alert_pct: 80 })).status, 403);
 });

@@ -23,6 +23,7 @@ export default function Chantiers() {
   const list = useResource(`${CH}${qs({ status, project_id: project, q })}`);
   // Direction : étapes signalées par les conducteurs, à déclarer (elles émettront les appels de fonds)
   const pending = useResource(can('chantiers:direction') ? `${CH}/etapes?status=signalee` : null);
+  const situations = useResource(can('chantiers:direction') ? `${CH}/situations` : null);
   useEffect(() => { const t = setTimeout(() => setQ(text.trim()), 300); return () => clearTimeout(t); }, [text]);
 
   return (
@@ -51,6 +52,21 @@ export default function Chantiers() {
                 <button type="button" className="list-row btn-link" style={{ width: '100%' }} onClick={() => navigate(`/chantiers/${d.worksite_id}?onglet=etapes`)}>
                   <span><Flag className="ico" /><b>{d.stage_label}</b> — {d.scope_label}<div className="small muted">{d.project_name} · atteinte le {date(d.reached_on)}{d.reported_by_name ? ` · signalée par ${d.reported_by_name}` : ''}</div></span>
                   <span className="small">Déclarer ou refuser</span>
+                </button>
+              </li>
+            ))}
+          </ul>
+        </Card>
+      )}
+
+      {situations.data?.length > 0 && (
+        <Card title={`Situations de sous-traitants à valider (${situations.data.length})`} bodyClass="">
+          <ul className="list">
+            {situations.data.map(s => (
+              <li key={s.id}>
+                <button type="button" className="list-row btn-link" style={{ width: '100%' }} onClick={() => navigate(`/chantiers/${s.worksite_id}?onglet=sous-traitants`)}>
+                  <span><b>{s.contract_reference} · situation n° {s.number}</b> — {s.supplier_name || s.contract_title}<div className="small muted">{s.worksite_reference} — {s.worksite_name} · arrêtée au {date(s.period_end)}</div></span>
+                  <span className="small tabular">{fcfa(s.amount_ttc)} TTC</span>
                 </button>
               </li>
             ))}

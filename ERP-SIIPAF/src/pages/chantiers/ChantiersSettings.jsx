@@ -25,7 +25,7 @@ export default function ChantiersSettings() {
   const save = async e => {
     e.preventDefault(); setBusy(true); setError(null);
     try {
-      const out = await api.put(`${CH}/reglages`, Object.fromEntries(Object.entries(f).map(([k, v]) => [k, Number(v)])));
+      const out = await api.put(`${CH}/reglages`, Object.fromEntries(Object.entries(f).map(([k, v]) => [k, fields[k].options ? v : Number(v)])));
       setF(Object.fromEntries(Object.entries(out).map(([k, v]) => [k, String(v)])));
       saved('Réglages enregistrés');
     } catch (err) { setError(err); } finally { setBusy(false); }
@@ -36,8 +36,10 @@ export default function ChantiersSettings() {
       <form className="form-grid" onSubmit={save}>
         <div className="full"><ErrorBox error={error} /></div>
         {Object.entries(fields).map(([k, x]) => (
-          <Field key={k} label={x.label} hint={`${x.hint} (de ${x.min} à ${x.max} ; par défaut ${x.default})`} className="full">
-            <input className="input" type="number" required min={x.min} max={x.max} disabled={!write} value={f[k]} onChange={e => setF(v => ({ ...v, [k]: e.target.value }))} style={{ maxWidth: 160 }} />
+          <Field key={k} label={x.label} hint={x.options ? `${x.hint} (par défaut : ${x.options[x.default]})` : `${x.hint} (de ${x.min} à ${x.max} ; par défaut ${x.default})`} className="full">
+            {x.options
+              ? <select className="select" disabled={!write} value={f[k]} onChange={e => setF(v => ({ ...v, [k]: e.target.value }))} style={{ maxWidth: 320 }}>{Object.entries(x.options).map(([o, l]) => <option key={o} value={o}>{l}</option>)}</select>
+              : <input className="input" type="number" required min={x.min} max={x.max} disabled={!write} value={f[k]} onChange={e => setF(v => ({ ...v, [k]: e.target.value }))} style={{ maxWidth: 160 }} />}
           </Field>
         ))}
         {write && <div className="full"><button className="btn btn-primary" disabled={busy}><Check />Enregistrer</button></div>}

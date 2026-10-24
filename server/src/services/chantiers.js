@@ -383,7 +383,11 @@ async function places(db) {
 async function settings(db) {
   const rows = await db('app_settings').whereIn('key', Object.keys(CHANTIER_SETTINGS)).select('key', 'value');
   const out = Object.fromEntries(Object.entries(CHANTIER_SETTINGS).map(([k, x]) => [k, x.default]));
-  for (const r of rows) if (r.value != null && r.value !== '' && Number.isFinite(Number(r.value))) out[r.key] = Number(r.value);
+  for (const r of rows) {
+    const def = CHANTIER_SETTINGS[r.key];
+    if (def.options) { if (def.options[r.value]) out[r.key] = r.value; } // choix dans une liste
+    else if (r.value != null && r.value !== '' && Number.isFinite(Number(r.value))) out[r.key] = Number(r.value);
+  }
   return out;
 }
 async function saveSettings(db, values) {
@@ -588,8 +592,10 @@ async function badges(db, v) {
   const phases = visible.length ? await db('worksite_phases').whereIn('worksite_id', visible.map(w => w.id)) : [];
   const day = today();
   const toDeclare = v.can('chantiers:direction') ? Number((await db('stage_declarations').where({ status: 'signalee' }).count({ n: '*' }).first()).n) : 0;
+  const toValidate = v.can('chantiers:direction') ? Number((await db('worksite_situations').where({ status: 'verifiee' }).count({ n: '*' }).first()).n) : 0;
   return {
     to_declare: toDeclare,
+    situations_to_validate: toValidate,
     mine: open.filter(w => Number(w.manager_id) === Number(v.user.id)).length,
     open: visible.length,
     late_phases: phases.filter(p => serializePhase(p, day).state === 'en_retard').length,

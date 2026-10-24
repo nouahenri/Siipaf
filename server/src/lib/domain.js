@@ -1298,6 +1298,11 @@ function worksiteProgress(phases) {
 // Réglages des chantiers (ERP › Chantiers › Réglages), distincts des Paramètres du dashboard
 const CHANTIER_SETTINGS = {
   chantier_budget_alert_pct: { label: 'Alerte de budget à (% consommé)', hint: 'Le conducteur et la Direction sont prévenus une fois à ce seuil, puis une fois au dépassement du budget', default: 90, min: 50, max: 100 },
+  chantier_retention_pct: { label: 'Retenue de garantie par défaut des marchés de sous-traitance (%)', hint: 'Proposée à la création d’un marché ; modifiable marché par marché', default: 5, min: 0, max: 10 },
+  chantier_retention_base: {
+    label: 'Assiette de la retenue de garantie', hint: 'Montant de chaque situation sur lequel le taux du marché s’applique ; conservé sur chaque situation au moment de sa saisie',
+    default: 'ttc', options: { ttc: 'Montant TTC de la situation', ht: 'Montant HT de la situation' },
+  },
   chantier_monthly_hours: { label: 'Heures de travail par mois (coût horaire tiré du salaire)', hint: 'Coût mensuel employeur (salaire, charges et taxes de la paie) divisé par ces heures, pour qui n’a pas de coût horaire de chantier sur sa fiche', default: 173, min: 100, max: 260 },
 };
 
@@ -1318,6 +1323,32 @@ function deliveryDelay(promised, forecast, deliveredAt = null) {
   if (!promised || deliveredAt) return 0;
   if (!forecast) return 0;
   return Math.max(0, daysBetween(promised, forecast));
+}
+
+// Situations de travaux des sous-traitants (lot 4)
+const SITUATION_STATUSES = { brouillon: 'Brouillon', verifiee: 'Vérifiée, à valider', validee: 'Validée', refusee: 'Refusée' };
+
+/**
+ * Montants d'une situation : travaux cumulés (pourcentage du marché, ou montant saisi), travaux de la période
+ * (cumul − cumul des situations validées), TVA du marché, retenue de garantie sur le TTC (ou le HT, selon le réglage)
+ * de la période, net à payer.
+ * Renvoie { error } si le cumul recule, dépasse le marché ou n'ajoute rien.
+ */
+function situationAmounts({ contractAmount = null, cumulativePct = null, cumulativeAmount = null, previousAmount = 0, vatRate = 0, retentionPct = 0, retentionBase = 'ttc' }) {
+  let cumul = cumulativeAmount;
+  if (cumulativePct != null) {
+    if (!contractAmount) return { error: 'Le marché n’a pas de montant : indiquez le montant cumulé des travaux.' };
+    if (cumulativePct < 0 || cumulativePct > 100) return { error: 'L’avancement cumulé est compris entre 0 et 100 %.' };
+    cumul = Math.round((contractAmount * cumulativePct) / 100);
+  }
+  if (cumul == null) return { error: 'Indiquez l’avancement cumulé (%) ou le montant cumulé des travaux.' };
+  if (contractAmount && cumul > contractAmount) return { error: 'Le cumul des travaux dépasse le montant du marché (avenant à passer d’abord).' };
+  const ht = cumul - (previousAmount || 0);
+  if (ht <= 0) return { error: 'Cette situation n’ajoute aucun travaux par rapport aux situations déjà validées.' };
+  const vat = Math.round((ht * (Number(vatRate) || 0)) / 100);
+  const ttc = ht + vat;
+  const retention = Math.round(((retentionBase === 'ht' ? ht : ttc) * (Number(retentionPct) || 0)) / 100);
+  return { cumulative_amount: cumul, amount_ht: ht, vat_amount: vat, amount_ttc: ttc, retention_amount: retention, net_payable: ttc - retention };
 }
 
 /** Niveau d'alerte du budget : null, 'seuil' (pct atteint) ou 'depasse' (au-delà de 100 %). Sans budget, aucune alerte. */
@@ -1351,7 +1382,7 @@ function phaseRefusal(p, phases = []) {
 
 module.exports = {
   CHANTIER_ACTIONS, WORKSITE_STATUSES, WORKSITE_OPEN, WORKSITE_ZONES, TASK_STATUSES, PHASE_STATES, lotInZone, phaseState, worksiteProgress, phaseRefusal,
-  CHANTIER_SETTINGS, budgetAlertLevel, PLACE_KINDS, DECLARATION_STATUSES, deliveryForecast, deliveryDelay,
+  CHANTIER_SETTINGS, budgetAlertLevel, PLACE_KINDS, DECLARATION_STATUSES, deliveryForecast, deliveryDelay, SITUATION_STATUSES, situationAmounts,
   DEED_STEPS, DEED_STEP_KEYS, deedProgress, deedStepRefusal, LITIGATION_ORIGINS, LITIGATION_STAGES, LITIGATION_OUTCOMES, litigationReminder,
   GUARANTEE_DIRECTIONS, DEFAULT_GUARANTEE_KINDS, GUARANTEE_STATUSES, guaranteeDeadline, LEGAL_SETTINGS, unpaidAge, LEGAL_ACTIONS,
   DOC_KINDS, DOC_AUDIENCES, DOC_STATUSES, DOC_ACTION_STATUSES, docReference, readReminder,

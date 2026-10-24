@@ -6,6 +6,7 @@ const { requirePermission } = require('../../auth');
 const { WORKSITE_STATUSES, WORKSITE_ZONES, TASK_STATUSES, SITE_STAGES, CHANTIER_SETTINGS, DECLARATION_STATUSES } = require('../../lib/domain');
 const chantiers = require('../../services/chantiers');
 const suivi = require('../../services/chantiersSuivi');
+const sousTraitance = require('../../services/chantiersSousTraitance');
 const day = z.string().regex(/^\d{4}-\d{2}-\d{2}$/, 'Date attendue au format AAAA-MM-JJ');
 
 // Formulaires avec pièces jointes (multipart) : vides et nombres convertis ici
@@ -21,6 +22,10 @@ const progressSchema = z.object({
   stage: z.enum(SITE_STAGES), progress_pct: z.preprocess(v => Number(v), z.number().int().min(0).max(100)), title: z.string().trim().min(3).max(160),
   body: mOpt(z.string().trim().max(4000)), ilot: mOpt(z.string().trim().max(40)), lot_id: mNum(z.number().int().positive()),
   visible_client: z.preprocess(v => !(v === false || v === 'false' || v === '0'), z.boolean()).optional(), published_at: mOpt(day),
+});
+// Situation de travaux : avancement cumulé (%) ou montant cumulé HT si le marché n'a pas de montant
+const situationSchema = z.object({
+  period_end: day, cumulative_pct: mNum(z.number().min(0).max(100)), cumulative_amount: mNum(z.number().int().min(0)), note: mOpt(z.string().trim().max(2000)),
 });
 const stageSchema = z.object({ stage: z.enum(SITE_STAGES), reached_on: day, note: mOpt(z.string().trim().max(2000)) });
 
@@ -91,7 +96,7 @@ module.exports = function chantiersRoutes(db) {
   /** Programmes et chantiers non clos : listes « Lieu / chantier » des pointages, du Parc et des achats. */
   r.get('/lieux', ah(async (req, res) => res.json(await chantiers.places(db))));
   r.put('/reglages', requirePermission('chantiers:write'), ah(async (req, res) => {
-    const shape = Object.fromEntries(Object.entries(CHANTIER_SETTINGS).map(([k, x]) => [k, z.number().int().min(x.min).max(x.max)]));
+    const shape = Object.fromEntries(Object.entries(CHANTIER_SETTINGS).map(([k, x]) => [k, x.options ? z.enum(Object.keys(x.options)) : z.number().int().min(x.min).max(x.max)]));
     res.json(await chantiers.saveSettings(db, parse(z.object(shape).partial(), req.body)));
   }));
   r.get('/programmes/:id', ah(async (req, res) => res.json(await chantiers.programme(db, idParam(req)))));
@@ -117,6 +122,14 @@ module.exports = function chantiersRoutes(db) {
     if (d.worksite_id) await chantiers.visibleWorksite(db, d.worksite_id, viewer(req));
     else if (!chantiers.seesAll(viewer(req))) throw new HttpError(404, 'Pièce introuvable.');
     sendFile(res, d, 'piece');
+  }));
+  // Situations vérifiées, à valider par la Direction (encart de la liste) ; pièce jointe d'une situation
+  r.get('/situations', direction, ah(async (req, res) => res.json(await sousTraitance.toValidate(db))));
+  r.get('/situations/:sitId/fichier', ah(async (req, res) => {
+    const s = await db('worksite_situations').where({ id: childId(req, 'sitId') }).first();
+    if (!s) throw new HttpError(404, 'Pièce introuvable.');
+    await chantiers.visibleWorksite(db, s.worksite_id, viewer(req));
+    sendFile(res, s, 'situation');
   }));
   r.get('/journal/photos/:photoId', ah(async (req, res) => {
     const f = await db('worksite_journal_files as f').join('worksite_journal as j', 'j.id', 'f.journal_id').where('f.id', childId(req, 'photoId')).first('f.*', 'j.worksite_id');
@@ -242,6 +255,47 @@ module.exports = function chantiersRoutes(db) {
     }
     if (!chantiers.canManage(w, viewer(req))) throw new HttpError(403, 'Seuls le conducteur du chantier et les gestionnaires signalent une étape.');
     res.status(201).json({ id: await suivi.signal(db, w, data, { file: req.file, userId: req.user.id }) });
+  }));
+
+  // ─── Sous-traitants : marchés et situations de travaux ────
+  r.get('/:id/sous-traitants', ah(async (req, res) => res.json(await sousTraitance.markets(db, await chantiers.visibleWorksite(db, idParam(req), viewer(req))))));
+  const situationDone = async (req, res, w, status = 200) => res.status(status).json(await sousTraitance.markets(db, w));
+  r.post('/:id/marches/:contractId/situations', multipart(suivi.declarationUpload()), guarded(async (req, res) => {
+    const w = await managed(req);
+    await sousTraitance.create(db, w, childId(req, 'contractId'), parse(situationSchema, req.body), { file: req.file, userId: req.user.id });
+    await situationDone(req, res, w, 201);
+  }));
+  r.patch('/:id/situations/:sitId', multipart(suivi.declarationUpload()), guarded(async (req, res) => {
+    const w = await managed(req);
+    await sousTraitance.update(db, w, childId(req, 'sitId'), parse(situationSchema.partial(), req.body), { file: req.file });
+    await situationDone(req, res, w);
+  }));
+  r.delete('/:id/situations/:sitId', ah(async (req, res) => {
+    const w = await managed(req);
+    await sousTraitance.remove(db, w, childId(req, 'sitId'));
+    await situationDone(req, res, w);
+  }));
+  r.post('/:id/situations/:sitId/verifier', ah(async (req, res) => {
+    const w = await managed(req);
+    await sousTraitance.verify(db, w, childId(req, 'sitId'), req.user.id);
+    await situationDone(req, res, w);
+  }));
+  r.post('/:id/situations/:sitId/brouillon', ah(async (req, res) => {
+    const w = await chantiers.visibleWorksite(db, idParam(req), viewer(req));
+    if (!chantiers.canManage(w, viewer(req)) && !req.can('chantiers:direction')) throw new HttpError(403, 'Accès refusé.');
+    await sousTraitance.toDraft(db, w, childId(req, 'sitId'));
+    await situationDone(req, res, w);
+  }));
+  r.post('/:id/situations/:sitId/valider', direction, ah(async (req, res) => {
+    const w = await chantiers.loadWorksite(db, idParam(req));
+    await sousTraitance.validate(db, w, childId(req, 'sitId'), req.user.id);
+    await situationDone(req, res, w);
+  }));
+  r.post('/:id/situations/:sitId/refuser', direction, ah(async (req, res) => {
+    const w = await chantiers.loadWorksite(db, idParam(req));
+    const { reason } = parse(z.object({ reason: z.string().trim().min(3, 'Motif du refus obligatoire').max(500) }), req.body);
+    await sousTraitance.refuse(db, w, childId(req, 'sitId'), reason, req.user.id);
+    await situationDone(req, res, w);
   }));
 
   // ─── Livraisons promises et retards ───────────────────────
