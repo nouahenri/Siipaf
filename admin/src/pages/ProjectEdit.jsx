@@ -10,7 +10,7 @@ import PlanImport from '../components/PlanImport';
 import PlanManage from '../components/PlanManage';
 import ProjectActions from '../components/ProjectActions';
 import { fcfa } from '../lib/format';
-import { bienKind } from '../lib/domain';
+import { bienButton } from '../lib/domain';
 
 const FIELDS = ['name', 'slug', 'city_id', 'location_id', 'location_detail', 'tagline', 'description', 'project_type_id', 'property_type_id', 'delivery', 'option_days', 'deposit_fcfa', 'balance_months', 'published', 'cover_media_id'];
 const FEATURES = ['equipement', 'commodite', 'viabilisation', 'document'];
@@ -56,7 +56,7 @@ export default function ProjectEdit() {
     // Cases cochées : id → état (l'état ne sert qu'à la viabilisation)
     const checked = {};
     for (const k of FEATURES) for (const r of p.refs?.[k] || []) checked[r.id] = r.state || null;
-    setForm({ ...Object.fromEntries(FIELDS.map(k => [k, p[k] ?? ''])), checked, published: !!p.published, gps: gpsText(p) });
+    setForm({ ...Object.fromEntries(FIELDS.map(k => [k, p[k] ?? ''])), checked, published: !!p.published, gps: gpsText(p), type_ids: (p.property_type_ids || []).map(String) });
     setOffers(p.offers.map(o => ({ ...o })));
   }, [project.data]);
 
@@ -80,16 +80,19 @@ export default function ProjectEdit() {
   const places = offered('localisation', [Number(form.location_id)]).filter(i => String(i.parent_id) === String(form.city_id));
   const projectTypes = offered('type_projet', [Number(form.project_type_id)]);
   // Types de biens du type de projet choisi (lotissement → terrains, logement social → appartements, villas sociales…)
-  const propertyTypes = offered('type_bien', [Number(form.property_type_id)])
-    .filter(t => fitsProject(t, form.project_type_id) || String(t.id) === String(form.property_type_id));
-  const propertyLabel = propertyTypes.find(t => String(t.id) === String(form.property_type_id))?.label;
-  // Changer de type de projet : le type de biens suit (seul choix possible sélectionné d'office, sinon à choisir)
+  // Plusieurs types de biens cochés (demande du client du 24/10) ; le premier reste le type principal
+  const propertyTypes = offered('type_bien', form.type_ids.map(Number))
+    .filter(t => fitsProject(t, form.project_type_id) || form.type_ids.includes(String(t.id)));
+  const checkedTypes = form.type_ids.map(tid => propertyTypes.find(t => String(t.id) === tid)).filter(Boolean);
+  const propertyLabel = checkedTypes[0]?.label;
+  const toggleType = (tid, on) => setForm(f => ({ ...f, type_ids: on ? [...f.type_ids, String(tid)] : f.type_ids.filter(x => x !== String(tid)) }));
+  // Changer de type de projet : les types cochés qui ne lui conviennent plus sont décochés (seul choix possible coché d'office)
   const pickProjectType = e => {
     const value = e.target.value;
     setForm(f => {
       const fit = offered('type_bien').filter(t => fitsProject(t, value));
-      const keep = fit.some(t => String(t.id) === String(f.property_type_id));
-      return { ...f, project_type_id: value, property_type_id: keep ? f.property_type_id : fit.length === 1 ? String(fit[0].id) : '' };
+      const keep = f.type_ids.filter(tid => fit.some(t => String(t.id) === tid));
+      return { ...f, project_type_id: value, type_ids: keep.length ? keep : fit.length === 1 ? [String(fit[0].id)] : [] };
     });
   };
   const gps = parseGps(form.gps);
@@ -128,10 +131,12 @@ export default function ProjectEdit() {
         city_id: Number(form.city_id) || null,
         location_id: Number(form.location_id) || null,
         project_type_id: Number(form.project_type_id) || null,
-        property_type_id: Number(form.property_type_id) || null,
+        property_type_ids: form.type_ids.map(Number),
         refs: Object.entries(form.checked).map(([refId, state]) => ({ id: Number(refId), state: state || null })),
       };
       delete body.checked;
+      delete body.type_ids;
+      delete body.property_type_id; // suit le premier type coché
       delete body.gps;
       for (const k of ['location_detail', 'tagline', 'description', 'delivery']) body[k] = body[k] || null;
       await api.patch(`/admin/projects/${id}`, body);
@@ -177,11 +182,13 @@ export default function ProjectEdit() {
                   {projectTypes.map(t => <option key={t.id} value={t.id}>{t.label}{t.archived ? ' (archivé)' : ''}</option>)}
                 </select>
               </Field>
-              <Field label="Type de biens" hint={<>Bouton de création dans Biens & disponibilités : « {bienKind(propertyLabel).create} ».{canLists && <> <Link className="list-link" to="/parametres?section=type_bien">Gérer la liste</Link></>}</>}>
-                <select className="select" value={form.property_type_id || ''} onChange={set('property_type_id')}>
-                  <option value="">— Non précisé —</option>
-                  {propertyTypes.map(t => <option key={t.id} value={t.id}>{t.label}{t.archived ? ' (archivé)' : ''}</option>)}
-                </select>
+              <Field label="Types de biens" hint={<>Cochez tous les types vendus dans le projet. Bouton de création dans Biens & disponibilités : « {bienButton(checkedTypes.map(t => t.label))} »{checkedTypes.length > 1 ? ', le type se choisit dans le formulaire' : ''}.{canLists && <> <Link className="list-link" to="/parametres?section=type_bien">Gérer la liste</Link></>}</>}>
+                <div className="check-grid" style={{ gridTemplateColumns: "repeat(auto-fill, minmax(150px, 1fr))" }}>
+                  {!propertyTypes.length && <span className="small muted">Aucun type de biens pour ce type de projet.</span>}
+                  {propertyTypes.map(t => (
+                    <label key={t.id} className="checkbox"><input type="checkbox" checked={form.type_ids.includes(String(t.id))} onChange={e => toggleType(t.id, e.target.checked)} />{t.label}{t.archived ? ' (archivé)' : ''}</label>
+                  ))}
+                </div>
               </Field>
               <Field label="Localisation" hint={form.city_id ? (canLists && <Link className="list-link" to="/parametres?section=localisation">Gérer les localisations</Link>) : 'Choisissez d’abord la ville.'}>
                 <select className="select" value={form.location_id || ''} onChange={set('location_id')} disabled={!form.city_id}>
@@ -276,8 +283,8 @@ export default function ProjectEdit() {
                         {/* Types de biens de Paramètres (filtrés par type de projet) ; un libellé ancien hors liste reste proposé */}
                         <select className="select" value={o.label} onChange={e => setOffer(i, 'label', e.target.value)} aria-label="Type de bien">
                           <option value="">— Choisir —</option>
-                          {o.label && !propertyTypes.some(t => t.label === o.label) && <option value={o.label}>{o.label} (hors liste)</option>}
-                          {propertyTypes.map(t => <option key={t.id} value={t.label}>{t.label}</option>)}
+                          {o.label && !(checkedTypes.length ? checkedTypes : propertyTypes).some(t => t.label === o.label) && <option value={o.label}>{o.label} (non coché)</option>}
+                          {(checkedTypes.length ? checkedTypes : propertyTypes).map(t => <option key={t.id} value={t.label}>{t.label}</option>)}
                         </select>
                       </td>
                       <td style={{ minWidth: 160 }}><input className="input" value={o.designation || ''} onChange={e => setOffer(i, 'designation', e.target.value)} placeholder="2 pièces, comptant…" aria-label="Désignation" maxLength={120} /></td>

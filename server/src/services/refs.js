@@ -217,16 +217,40 @@ async function stateLabels(db) {
 async function projectsUsing(db, refId) {
   const direct = await db('projects').where(q => { for (const c of PROJECT_REF_COLUMNS) q.orWhere(c, refId); }).pluck('id');
   const linked = await db('project_refs').where({ ref_id: refId }).pluck('project_id');
-  return [...new Set([...direct, ...linked])];
+  const types = await db('project_property_types').where({ item_id: refId }).pluck('project_id');
+  return [...new Set([...direct, ...linked, ...types])];
 }
 
 /**
  * Type de projet et type de biens choisis dans la fiche projet (listes de Paramètres).
  * Le type de projet fixe aussi la catégorie technique (lotissement ou logement).
  */
-async function applyProjectTypes(trx, projectId, { project_type_id, property_type_id }) {
+async function applyProjectTypes(trx, projectId, { project_type_id, property_type_id, property_type_ids }) {
   const current = await trx('projects').where({ id: projectId }).first();
   const update = {};
+  // Plusieurs types de biens cochés (demande du client du 24/10) ; le premier reste dans property_type_id
+  if (property_type_ids !== undefined) {
+    const ids = [...new Set(property_type_ids)];
+    const checked = await trx('project_property_types').where({ project_id: projectId }).pluck('item_id');
+    for (const id of ids) {
+      const item = await trx('ref_items').where({ id }).first();
+      if (!item || item.kind !== 'type_bien') throw new HttpError(400, 'Type de biens inconnu.');
+      if (item.archived && !checked.includes(id)) throw new HttpError(400, `« ${item.label} » est archivé : il n’est plus proposé.`);
+    }
+    // Un type porté par des biens du projet ne se décoche pas
+    const removed = checked.filter(id => !ids.includes(id));
+    if (removed.length) {
+      const used = await trx('lots as l').join('ref_items as r', 'r.id', 'l.property_type_id').where('l.project_id', projectId).whereIn('l.property_type_id', removed).distinct('r.label').pluck('r.label');
+      if (used.length) throw new HttpError(409, `Des biens du projet sont du type « ${used.join(' », « ')} » : changez d’abord leur type dans Biens & disponibilités.`);
+    }
+    await trx('project_property_types').where({ project_id: projectId }).del();
+    if (ids.length) await trx('project_property_types').insert(ids.map((item_id, sort) => ({ project_id: projectId, item_id, sort })));
+    property_type_id = ids[0] || null;
+  } else if (property_type_id !== undefined) {
+    // Ancien formulaire (un seul type) : la liste cochée suit
+    await trx('project_property_types').where({ project_id: projectId }).del();
+    if (property_type_id) await trx('project_property_types').insert({ project_id: projectId, item_id: property_type_id, sort: 0 });
+  }
   for (const [column, kind, value] of [['project_type_id', 'type_projet', project_type_id], ['property_type_id', 'type_bien', property_type_id]]) {
     if (value === undefined) continue;
     if (value) {
@@ -240,11 +264,16 @@ async function applyProjectTypes(trx, projectId, { project_type_id, property_typ
   if (Object.keys(update).length) await trx('projects').where({ id: projectId }).update(update);
 }
 
-/** Libellés du type de projet et du type de biens, ajoutés aux projets renvoyés à l'admin. */
+/** Libellés du type de projet et des types de biens cochés, ajoutés aux projets renvoyés à l'admin. */
 async function withTypeLabels(db, projects) {
   const ids = [...new Set(projects.flatMap(p => [p.project_type_id, p.property_type_id]).filter(Boolean))];
   const labels = ids.length ? Object.fromEntries((await db('ref_items').whereIn('id', ids).select('id', 'label')).map(r => [r.id, r.label])) : {};
-  return projects.map(p => ({ ...p, project_type: labels[p.project_type_id] || null, property_type: labels[p.property_type_id] || null }));
+  const links = projects.length ? await db('project_property_types as t').join('ref_items as r', 'r.id', 't.item_id')
+    .whereIn('t.project_id', projects.map(p => p.id)).orderBy(['t.project_id', 't.sort']).select('t.project_id', 'r.id', 'r.label') : [];
+  return projects.map(p => {
+    const types = links.filter(l => l.project_id === p.id).map(l => ({ id: l.id, label: l.label }));
+    return { ...p, project_type: labels[p.project_type_id] || null, property_type: labels[p.property_type_id] || null, property_types: types, property_type_ids: types.map(t => t.id) };
+  });
 }
 
 module.exports = {

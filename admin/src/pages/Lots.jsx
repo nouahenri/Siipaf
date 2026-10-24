@@ -5,7 +5,7 @@ import { LotFormModal, LotStatusModal } from '../components/LotForms';
 import { api, qs } from '../lib/api';
 import { useAuth, useResource, useToast } from '../lib/app-context';
 import { Card, Modal, Field, StatusBadge, Empty, ErrorBox, Skeleton, DistributionBar, Pagination, naturalCompare } from '../components/ui';
-import { LOT_STATUSES, lotStatus, bienKind } from '../lib/domain';
+import { LOT_STATUSES, lotStatus, bienButton } from '../lib/domain';
 import { fcfa, num, dateTime, relative } from '../lib/format';
 
 export default function Lots() {
@@ -28,6 +28,8 @@ export default function Lots() {
 
   const lots = useResource(projectId ? `/admin/lots${qs({ project_id: projectId })}` : null);
   const project = projects.data?.find(p => String(p.id) === projectId);
+  // Projet à plusieurs types de biens : colonne « Type » et bouton « Nouveau bien »
+  const multiType = (project?.property_types || []).length > 1;
 
   const rows = useMemo(() => (lots.data || []).filter(l =>
     (!status || l.status === status) && (!q || `${l.code} ${l.ilot || ''}`.toLowerCase().includes(q.toLowerCase())))
@@ -55,7 +57,7 @@ export default function Lots() {
         {can('plans:write') && project && (
           <div className="row" style={{ gap: 8 }}>
             <button className="btn" onClick={() => setImporting(true)}><Upload />Importer des lots</button>
-            <button className="btn btn-primary" onClick={() => setCreating(true)}><Plus />{bienKind(project.property_type).create}</button>
+            <button className="btn btn-primary" onClick={() => setCreating(true)}><Plus />{bienButton((project.property_types || []).map(t => t.label))}</button>
           </div>
         )}
       </div>
@@ -76,12 +78,13 @@ export default function Lots() {
           ) : (
             <div className="table-wrap">
               <table className="table">
-                <thead><tr><th>Lot</th><th>Îlot</th><th className="right">Surface</th><th className="right">Prix</th><th>Statut</th><th>Acquéreur / option</th><th className="right">Payé</th><th /></tr></thead>
+                <thead><tr><th>Lot</th><th>Îlot</th>{multiType && <th>Type</th>}<th className="right">Surface</th><th className="right">Prix</th><th>Statut</th><th>Acquéreur / option</th><th className="right">Payé</th><th /></tr></thead>
                 <tbody>
                   {pageRows.map(l => (
                     <tr key={l.id} className="clickable" tabIndex={0} onClick={() => setOpenLot(l.id)} onKeyDown={e => e.key === 'Enter' && setOpenLot(l.id)}>
                       <td><strong>{l.code}</strong></td>
                       <td>{l.ilot || '—'}</td>
+                      {multiType && <td className="small">{l.property_type || '—'}</td>}
                       <td className="right tabular">{l.surface_m2 ? `${num(l.surface_m2)} m²` : '—'}</td>
                       <td className="right tabular nowrap">{fcfa(l.price_fcfa)}</td>
                       <td><StatusBadge status={l.status} /></td>

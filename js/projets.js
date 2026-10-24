@@ -57,7 +57,7 @@
   }
   function miniStats(p) {
     return pickStats(p).map(function (x) {
-      return '<li><i class="' + esc(x.icon) + '" aria-hidden="true"></i><b>' + esc(x.value) + '</b><small>' + esc(x.label) + '</small></li>';
+      return '<li' + (x.title ? ' title="' + esc(x.title) + '"' : '') + '><i class="' + esc(x.icon) + '" aria-hidden="true"></i><b>' + esc(x.value) + '</b><small>' + esc(x.label) + '</small></li>';
     }).join('');
   }
   function renderStats(p) {
@@ -361,7 +361,9 @@
         if (api.delivery && !has(/livraison/i)) p.stats.push({ icon: 'fas fa-clock', value: api.delivery, label: 'Livraison' });
         // Fiche sans chiffres clés (Riviera, C & LY) : complétée par la grille de prix et le stock du dashboard
         var offers = (api.offers || []).filter(function (o) { return o.price_fcfa != null || o.diaspora_price_fcfa; });
-        var kinds = offers.map(offerName).filter(function (n, k, all) { return n && all.indexOf(n) === k; });
+        // Types de biens cochés dans la fiche projet du dashboard ; à défaut, les noms distincts de la grille de prix
+        var kinds = (api.property_types || []).length ? api.property_types
+          : offers.map(offerName).filter(function (n, k, all) { return n && all.indexOf(n) === k; });
         // « T.250m² | H.175m² » : surface habitable (H.), sinon la première surface écrite
         var areas = offers.map(function (o) {
           var m = String(o.surface || '').match(/H\.?\s*(\d+)/i) || String(o.surface || '').match(/(\d+(?:[.,]\d+)?)/);
@@ -371,7 +373,7 @@
           var lo = Math.min.apply(null, areas), hi = Math.max.apply(null, areas);
           p.stats.push({ icon: 'fas fa-ruler-combined', value: (lo === hi ? lo : lo + '–' + hi) + ' m²', label: 'Surface' });
         }
-        if (kinds.length && !has(/types?/i)) p.stats.push({ icon: 'fas fa-home', value: String(kinds.length), label: kinds.length > 1 ? 'Types de biens' : 'Type de bien' });
+        if (kinds.length && !has(/types?/i)) p.stats.push({ icon: 'fas fa-home', value: String(kinds.length), label: kinds.length > 1 ? 'Types de biens' : 'Type de bien', title: kinds.join(' · ') });
         if (total && !has(/biens$|logements/i)) p.stats.push({ icon: 'fas fa-th-large', value: String(total), label: 'Biens' });
         renderStats(p);
         if (total && cardEl) {

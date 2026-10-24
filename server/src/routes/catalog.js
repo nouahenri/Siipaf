@@ -46,12 +46,14 @@ module.exports = function catalogRoutes(db) {
     // Type de projet et type de biens (listes de Paramètres) ; le type de projet fixe la catégorie
     project_type_id: z.number().int().positive().nullable().optional(),
     property_type_id: z.number().int().positive().nullable().optional(),
+    // Plusieurs types de biens cochés (le premier devient property_type_id)
+    property_type_ids: z.array(z.number().int().positive()).max(30).optional(),
     // Position GPS du projet (carte et itinéraire sur le site)
     latitude: z.number().min(-90).max(90).nullable().optional(),
     longitude: z.number().min(-180).max(180).nullable().optional(),
   });
   const REF_FIELDS = ['city_id', 'location_id', 'location_detail', 'refs'];
-  const TYPE_FIELDS = ['project_type_id', 'property_type_id'];
+  const TYPE_FIELDS = ['project_type_id', 'property_type_id', 'property_type_ids'];
   const splitRefs = data => {
     const fields = { ...data }, refs = {}, types = {};
     for (const k of REF_FIELDS) if (k in fields) { refs[k] = fields[k]; delete fields[k]; }
@@ -276,8 +278,8 @@ module.exports = function catalogRoutes(db) {
       .leftJoin('lot_options as o', function () { this.on('o.lot_id', 'l.id').andOn('o.state', db.raw('?', ['active'])); })
       .leftJoin('leads as ld', 'ld.id', 'o.lead_id')
       .leftJoin('sales as s', function () { this.on('s.lot_id', 'l.id').andOnIn('s.status', ['en_cours', 'solde']); })
-      .leftJoin('leads as b', 'b.id', 's.lead_id')
-      .select('l.*', 'o.expires_at as option_expires_at', 'ld.id as option_lead_id', 'ld.name as option_lead_name',
+      .leftJoin('leads as b', 'b.id', 's.lead_id').leftJoin('ref_items as pt', 'pt.id', 'l.property_type_id')
+      .select('l.*', 'pt.label as property_type', 'o.expires_at as option_expires_at', 'ld.id as option_lead_id', 'ld.name as option_lead_name',
         's.id as sale_id', 's.status as sale_status', 's.price_fcfa as sale_price_fcfa', 'b.name as buyer_name',
         db.raw('(select coalesce(sum(p.amount_fcfa), 0) from payments p where p.sale_id = s.id) as paid_fcfa'))
       .orderBy(['l.project_id', 'l.code']);
@@ -293,12 +295,21 @@ module.exports = function catalogRoutes(db) {
     ilot: z.string().trim().max(40).nullable().optional(),
     plan_id: z.number().int().positive().nullable().optional(),
     offer_id: z.number().int().positive().nullable().optional(),
+    // Type du bien, parmi les types cochés du projet
+    property_type_id: z.number().int().positive().nullable().optional(),
     surface_m2: z.number().nonnegative().nullable().optional(),
     price_fcfa: z.number().int().nonnegative().nullable().optional(),
     shape: shape.optional(),
     notes: z.string().max(2000).nullable().optional(),
   };
   const encodeLot = d => ('shape' in d ? { ...d, shape: d.shape ? JSON.stringify(d.shape) : null } : d);
+  /** Le type d'un bien doit être coché sur son projet. */
+  const checkLotType = async (trx, projectId, typeId) => {
+    if (!typeId) return;
+    if (!(await trx('project_property_types').where({ project_id: projectId, item_id: typeId }).first())) {
+      throw new HttpError(400, 'Ce type de bien n’est pas coché dans la fiche du projet.');
+    }
+  };
 
   /**
    * Import / mise à jour en masse depuis l'éditeur de plan ou un fichier Excel/CSV :
@@ -324,6 +335,7 @@ module.exports = function catalogRoutes(db) {
       const touched = [];
       for (const l of lots) {
         const { status, ...fields } = l;
+        if (fields.property_type_id) await checkLotType(trx, projectId, fields.property_type_id);
         const existing = await trx('lots').where({ project_id: projectId, code: l.code }).first();
         if (existing) {
           // Prix envoyé : suit la grille s'il est vide ou égal à celui de la grille, sinon prix saisi à la main
@@ -358,6 +370,7 @@ module.exports = function catalogRoutes(db) {
       throw new HttpError(409, `Le lot « ${fields.code} » existe déjà dans ce projet.`);
     }
     const lot = await db.transaction(async trx => {
+      await checkLotType(trx, projectId, fields.property_type_id);
       const offers = await projectOffers(trx, projectId);
       const [lotId] = await trx('lots').insert({ ...encodeLot(fields), price_from_grid: followsGrid(offers, fields), project_id: projectId, status: status || 'disponible' });
       await trx('lot_status_history').insert({ lot_id: lotId, from_status: null, to_status: status || 'disponible', user_id: req.user.id, reason: 'Création' });
@@ -376,6 +389,7 @@ module.exports = function catalogRoutes(db) {
       throw new HttpError(409, `Le lot « ${data.code} » existe déjà dans ce projet.`);
     }
     await db.transaction(async trx => {
+      if ('property_type_id' in data) await checkLotType(trx, lot.project_id, data.property_type_id);
       const origin = 'price_fcfa' in data ? { price_from_grid: followsGrid(await projectOffers(trx, lot.project_id), { ...lot, ...data }) } : {};
       await trx('lots').where({ id }).update({ ...encodeLot(data), ...origin, updated_at: new Date() });
       // Surface ou type changé (ou prix vidé) : le prix suit la grille si le lot n'a pas de prix saisi à la main

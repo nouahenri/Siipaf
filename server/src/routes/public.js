@@ -53,6 +53,9 @@ module.exports = function publicRoutes(db) {
     return db('project_refs as pr').join('ref_items as i', 'i.id', 'pr.ref_id').where('i.kind', 'document').whereIn('pr.project_id', projectIds)
       .orderBy(['i.sort', 'i.label']).select('pr.project_id', 'i.label', 'pr.state');
   };
+  /** Types de biens cochés des projets (ordre de la fiche). */
+  const propertyTypesOf = ids => (ids.length ? db('project_property_types as t').join('ref_items as r', 'r.id', 't.item_id')
+    .whereIn('t.project_id', ids).orderBy(['t.project_id', 't.sort']).select('t.project_id', 'r.label') : []);
   // Conditions de paiement affichées sur la tuile et la fiche : acompte, délai de solde, propositions de durée
   const termsOf = (p, settings) => ({ ...paymentTerms(p, settings), balance_months_choices: monthChoices(settings.balance_months_choices) });
 
@@ -66,10 +69,13 @@ module.exports = function publicRoutes(db) {
       db('project_offers').select('project_id', 'label', 'designation', 'surface', 'price_fcfa', 'diaspora_price_fcfa').orderBy(['project_id', 'sort']),
       db('ref_items').where({ kind: 'type_projet' }).select('id', 'label'),
     ]);
+    const propertyTypes = await propertyTypesOf(projects.map(p => p.id));
     const typeLabel = id => types.find(t => t.id === id)?.label || null;
     res.json(projects.map(p => ({
       id: p.id, slug: p.slug, name: p.name, city: p.city, location: p.location, tagline: p.tagline,
       description: p.description, amenities: json(p.amenities, []), project_type: typeLabel(p.project_type_id),
+      // Types de biens cochés dans la fiche projet (tuile « N types de biens » du site)
+      property_types: propertyTypes.filter(t => t.project_id === p.id).map(t => t.label),
       offers: offers.filter(o => o.project_id === p.id).map(({ project_id, ...o }) => o),
       category: p.category, delivery: p.delivery, cover: mediaUrl(p.cover_media_id), geo: geo(p),
       lots: Object.fromEntries(counts.filter(c => c.project_id === p.id).map(c => [c.status, Number(c.n)])),
@@ -93,6 +99,7 @@ module.exports = function publicRoutes(db) {
     res.json({
       id: p.id, slug: p.slug, name: p.name, city: p.city, location: p.location, tagline: p.tagline,
       description: p.description, category: p.category, delivery: p.delivery, amenities: json(p.amenities, []), geo: geo(p),
+      property_types: (await propertyTypesOf([p.id])).map(t => t.label),
       // Listes de Paramètres : commodités à proximité et état de la viabilisation (lotissements)
       commodites: features.commodite.map(f => f.label),
       viabilisation: features.viabilisation.map(f => ({ label: f.label, state: f.state, state_label: labels.viabilisation[f.state] })),

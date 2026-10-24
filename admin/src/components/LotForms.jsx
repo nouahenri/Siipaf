@@ -99,8 +99,8 @@ const toNumber = v => (String(v).trim() === '' ? null : Number(String(v).replace
 // Date « AAAA-MM-JJ » pour un champ date, quel que soit le format reçu (texte, millisecondes)
 const day = v => {
   if (!v) return '';
-  if (typeof v === 'string' && /^d{4}-d{2}-d{2}/.test(v)) return v.slice(0, 10);
-  const d = new Date(typeof v === 'number' || /^d+$/.test(v) ? Number(v) : v);
+  if (typeof v === 'string' && /^\d{4}-\d{2}-\d{2}/.test(v)) return v.slice(0, 10);
+  const d = new Date(typeof v === 'number' || /^\d+$/.test(v) ? Number(v) : v);
   return Number.isNaN(d.getTime()) ? '' : d.toISOString().slice(0, 10);
 };
 
@@ -111,14 +111,22 @@ export function LotFormModal({ projectId, lot, onClose, onDone }) {
   const project = useResource(`/admin/projects/${projectId}`);
   const isNew = !lot;
   const [f, setF] = useState({
-    code: lot?.code || '', ilot: lot?.ilot || '', offer_id: lot?.offer_id ? String(lot.offer_id) : '',
+    code: lot?.code || '', ilot: lot?.ilot || '', offer_id: lot?.offer_id ? String(lot.offer_id) : '', property_type_id: lot?.property_type_id ? String(lot.property_type_id) : '',
     surface_m2: lot?.surface_m2 ?? '', price_fcfa: lot?.price_fcfa ?? '', notes: lot?.notes || '', status: 'disponible',
   });
   const [error, setError] = useState(null);
   const [busy, setBusy] = useState(false);
   const set = k => e => setF(x => ({ ...x, [k]: e.target.value }));
-  const offers = project.data?.offers || [];
-  const kind = bienKind(project.data?.property_type); // « Nouvelle villa », « Nouvel appartement », « Nouveau lot »…
+  // Types de biens cochés sur le projet (demande du client du 24/10) : un seul, il est pris d'office ; plusieurs, on choisit
+  const types = project.data?.property_types || [];
+  const typeId = f.property_type_id || (types.length === 1 ? String(types[0].id) : '');
+  const typeLabel = types.find(t => String(t.id) === typeId)?.label;
+  // Lignes de la grille du type choisi (toutes si aucun type, ou si aucune ligne ne porte ce libellé)
+  const allOffers = project.data?.offers || [];
+  const fold = v => String(v || '').normalize('NFD').replace(/[̀-ͯ]/g, '').toLowerCase().trim();
+  const ofType = typeLabel ? allOffers.filter(o => fold(o.label).includes(fold(typeLabel))) : [];
+  const offers = ofType.length ? ofType : allOffers;
+  const kind = types.length > 1 && !typeLabel ? { noun: 'bien', create: 'Nouveau bien' } : bienKind(typeLabel || project.data?.property_type); // « Nouvelle villa »…
   // Grille de prix : la surface désigne la ligne ; le prix suit tant qu'il n'a pas été saisi à la main
   const grid = gridOfferFor(offers, f.surface_m2, f.offer_id);
   const setSurface = e => {
@@ -143,7 +151,7 @@ export function LotFormModal({ projectId, lot, onClose, onDone }) {
     setError(null);
     setBusy(true);
     const body = {
-      code: f.code.trim(), ilot: f.ilot.trim() || null, offer_id: f.offer_id ? Number(f.offer_id) : null,
+      code: f.code.trim(), ilot: f.ilot.trim() || null, offer_id: f.offer_id ? Number(f.offer_id) : null, property_type_id: typeId ? Number(typeId) : null,
       surface_m2: toNumber(f.surface_m2), price_fcfa: toNumber(f.price_fcfa) == null ? null : Math.round(toNumber(f.price_fcfa)),
       notes: f.notes.trim() || null,
     };
@@ -160,13 +168,21 @@ export function LotFormModal({ projectId, lot, onClose, onDone }) {
     <Modal
       title={isNew ? `${kind.create}${project.data ? ` — ${project.data.name}` : ''}` : `Modifier le lot ${lot.code}`}
       onClose={onClose}
-      footer={<><button className="btn" onClick={onClose}>Annuler</button><button className="btn btn-primary" onClick={submit} disabled={busy || !f.code.trim()}><Save />{isNew ? 'Créer' : 'Enregistrer'}</button></>}
+      footer={<><button className="btn" onClick={onClose}>Annuler</button><button className="btn btn-primary" onClick={submit} disabled={busy || !f.code.trim() || (types.length > 1 && !typeId)}><Save />{isNew ? 'Créer' : 'Enregistrer'}</button></>}
     >
       <ErrorBox error={error} />
       <div className="form-grid">
         <Field label="N° de lot"><input className="input" value={f.code} onChange={set('code')} placeholder="Ex. : A12" autoFocus /></Field>
         <Field label="Îlot"><input className="input" value={f.ilot} onChange={set('ilot')} placeholder="Ex. : A" /></Field>
-        <Field label="Type de bien" className="full">
+        {types.length > 1 && (
+          <Field label="Type de bien" className="full" hint="Types cochés dans la fiche du projet">
+            <select className="select" value={f.property_type_id} onChange={e => setF(x => ({ ...x, property_type_id: e.target.value, offer_id: '' }))}>
+              <option value="">— Choisir —</option>
+              {types.map(t => <option key={t.id} value={t.id}>{t.label}</option>)}
+            </select>
+          </Field>
+        )}
+        <Field label={types.length > 1 ? 'Ligne de la grille de prix' : 'Type de bien'} className="full">
           <select className="select" value={f.offer_id} onChange={pickOffer}>
             <option value="">— Non précisé —</option>
             {offers.map(o => <option key={o.id} value={o.id}>{o.label}{o.surface ? ` · ${o.surface}` : ''}{o.price_fcfa ? ` · ${fcfa(o.price_fcfa)}` : ''}</option>)}

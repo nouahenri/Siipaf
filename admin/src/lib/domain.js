@@ -23,6 +23,11 @@ const BIEN_WORDS = [
   [/magasin|boutique|commerce|local/, 'local', 'Nouveau local'],
   [/terrain|parcelle|lot\b/, 'lot', 'Nouveau lot'],
 ];
+/** Bouton de création d'un projet : « Nouvelle villa » pour un seul type, « Nouveau bien » (type choisi dans le formulaire) pour plusieurs. */
+export function bienButton(labels) {
+  const list = (labels || []).filter(Boolean);
+  return list.length > 1 ? 'Nouveau bien' : bienKind(list[0]).create;
+}
 export function bienKind(propertyType) {
   const t = String(propertyType || '').toLocaleLowerCase('fr');
   const hit = t && BIEN_WORDS.find(([re]) => re.test(t));
