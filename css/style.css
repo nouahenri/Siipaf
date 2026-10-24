@@ -3113,6 +3113,9 @@ tr:hover .btn-ask-row { border-color: currentColor; }
 .btn-ask:hover { background: var(--red); color: var(--white); border-color: var(--red); transform: translateY(-2px); }
 @media (prefers-reduced-motion: reduce) { .btn-ask-row i, .btn-ask:hover { transition: none; transform: none; } }
 .pricing-table tbody td:not(:first-child) { white-space: nowrap; }
+/* Badge et points forts d'une ligne de prix (fiche projet du dashboard › Grille de prix › Sur le site) */
+.offer-badge { display: inline-block; margin-left: 6px; padding: 2px 9px; border-radius: 50px; background: var(--gold); color: var(--dark); font-size: 0.66rem; font-weight: 700; letter-spacing: 0.04em; vertical-align: middle; }
+.offer-points { display: block; margin-top: 3px; color: var(--grey); font-size: 0.74rem; line-height: 1.45; }
 /* Téléphone : le bouton de ligne devient une pastille (le libellé reste dans aria-label) */
 @media (max-width: 600px) {
   .pricing-table td.td-ask { padding: 8px 10px 8px 0; }

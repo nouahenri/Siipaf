@@ -84,13 +84,16 @@
   function sheet(p) {
     var s = stockOf(p), from = lowest(p), surf = areas(p), offers = offersOf(p);
     var place = [p.location, p.location && p.city && p.location.indexOf(p.city) !== -1 ? '' : p.city].filter(Boolean).join(', ');
-    var info = [
+    // Chiffres clés saisis dans la fiche projet du dashboard, puis ceux calculés (lots, surfaces, livraison)
+    var own = (p.key_figures || []).map(function (x) { return [x.icon, x.value, x.label]; });
+    var has = function (re) { return own.some(function (x) { return re.test(x[2]); }); };
+    var info = own.concat([
       s.total && ['fas fa-th-large', String(s.total), 'Lots'],
       s.total && ['fas fa-check-circle', String(s.free), 'Disponibles'],
-      surf && ['fas fa-ruler-combined', surf, 'Surfaces'],
-      p.delivery && ['fas fa-clock', p.delivery, 'Livraison'],
+      surf && !has(/surface|superficie/i) && ['fas fa-ruler-combined', surf, 'Surfaces'],
+      p.delivery && !has(/livraison/i) && ['fas fa-clock', p.delivery, 'Livraison'],
       !p.delivery && from && ['fas fa-tag', O.fcfa(from), 'À partir de'],
-    ].filter(Boolean);
+    ]).filter(Boolean);
     return '<div class="lot-detailbar"><a class="prog-back" href="#"><i class="fas fa-arrow-left" aria-hidden="true"></i> Tous les lotissements</a></div>' +
       '<div class="proj-block lot-sheet">' +
         '<div class="proj-hero" style="background-image:url(\'' + esc(cover(p)) + '\')"><div class="proj-hero-overlay"></div><div class="proj-hero-content">' +
@@ -100,10 +103,10 @@
         '</div></div>' +
         '<div class="proj-body">' +
           (info.length ? '<div class="proj-info-grid">' + info.map(function (x) {
-            return '<div class="pinfo-card"><i class="' + x[0] + '"></i><span>' + esc(x[1]) + '</span><small>' + x[2] + '</small></div>';
+            return '<div class="pinfo-card"><i class="' + esc(x[0]) + '"></i><span>' + esc(x[1]) + '</span><small>' + esc(x[2]) + '</small></div>';
           }).join('') + '</div>' : '') +
           O.termsHtml(p) +
-          ((p.amenities || []).length ? '<div class="proj-amenities">' + p.amenities.map(function (a) { return '<div class="am-item"><i class="fas fa-check"></i><span>' + esc(a) + '</span></div>'; }).join('') + '</div>' : '') +
+          O.amenitiesHtml(p.amenities) +
           (p.description ? '<p class="prog-detail-text">' + esc(p.description) + '</p>' : '') +
           O.documentsHtml(p) +
           (offers.length ? '<h4 class="pricing-title">Tableau des Prix</h4>' + O.priceTable(offers, p.slug, p) : '') +

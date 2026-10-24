@@ -3,7 +3,7 @@ const express = require('express');
 const { z } = require('zod');
 const { ah, parse, idParam, HttpError, json } = require('../lib/http');
 const { requirePermission } = require('../auth');
-const { LOT_STATUSES, DELETABLE_LOT_STATUSES, NEW_LOT_STATUSES, PROJECT_CATEGORIES } = require('../lib/domain');
+const { LOT_STATUSES, DELETABLE_LOT_STATUSES, NEW_LOT_STATUSES, PROJECT_CATEGORIES, SITE_FIGURE_ICONS } = require('../lib/domain');
 const { changeLotStatus, placeOption, throttledExpiry } = require('../services/lots');
 const multer = require('multer');
 const { parseCad } = require('../services/cad');
@@ -36,6 +36,10 @@ module.exports = function catalogRoutes(db) {
     balance_months: z.number().int().min(1).max(120).nullable().optional(),
     delivery: z.string().trim().max(80).nullable().optional(),
     amenities: z.array(z.string().trim().max(80)).max(40).optional(),
+    // Chiffres clés de la fiche du site (« 59 ha · Superficie ») ; la livraison vient de « Délai de livraison »
+    key_figures: z.array(z.object({
+      icon: z.enum(Object.keys(SITE_FIGURE_ICONS)), value: z.string().trim().min(1, 'Donnez une valeur à chaque chiffre clé.').max(40), label: z.string().trim().max(60),
+    })).max(8).optional(),
     published: z.boolean().optional(),
     sort: z.number().int().optional(),
     // Listes de Paramètres : ville, localisation (de cette ville), cases cochées
@@ -60,8 +64,14 @@ module.exports = function catalogRoutes(db) {
     for (const k of TYPE_FIELDS) if (k in fields) { types[k] = fields[k]; delete fields[k]; }
     return [fields, refs, types];
   };
-  const encodeProject = d => ('amenities' in d ? { ...d, amenities: JSON.stringify(d.amenities) } : d);
-  const decodeProject = p => p && { ...p, amenities: json(p.amenities, []), published: !!p.published, deposit_fcfa: p.deposit_fcfa == null ? null : Number(p.deposit_fcfa) };
+  const encodeProject = d => ({
+    ...d,
+    ...('amenities' in d ? { amenities: JSON.stringify(d.amenities) } : {}),
+    ...('key_figures' in d ? { key_figures: d.key_figures.length ? JSON.stringify(d.key_figures) : null } : {}),
+  });
+  const decodeProject = p => p && {
+    ...p, amenities: json(p.amenities, []), key_figures: json(p.key_figures, []), published: !!p.published, deposit_fcfa: p.deposit_fcfa == null ? null : Number(p.deposit_fcfa),
+  };
 
   r.get('/projects', requirePermission('projects:read'), ah(async (req, res) => {
     const projects = await withTypeLabels(db, await db('projects').orderBy('sort'));
@@ -162,12 +172,15 @@ module.exports = function catalogRoutes(db) {
       surface: z.string().trim().max(80).nullable().optional(),
       price_fcfa: z.number().int().nonnegative().nullable().optional(),
       diaspora_price_fcfa: z.number().int().nonnegative().nullable().optional(),
+      // Carte de prix du site : pastille (« Populaire ») et points forts, un par ligne
+      badge: z.string().trim().max(40).nullable().optional(),
+      highlights: z.string().trim().max(600).nullable().optional(),
     })).max(100), req.body);
     await db.transaction(async trx => {
       const keep = offers.filter(o => o.id).map(o => o.id);
       await trx('project_offers').where({ project_id: id }).whereNotIn('id', keep.length ? keep : [0]).del();
       for (const [sort, o] of offers.entries()) {
-        const row = { project_id: id, label: o.label, designation: o.designation || null, surface: o.surface ?? null, price_fcfa: o.price_fcfa ?? null, diaspora_price_fcfa: o.diaspora_price_fcfa ?? null, sort };
+        const row = { project_id: id, label: o.label, designation: o.designation || null, surface: o.surface ?? null, price_fcfa: o.price_fcfa ?? null, diaspora_price_fcfa: o.diaspora_price_fcfa ?? null, badge: o.badge || null, highlights: o.highlights || null, sort };
         if (o.id) await trx('project_offers').where({ id: o.id, project_id: id }).update(row);
         else await trx('project_offers').insert(row);
       }

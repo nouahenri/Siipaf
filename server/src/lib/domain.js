@@ -102,6 +102,25 @@ function categoryForProjectType(label) {
   return null;
 }
 const FEATURE_KINDS = Object.keys(REF_KINDS).filter(k => REF_KINDS[k].feature);
+
+// Chiffres clés d'un projet sur le site (fiche projet › « Chiffres clés du site ») : pictogramme au choix
+const SITE_FIGURE_ICONS = {
+  surface: { label: 'Surface', icon: 'fas fa-ruler-combined' }, acces: { label: 'Route / accès', icon: 'fas fa-road' },
+  lieu: { label: 'Lieu', icon: 'fas fa-map-marker-alt' }, duree: { label: 'Durée', icon: 'fas fa-clock' },
+  pourcentage: { label: 'Pourcentage', icon: 'fas fa-percentage' }, calendrier: { label: 'Calendrier', icon: 'fas fa-calendar-alt' },
+  argent: { label: 'Prix / paiement', icon: 'fas fa-hand-holding-usd' }, logement: { label: 'Logement', icon: 'fas fa-home' },
+  immeuble: { label: 'Immeuble', icon: 'fas fa-building' }, nature: { label: 'Espaces verts', icon: 'fas fa-tree' },
+  securite: { label: 'Sécurité', icon: 'fas fa-shield-alt' }, ecole: { label: 'École', icon: 'fas fa-graduation-cap' },
+  atout: { label: 'Atout', icon: 'fas fa-star' }, info: { label: 'Information', icon: 'fas fa-info-circle' },
+};
+/** Chiffres clés enregistrés (JSON) → liste du site, avec la classe du pictogramme. */
+function siteFigures(raw) {
+  let list = raw;
+  if (typeof raw === 'string') { try { list = JSON.parse(raw); } catch { list = []; } }
+  return (Array.isArray(list) ? list : []).filter(f => f && f.value).map(f => ({
+    icon: (SITE_FIGURE_ICONS[f.icon] || SITE_FIGURE_ICONS.info).icon, value: f.value, label: f.label || '',
+  }));
+}
 const VIABILISATION_STATES = { prevu: 'Prévu', en_cours: 'En cours', fait: 'Réalisé' };
 
 // Réglages généraux (Paramètres › Général) : clé → valeur par défaut
@@ -1228,7 +1247,7 @@ module.exports = {
   FINANCING_PLANS, FINANCINGS, saleTerms, financingLabel, SCHEDULE_KINDS, INSTALLMENT_STATUS_LABELS, SITE_STAGES, SITE_STAGE_LABELS,
   MESSAGE_SENDERS, CLIENT_PASSWORD_MIN, CLIENT_RESET_HOURS, CLIENT_VISIBLE_SALE_STATUSES,
   addMonths, buildSchedule, allocatePayments, phoneKey, looksLikeClientCode, PROTECTED_ROLES, DELETABLE_LOT_STATUSES, NEW_LOT_STATUSES, PROJECT_CATEGORIES,
-  REF_KINDS, FEATURE_KINDS, VIABILISATION_STATES, APP_SETTINGS, THEMES, categoryForProjectType, monthChoices, paymentTerms, monthlyFor,
+  REF_KINDS, FEATURE_KINDS, SITE_FIGURE_ICONS, siteFigures, VIABILISATION_STATES, APP_SETTINGS, THEMES, categoryForProjectType, monthChoices, paymentTerms, monthlyFor,
   offerSurface, gridOfferFor, GRID_PRICED_STATUSES,
   SAV_CATEGORIES, SAV_PRIORITIES, SAV_STATUSES, SAV_STATUS_LABELS, SAV_OPEN_STATUSES, SAV_TRANSITIONS, SAV_SOURCES,
   WARRANTIES, warrantyFor, warrantyDates, SAV_LAND_CATEGORIES, SAV_RESERVE_STATUSES, SAV_INTERVENTION_STATUSES,

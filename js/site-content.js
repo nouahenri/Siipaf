@@ -1,6 +1,7 @@
 /**
  * Contenu du site géré dans le dashboard (rubrique « Contenu du site ») :
  * diaporama et bandeau de l'accueil, chiffres clés, coordonnées sur toutes les pages.
+ * Accueil › « Nos projets phares » : nom, type de projet et prix de chaque projet (fiche projet du dashboard).
  * Si l'API ne répond pas, la page garde le contenu écrit dans le HTML.
  */
 (function () {
@@ -67,13 +68,47 @@
   }
 
   function applyStats(stats) {
+    if (!stats || !stats.items || !stats.items.length) return;
     var grid = document.querySelector('.stats-bar .stats-grid');
-    if (!grid || !stats || !stats.items || !stats.items.length) return;
-    grid.innerHTML = stats.items.map(function (s, i) {
-      return (i ? '<div class="stat-sep"></div>' : '') +
-        '<div class="stat-item"><span class="stat-num">' + esc(s.value) + '</span>' +
-        (s.unit ? '<span class="stat-unit">' + esc(s.unit) + '</span>' : '') + '<p>' + esc(s.label) + '</p></div>';
-    }).join('');
+    if (grid) {
+      grid.innerHTML = stats.items.map(function (s, i) {
+        return (i ? '<div class="stat-sep"></div>' : '') +
+          '<div class="stat-item"><span class="stat-num">' + esc(s.value) + '</span>' +
+          (s.unit ? '<span class="stat-unit">' + esc(s.unit) + '</span>' : '') + '<p>' + esc(s.label) + '</p></div>';
+      }).join('');
+    }
+    // Second bandeau de chiffres de l'accueil (sous « Bâtissons ensemble ») : mêmes chiffres, pictogrammes d'origine
+    var counters = document.querySelector('.counters-grid');
+    if (counters) {
+      var icons = Array.prototype.map.call(counters.querySelectorAll('.counter-item > i'), function (i) { return i.className; });
+      counters.innerHTML = stats.items.map(function (s, i) {
+        return '<div class="counter-item"><i class="' + esc(icons[i] || 'fas fa-star') + '"></i><span class="counter-num">' + esc(s.value) + '</span>' +
+          (s.unit ? '<span class="counter-unit">' + esc(s.unit) + '</span>' : '') + '<p>' + esc(s.label) + '</p></div>';
+      }).join('');
+    }
+  }
+
+  // Accueil › « Nos projets phares » : chaque carte (lien projets.html#slug) prend le nom, le type de projet
+  // et le prix d'entrée de la fiche projet du dashboard ; l'image reste celle de « Images du site ».
+  function money(n) { return Math.round(n).toLocaleString('fr-FR').replace(/[\u202f\u00a0]/g, ' ') + ' FCFA'; }
+  function applyFeatured(projects) {
+    Array.prototype.forEach.call(document.querySelectorAll('.projects-preview-grid .pp-card'), function (a) {
+      var slug = (a.getAttribute('href') || '').split('#')[1];
+      var p = projects.filter(function (x) { return x.slug === slug; })[0];
+      if (!p) return;
+      var box = a.querySelector('.pp-content');
+      var tag = box.querySelector('.pp-tag');
+      if (p.project_type) { if (tag) tag.textContent = p.project_type; } else if (tag) tag.remove();
+      box.querySelector('h3').textContent = p.name;
+      var offers = (p.offers || []).filter(function (o) { return o.price_fcfa != null; });
+      var line = box.querySelector('p');
+      if (!offers.length) { if (line) line.remove(); return; }
+      var o = offers.length === 1 ? offers[0] : null;
+      var low = Math.min.apply(null, offers.map(function (x) { return Number(x.price_fcfa); }));
+      line.innerHTML = o
+        ? [o.label, o.designation].filter(Boolean).map(esc).join(' ') + (o.surface ? ' · ' + esc(/^\d+(?:[.,]\d+)?$/.test(o.surface) ? o.surface + ' m²' : o.surface) : '') + ' · <strong>' + money(low) + '</strong>'
+        : 'À partir de <strong>' + money(low) + '</strong>';
+    });
   }
 
   // Coordonnées : remplace partout les valeurs d'origine écrites dans les pages
@@ -161,6 +196,12 @@
       })
       .catch(function () {})
       .then(function () { clearTimeout(timer); startHero(); });
+    if (document.querySelector('.projects-preview-grid')) {
+      fetch(API + '/api/public/projects', { credentials: 'omit' })
+        .then(function (r) { if (!r.ok) throw new Error(r.status); return r.json(); })
+        .then(applyFeatured)
+        .catch(function () { /* cartes écrites dans la page */ });
+    }
   }
 
   if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', load);

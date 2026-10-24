@@ -28,6 +28,40 @@
     return (t.deposit ? 'Acompte ' + fcfa(t.deposit) + ' puis ' : '') + num(monthly(price, t)) + ' F/mois × ' + t.months;
   }
   function offerName(o) { return [o.label, o.designation].filter(Boolean).join(' '); }
+  /** Points forts d'une ligne de la grille (fiche projet › Grille de prix › Sur le site), un par ligne. */
+  function highlightsOf(o) { return String((o && o.highlights) || '').split(/\r?\n/).map(function (x) { return x.trim(); }).filter(Boolean); }
+  /** Badge et points forts sous le nom d'une ligne du tableau des prix. */
+  function offerExtras(o) {
+    var pts = highlightsOf(o);
+    return (o.badge ? ' <span class="offer-badge">' + esc(o.badge) + '</span>' : '') +
+      (pts.length ? '<small class="offer-points">' + pts.map(esc).join(' · ') + '</small>' : '');
+  }
+
+  // Pictogramme d'un équipement d'après son libellé (Paramètres › Équipements) ; coche par défaut
+  var AMENITY_ICONS = [
+    [/piscine/i, 'fa-swimming-pool'], [/terrain de sport|football|stade/i, 'fa-futbol'], [/sport|gym|fitness/i, 'fa-dumbbell'], [/parking|garage/i, 'fa-car'], [/ascenseur/i, 'fa-elevator'],
+    [/cctv|surveillance|vid[ée]o/i, 'fa-video'], [/s[ée]curi|gardien|clôtur/i, 'fa-shield-alt'], [/groupe|[ée]lectrog|[ée]lectri/i, 'fa-plug'],
+    [/eau|forage|château/i, 'fa-tint'], [/clim/i, 'fa-snowflake'], [/cuisine/i, 'fa-utensils'], [/domotique|intelligent|wifi|fibre/i, 'fa-wifi'],
+    [/jeux|enfant/i, 'fa-child'], [/vert|jardin|parc/i, 'fa-tree'], [/[ée]cole|scolaire|lyc[ée]e|crèche/i, 'fa-graduation-cap'],
+    [/m[ée]dical|sant[ée]|clinique|h[ôo]pital|pharmacie/i, 'fa-heartbeat'], [/commerc|march[ée]|boutique|shopping/i, 'fa-shopping-bag'],
+    [/concierg/i, 'fa-concierge-bell'], [/pont|route|voie|acc[èe]s/i, 'fa-road'],
+    [/culte|mosqu[ée]e|[ée]glise/i, 'fa-place-of-worship'], [/banque/i, 'fa-university'], [/transport|bus/i, 'fa-bus'],
+  ];
+  function amenityIcon(label) {
+    for (var i = 0; i < AMENITY_ICONS.length; i++) if (AMENITY_ICONS[i][0].test(label)) return AMENITY_ICONS[i][1];
+    return 'fa-check';
+  }
+  function amenitiesHtml(list) {
+    return (list || []).length ? '<div class="proj-amenities">' + list.map(function (a) {
+      return '<div class="am-item"><i class="fas ' + amenityIcon(a) + '" aria-hidden="true"></i><span>' + esc(a) + '</span></div>';
+    }).join('') + '</div>' : '';
+  }
+  /** Chiffres clés de la fiche : [{ icon, value, label }] → grille de cartes. */
+  function figuresHtml(list) {
+    return (list || []).length ? '<div class="proj-info-grid">' + list.map(function (x) {
+      return '<div class="pinfo-card"><i class="' + esc(x.icon) + '" aria-hidden="true"></i><span>' + esc(x.value) + '</span><small>' + esc(x.label) + '</small></div>';
+    }).join('') + '</div>' : '';
+  }
   /**
    * Nom d'une ligne tel qu'il part dans le formulaire : plusieurs lignes du même nom (« Terrain nu » en
    * 400, 500 et 600 m²) se distinguent par leur surface : « Terrain nu 600 m² ».
@@ -79,7 +113,7 @@
         var name = offerName(o), line = lineName(o, offers);
         var premium = /haut standing|duplex|penthouse|prestige/i.test(name);
         var row = o.price_fcfa != null
-          ? '<tr' + (premium ? ' class="hs-row"' : '') + '><td>' + esc(name) + '</td><td>' + esc(surface(o.surface) || '—') + '</td>' +
+          ? '<tr' + (premium ? ' class="hs-row"' : '') + '><td>' + esc(name) + offerExtras(o) + '</td><td>' + esc(surface(o.surface) || '—') + '</td>' +
             '<td class="price-cell">' + num(o.price_fcfa) + '</td><td>' + eur(o.price_fcfa) + '</td><td class="td-ask">' + askLink(slug, line) + '</td></tr>'
           : '';
         if (o.diaspora_price_fcfa) {
@@ -117,6 +151,7 @@
   window.SiipafOffers = {
     ASK: ASK, DIASPORA_MONTHS: DIASPORA_MONTHS, DIASPORA_SUFFIX: DIASPORA_SUFFIX,
     esc: esc, num: num, fcfa: fcfa, eur: eur, surface: surface, offerName: offerName, lineName: lineName,
+    highlightsOf: highlightsOf, amenityIcon: amenityIcon, amenitiesHtml: amenitiesHtml, figuresHtml: figuresHtml,
     contactHref: contactHref, askLink: askLink, priceTable: priceTable, budgetFor: budgetFor,
     termsOf: termsOf, monthly: monthly, diasporaText: diasporaText, termsLine: termsLine, termsHtml: termsHtml, documentsHtml: documentsHtml,
   };

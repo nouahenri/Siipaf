@@ -10,7 +10,7 @@ import PlanImport from '../components/PlanImport';
 import PlanManage from '../components/PlanManage';
 import ProjectActions from '../components/ProjectActions';
 import { fcfa } from '../lib/format';
-import { bienButton } from '../lib/domain';
+import { bienButton, SITE_FIGURE_ICONS } from '../lib/domain';
 
 const FIELDS = ['name', 'slug', 'city_id', 'location_id', 'location_detail', 'tagline', 'description', 'project_type_id', 'property_type_id', 'delivery', 'option_days', 'deposit_fcfa', 'balance_months', 'published', 'cover_media_id'];
 const FEATURES = ['equipement', 'commodite', 'viabilisation', 'document'];
@@ -56,7 +56,10 @@ export default function ProjectEdit() {
     // Cases cochées : id → état (l'état ne sert qu'à la viabilisation)
     const checked = {};
     for (const k of FEATURES) for (const r of p.refs?.[k] || []) checked[r.id] = r.state || null;
-    setForm({ ...Object.fromEntries(FIELDS.map(k => [k, p[k] ?? ''])), checked, published: !!p.published, gps: gpsText(p), type_ids: (p.property_type_ids || []).map(String) });
+    setForm({
+      ...Object.fromEntries(FIELDS.map(k => [k, p[k] ?? ''])), checked, published: !!p.published, gps: gpsText(p), type_ids: (p.property_type_ids || []).map(String),
+      key_figures: (p.key_figures || []).map(f => ({ ...f })),
+    });
     setOffers(p.offers.map(o => ({ ...o })));
   }, [project.data]);
 
@@ -111,6 +114,9 @@ export default function ProjectEdit() {
   const set = k => e => setForm(f => ({ ...f, [k]: e.target.type === 'checkbox' ? e.target.checked : e.target.value }));
   const setOffer = (i, k, v) => setOffers(list => list.map((o, j) => (j === i ? { ...o, [k]: v } : o)));
   const moveOffer = (i, d) => setOffers(list => { const l = [...list]; [l[i], l[i + d]] = [l[i + d], l[i]]; return l; });
+  // Chiffres clés du site : liste ordonnée (pictogramme, valeur, libellé)
+  const setFigure = (i, k, v) => setForm(f => ({ ...f, key_figures: f.key_figures.map((x, j) => (j === i ? { ...x, [k]: v } : x)) }));
+  const moveFigure = (i, d) => setForm(f => { const l = [...f.key_figures]; [l[i], l[i + d]] = [l[i + d], l[i]]; return { ...f, key_figures: l }; });
   const intOrNull = v => (v === '' || v == null ? null : Math.round(Number(String(v).replace(/[\s ]/g, ''))));
   // Équivalent en euros affiché sur le site : parité fixe du franc CFA (1 € = 655,957 FCFA)
   const eur = v => { const n = intOrNull(v); return n > 0 ? `≈ ${Math.round(n / 655.957).toLocaleString('fr-FR')} €` : null; };
@@ -133,6 +139,8 @@ export default function ProjectEdit() {
         project_type_id: Number(form.project_type_id) || null,
         property_type_ids: form.type_ids.map(Number),
         refs: Object.entries(form.checked).map(([refId, state]) => ({ id: Number(refId), state: state || null })),
+        // Ligne sans valeur : ignorée
+        key_figures: form.key_figures.map(f => ({ icon: f.icon, value: f.value.trim(), label: (f.label || '').trim() })).filter(f => f.value),
       };
       delete body.checked;
       delete body.type_ids;
@@ -142,6 +150,7 @@ export default function ProjectEdit() {
       await api.patch(`/admin/projects/${id}`, body);
       await api.put(`/admin/projects/${id}/offers`, offers.filter(o => o.label?.trim()).map(o => ({
         id: o.id, label: o.label, designation: o.designation?.trim() || null, surface: o.surface || null, price_fcfa: intOrNull(o.price_fcfa), diaspora_price_fcfa: intOrNull(o.diaspora_price_fcfa),
+        badge: o.badge?.trim() || null, highlights: o.highlights?.trim() || null,
       })));
       // Fiche enregistrée : retour à la page précédente (liste des projets) avec l'accusé
       saveAndReturn(`Projet « ${form.name || project.data?.name || ''} » enregistré`);
@@ -206,9 +215,9 @@ export default function ProjectEdit() {
                   <button type="button" className="btn" onClick={locate} title="Utiliser la position de cet appareil (sur place)"><MapPin />Ma position</button>
                 </div>
               </Field>
-              <Field label="Accroche" className="full" hint="Phrase courte affichée sous le nom."><input className="input" value={form.tagline} onChange={set('tagline')} /></Field>
-              <Field label="Description" className="full"><textarea className="textarea" value={form.description} onChange={set('description')} /></Field>
-              <Field label="Délai de livraison"><input className="input" value={form.delivery} onChange={set('delivery')} placeholder="30 mois" /></Field>
+              <Field label="Accroche" className="full" hint="Phrase courte affichée sous le nom (fiche et tuile du site). L’étiquette au-dessus du nom est le type de projet."><input className="input" value={form.tagline} onChange={set('tagline')} /></Field>
+              <Field label="Description" className="full" hint="Texte de présentation de la fiche du projet sur le site."><textarea className="textarea" value={form.description} onChange={set('description')} /></Field>
+              <Field label="Délai de livraison" hint="Chiffre clé « Livraison » de la fiche et de la tuile du site."><input className="input" value={form.delivery} onChange={set('delivery')} placeholder="30 mois" /></Field>
               <Field label="Durée d’une option (jours)" hint="Vide = durée par défaut (Paramètres › Réglages généraux)."><input className="input" type="number" min="1" max="60" value={form.option_days} onChange={set('option_days')} /></Field>
               <Field label="Délai de solde" hint={<>Mensualités pour solder le bien (formule Diaspora). {canLists && <Link className="list-link" to="/parametres?section=general">Régler les durées proposées</Link>}</>}>
                 <select className="select" value={form.balance_months || ''} onChange={set('balance_months')}>
@@ -271,11 +280,44 @@ export default function ProjectEdit() {
           })}
         </div>
 
+        <Card title="Chiffres clés du site" bodyClass="" actions={editable && form.key_figures.length < 8 && <button type="button" className="btn btn-sm" onClick={() => setForm(f => ({ ...f, key_figures: [...f.key_figures, { icon: 'info', value: '', label: '' }] }))}><Plus />Ajouter un chiffre clé</button>}>
+          {!form.key_figures.length ? <Empty>Aucun chiffre clé saisi : la fiche du site affiche la livraison et les chiffres tirés de la grille de prix et des lots.</Empty> : (
+            <div className="table-wrap">
+              <table className="table">
+                <thead><tr><th>Pictogramme</th><th>Valeur</th><th>Libellé</th><th /></tr></thead>
+                <tbody>
+                  {form.key_figures.map((f, i) => (
+                    <tr key={i}>
+                      <td style={{ minWidth: 170 }}>
+                        <select className="select" value={f.icon} onChange={e => setFigure(i, 'icon', e.target.value)} aria-label="Pictogramme">
+                          {Object.entries(SITE_FIGURE_ICONS).map(([k, v]) => <option key={k} value={k}>{v}</option>)}
+                        </select>
+                      </td>
+                      <td style={{ minWidth: 140 }}><input className="input" value={f.value} onChange={e => setFigure(i, 'value', e.target.value)} placeholder="59 ha" maxLength={40} aria-label="Valeur" /></td>
+                      <td style={{ minWidth: 180 }}><input className="input" value={f.label} onChange={e => setFigure(i, 'label', e.target.value)} placeholder="Superficie" maxLength={60} aria-label="Libellé" /></td>
+                      <td className="nowrap">
+                        <button type="button" className="btn btn-sm btn-ghost btn-icon" disabled={i === 0} onClick={() => moveFigure(i, -1)} aria-label="Monter"><ArrowUp /></button>
+                        <button type="button" className="btn btn-sm btn-ghost btn-icon" disabled={i === form.key_figures.length - 1} onClick={() => moveFigure(i, 1)} aria-label="Descendre"><ArrowDown /></button>
+                        <button type="button" className="btn btn-sm btn-ghost btn-icon btn-danger" onClick={() => setForm(x => ({ ...x, key_figures: x.key_figures.filter((_, j) => j !== i) }))} aria-label="Supprimer le chiffre clé"><Trash2 /></button>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          )}
+          <p className="small muted" style={{ padding: '8px 16px' }}>
+            Cartes « 59 ha · Superficie », « Rocade Y4 · Accès direct »… de la fiche du projet sur le site (8 au plus, dans cet ordre), suivies de « Livraison »
+            (délai de livraison ci-dessus). La tuile du projet en affiche trois, en privilégiant livraison, apport et échelonnement, complétées au besoin par la surface,
+            le nombre de types de biens et le nombre de biens, calculés d’après la grille de prix et les lots.
+          </p>
+        </Card>
+
         <Card title="Grille de prix" bodyClass="" actions={editable && <button type="button" className="btn btn-sm" onClick={() => setOffers(o => [...o, { label: propertyLabel || '', designation: '', surface: '', price_fcfa: '', diaspora_price_fcfa: '' }])}><Plus />Ajouter une ligne</button>}>
           {!offers.length ? <Empty>Aucun type de bien.</Empty> : (
             <div className="table-wrap">
               <table className="table">
-                <thead><tr><th>Type de bien</th><th>Désignation</th><th>Surface</th><th className="right">Prix (FCFA)</th><th className="right">Prix Diaspora (FCFA)</th><th /></tr></thead>
+                <thead><tr><th>Type de bien</th><th>Désignation</th><th>Surface</th><th className="right">Prix (FCFA)</th><th className="right">Prix Diaspora (FCFA)</th><th>Sur le site</th><th /></tr></thead>
                 <tbody>
                   {offers.map((o, i) => (
                     <tr key={o.id || `new-${i}`}>
@@ -301,6 +343,10 @@ export default function ProjectEdit() {
                           </button>
                         )}
                       </td>
+                      <td style={{ minWidth: 220 }}>
+                        <input className="input" value={o.badge || ''} onChange={e => setOffer(i, 'badge', e.target.value)} placeholder="Badge : Populaire…" maxLength={40} aria-label="Badge" />
+                        <textarea className="textarea" rows={2} style={{ marginTop: 6, minHeight: 0 }} value={o.highlights || ''} onChange={e => setOffer(i, 'highlights', e.target.value)} placeholder="Points forts, un par ligne" maxLength={600} aria-label="Points forts" />
+                      </td>
                       <td className="nowrap">
                         <button type="button" className="btn btn-sm btn-ghost btn-icon" disabled={i === 0} onClick={() => moveOffer(i, -1)} aria-label="Monter"><ArrowUp /></button>
                         <button type="button" className="btn btn-sm btn-ghost btn-icon" disabled={i === offers.length - 1} onClick={() => moveOffer(i, 1)} aria-label="Descendre"><ArrowDown /></button>
@@ -313,6 +359,7 @@ export default function ProjectEdit() {
               <p className="small muted" style={{ padding: '8px 16px' }}>
                 Cette grille alimente le tableau des prix du site : équivalent en euros calculé automatiquement, ligne « Option Diaspora » avec sa mensualité
                 ({terms.deposit > 0 ? `acompte de ${fcfa(terms.deposit)}, puis ` : ''}{terms.months} mois). Cliquez sur une mensualité pour régler l’acompte et le délai de solde.
+                « Sur le site » : badge (« Populaire ») et points forts de la ligne, affichés avec son prix (carte, prix vedette ou tableau).
                 {canLists && <> Types proposés : ceux du type de projet choisi. <Link className="list-link" to="/parametres?section=type_bien">Gérer les types de biens</Link></>}
               </p>
             </div>

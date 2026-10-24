@@ -82,6 +82,13 @@ export const stageLabel = id => LEAD_STAGES.find(s => s.id === id)?.label || id;
 export const CLIENT_STAGES = ['paiement', 'contrat', 'notaire', 'livraison', 'sav'];
 export const PROSPECT_STAGES = LEAD_STAGES.filter(s => !CLIENT_STAGES.includes(s.id));
 
+// Pictogrammes des chiffres clés du site (fiche projet) : même liste que le serveur (SITE_FIGURE_ICONS)
+export const SITE_FIGURE_ICONS = {
+  surface: 'Surface', acces: 'Route / accès', lieu: 'Lieu', duree: 'Durée', pourcentage: 'Pourcentage', calendrier: 'Calendrier',
+  argent: 'Prix / paiement', logement: 'Logement', immeuble: 'Immeuble', nature: 'Espaces verts', securite: 'Sécurité',
+  ecole: 'École', atout: 'Atout', info: 'Information',
+};
+
 export const PROJECT_CATEGORIES = {
   social: 'Logement social',
   social_haut_standing: 'Logement social & haut standing',

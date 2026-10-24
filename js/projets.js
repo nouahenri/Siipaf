@@ -1,7 +1,9 @@
 /* ============================================================
    SIIPAF — Page « Nos projets » : grille des programmes, puis détail d'un programme.
-   - Les fiches écrites dans projets.html (prix, prestations, images du dashboard) donnent la grille ;
-     projets.html#ahoutoue ouvre le détail.
+   - Les fiches écrites dans projets.html donnent la grille et la mise en page (tableau, cartes ou prix vedette) ;
+     projets.html#ahoutoue ouvre le détail. Leurs valeurs sont remplacées par celles de la fiche projet du
+     dashboard (nom, type de projet, adresse, accroche, description, équipements, chiffres clés, prix) : le
+     texte écrit ne reste que si l'API ne répond pas.
    - L'API ajoute le stock de lots, « Localiser le site » (js/project-map.js), le plan interactif, et les
      prix de la grille du dashboard (équivalent en euros, option Diaspora) quand le projet en a une.
    - Un projet créé dans le dashboard sans fiche écrite reçoit une carte et un détail générés.
@@ -159,12 +161,14 @@
       var badge = model && model.querySelector('.pc-badge');
       var featured = model && /pricing-card-(featured|penthouse)/.test(model.className);
       var btn = model && model.querySelector('.btn');
+      var points = O.highlightsOf(o);
       return '<div class="' + esc(model ? model.className : 'pricing-card') + '">' +
-        (badge ? badge.outerHTML : '') +
+        (o.badge ? '<div class="' + esc(badge ? badge.className : 'pc-badge') + '">' + esc(o.badge) + '</div>' : '') +
         '<div class="pc-header">' + esc(offerName(o)) + '</div>' +
         (o.surface ? '<div class="pc-surface">' + esc(surface(o.surface)) + '</div>' : '') +
         (o.price_fcfa != null ? '<div class="pc-price">' + num(o.price_fcfa) + ' <span>FCFA</span></div><div class="pc-eur">≈ ' + eur(o.price_fcfa) + '</div>' : '') +
         (o.diaspora_price_fcfa ? '<div class="pc-eur">Diaspora : ' + fcfa(o.diaspora_price_fcfa) + ' · ' + esc(O.diasporaText(o.diaspora_price_fcfa, t)) + '</div>' : '') +
+        (points.length ? '<ul>' + points.map(function (x) { return '<li><i class="fas fa-check" aria-hidden="true"></i>' + esc(x) + '</li>'; }).join('') + '</ul>' : '') +
         '<a href="contact.html" class="btn ' + (btn ? esc(btn.className.replace(/^btn\s*/, '')) : (featured ? 'btn-white btn-sm' : 'btn-primary btn-sm')) + '">' + (btn ? esc(text(btn)) : 'Réserver') + '</a>' +
         '</div>';
     }).join('');
@@ -185,6 +189,13 @@
       cardEl.querySelector('.phc-badge').textContent = [offerName(o), surface(o.surface)].filter(Boolean).join(' — ');
       cardEl.querySelector('.phc-price').innerHTML = num(o.price_fcfa) + ' <span>FCFA</span>';
       cardEl.querySelector('.phc-eur').textContent = '≈ ' + eur(o.price_fcfa);
+      var para = cardEl.querySelector('p');
+      var points = O.highlightsOf(o);
+      if (points.length) {
+        if (!para) { para = document.createElement('p'); cardEl.insertBefore(para, cardEl.querySelector('a.btn')); }
+        para.textContent = points.join(' — ');
+      } else if (para) para.remove();
+      cardEl.querySelector('.phc-badge').insertAdjacentHTML('beforeend', o.badge ? ' · ' + esc(o.badge) : '');
     } else if (table) {
       table.outerHTML = O.priceTable(offers, p.slug, api);
     } else {
@@ -200,10 +211,63 @@
     if (priceEl && p.from) { priceEl.hidden = false; priceEl.querySelector('strong').textContent = fcfa(p.from); }
   }
 
+  // Chiffres clés de la fiche : ceux de la fiche projet du dashboard, puis la livraison (« Délai de livraison »)
+  function figuresOf(api) {
+    var list = (api.key_figures || []).slice();
+    var has = function (re) { return list.some(function (x) { return re.test(x.label); }); };
+    if (api.delivery && !has(/livraison/i)) list.push({ icon: 'fas fa-clock', value: api.delivery, label: 'Livraison' });
+    return list;
+  }
+  function placeOf(api) {
+    return [api.location, api.location && api.city && api.location.indexOf(api.city) !== -1 ? '' : api.city].filter(Boolean).join(', ');
+  }
+
+  /**
+   * Fiche écrite dans projets.html : chaque valeur vient de la fiche projet du dashboard (une valeur vide y est
+   * retirée de la page). Étiquette = type de projet, phrase sous le nom = accroche, puis description, équipements,
+   * chiffres clés. La carte de la grille est refaite avec ces valeurs.
+   */
+  function applyProject(p, api) {
+    var b = p.block, hero = b.querySelector('.proj-hero-content'), body = b.querySelector('.proj-body');
+    if (!hero || !body) return;
+    var line = function (sel, value, make) {
+      var el = hero.querySelector(sel);
+      if (!value) { if (el) el.remove(); return; }
+      if (!el) { el = make(); }
+      el.textContent = value;
+    };
+    line('.proj-tag', api.project_type, function () { var d = document.createElement('div'); d.className = 'proj-tag'; hero.insertBefore(d, hero.firstChild); return d; });
+    hero.querySelector('h2').textContent = api.name;
+    var marker = hero.querySelector('.fa-map-marker-alt');
+    var placeEl = marker && marker.parentNode;
+    var place = placeOf(api);
+    if (place) {
+      if (!placeEl) { placeEl = document.createElement('p'); hero.querySelector('h2').insertAdjacentElement('afterend', placeEl); }
+      placeEl.innerHTML = '<i class="fas fa-map-marker-alt"></i> ' + esc(place);
+    } else if (placeEl) placeEl.remove();
+    line('.proj-desc', api.tagline || api.description, function () { var d = document.createElement('p'); d.className = 'proj-desc'; hero.appendChild(d); return d; });
+
+    // Corps : équipements, chiffres clés, description (quand l'accroche est sous le nom)
+    Array.prototype.forEach.call(body.querySelectorAll('.proj-amenities, .proj-info-grid:not(.proj-terms), .prog-detail-text'), function (e) { e.remove(); });
+    var figures = figuresOf(api);
+    var wrap = document.createElement('div');
+    wrap.innerHTML = O.amenitiesHtml(api.amenities) + O.figuresHtml(figures) +
+      (api.tagline && api.description ? '<p class="prog-detail-text">' + esc(api.description) + '</p>' : '');
+    var first = body.firstChild;
+    while (wrap.firstChild) body.insertBefore(wrap.firstChild, first);
+
+    var link = document.querySelector('.snav-link[href="#' + p.slug + '"]');
+    if (link) link.lastChild.textContent = api.name;
+    p.name = api.name; p.tag = api.project_type || ''; p.place = place; p.desc = api.tagline || api.description || '';
+    p.city = api.city || p.city; p.stats = figures.slice();
+    var old = grid.querySelector('.prog-card[data-slug="' + p.slug + '"]');
+    if (old) old.outerHTML = card(p);
+  }
+
   // Fiche générée pour un projet du dashboard sans fiche écrite (même habillage que les autres)
   function buildBlock(api) {
     var cover = api.cover ? API + api.cover : 'images/hero/hero-3-ahoutoue.jpg';
-    var place = [api.location, api.location && api.city && api.location.indexOf(api.city) !== -1 ? '' : api.city].filter(Boolean).join(', ');
+    var place = placeOf(api);
     var lots = api.lots || {};
     var total = Object.keys(lots).reduce(function (n, k) { return n + lots[k]; }, 0);
     var tag = api.project_type || (api.category === 'lotissement' ? 'Lotissement' : 'Promotion immobilière');
@@ -217,11 +281,8 @@
         ((api.tagline || api.description) ? '<p class="proj-desc">' + esc(api.tagline || api.description) + '</p>' : '') +
       '</div></div>' +
       '<div class="proj-body">' +
-        ((api.amenities || []).length ? '<div class="proj-amenities">' + api.amenities.map(function (a) { return '<div class="am-item"><i class="fas fa-check"></i><span>' + esc(a) + '</span></div>'; }).join('') + '</div>' : '') +
-        ((api.delivery || total) ? '<div class="proj-info-grid">' +
-          (total ? '<div class="pinfo-card"><i class="fas fa-th-large"></i><span>' + total + '</span><small>' + (api.category === 'lotissement' ? 'Lots' : 'Biens') + '</small></div>' : '') +
-          (api.delivery ? '<div class="pinfo-card"><i class="fas fa-clock"></i><span>' + esc(api.delivery) + '</span><small>Livraison</small></div>' : '') +
-        '</div>' : '') +
+        O.amenitiesHtml(api.amenities) +
+        O.figuresHtml(figuresOf(api).concat(total ? [{ icon: 'fas fa-th-large', value: String(total), label: api.category === 'lotissement' ? 'Lots' : 'Biens' }] : [])) +
         (api.description && api.tagline ? '<p class="prog-detail-text">' + esc(api.description) + '</p>' : '') +
         '<div class="proj-footer-btns">' +
           '<a href="contact.html?projet=' + encodeURIComponent(api.name) + '" class="btn btn-primary"><span>Réserver ce projet</span><i class="fas fa-arrow-right"></i></a>' +
@@ -344,7 +405,7 @@
       var list = all.filter(function (api) { return api.category !== 'lotissement'; });
       list.forEach(function (api) {
         var p = programs.filter(function (x) { return x.slug === api.slug; })[0];
-        if (!p) { p = buildBlock(api); prepare(p.block); added = true; }
+        if (!p) { p = buildBlock(api); prepare(p.block); added = true; } else applyProject(p, api);
         var cardEl = grid.querySelector('.prog-card[data-slug="' + p.slug + '"]');
         // Ville du dashboard (« Bingerville ») plutôt que le début de l'adresse (« Akouai-Agban »)
         var cityEl = cardEl && cardEl.querySelector('.lot-card-city');

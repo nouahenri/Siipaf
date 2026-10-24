@@ -7,7 +7,7 @@ const express = require('express');
 const rateLimit = require('express-rate-limit');
 const { z } = require('zod');
 const { ah, parse, HttpError, json } = require('../lib/http');
-const { LOT_STATUS_LABELS, SELLABLE_STATUSES, paymentTerms, monthChoices } = require('../lib/domain');
+const { LOT_STATUS_LABELS, SELLABLE_STATUSES, paymentTerms, monthChoices, siteFigures } = require('../lib/domain');
 const { findOrCreateLead, placeOption, throttledExpiry } = require('../services/lots');
 const { notifyTeam, sendMail } = require('../lib/mailer');
 const { projectRefs, stateLabels } = require('../services/refs');
@@ -66,7 +66,7 @@ module.exports = function publicRoutes(db) {
       db('lots').select('project_id', 'status').count({ n: '*' }).groupBy('project_id', 'status'),
       db('site_plans').where({ published: true }).whereNull('archived_at').select('project_id').count({ n: '*' }).groupBy('project_id'),
       // Grille de prix du dashboard : tableau des prix du site (équivalent en euros et option Diaspora calculés par le site)
-      db('project_offers').select('project_id', 'label', 'designation', 'surface', 'price_fcfa', 'diaspora_price_fcfa').orderBy(['project_id', 'sort']),
+      db('project_offers').select('project_id', 'label', 'designation', 'surface', 'price_fcfa', 'diaspora_price_fcfa', 'badge', 'highlights').orderBy(['project_id', 'sort']),
       db('ref_items').where({ kind: 'type_projet' }).select('id', 'label'),
     ]);
     const propertyTypes = await propertyTypesOf(projects.map(p => p.id));
@@ -74,6 +74,8 @@ module.exports = function publicRoutes(db) {
     res.json(projects.map(p => ({
       id: p.id, slug: p.slug, name: p.name, city: p.city, location: p.location, tagline: p.tagline,
       description: p.description, amenities: json(p.amenities, []), project_type: typeLabel(p.project_type_id),
+      // Chiffres clés réglés dans la fiche projet (pictogramme, valeur, libellé)
+      key_figures: siteFigures(p.key_figures),
       // Types de biens cochés dans la fiche projet (tuile « N types de biens » du site)
       property_types: propertyTypes.filter(t => t.project_id === p.id).map(t => t.label),
       offers: offers.filter(o => o.project_id === p.id).map(({ project_id, ...o }) => o),
@@ -99,6 +101,7 @@ module.exports = function publicRoutes(db) {
     res.json({
       id: p.id, slug: p.slug, name: p.name, city: p.city, location: p.location, tagline: p.tagline,
       description: p.description, category: p.category, delivery: p.delivery, amenities: json(p.amenities, []), geo: geo(p),
+      key_figures: siteFigures(p.key_figures),
       property_types: (await propertyTypesOf([p.id])).map(t => t.label),
       // Listes de Paramètres : commodités à proximité et état de la viabilisation (lotissements)
       commodites: features.commodite.map(f => f.label),

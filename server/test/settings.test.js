@@ -155,7 +155,7 @@ test('types de biens rattachés aux types de projet ; position GPS publiée pour
   res = await admin.put(`/api/admin/projects/${p.id}/offers`).send([{ label: 'Appartement', designation: '3 pièces', surface: '114', price_fcfa: 80000000, diaspora_price_fcfa: 90000000 }]);
   assert.equal(res.status, 200, JSON.stringify(res.body));
   const listed = (await request(app).get('/api/public/projects')).body.find(x => x.slug === 'cly');
-  assert.deepEqual(listed.offers, [{ label: 'Appartement', designation: '3 pièces', surface: '114', price_fcfa: 80000000, diaspora_price_fcfa: 90000000 }]);
+  assert.deepEqual(listed.offers, [{ label: 'Appartement', designation: '3 pièces', surface: '114', price_fcfa: 80000000, diaspora_price_fcfa: 90000000, badge: null, highlights: null }]);
   assert.equal(listed.project_type, 'Haut standing');
   assert.equal((await request(app).get('/api/public/projects/riviera')).body.geo, null, 'non renseignée');
 });
