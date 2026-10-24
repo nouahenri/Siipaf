@@ -24,6 +24,7 @@ import Contrats from './pages/admin/Contrats';
 import Parc from './pages/admin/Parc';
 import Documents from './pages/admin/Documents';
 import Demandes from './pages/admin/Demandes';
+import Lieux from './pages/admin/Lieux';
 import JuridiqueDashboard from './pages/juridique/JuridiqueDashboard';
 import Actes from './pages/juridique/Actes';
 import Litiges from './pages/juridique/Litiges';
@@ -32,6 +33,7 @@ import Impayes from './pages/juridique/Impayes';
 import JuridiqueSettings from './pages/juridique/JuridiqueSettings';
 import Chantiers from './pages/chantiers/Chantiers';
 import Chantier from './pages/chantiers/Chantier';
+import ChantiersSettings from './pages/chantiers/ChantiersSettings';
 import ComptaDashboard from './pages/compta/ComptaDashboard';
 import Entries from './pages/compta/Entries';
 import Purchases from './pages/compta/Purchases';
@@ -75,7 +77,7 @@ function AdminHome() {
   if (can('direction:read')) return <Direction />;
   const first = [
     [['courrier:read', 'courrier:write', 'courrier:assign'], '/administration/courrier'], [['contrats:read', 'contrats:write'], '/administration/contrats'],
-    [['parc:read', 'parc:write'], '/administration/parc'], [['demandes:handle', 'demandes:dg'], '/administration/demandes'], [['docs:publish'], '/administration/documents'],
+    [['parc:read', 'parc:write'], '/administration/parc'], [['demandes:handle', 'demandes:dg'], '/administration/demandes'], [['docs:publish'], '/administration/documents'], [['lieux:write'], '/administration/lieux'],
   ].find(([perms]) => perms.some(can));
   return <Navigate to={first ? first[1] : '/administration/courrier'} replace />;
 }
@@ -135,6 +137,7 @@ function App() {
         <Route path="administration/parc" element={<Guard perm={['parc:read', 'parc:write']}><Parc /></Guard>} />
         <Route path="administration/documents" element={<Documents />} />
         <Route path="administration/demandes" element={<Demandes />} />
+        <Route path="administration/lieux" element={<Guard perm={['lieux:write', 'direction:read']}><Lieux /></Guard>} />
         <Route path="administration/acces" element={<Guard perm="users:read"><ModuleAccess module="administration" label="Administration générale" /></Guard>} />
         <Route path="juridique" element={<JuridiqueHome />} />
         <Route path="juridique/actes" element={<Guard perm={JURIDIQUE}><Actes /></Guard>} />
@@ -146,6 +149,7 @@ function App() {
         <Route path="juridique/acces" element={<Guard perm="users:read"><ModuleAccess module="juridique" label="Juridique" /></Guard>} />
         <Route path="chantiers" element={<Navigate to="/chantiers/liste" replace />} />
         <Route path="chantiers/liste" element={<Chantiers />} />
+        <Route path="chantiers/reglages" element={<Guard perm={['chantiers:read', 'chantiers:write', 'chantiers:direction', 'direction:read']}><ChantiersSettings /></Guard>} />
         <Route path="chantiers/:id" element={<Chantier />} />
         <Route path="chantiers/acces" element={<Guard perm="users:read"><ModuleAccess module="chantiers" label="Chantiers" /></Guard>} />
         <Route path="compta/acces" element={<Guard perm="users:read"><ModuleAccess module="compta" label="Comptabilité et paie" /></Guard>} />

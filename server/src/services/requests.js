@@ -14,9 +14,9 @@ const { notify, resolve, usersWith } = require('./notifications');
 const insertedId = r => (typeof r === 'object' ? r.id : r);
 
 const query = db => db('internal_requests as r').join('users as u', 'u.id', 'r.requested_by').leftJoin('users as m', 'm.id', 'r.manager_user_id')
-  .leftJoin('users as h', 'h.id', 'r.handled_by').leftJoin('projects as p', 'p.id', 'r.project_id').leftJoin('suppliers as s', 's.id', 'r.supplier_id')
+  .leftJoin('users as h', 'h.id', 'r.handled_by').leftJoin('projects as p', 'p.id', 'r.project_id').leftJoin('worksites as w', 'w.id', 'r.worksite_id').leftJoin('places as pl', 'pl.id', 'r.place_id').leftJoin('suppliers as s', 's.id', 'r.supplier_id')
   .leftJoin('purchase_invoices as i', 'i.id', 'r.purchase_invoice_id')
-  .select('r.*', 'u.name as requested_by_name', 'm.name as manager_name', 'h.name as handled_by_name', 'p.name as project_name', 's.name as supplier_name', 'i.number as invoice_number');
+  .select('r.*', 'u.name as requested_by_name', 'm.name as manager_name', 'h.name as handled_by_name', 'p.name as project_name', 'w.reference as worksite_reference', 'w.name as worksite_name', 'pl.name as place_name', 's.name as supplier_name', 'i.number as invoice_number');
 
 const serialize = r => ({
   ...r, kind_label: r.kind === 'autre' && r.kind_other ? r.kind_other : REQUEST_KINDS[r.kind]?.label || r.kind, status_label: REQUEST_STATUSES[r.status],
@@ -63,7 +63,7 @@ async function create(db, data, { user }) {
   if (!REQUEST_KINDS[data.kind]) throw new HttpError(400, 'Sorte de demande inconnue.');
   if (data.kind === 'autre' && !data.kind_other) throw new HttpError(400, 'Précisez la nature de la demande.');
   if (REQUEST_KINDS[data.kind].purchase && !data.estimated_amount) throw new HttpError(400, 'Achat : indiquez le montant estimé.');
-  if (data.project_id && !(await db('projects').where({ id: data.project_id }).first())) throw new HttpError(404, 'Chantier introuvable.');
+  data = { ...data, ...(await require('./lieux').placeFields(db, data)) };
   // Responsable direct de la fiche RH (jamais soi-même)
   const e = await db('employees').where({ user_id: user.id }).first('manager_id');
   const m = e?.manager_id ? await db('employees as x').join('users as u', 'u.id', 'x.user_id').where({ 'x.id': e.manager_id, 'u.active': true }).first('u.id') : null;
@@ -147,7 +147,8 @@ async function close(db, r, data, v) {
         const { ht, vat } = splitVat(data.amount_ttc, data.vat_rate || 0);
         const [i] = await trx('purchase_invoices').insert({
           number: await nextPurchaseNumber(trx, date), supplier_id: s.id, supplier_ref: data.supplier_ref || r.reference, date, due_date: data.due_date || null,
-          label: `${r.reference} — ${r.title}`.slice(0, 255), project_id: r.project_id || null, expense_account_id: accountId,
+          label: `${r.reference} — ${r.title}`.slice(0, 255), project_id: r.project_id || null, worksite_id: r.worksite_id || null,
+          worksite_category: r.worksite_id ? 'materiaux' : null, place_id: r.place_id || null, expense_account_id: accountId,
           amount_ht: ht, vat_rate: data.vat_rate || 0, vat_amount: vat, amount_ttc: data.amount_ttc, status: 'brouillon', created_by: v.userId,
         });
         patch.purchase_invoice_id = insertedId(i);

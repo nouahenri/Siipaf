@@ -46,7 +46,7 @@ module.exports = function paieRoutes(db) {
     position_id: z.number().int().positive().optional().nullable(),
     department: z.enum(Object.keys(DEPARTMENTS)).optional(), category: optText(40), contract_type: z.enum(Object.keys(CONTRACT_TYPES)).optional(),
     hire_date: day, end_date: day.optional().nullable(), base_salary: money, housing_allowance: money.optional(), transport_allowance: money.optional(),
-    other_allowance: money.optional(), accident_rate: z.number().min(0).max(10).optional().nullable(), pay_method: z.enum(Object.keys(PAY_METHODS)).optional(),
+    other_allowance: money.optional(), site_hourly_rate: z.number().int().min(0).max(1000000).optional().nullable(), accident_rate: z.number().min(0).max(10).optional().nullable(), pay_method: z.enum(Object.keys(PAY_METHODS)).optional(),
     bank_account: optText(80), project_id: z.number().int().positive().optional().nullable(), user_id: z.number().int().positive().optional().nullable(),
     active: z.boolean().optional(), notes: optText(500),
     // Dossier RH (aussi modifiables depuis le module RH, sans les éléments de salaire)

@@ -39,6 +39,8 @@ function serializeEmployee(e, { withPay }) {
     tax_parts: e.tax_parts == null ? null : Number(e.tax_parts), suggested_parts: suggestedParts(e), accident_rate: e.accident_rate == null ? null : Number(e.accident_rate),
   };
   for (const k of ['base_salary', 'housing_allowance', 'transport_allowance', 'other_allowance']) out[k] = withPay ? Number(e[k]) : undefined;
+  // Coût horaire de chantier (journaliers, intérim) : élément de rémunération, réservé aux mêmes droits
+  out.site_hourly_rate = withPay && e.site_hourly_rate != null ? Number(e.site_hourly_rate) : undefined;
   if (!withPay) { delete out.bank_account; delete out.tax_parts; delete out.accident_rate; }
   delete out.attendance_pin_hash; // code de pointage : jamais renvoyé
   out.has_pin = !!e.attendance_pin_hash;

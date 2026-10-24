@@ -57,9 +57,10 @@ function assertWritable(fy, date) {
 // ─── Écritures ──────────────────────────────────────────────
 /**
  * Crée une écriture (brouillon, ou validée si `validate`). `lines` : { account (code) | account_id, debit, credit,
- * partner_type, partner_id, label, project_id, lot_id }. `source_key` rend l'opération idempotente.
+ * partner_type, partner_id, label, project_id, lot_id, place_id }. `source_key` rend l'opération idempotente.
+ * Axe analytique : programme ou lieu (siège, bureau, dépôt) ; une ligne sans programme reprend le lieu de l'écriture.
  */
-async function createEntry(trx, { journal, date, label, ref = null, source = 'manuel', source_key = null, project_id = null, lines, userId = null, validate = false, reversal_of = null }) {
+async function createEntry(trx, { journal, date, label, ref = null, source = 'manuel', source_key = null, project_id = null, place_id = null, lines, userId = null, validate = false, reversal_of = null }) {
   const errors = checkEntry(lines);
   if (errors.length) throw new HttpError(400, errors.join(' '));
   const j = typeof journal === 'object' ? journal : await trx('acc_journals').where(Number.isInteger(journal) ? { id: journal } : { code: journal }).first();
@@ -67,7 +68,7 @@ async function createEntry(trx, { journal, date, label, ref = null, source = 'ma
   const fy = await fiscalYearFor(trx, date);
   assertWritable(fy, date);
   const [id] = await trx('acc_entries').insert({
-    journal_id: j.id, fiscal_year_id: fy.id, date, label: String(label).slice(0, 255), ref, source, source_key, project_id, reversal_of, created_by: userId,
+    journal_id: j.id, fiscal_year_id: fy.id, date, label: String(label).slice(0, 255), ref, source, source_key, project_id, place_id: project_id ? null : place_id, reversal_of, created_by: userId,
   });
   const entryId = insertedId(id);
   let sort = 0;
@@ -75,7 +76,8 @@ async function createEntry(trx, { journal, date, label, ref = null, source = 'ma
     await trx('acc_lines').insert({
       entry_id: entryId, account_id: l.account_id || await accountId(trx, l.account), partner_type: l.partner_type || null, partner_id: l.partner_id || null,
       label: (l.label || label || '').slice(0, 255), debit: Number(l.debit) || 0, credit: Number(l.credit) || 0,
-      project_id: l.project_id ?? project_id ?? null, lot_id: l.lot_id || null, sort: sort++,
+      project_id: l.project_id ?? project_id ?? null, place_id: l.place_id !== undefined ? l.place_id : (l.project_id ?? project_id) ? null : place_id,
+      lot_id: l.lot_id || null, sort: sort++,
     });
   }
   if (validate) await validateEntry(trx, entryId, userId);
@@ -117,12 +119,12 @@ async function updateDraft(trx, entryId, data) {
       await trx('acc_lines').insert({
         entry_id: e.id, account_id: l.account_id || await accountId(trx, l.account), partner_type: l.partner_type || null, partner_id: l.partner_id || null,
         label: (l.label || data.label || e.label).slice(0, 255), debit: Number(l.debit) || 0, credit: Number(l.credit) || 0,
-        project_id: l.project_id ?? null, lot_id: l.lot_id || null, sort: sort++,
+        project_id: l.project_id ?? null, place_id: l.project_id ? null : l.place_id ?? null, lot_id: l.lot_id || null, sort: sort++,
       });
     }
   }
   const patch = { updated_at: new Date(), fiscal_year_id: fy.id };
-  for (const k of ['date', 'label', 'ref', 'project_id']) if (data[k] !== undefined) patch[k] = data[k];
+  for (const k of ['date', 'label', 'ref', 'project_id', 'place_id']) if (data[k] !== undefined) patch[k] = data[k];
   if (data.journal_id) patch.journal_id = data.journal_id;
   await trx('acc_entries').where({ id: e.id }).update(patch);
   return trx('acc_entries').where({ id: e.id }).first();
@@ -299,12 +301,12 @@ async function validatePurchase(db, invoiceId, userId) {
     if (!inv) throw new HttpError(404, 'Facture introuvable.');
     if (inv.status !== 'brouillon') throw new HttpError(409, 'Facture déjà validée.');
     const date = day(inv.date);
-    const lines = [{ account_id: inv.expense_account_id, debit: Number(inv.amount_ht), project_id: inv.project_id }];
-    if (Number(inv.vat_amount)) lines.push({ account: settings.accounts.vat_deductible, debit: Number(inv.vat_amount), project_id: inv.project_id });
-    lines.push({ account: settings.accounts.supplier, credit: Number(inv.amount_ttc), partner_type: 'fournisseur', partner_id: inv.supplier_id, project_id: inv.project_id });
+    const lines = [{ account_id: inv.expense_account_id, debit: Number(inv.amount_ht), project_id: inv.project_id, place_id: inv.place_id }];
+    if (Number(inv.vat_amount)) lines.push({ account: settings.accounts.vat_deductible, debit: Number(inv.vat_amount), project_id: inv.project_id, place_id: inv.place_id });
+    lines.push({ account: settings.accounts.supplier, credit: Number(inv.amount_ttc), partner_type: 'fournisseur', partner_id: inv.supplier_id, project_id: inv.project_id, place_id: inv.place_id });
     await createEntry(trx, {
       journal: 'AC', date, label: `${inv.supplier_name} — ${inv.label}`, ref: inv.supplier_ref || inv.number, source: 'achat', source_key: `purchase:${inv.id}`,
-      project_id: inv.project_id, lines, userId, validate: !!settings.auto_validate,
+      project_id: inv.project_id, place_id: inv.place_id, lines, userId, validate: !!settings.auto_validate,
     });
     await trx('purchase_invoices').where({ id: inv.id }).update({ status: 'validee', updated_at: new Date() });
     return trx('purchase_invoices').where({ id: inv.id }).first();
@@ -326,10 +328,10 @@ async function payPurchase(db, invoiceId, { date, amount, journal_id, reference 
     const [pid] = await trx('purchase_payments').insert({ invoice_id: inv.id, date, amount, journal_id, reference: reference || null, created_by: userId });
     await createEntry(trx, {
       journal: j, date, label: `Règlement ${inv.supplier_name} — ${inv.label}`, ref: reference || inv.number, source: 'reglement', source_key: `purchase_payment:${insertedId(pid)}`,
-      project_id: inv.project_id, userId, validate: !!settings.auto_validate,
+      project_id: inv.project_id, place_id: inv.place_id, userId, validate: !!settings.auto_validate,
       lines: [
-        { account: settings.accounts.supplier, debit: amount, partner_type: 'fournisseur', partner_id: inv.supplier_id, project_id: inv.project_id },
-        { account: j.account_code, credit: amount, project_id: inv.project_id },
+        { account: settings.accounts.supplier, debit: amount, partner_type: 'fournisseur', partner_id: inv.supplier_id, project_id: inv.project_id, place_id: inv.place_id },
+        { account: j.account_code, credit: amount, project_id: inv.project_id, place_id: inv.place_id },
       ],
     });
     return { paid_fcfa: (Number(paid) || 0) + amount, remaining_fcfa: rest - amount };
@@ -420,14 +422,20 @@ async function vatReport(db, opts) {
   return Object.values(months).sort((a, b) => a.month.localeCompare(b.month)).map(m => ({ ...m, due: m.collected - m.deductible }));
 }
 
-/** Marge par programme (comptabilité analytique) : produits (classe 7) et charges (classe 6) affectés au projet. */
+/**
+ * Marge par axe analytique : programmes, puis lieux (siège, bureaux, dépôts) ; produits (classe 7) et charges
+ * (classe 6) affectés à chacun.
+ */
 async function projectMargins(db, opts) {
-  const rows = await linesQuery(db, opts).leftJoin('projects as p', 'p.id', 'l.project_id').whereIn('a.class', [6, 7])
-    .groupBy('l.project_id', 'p.name', 'a.class').select('l.project_id', 'p.name', 'a.class').sum({ d: 'l.debit' }).sum({ c: 'l.credit' });
+  const rows = await linesQuery(db, opts).leftJoin('projects as p', 'p.id', 'l.project_id').leftJoin('places as pl', 'pl.id', 'l.place_id').whereIn('a.class', [6, 7])
+    .groupBy('l.project_id', 'p.name', 'l.place_id', 'pl.name', 'a.class').select('l.project_id', 'p.name', 'l.place_id', 'pl.name as place_name', 'a.class').sum({ d: 'l.debit' }).sum({ c: 'l.credit' });
   const by = {};
   for (const r of rows) {
-    const k = r.project_id || 0;
-    by[k] ||= { project_id: r.project_id, name: r.name || 'Non affecté (frais généraux)', produits: 0, charges: 0 };
+    const k = r.project_id ? `p${r.project_id}` : r.place_id ? `l${r.place_id}` : 'x';
+    by[k] ||= {
+      project_id: r.project_id || null, place_id: r.project_id ? null : r.place_id || null, kind: r.project_id ? 'programme' : r.place_id ? 'lieu' : null,
+      name: r.project_id ? r.name : r.place_id ? r.place_name : 'Non affecté', produits: 0, charges: 0,
+    };
     if (r.class === 7) by[k].produits += Number(r.c) - Number(r.d);
     else by[k].charges += Number(r.d) - Number(r.c);
   }

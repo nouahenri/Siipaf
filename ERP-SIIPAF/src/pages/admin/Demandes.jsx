@@ -7,6 +7,7 @@ import { Card, Empty, Skeleton, ErrorBox, Field, Drawer, Badge } from '@admin/co
 import { date, dateTime, fcfa } from '@admin/lib/format';
 import { today } from '../../lib/rh';
 import { REQUEST_TONES } from '../../components/MyRequests';
+import { placeLabel } from '../../components/PlacePicker';
 
 const URL = '/admin/erp/demandes';
 
@@ -41,7 +42,7 @@ export default function Demandes() {
             <tbody>{list.data.map(r => (
               <tr key={r.id} className="clickable" onClick={() => setOpen(r.id)}>
                 <td className="small tabular nowrap"><b>{r.reference}</b></td>
-                <td>{r.title}<div className="small muted">{r.kind_label}{r.project_name ? ` · ${r.project_name}` : ''}{r.urgency === 'urgente' ? ' · ' : ''}{r.urgency === 'urgente' && <span style={{ color: 'var(--danger)' }}>urgente</span>}</div></td>
+                <td>{r.title}<div className="small muted">{r.kind_label}{` · ${placeLabel(r)}`}{r.urgency === 'urgente' ? ' · ' : ''}{r.urgency === 'urgente' && <span style={{ color: 'var(--danger)' }}>urgente</span>}</div></td>
                 <td className="small">{r.requested_by_name}</td>
                 <td className="right small tabular">{r.final_amount ? fcfa(r.final_amount) : r.estimated_amount ? fcfa(r.estimated_amount) : ''}</td>
                 <td className="small nowrap">{r.needed_by ? date(r.needed_by) : '—'}</td>
@@ -80,7 +81,7 @@ function RequestDrawer({ id, refs, onClose, onChange }) {
             <div className="kv"><span>Demandeur</span><b>{r.requested_by_name} · {dateTime(r.created_at)}</b></div>
             {r.quantity && <div className="kv"><span>Quantité</span><b>{r.quantity}</b></div>}
             {r.estimated_amount ? <div className="kv"><span>Montant estimé</span><b>{fcfa(r.estimated_amount)}</b></div> : null}
-            {(r.project_name || r.location) && <div className="kv"><span>Pour</span><b>{[r.project_name && `chantier ${r.project_name}`, r.location].filter(Boolean).join(' · ')}</b></div>}
+            <div className="kv"><span>Pour</span><b>{[placeLabel(r), r.location].filter(Boolean).join(' · ')}</b></div>
             {r.needed_by && <div className="kv"><span>Pour le</span><b>{date(r.needed_by)}</b></div>}
           </div>
           {r.details && <p className="small" style={{ whiteSpace: 'pre-wrap', margin: 0 }}>{r.details}</p>}

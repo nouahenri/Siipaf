@@ -93,7 +93,7 @@ function EmployeeForm({ employee, onClose, onSaved }) {
   const { meta, reload } = usePaieMeta();
   const blank = { last_name: '', first_name: '', gender: '', birth_date: '', nationality: 'Ivoirienne', expatriate: false, phone: '', email: '', address: '', id_number: '', cnps_number: '',
     marital_status: 'celibataire', children: 0, tax_parts: '', job_title: '', department: 'administratif', category: '', contract_type: 'cdi', hire_date: new Date().toISOString().slice(0, 10), end_date: '',
-    base_salary: '', housing_allowance: 0, transport_allowance: 0, other_allowance: 0, accident_rate: '', pay_method: 'virement', bank_account: '', project_id: '', user_id: '', active: true, notes: '' };
+    base_salary: '', housing_allowance: 0, transport_allowance: 0, other_allowance: 0, site_hourly_rate: '', accident_rate: '', pay_method: 'virement', bank_account: '', project_id: '', user_id: '', active: true, notes: '' };
   const [f, setF] = useState(() => {
     const init = { ...blank };
     for (const k of Object.keys(blank)) if (employee[k] != null) init[k] = employee[k];
@@ -108,7 +108,7 @@ function EmployeeForm({ employee, onClose, onSaved }) {
     const body = {
       ...f, gender: f.gender || null, birth_date: f.birth_date || null, end_date: f.end_date || null, email: f.email || null,
       children: Number(f.children) || 0, tax_parts: n(f.tax_parts), base_salary: Number(f.base_salary) || 0, housing_allowance: Number(f.housing_allowance) || 0,
-      transport_allowance: Number(f.transport_allowance) || 0, other_allowance: Number(f.other_allowance) || 0, accident_rate: n(f.accident_rate),
+      transport_allowance: Number(f.transport_allowance) || 0, other_allowance: Number(f.other_allowance) || 0, site_hourly_rate: n(f.site_hourly_rate), accident_rate: n(f.accident_rate),
       project_id: n(f.project_id), user_id: n(f.user_id), position_id: n(f.position_id),
     };
     if (!body.position_id) delete body.position_id;
@@ -161,6 +161,7 @@ function EmployeeForm({ employee, onClose, onSaved }) {
           <Field label="Indemnité de logement"><input className="input" type="number" min="0" value={f.housing_allowance} onChange={set('housing_allowance')} /></Field>
           <Field label="Indemnité de transport" hint={meta?.settings ? `Non imposable jusqu’à ${fcfa(meta.settings.transport_exempt_ceiling)}` : undefined}><input className="input" type="number" min="0" value={f.transport_allowance} onChange={set('transport_allowance')} /></Field>
           <Field label="Autres primes fixes"><input className="input" type="number" min="0" value={f.other_allowance} onChange={set('other_allowance')} /></Field>
+          <Field label="Coût horaire de chantier (FCFA)" hint="Journaliers, intérim : coût d’une heure pointée sur un chantier. Vide : tiré du salaire et des charges de la paie (ERP › Chantiers › Réglages)"><input className="input" type="number" min="0" value={f.site_hourly_rate ?? ''} onChange={set('site_hourly_rate')} placeholder="Tiré du salaire" /></Field>
           <Field label="Paiement"><select className="select" value={f.pay_method} onChange={set('pay_method')}>{meta && Object.entries(meta.pay_methods).map(([k, v]) => <option key={k} value={k}>{v}</option>)}</select></Field>
           <Field label="RIB / n° Mobile Money"><input className="input" value={f.bank_account} onChange={set('bank_account')} /></Field>
           <Field label="Taux accident du travail (%)" hint={meta?.settings ? `Barème : ${meta.settings.accident_rate} % (chantier : souvent plus élevé)` : undefined}><input className="input" type="number" min="0" max="10" step="0.5" value={f.accident_rate ?? ''} onChange={set('accident_rate')} placeholder="Barème" /></Field>

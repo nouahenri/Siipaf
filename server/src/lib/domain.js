@@ -388,7 +388,7 @@ const PERMISSIONS = {
   comptable: [
     'projects:read', 'lots:read', 'leads:read', 'appointments:read', 'sales:read', 'payments:write',
     'schedule:write', 'client_messages', 'commercial:read', 'leads:all', 'compta:read', ...COMPTA_ACTIONS,
-    'rh:read', ...RH_ACTIONS, 'presence:write', 'paie:read', ...PAIE_ACTIONS, 'contrats:read', 'parc:read', 'chantiers:read', ...SELF_SERVICE,
+    'rh:read', ...RH_ACTIONS, 'presence:write', 'paie:read', ...PAIE_ACTIONS, 'contrats:read', 'parc:read', 'chantiers:read', 'lieux:write', ...SELF_SERVICE,
   ],
   resp_exploitation: [
     'projects:read', 'projects:write', 'plans:write', 'lots:read', 'lots:status', 'leads:read', 'leads:delete',
@@ -397,7 +397,7 @@ const PERMISSIONS = {
     'client_access:write', 'client_messages', 'site_updates:write', 'schedule:write', 'settings:write',
     'leads:all', 'sav:read', ...SAV_ACTIONS, 'commercial:read', 'targets:write', 'vefa:write', 'property:write', 'compta:read',
     'rh:read', ...RH_ACTIONS, 'presence:write', 'direction:read', ...COURRIER_ACTIONS, ...CONTRACT_ACTIONS, ...PARC_ACTIONS, ...DOCS_ACTIONS, ...REQUEST_ACTIONS, ...LEGAL_ACTIONS,
-    'chantiers:read', 'chantiers:write', ...SELF_SERVICE,
+    'chantiers:read', 'chantiers:write', 'lieux:write', ...SELF_SERVICE,
   ],
 };
 
@@ -486,6 +486,7 @@ const PERMISSION_CATALOG = [
     ['parc:write', 'Gérer le parc (services généraux)', 'Biens, affectations, échéances, entretien, dépenses, réservations de véhicules'],
     ['docs:publish', 'Publier les documents internes (direction, services généraux)', 'Notes de service, procédures, PV, modèles pour tout le personnel ; suivi des lectures (un chef de service publie pour son service sans ce droit)'],
     ['demandes:handle', 'Traiter les demandes internes (services généraux)', 'Voir toutes les demandes, les prendre en charge, les clôturer ; un achat traité devient une facture d’achat en brouillon'],
+    ['lieux:write', 'Gérer les lieux (siège, bureaux, dépôts)', 'Liste des lieux hors programmes, choisis comme imputation des achats, dépenses, frais, pointages et contrats ; axe analytique de la Comptabilité'],
     ['demandes:dg', 'Valider en direction générale', 'Demandes d’achat dont le montant atteint le plafond réglé dans Paramètres › Général'],
   ] },
   { group: 'ERP · Juridique', items: [
@@ -1234,6 +1235,14 @@ function unpaidAge(lines, today) {
   return { due_date: late[0].due_date, days: daysBetween(late[0].due_date, today), overdue_fcfa: late.reduce((t, l) => t + l.remaining_fcfa, 0), count: late.length };
 }
 
+/* ─── Lieux hors programmes ────────────────────────────────────────────────── */
+
+/**
+ * Siège social, bureaux annexes, dépôts et autres emplacements (choix du client du 24/10) : axe analytique à côté du
+ * programme. Une pièce porte un programme (et un chantier) ou un lieu ; sans l'un ni l'autre, le siège social.
+ */
+const PLACE_KINDS = { siege: 'Siège social', annexe: 'Bureau annexe / agence', depot: 'Dépôt / magasin', autre: 'Autre' };
+
 /* ─── ERP · Chantiers ──────────────────────────────────────────────────────── */
 
 /**
@@ -1289,6 +1298,19 @@ function worksiteProgress(phases) {
   return Math.round(sum / weight);
 }
 
+// Réglages des chantiers (ERP › Chantiers › Réglages), distincts des Paramètres du dashboard
+const CHANTIER_SETTINGS = {
+  chantier_budget_alert_pct: { label: 'Alerte de budget à (% consommé)', hint: 'Le conducteur et la Direction sont prévenus une fois à ce seuil, puis une fois au dépassement du budget', default: 90, min: 50, max: 100 },
+  chantier_monthly_hours: { label: 'Heures de travail par mois (coût horaire tiré du salaire)', hint: 'Coût mensuel employeur (salaire, charges et taxes de la paie) divisé par ces heures, pour qui n’a pas de coût horaire de chantier sur sa fiche', default: 173, min: 100, max: 260 },
+};
+
+/** Niveau d'alerte du budget : null, 'seuil' (pct atteint) ou 'depasse' (au-delà de 100 %). Sans budget, aucune alerte. */
+function budgetAlertLevel(spent, budget, pct) {
+  if (!budget || budget <= 0) return null;
+  if (spent > budget) return 'depasse';
+  return spent * 100 >= budget * pct ? 'seuil' : null;
+}
+
 /**
  * Refus d'une phase : fin avant début (prévu ou réel), fin réelle sans début réel, phase précédente d'un autre
  * chantier ou qui ferait une boucle. `phases` : les autres phases du chantier (id, depends_on_id).
@@ -1313,6 +1335,7 @@ function phaseRefusal(p, phases = []) {
 
 module.exports = {
   CHANTIER_ACTIONS, WORKSITE_STATUSES, WORKSITE_OPEN, WORKSITE_ZONES, TASK_STATUSES, BUDGET_CATEGORIES, PHASE_STATES, lotInZone, phaseState, worksiteProgress, phaseRefusal,
+  CHANTIER_SETTINGS, budgetAlertLevel, PLACE_KINDS,
   DEED_STEPS, DEED_STEP_KEYS, deedProgress, deedStepRefusal, LITIGATION_ORIGINS, LITIGATION_STAGES, LITIGATION_OUTCOMES, litigationReminder,
   GUARANTEE_DIRECTIONS, DEFAULT_GUARANTEE_KINDS, GUARANTEE_STATUSES, guaranteeDeadline, LEGAL_SETTINGS, unpaidAge, LEGAL_ACTIONS,
   DOC_KINDS, DOC_AUDIENCES, DOC_STATUSES, DOC_ACTION_STATUSES, docReference, readReminder,

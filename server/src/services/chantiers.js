@@ -7,9 +7,11 @@
 const { HttpError, json, isoDay, isoTime } = require('../lib/http');
 const {
   WORKSITE_STATUSES, WORKSITE_OPEN, WORKSITE_ZONES, TASK_STATUSES, BUDGET_CATEGORIES, PHASE_STATES, SITE_STAGES, SITE_STAGE_LABELS,
-  lotInZone, phaseState, worksiteProgress, phaseRefusal,
+  lotInZone, phaseState, worksiteProgress, phaseRefusal, CHANTIER_SETTINGS, budgetAlertLevel,
 } = require('../lib/domain');
-const { notify, employeeUser } = require('./notifications');
+const { computePayslip } = require('../lib/paie');
+const { splitVat } = require('../lib/compta');
+const { notify, employeeUser, usersWith } = require('./notifications');
 
 const insertedId = r => (typeof r === 'object' ? r.id : r);
 const today = () => new Date().toISOString().slice(0, 10);
@@ -107,16 +109,22 @@ async function list(db, v, { status = 'ouverts', projectId = null, q = '' } = {}
   const rows = await query;
   if (!rows.length) return [];
   const ids = rows.map(r => r.id);
-  const [phases, budgets, buildings] = await Promise.all([
+  const [phases, budgets, buildings, spent] = await Promise.all([
     db('worksite_phases').whereIn('worksite_id', ids),
     db('worksite_budget_lines').whereIn('worksite_id', ids).groupBy('worksite_id').select('worksite_id').sum({ total: 'amount_fcfa' }),
     db('buildings').whereIn('project_id', [...new Set(rows.map(r => r.project_id))]).select('id', 'code'),
+    spentByWorksite(db, ids),
   ]);
   const day = today();
-  return rows.map(w => serializeWorksite(w, {
-    phases: phases.filter(p => p.worksite_id === w.id).map(p => serializePhase(p, day)),
-    budget: Number(budgets.find(b => b.worksite_id === w.id)?.total || 0), buildings,
-  }));
+  return rows.map(w => {
+    const out = serializeWorksite(w, {
+      phases: phases.filter(p => p.worksite_id === w.id).map(p => serializePhase(p, day)),
+      budget: Number(budgets.find(b => b.worksite_id === w.id)?.total || 0), buildings,
+    });
+    out.spent_fcfa = spent[w.id] || 0;
+    out.consumed_pct = out.budget_fcfa ? Math.round((out.spent_fcfa / out.budget_fcfa) * 100) : null;
+    return out;
+  });
 }
 
 /** Lots de la zone du chantier (code, îlot, statut) : le lot vendu se voit, pas son prix. */
@@ -141,10 +149,14 @@ async function detail(db, w, v) {
   const lines = budget.map(serializeBudget);
   const byCategory = Object.keys(BUDGET_CATEGORIES).map(k => ({ category: k, label: BUDGET_CATEGORIES[k], amount_fcfa: lines.filter(l => l.category === k).reduce((t, l) => t + l.amount_fcfa, 0) }));
   const sold = lots.filter(l => ['reserve', 'vendu'].includes(l.status)).length;
+  const cost = await costs(db, w.id);
+  const budgetTotal = lines.reduce((t, l) => t + l.amount_fcfa, 0);
+  for (const c of byCategory) c.spent_fcfa = cost.by_category[c.category] || 0;
   return {
     ...serializeWorksite(w, { phases: ph, budget: lines.reduce((t, l) => t + l.amount_fcfa, 0), buildings }),
     can_manage: canManage(w, v), phases: ph, tasks: tasks.map(serializeTask), budget_lines: lines, budget_by_category: byCategory,
     lots: { total: lots.length, sold, codes: lots.slice(0, 60).map(l => l.code) },
+    costs: cost, spent_fcfa: cost.total, consumed_pct: budgetTotal ? Math.round((cost.total / budgetTotal) * 100) : null,
   };
 }
 
@@ -337,6 +349,142 @@ async function deleteBudgetLine(db, w, lineId) {
   if (!n) throw new HttpError(404, 'Ligne de budget introuvable.');
 }
 
+// ─── Imputation au chantier (achats, parc, pointages) ─────────────────────
+
+/**
+ * Programme et chantier d'une imputation : le chantier fixe le programme ; un programme seul reste possible
+ * (frais du programme sans chantier précis). Refus si le chantier n'appartient pas au programme indiqué.
+ */
+async function resolveSite(db, { project_id = null, worksite_id = null }) {
+  if (!worksite_id) return { project_id: project_id || null, worksite_id: null };
+  const w = await db('worksites').where({ id: worksite_id }).first('id', 'project_id');
+  if (!w) throw new HttpError(400, 'Chantier introuvable.');
+  if (project_id && Number(project_id) !== Number(w.project_id)) throw new HttpError(400, 'Ce chantier n’appartient pas au programme choisi.');
+  return { project_id: w.project_id, worksite_id: w.id };
+}
+
+/** Programmes et leurs chantiers non clos, pour les listes « Lieu / chantier » des autres modules. */
+async function places(db) {
+  const [projects, worksites] = await Promise.all([
+    db('projects').orderBy('name').select('id', 'name'),
+    db('worksites').whereNot('status', 'clos').orderBy('reference').select('id', 'reference', 'name', 'project_id'),
+  ]);
+  return projects.map(p => ({ id: p.id, name: p.name, worksites: worksites.filter(w => w.project_id === p.id).map(w => ({ id: w.id, reference: w.reference, name: w.name })) }));
+}
+
+// ─── Réglages ─────────────────────────────────────────────────────────────
+
+async function settings(db) {
+  const rows = await db('app_settings').whereIn('key', Object.keys(CHANTIER_SETTINGS)).select('key', 'value');
+  const out = Object.fromEntries(Object.entries(CHANTIER_SETTINGS).map(([k, x]) => [k, x.default]));
+  for (const r of rows) if (r.value != null && r.value !== '' && Number.isFinite(Number(r.value))) out[r.key] = Number(r.value);
+  return out;
+}
+async function saveSettings(db, values) {
+  await require('./settings').saveSettings(db, values);
+  return settings(db);
+}
+
+// ─── Coûts réels ──────────────────────────────────────────────────────────
+
+/** Coût d'une heure de chantier : taux saisi sur la fiche, sinon coût mensuel employeur de la paie ÷ heures du mois. */
+function hourlyCost(e, payroll, monthlyHours) {
+  if (e.site_hourly_rate != null && Number(e.site_hourly_rate) > 0) return { rate: Number(e.site_hourly_rate), source: 'fiche' };
+  if (!Number(e.base_salary)) return { rate: 0, source: 'aucun' };
+  return { rate: Math.round(computePayslip(e, {}, payroll).employer_cost / monthlyHours), source: 'salaire' };
+}
+
+const hoursOf = a => (a.check_in && a.check_out ? Math.max(0, (new Date(a.check_out) - new Date(a.check_in)) / 3600000) : 0);
+const htOf = (amount, rate) => splitVat(Number(amount), Number(rate) || 0).ht;
+
+/** Factures d'achat du chantier, hors celles nées d'une dépense du Parc (comptées avec le Parc) et hors annulées. */
+const purchasesQuery = (db, ids) => db('purchase_invoices as i').join('suppliers as s', 's.id', 'i.supplier_id').whereIn('i.worksite_id', ids)
+  .whereNot('i.status', 'annulee').whereNotIn('i.id', db('asset_costs').whereNotNull('purchase_invoice_id').select('purchase_invoice_id'));
+
+/** Main-d'œuvre pointée : heures par employé et par chantier, valorisées au coût horaire. */
+async function laborRows(db, ids) {
+  const rows = await db('hr_attendances as a').join('employees as e', 'e.id', 'a.employee_id').whereIn('a.worksite_id', ids).whereNotNull('a.check_out')
+    .select('a.worksite_id', 'a.check_in', 'a.check_out', 'e.*', 'e.id as employee_id');
+  if (!rows.length) return [];
+  const [payroll, s] = await Promise.all([require('./paie').getSettings(db), settings(db)]);
+  const groups = new Map();
+  for (const r of rows) {
+    const k = `${r.worksite_id}:${r.employee_id}`;
+    if (!groups.has(k)) groups.set(k, { worksite_id: r.worksite_id, employee_id: r.employee_id, name: `${r.last_name} ${r.first_name}`, job_title: r.job_title, hours: 0, ...hourlyCost(r, payroll, s.chantier_monthly_hours) });
+    groups.get(k).hours += hoursOf(r);
+  }
+  return [...groups.values()].map(g => ({ ...g, hours: Math.round(g.hours * 10) / 10, amount_fcfa: Math.round(g.hours * g.rate) }));
+}
+
+/** Total des coûts réels par chantier (liste des chantiers, alertes de budget). */
+async function spentByWorksite(db, ids) {
+  if (!ids.length) return {};
+  const out = Object.fromEntries(ids.map(id => [id, 0]));
+  const [purchases, parc, labor] = await Promise.all([
+    purchasesQuery(db, ids).groupBy('i.worksite_id').select('i.worksite_id').sum({ t: 'i.amount_ht' }),
+    db('asset_costs').whereIn('worksite_id', ids).whereNull('rejected_at').select('worksite_id', 'amount', 'vat_rate'),
+    laborRows(db, ids),
+  ]);
+  for (const r of purchases) out[r.worksite_id] += Number(r.t) || 0;
+  for (const r of parc) out[r.worksite_id] += htOf(r.amount, r.vat_rate);
+  for (const r of labor) out[r.worksite_id] += r.amount_fcfa;
+  return out;
+}
+
+/** Détail des coûts réels d'un chantier, par poste du budget et par source. */
+async function costs(db, worksiteId) {
+  const [purchases, parc, labor, paid] = await Promise.all([
+    purchasesQuery(db, [worksiteId]).orderBy('i.date', 'desc')
+      .select('i.id', 'i.number', 'i.date', 'i.label', 'i.amount_ht', 'i.status', 'i.worksite_category', 's.name as supplier_name'),
+    db('asset_costs as c').join('assets as a', 'a.id', 'c.asset_id').where('c.worksite_id', worksiteId).whereNull('c.rejected_at').orderBy('c.date', 'desc')
+      .select('c.id', 'c.date', 'c.kind', 'c.amount', 'c.vat_rate', 'c.label', 'a.id as asset_id', 'a.code', 'a.name'),
+    laborRows(db, [worksiteId]),
+    purchasesQuery(db, [worksiteId]).join('purchase_payments as pp', 'pp.invoice_id', 'i.id').sum({ t: 'pp.amount' }).first(),
+  ]);
+  const by = Object.fromEntries(Object.keys(BUDGET_CATEGORIES).map(k => [k, 0]));
+  const p = purchases.map(r => ({
+    id: r.id, number: r.number, date: isoDay(r.date), label: r.label, supplier_name: r.supplier_name, status: r.status,
+    category: r.worksite_category || 'materiaux', amount_fcfa: Number(r.amount_ht),
+  }));
+  for (const r of p) by[r.category] += r.amount_fcfa;
+  const a = parc.map(r => ({ id: r.id, date: isoDay(r.date), kind: r.kind, label: r.label, asset_id: r.asset_id, asset: `${r.code} ${r.name}`, amount_fcfa: htOf(r.amount, r.vat_rate) }));
+  by.engins += a.reduce((t, r) => t + r.amount_fcfa, 0);
+  by.main_oeuvre += labor.reduce((t, r) => t + r.amount_fcfa, 0);
+  return {
+    by_category: by, total: Object.values(by).reduce((t, v) => t + v, 0), purchases: p, parc: a,
+    labor: labor.map(({ worksite_id, ...r }) => r), paid_fcfa: Number(paid?.t) || 0,
+    drafts_fcfa: p.filter(r => r.status === 'brouillon').reduce((t, r) => t + r.amount_fcfa, 0),
+  };
+}
+
+/**
+ * Alerte de budget (tâche horaire) : une fois au seuil réglé, une fois au dépassement, au conducteur et à la
+ * Direction (validation en direction des chantiers, Vue Direction).
+ */
+async function tick(db) {
+  const open = await worksiteQuery(db).whereIn('w.status', WORKSITE_OPEN);
+  if (!open.length) return 0;
+  const ids = open.map(w => w.id);
+  const [budgets, spent, s] = await Promise.all([
+    db('worksite_budget_lines').whereIn('worksite_id', ids).groupBy('worksite_id').select('worksite_id').sum({ total: 'amount_fcfa' }),
+    spentByWorksite(db, ids), settings(db),
+  ]);
+  const direction = await usersWith(db, ['chantiers:direction', 'direction:read']);
+  let n = 0;
+  for (const w of open) {
+    const budget = Number(budgets.find(b => b.worksite_id === w.id)?.total || 0);
+    const level = budgetAlertLevel(spent[w.id] || 0, budget, s.chantier_budget_alert_pct);
+    if (!level) continue;
+    const pct = Math.round(((spent[w.id] || 0) / budget) * 100);
+    const title = level === 'depasse' ? `Budget dépassé : ${w.reference} (${pct} %)` : `Budget consommé à ${pct} % : ${w.reference}`;
+    n += await notify(db, {
+      to: [w.manager_id, ...direction], module: 'chantiers', event: 'budget.depasse', priority: level === 'depasse' ? 'urgent' : 'action', title,
+      body: `${w.name} — ${w.project_name}`, link: `/chantiers/${w.id}?onglet=budget`, key: `chantier-budget:${w.id}:${level}`, email: level === 'depasse',
+    });
+  }
+  return n;
+}
+
 // ─── Références et pastilles ──────────────────────────────────────────────
 
 async function refs(db) {
@@ -379,4 +527,5 @@ async function badges(db, v) {
 module.exports = {
   seesAll, canSee, canManage, loadWorksite, visibleWorksite, managedWorksite, list, detail, create, update, remove,
   savePhase, deletePhase, reorderPhases, saveTask, deleteTask, saveBudgetLine, deleteBudgetLine, refs, programme, badges, zoneLots, serializeWorksite,
+  resolveSite, places, settings, saveSettings, hourlyCost, costs, spentByWorksite, tick,
 };

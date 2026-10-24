@@ -40,9 +40,9 @@ const filePath = row => {
 const fileFields = file => (file ? { file_filename: file.filename, file_name: file.originalname.slice(0, 255), file_mime: file.mimetype } : {});
 
 const query = db => db('contracts as c')
-  .leftJoin('suppliers as s', 's.id', 'c.supplier_id').leftJoin('projects as p', 'p.id', 'c.project_id')
+  .leftJoin('suppliers as s', 's.id', 'c.supplier_id').leftJoin('projects as p', 'p.id', 'c.project_id').leftJoin('worksites as w', 'w.id', 'c.worksite_id').leftJoin('places as pl', 'pl.id', 'c.place_id')
   .leftJoin('users as o', 'o.id', 'c.owner_id').leftJoin('acc_accounts as a', 'a.id', 'c.expense_account_id')
-  .select('c.*', 's.name as supplier_name', 'p.name as project_name', 'o.name as owner_name', 'o.email as owner_email', 'a.code as expense_account');
+  .select('c.*', 's.name as supplier_name', 'p.name as project_name', 'w.reference as worksite_reference', 'w.name as worksite_name', 'pl.name as place_name', 'o.name as owner_name', 'o.email as owner_email', 'a.code as expense_account');
 
 const DAY_FIELDS = ['start_date', 'end_date', 'next_payment_date', 'revision_date', 'closed_on'];
 function normalize(c) {
@@ -116,6 +116,8 @@ async function fields(db, data, current = {}) {
   if (!m.supplier_id && !m.counterparty) throw new HttpError(400, 'Indiquez le cocontractant (fournisseur ou nom).');
   if (m.supplier_id && !(await db('suppliers').where({ id: m.supplier_id }).first())) throw new HttpError(404, 'Fournisseur introuvable.');
   if (m.end_date && m.end_date < m.start_date) throw new HttpError(400, 'La fin du contrat précède son début.');
+  // Imputation : programme (et chantier) ou lieu (bail du siège, abonnements d'un bureau…) ; sans rien, le siège
+  Object.assign(data, await require('./lieux').placeFields(db, data, Object.keys(current).length ? current : null));
   if (m.owner_id && !(await db('users').where({ id: m.owner_id, active: true }).first())) throw new HttpError(400, 'Responsable introuvable ou inactif.');
   const out = { ...data };
   if ('expense_account' in data) {
@@ -203,7 +205,8 @@ async function prepareInvoice(db, c, due) {
     const { ht, vat } = splitVat(c.amount_ttc, c.vat_rate);
     const [i] = await trx('purchase_invoices').insert({
       number: await nextPurchaseNumber(trx, due), supplier_id: c.supplier_id, supplier_ref: c.reference, date: due, due_date: due,
-      label: `${c.title} — échéance du ${fr(due)}`.slice(0, 255), project_id: c.project_id || null, expense_account_id: c.expense_account_id,
+      label: `${c.title} — échéance du ${fr(due)}`.slice(0, 255), project_id: c.project_id || null, worksite_id: c.worksite_id || null,
+      worksite_category: c.worksite_id ? (c.kind === 'sous_traitance' ? 'sous_traitance' : 'frais') : null, place_id: c.place_id || null, expense_account_id: c.expense_account_id,
       amount_ht: ht, vat_rate: c.vat_rate || 0, vat_amount: vat, amount_ttc: c.amount_ttc, status: 'brouillon',
     });
     const invoiceId = insertedId(i);

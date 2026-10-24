@@ -8,6 +8,7 @@ import { date, fcfa } from '@admin/lib/format';
 import { today, formData } from '../../lib/rh';
 import { RESERVATION_TONES, slotLabel } from '../../components/VehicleRequests';
 import { CostsToValidate, FuelCards, FixedAssets } from '../../components/ParcCompta';
+import PlacePicker, { placeLabel } from '../../components/PlacePicker';
 
 const URL = '/admin/erp/parc';
 const STATUS_TONES = { disponible: 'ok', affecte: '', maintenance: 'warn', reforme: '' };
@@ -325,7 +326,7 @@ function AssetDrawer({ id, refs, write, onClose, onChange, onEdit }) {
             <b>Dépenses</b>
             {!a.costs.length ? <p className="small muted" style={{ margin: '6px 0 0' }}>Aucune dépense saisie.</p> : a.costs.slice(0, 30).map(c => (
               <div key={c.id} className="kv">
-                <span style={{ flexShrink: 1 }}>{date(c.date)} · {c.kind_label}<div className="small muted">{[c.label, c.liters && `${c.liters} L`, c.meter_value != null && meter(c.meter_value, a.meter), c.project_name, c.payment_label, c.supplier_name || c.card_label || c.employee_name, c.invoice_number && `facture ${c.invoice_number}`, c.entry_number && `écriture ${c.entry_number}`].filter(Boolean).join(' · ')}</div>{c.reject_reason && <div className="small" style={{ color: 'var(--danger)' }}>Rejetée : {c.reject_reason}</div>}</span>
+                <span style={{ flexShrink: 1 }}>{date(c.date)} · {c.kind_label}<div className="small muted">{[c.label, c.liters && `${c.liters} L`, c.meter_value != null && meter(c.meter_value, a.meter), placeLabel(c), c.payment_label, c.supplier_name || c.card_label || c.employee_name, c.invoice_number && `facture ${c.invoice_number}`, c.entry_number && `écriture ${c.entry_number}`].filter(Boolean).join(' · ')}</div>{c.reject_reason && <div className="small" style={{ color: 'var(--danger)' }}>Rejetée : {c.reject_reason}</div>}</span>
                 <b className="row" style={{ gap: 6, justifyContent: 'flex-end', flexWrap: 'wrap' }}><span style={c.status === 'rejetee' ? { textDecoration: 'line-through', opacity: 0.6 } : undefined}>{fcfa(c.amount)}</span>{c.status && <Badge tone={COST_TONES[c.status]}>{c.status_label}</Badge>}{write && c.status !== 'validee' && <button className="btn btn-ghost btn-icon" onClick={() => remove(`/costs/${c.id}`, 'cette dépense')} aria-label="Retirer la dépense"><Trash2 /></button>}</b>
               </div>
             ))}
@@ -365,20 +366,20 @@ function AssetDrawer({ id, refs, write, onClose, onChange, onEdit }) {
 }
 
 function AssignPanel({ a, refs, onCancel, onSubmit }) {
-  const [f, setF] = useState({ kind: a.kind === 'engin' ? 'chantier' : 'employe', employee_id: '', project_id: '', date: today(), condition: '', meter: a.meter_value ?? '' });
+  const [f, setF] = useState({ kind: a.kind === 'engin' ? 'chantier' : 'employe', employee_id: '', site: { project_id: null, worksite_id: null, place_id: null }, date: today(), condition: '', meter: a.meter_value ?? '' });
   const set = k => e => setF(x => ({ ...x, [k]: e.target.value }));
-  const ready = f.kind === 'employe' ? f.employee_id : f.project_id;
+  const ready = f.kind === 'employe' ? f.employee_id : f.site.project_id;
   return (
     <div className="erp-panel form-grid">
       <Field label="Affecter à"><select className="select" value={f.kind} onChange={set('kind')}><option value="employe">Un employé (remise)</option><option value="chantier">Un chantier (envoi)</option></select></Field>
       {f.kind === 'employe'
         ? <Field label="Employé"><select className="select" value={f.employee_id} onChange={set('employee_id')}><option value="">—</option>{refs.employees.map(e => <option key={e.id} value={e.id}>{e.name}</option>)}</select></Field>
-        : <Field label="Chantier"><select className="select" value={f.project_id} onChange={set('project_id')}><option value="">—</option>{refs.projects.map(p => <option key={p.id} value={p.id}>{p.name}</option>)}</select></Field>}
+        : <Field label="Chantier" hint="Programme entier ou chantier précis (ERP › Chantiers)"><PlacePicker value={f.site} onChange={v => setF(x => ({ ...x, site: v }))} programmesOnly empty="—" /></Field>}
       <Field label="Date"><input className="input" type="date" value={f.date} onChange={set('date')} /></Field>
       {a.meter ? <Field label={`Compteur (${a.meter})`}><input className="input" type="number" min="0" value={f.meter} onChange={set('meter')} /></Field> : <div />}
       <Field label="État à la remise" className="full"><input className="input" maxLength={255} value={f.condition} onChange={set('condition')} placeholder="Bon état, rayure portière gauche…" /></Field>
       <div className="full row" style={{ gap: 8 }}>
-        <button className="btn btn-primary" disabled={!ready} onClick={() => onSubmit({ kind: f.kind, employee_id: Number(f.employee_id) || null, project_id: Number(f.project_id) || null, date: f.date, condition: f.condition.trim() || null, meter: f.meter === '' ? null : Number(f.meter) })}><Check />Enregistrer</button>
+        <button className="btn btn-primary" disabled={!ready} onClick={() => onSubmit({ kind: f.kind, employee_id: Number(f.employee_id) || null, project_id: f.site.project_id, worksite_id: f.site.worksite_id, date: f.date, condition: f.condition.trim() || null, meter: f.meter === '' ? null : Number(f.meter) })}><Check />Enregistrer</button>
         <button className="btn btn-ghost" onClick={onCancel}>Annuler</button>
       </div>
     </div>
@@ -402,7 +403,7 @@ function ReleasePanel({ a, onCancel, onSubmit }) {
 }
 
 function CostPanel({ a, refs, onCancel, onSubmit }) {
-  const [f, setF] = useState({ kind: a.meter ? 'carburant' : 'reparation', date: today(), amount: '', liters: '', meter_value: '', label: '', project_id: a.project_id || '', plan_id: '', payment_mode: '', supplier_id: '', vat_rate: '0', fuel_card_id: '', employee_id: a.employee_id || '' });
+  const [f, setF] = useState({ kind: a.meter ? 'carburant' : 'reparation', date: today(), amount: '', liters: '', meter_value: '', label: '', site: { project_id: a.project_id || null, worksite_id: a.worksite_id || null, place_id: null }, plan_id: '', payment_mode: '', supplier_id: '', vat_rate: '0', fuel_card_id: '', employee_id: a.employee_id || '' });
   const set = k => e => setF(x => ({ ...x, [k]: e.target.value }));
   const fuel = f.kind === 'carburant';
   const card = refs.cards.find(c => String(c.id) === String(f.fuel_card_id));
@@ -420,13 +421,13 @@ function CostPanel({ a, refs, onCancel, onSubmit }) {
         : f.payment_mode === 'employe' ? <Field label="Employé qui a payé" hint="Se fait rembourser par sa note de frais (Mon espace)"><select className="select" value={f.employee_id} onChange={set('employee_id')}><option value="">—</option>{refs.employees.map(e => <option key={e.id} value={e.id}>{e.name}</option>)}</select></Field>
         : <div />}
       {f.payment_mode === 'fournisseur' && <Field label="TVA incluse"><select className="select" value={f.vat_rate} onChange={set('vat_rate')}><option value="0">0 %</option><option value="9">9 %</option><option value="18">18 %</option></select></Field>}
-      <Field label="Chantier imputé" hint="Vide : frais généraux"><select className="select" value={f.project_id} onChange={set('project_id')}><option value="">Frais généraux</option>{refs.projects.map(p => <option key={p.id} value={p.id}>{p.name}</option>)}</select></Field>
+      <Field label="Affectation" hint="Programme, chantier ou lieu ; vide : siège social"><PlacePicker value={f.site} onChange={v => setF(x => ({ ...x, site: v }))} /></Field>
       {f.kind === 'entretien' && a.plans.length > 0 && <Field label="Plan d’entretien réalisé"><select className="select" value={f.plan_id} onChange={set('plan_id')}><option value="">—</option>{a.plans.map(p => <option key={p.id} value={p.id}>{p.label}</option>)}</select></Field>}
       <Field label="Détail" className="full"><input className="input" maxLength={200} value={f.label} onChange={set('label')} placeholder="Station, garage, pièce changée…" /></Field>
       <div className="full row" style={{ gap: 8 }}>
         <button className="btn btn-primary" disabled={!ready} onClick={() => onSubmit({
           kind: f.kind, date: f.date, amount: Number(f.amount), liters: fuel ? Number(f.liters) : null, meter_value: f.meter_value === '' ? null : Number(f.meter_value),
-          label: f.label.trim() || null, project_id: f.project_id ? Number(f.project_id) : null, plan_id: f.plan_id ? Number(f.plan_id) : null,
+          label: f.label.trim() || null, ...f.site, plan_id: f.plan_id ? Number(f.plan_id) : null,
           payment_mode: f.payment_mode, supplier_id: f.payment_mode === 'fournisseur' ? Number(f.supplier_id) : null, vat_rate: f.payment_mode === 'fournisseur' ? Number(f.vat_rate) : 0,
           fuel_card_id: f.payment_mode === 'carte' ? Number(f.fuel_card_id) : null, employee_id: f.payment_mode === 'employe' ? Number(f.employee_id) : null,
         })}><Check />Enregistrer</button>

@@ -6,6 +6,7 @@ import { Card, Empty, Skeleton, ErrorBox, Field, Drawer } from '@admin/component
 import { date, dateTime, fcfa } from '@admin/lib/format';
 import { RH, today, useRhMeta } from '../../lib/rh';
 import { ExpenseForm, ExpenseBadge } from '../../components/RhForms';
+import { placeLabel } from '../../components/PlacePicker';
 
 const JOURNALS = { BQ: 'Banque (virement, chèque)', CA: 'Caisse (espèces)', MM: 'Mobile Money' };
 
@@ -40,7 +41,7 @@ export default function Expenses() {
             <tbody>{rows.map(x => (
               <tr key={x.id} className="clickable" onClick={() => setOpen(x.id)}>
                 <td className="small tabular">{x.reference}</td><td><b>{x.employee_name}</b></td><td className="small nowrap">{date(x.date)}</td>
-                <td>{x.label}<div className="small muted">{x.category_label}{x.project_name ? ` · ${x.project_name}` : ''}{x.paid_by === 'societe' ? ' · payée par la société' : ''}</div></td>
+                <td>{x.label}<div className="small muted">{x.category_label}{` · ${placeLabel(x)}`}{x.paid_by === 'societe' ? ' · payée par la société' : ''}</div></td>
                 <td className="right tabular">{fcfa(x.amount)}</td><td><ExpenseBadge x={x} /></td>
               </tr>
             ))}</tbody>
@@ -85,7 +86,7 @@ function ExpenseDrawer({ id, onClose, onChange }) {
             <div className="kv"><span>Catégorie</span><b>{d.category_label} <span className="muted">(compte {d.account})</span></b></div>
             <div className="kv"><span>TVA incluse</span><b>{vat ? `${fcfa(vat)} (${d.vat_rate} %)` : '—'}</b></div>
             <div className="kv"><span>Payée par</span><b>{d.paid_by === 'societe' ? 'la société' : 'l’employé (à rembourser)'}</b></div>
-            <div className="kv"><span>Programme</span><b>{d.project_name || 'Frais généraux'}</b></div>
+            <div className="kv"><span>Affectation</span><b>{placeLabel(d)}</b></div>
             {d.approved_by_name && <div className="kv"><span>{d.status === 'refusee' ? 'Refusée par' : 'Approuvée par'}</span><b>{d.approved_by_name} · {dateTime(d.approved_at)}</b></div>}
             {d.entry_number && <div className="kv"><span>Écriture</span><b>{d.entry_number}</b></div>}
             {d.paid_at && <div className="kv"><span>Remboursée le</span><b>{date(d.paid_at)}</b></div>}

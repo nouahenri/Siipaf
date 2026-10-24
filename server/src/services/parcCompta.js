@@ -27,10 +27,10 @@ const fixedAccount = (settings, kind) => settings.accounts[`immo_${kind}`] || se
 /** Dépenses avec l'état de leur pièce comptable (facture ou écriture). */
 const costQuery = db => db('asset_costs as c').join('assets as a', 'a.id', 'c.asset_id')
   .leftJoin('purchase_invoices as i', 'i.id', 'c.purchase_invoice_id').leftJoin('acc_entries as e', 'e.id', 'c.entry_id')
-  .leftJoin('projects as p', 'p.id', 'c.project_id').leftJoin('suppliers as s', 's.id', 'c.supplier_id')
+  .leftJoin('projects as p', 'p.id', 'c.project_id').leftJoin('worksites as w', 'w.id', 'c.worksite_id').leftJoin('places as pl', 'pl.id', 'c.place_id').leftJoin('suppliers as s', 's.id', 'c.supplier_id')
   .leftJoin('fuel_cards as f', 'f.id', 'c.fuel_card_id').leftJoin('employees as m', 'm.id', 'c.employee_id').leftJoin('users as u', 'u.id', 'c.created_by')
   .select('c.*', 'a.code as asset_code', 'a.name as asset_name', 'a.plate as asset_plate', 'i.number as invoice_number', 'i.status as invoice_status',
-    'e.number as entry_number', 'e.status as entry_status', 'p.name as project_name', 's.name as supplier_name', 'f.label as card_label',
+    'e.number as entry_number', 'e.status as entry_status', 'p.name as project_name', 'w.reference as worksite_reference', 'w.name as worksite_name', 'pl.name as place_name', 's.name as supplier_name', 'f.label as card_label',
     'm.last_name as employee_last_name', 'm.first_name as employee_first_name', 'u.name as created_by_name');
 
 function serializeCost(c) {
@@ -39,7 +39,7 @@ function serializeCost(c) {
   return {
     id: c.id, asset_id: c.asset_id, asset_code: c.asset_code, asset_name: c.asset_name, asset_plate: c.asset_plate, kind: c.kind, kind_label: ASSET_COST_KINDS[c.kind] || c.kind,
     date: isoDay(c.date), amount: Number(c.amount), label: c.label, liters: c.liters == null ? null : Number(c.liters), meter_value: c.meter_value == null ? null : Number(c.meter_value),
-    project_id: c.project_id, project_name: c.project_name, plan_id: c.plan_id,
+    project_id: c.project_id, project_name: c.project_name, worksite_id: c.worksite_id || null, worksite_label: c.worksite_reference ? `${c.worksite_reference} — ${c.worksite_name}` : null, place_id: c.place_id || null, place_name: c.place_name || null, plan_id: c.plan_id,
     payment_mode: c.payment_mode, payment_label: ASSET_PAYMENT_MODES[c.payment_mode]?.label || null, accounting: c.accounting,
     supplier_id: c.supplier_id, supplier_name: c.supplier_name, vat_rate: Number(c.vat_rate || 0), fuel_card_id: c.fuel_card_id, card_label: c.card_label,
     employee_id: c.employee_id, employee_name: c.employee_last_name ? `${c.employee_last_name} ${c.employee_first_name || ''}`.trim() : null,
@@ -101,7 +101,7 @@ async function bookCost(trx, asset, costId, data, userId) {
     const { ht, vat } = splitVat(Number(data.amount), data.vat_rate || 0);
     const [i] = await trx('purchase_invoices').insert({
       number: await ct.nextPurchaseNumber(trx, data.date), supplier_id: data.supplier_id, supplier_ref: asset.code, date: data.date, label,
-      project_id: data.project_id || null, expense_account_id: acc.id, amount_ht: ht, vat_rate: data.vat_rate || 0, vat_amount: vat, amount_ttc: Number(data.amount),
+      project_id: data.project_id || null, worksite_id: data.worksite_id || null, worksite_category: data.worksite_id ? 'engins' : null, place_id: data.place_id || null, expense_account_id: acc.id, amount_ht: ht, vat_rate: data.vat_rate || 0, vat_amount: vat, amount_ttc: Number(data.amount),
       status: 'brouillon', created_by: userId,
     });
     patch.purchase_invoice_id = insertedId(i);
@@ -118,7 +118,7 @@ async function bookCost(trx, asset, costId, data, userId) {
       credit = { account: j.code };
     }
     const e = await ct.createEntry(trx, {
-      journal: mode.journal, date: data.date, label, ref: asset.code, source: 'parc', source_key: `parc_cost:${costId}`, project_id: data.project_id || null, userId,
+      journal: mode.journal, date: data.date, label, ref: asset.code, source: 'parc', source_key: `parc_cost:${costId}`, project_id: data.project_id || null, place_id: data.place_id || null, userId,
       lines: [{ account, debit: Number(data.amount), project_id: data.project_id || null }, { ...credit, credit: Number(data.amount), project_id: data.project_id || null }],
     });
     patch.entry_id = e.id;

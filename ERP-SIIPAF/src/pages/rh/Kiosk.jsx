@@ -3,6 +3,7 @@ import { Link } from 'react-router-dom';
 import { ArrowLeft, Delete, LogIn, LogOut, CircleAlert } from 'lucide-react';
 import { api } from '@admin/lib/api';
 import { hm, RH, useRhMeta } from '../../lib/rh';
+import PlacePicker, { NO_PLACE } from '../../components/PlacePicker';
 
 /**
  * Borne de pointage (référence : mode kiosque d'Odoo Présences) : tablette posée au chantier, ouverte par le
@@ -10,7 +11,8 @@ import { hm, RH, useRhMeta } from '../../lib/rh';
  */
 export default function Kiosk() {
   const { meta } = useRhMeta();
-  const [project, setProject] = useState(() => { try { return localStorage.getItem('siipaf-borne-chantier') || ''; } catch { return ''; } });
+  // Lieu de la borne (programme, chantier ou lieu), retenu sur cette tablette
+  const [site, setSite] = useState(() => { try { return { ...NO_PLACE, ...JSON.parse(localStorage.getItem('siipaf-borne-lieu') || '{}') }; } catch { return NO_PLACE; } });
   const [matricule, setMatricule] = useState('EMP-');
   const [pin, setPin] = useState('');
   const [step, setStep] = useState('matricule');
@@ -19,7 +21,7 @@ export default function Kiosk() {
   const [now, setNow] = useState(new Date());
   const timer = useRef(null);
   useEffect(() => { const t = setInterval(() => setNow(new Date()), 1000); return () => clearInterval(t); }, []);
-  useEffect(() => { try { localStorage.setItem('siipaf-borne-chantier', project); } catch { /* stockage indisponible */ } }, [project]);
+  useEffect(() => { try { localStorage.setItem('siipaf-borne-lieu', JSON.stringify(site)); } catch { /* stockage indisponible */ } }, [site]);
 
   const reset = () => { setMatricule('EMP-'); setPin(''); setStep('matricule'); setResult(null); };
   const later = () => { clearTimeout(timer.current); timer.current = setTimeout(reset, 5000); };
@@ -32,7 +34,7 @@ export default function Kiosk() {
     if (step === 'matricule') { if (matricule.length > 4) setStep('pin'); return; }
     setBusy(true);
     try {
-      const r = await api.post(`${RH}/attendance/kiosk`, { matricule, pin, project_id: Number(project) || null });
+      const r = await api.post(`${RH}/attendance/kiosk`, { matricule, pin, ...site });
       setResult({ ok: true, ...r });
     } catch (e) { setResult({ ok: false, message: e.message }); } finally { setBusy(false); later(); }
   };
@@ -41,7 +43,7 @@ export default function Kiosk() {
     <div className="kiosk">
       <div className="kiosk-top">
         <Link to="/rh/presences" className="btn btn-ghost btn-sm"><ArrowLeft />Quitter la borne</Link>
-        <select className="select" style={{ width: 'auto' }} value={project} onChange={e => setProject(e.target.value)} aria-label="Chantier de la borne"><option value="">Siège</option>{meta?.projects.map(p => <option key={p.id} value={p.id}>{p.name}</option>)}</select>
+        <div style={{ maxWidth: 300 }}><PlacePicker value={site} onChange={setSite} empty="Siège social" ariaLabel="Lieu de la borne" /></div>
       </div>
       <div className="kiosk-clock" aria-live="polite">{now.toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' })}<small>{now.toLocaleDateString('fr-FR', { weekday: 'long', day: 'numeric', month: 'long' })}</small></div>
       {result ? (

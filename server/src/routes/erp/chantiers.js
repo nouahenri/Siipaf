@@ -3,7 +3,7 @@ const express = require('express');
 const { z } = require('zod');
 const { ah, parse, idParam, HttpError } = require('../../lib/http');
 const { requirePermission } = require('../../auth');
-const { WORKSITE_STATUSES, WORKSITE_ZONES, TASK_STATUSES, BUDGET_CATEGORIES, SITE_STAGES } = require('../../lib/domain');
+const { WORKSITE_STATUSES, WORKSITE_ZONES, TASK_STATUSES, BUDGET_CATEGORIES, SITE_STAGES, CHANTIER_SETTINGS } = require('../../lib/domain');
 const chantiers = require('../../services/chantiers');
 
 const day = z.string().regex(/^\d{4}-\d{2}-\d{2}$/, 'Date attendue au format AAAA-MM-JJ');
@@ -45,7 +45,13 @@ module.exports = function chantiersRoutes(db) {
   };
 
   r.get('/badges', ah(async (req, res) => res.json(await chantiers.badges(db, viewer(req)))));
-  r.get('/refs', ah(async (req, res) => res.json(await chantiers.refs(db))));
+  r.get('/refs', ah(async (req, res) => res.json({ ...(await chantiers.refs(db)), settings: await chantiers.settings(db), setting_fields: CHANTIER_SETTINGS })));
+  /** Programmes et chantiers non clos : listes « Lieu / chantier » des pointages, du Parc et des achats. */
+  r.get('/lieux', ah(async (req, res) => res.json(await chantiers.places(db))));
+  r.put('/reglages', requirePermission('chantiers:write'), ah(async (req, res) => {
+    const shape = Object.fromEntries(Object.entries(CHANTIER_SETTINGS).map(([k, x]) => [k, z.number().int().min(x.min).max(x.max)]));
+    res.json(await chantiers.saveSettings(db, parse(z.object(shape).partial(), req.body)));
+  }));
   r.get('/programmes/:id', ah(async (req, res) => res.json(await chantiers.programme(db, idParam(req)))));
 
   r.get('/', ah(async (req, res) => {

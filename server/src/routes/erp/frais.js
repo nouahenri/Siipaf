@@ -13,7 +13,7 @@ const num = z.preprocess(v => (v === '' || v == null ? undefined : Number(v)), z
 const optId = z.preprocess(v => (v === '' || v == null || v === 'null' ? null : Number(v)), z.number().int().positive().nullable());
 const expenseSchema = z.object({
   date: day, category: z.string().min(2).max(20), label: z.string().trim().min(3).max(200), amount: num.pipe(z.number().int().min(1).max(100000000)),
-  vat_rate: num.pipe(z.number().min(0).max(30)).optional(), paid_by: z.enum(['employe', 'societe']).optional(), project_id: optId.optional(),
+  vat_rate: num.pipe(z.number().min(0).max(30)).optional(), paid_by: z.enum(['employe', 'societe']).optional(), project_id: optId.optional(), worksite_id: optId.optional(), place_id: optId.optional(),
 });
 
 module.exports = function fraisRoutes(db) {

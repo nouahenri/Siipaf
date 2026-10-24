@@ -12,6 +12,7 @@ import PerformanceCurves from './PerformanceCurves';
 import VehicleRequests from '../../components/VehicleRequests';
 import MyDocuments from '../../components/MyDocuments';
 import MyRequests from '../../components/MyRequests';
+import PlacePicker, { placeLabel, NO_PLACE } from '../../components/PlacePicker';
 
 /** Libre-service de l'employé (référence : espace « Mon profil » d'Odoo) : pointage, congés, frais, formations, entretien. */
 export default function MySpace() {
@@ -86,7 +87,7 @@ export default function MySpace() {
               {expenses.data.map(x => (
                 <tr key={x.id} className={['brouillon', 'refusee'].includes(x.status) ? 'clickable' : ''} onClick={() => ['brouillon', 'refusee'].includes(x.status) && setExpense(x)}>
                   <td className="small tabular">{x.reference}</td><td className="small nowrap">{date(x.date)}</td>
-                  <td>{x.label}<div className="small muted">{x.category_label}{x.project_name ? ` · ${x.project_name}` : ''}</div></td>
+                  <td>{x.label}<div className="small muted">{x.category_label}{` · ${placeLabel(x)}`}</div></td>
                   <td className="right tabular">{fcfa(x.amount)}</td>
                   <td><ExpenseBadge x={x} />{x.refusal_reason && <div className="small" style={{ color: 'var(--danger)' }}>{x.refusal_reason}</div>}</td>
                 </tr>
@@ -124,7 +125,7 @@ export default function MySpace() {
 function Clock({ att, meta }) {
   const toast = useToast();
   const [busy, setBusy] = useState(false);
-  const [project, setProject] = useState('');
+  const [site, setSite] = useState(NO_PLACE);
   const open = att.data?.open;
   const position = () => new Promise(resolve => {
     if (!meta?.settings.geolocation || !navigator.geolocation) return resolve({});
@@ -133,7 +134,7 @@ function Clock({ att, meta }) {
   const toggle = async () => {
     setBusy(true);
     try {
-      const r = await api.post(`${RH}/me/attendance`, { project_id: Number(project) || null, ...(await position()) });
+      const r = await api.post(`${RH}/me/attendance`, { ...site, ...(await position()) });
       toast(r.action === 'arrivee' ? `Arrivée pointée à ${hm(r.attendance.check_in)}` : `Départ pointé à ${hm(r.attendance.check_out)} · ${hours(r.attendance.hours)}`);
       att.reload();
     } catch (e) { toast(e.message, 'err'); } finally { setBusy(false); }
@@ -142,12 +143,9 @@ function Clock({ att, meta }) {
     <Card title="Pointage">
       {!att.data ? <Skeleton h={90} /> : (
         <div className="stack" style={{ gap: 12 }}>
-          <p className="muted small">{open ? <>Arrivé(e) à <b>{hm(open.check_in)}</b>{open.project_name ? ` · ${open.project_name}` : ''}</> : 'Vous n’avez pas pointé votre arrivée.'} · ce mois-ci : <b>{hours(att.data.hours)}</b></p>
+          <p className="muted small">{open ? <>Arrivé(e) à <b>{hm(open.check_in)}</b>{` · ${placeLabel(open)}`}</> : 'Vous n’avez pas pointé votre arrivée.'} · ce mois-ci : <b>{hours(att.data.hours)}</b></p>
           {!open && (
-            <select className="select" value={project} onChange={e => setProject(e.target.value)} aria-label="Lieu de travail">
-              <option value="">Siège / bureau</option>
-              {meta?.projects.map(p => <option key={p.id} value={p.id}>{p.name}</option>)}
-            </select>
+            <PlacePicker value={site} onChange={setSite} empty="Siège social" ariaLabel="Lieu de travail" />
           )}
           <button className={`btn ${open ? '' : 'btn-primary'} clock-btn`} disabled={busy} onClick={toggle}>{open ? <><LogOut />Pointer mon départ</> : <><LogIn />Pointer mon arrivée</>}</button>
           {meta?.settings.geolocation && <p className="small muted"><MapPin className="ico" />La position est enregistrée avec le pointage si votre appareil l’autorise.</p>}

@@ -29,6 +29,7 @@ module.exports = function requestRoutes(db) {
       kind: z.enum(Object.keys(REQUEST_KINDS)), kind_other: z.string().trim().max(100).nullable().optional(), title: z.string().trim().min(3).max(200),
       details: z.string().trim().max(4000).nullable().optional(), quantity: z.string().trim().max(60).nullable().optional(),
       estimated_amount: z.number().int().min(0).nullable().optional(), project_id: z.number().int().positive().nullable().optional(),
+      worksite_id: z.number().int().positive().nullable().optional(), place_id: z.number().int().positive().nullable().optional(),
       location: z.string().trim().max(120).nullable().optional(), needed_by: day.nullable().optional(), urgency: z.enum(['normale', 'urgente']).optional(),
     }), req.body);
     const id = await requests.create(db, data, { user: req.user });

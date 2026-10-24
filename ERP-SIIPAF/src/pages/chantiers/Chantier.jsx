@@ -55,7 +55,7 @@ export default function Chantier() {
           <div><span className="small muted"><CalendarRange className="ico" />Période prévue</span><b className="small">{w.planned_start ? `${date(w.planned_start)} → ${date(w.planned_end)}` : '—'}</b>
             {w.actual_start && <span className="small muted">Démarré le {date(w.actual_start)}{w.actual_end ? `, terminé le ${date(w.actual_end)}` : ''}</span>}</div>
           <div><span className="small muted"><AlertTriangle className="ico" />Phases en retard</span><b>{w.late_phases ? <Badge tone="danger">{w.late_phases} · jusqu’à {w.late_days} j</Badge> : 'Aucune'}</b></div>
-          <div><span className="small muted"><Wallet className="ico" />Budget</span><b className="tabular">{w.budget_fcfa ? fcfa(w.budget_fcfa) : '—'}</b></div>
+          <div><span className="small muted"><Wallet className="ico" />Budget consommé</span><b className="tabular">{fcfa(w.spent_fcfa)}<span className="small muted"> sur {w.budget_fcfa ? fcfa(w.budget_fcfa) : '—'}</span></b>{w.consumed_pct != null && <Advance value={Math.min(100, w.consumed_pct)} />}</div>
           <div><span className="small muted">Lots de la zone</span><b className="tabular">{num(w.lots.total)}<span className="small muted"> dont {num(w.lots.sold)} réservé(s) ou vendu(s)</span></b></div>
         </div>
       </Card>
@@ -300,29 +300,75 @@ function TaskForm({ w, task: t, preset, refs, onClose, onSaved }) {
 function Budget({ w, refs, onChange }) {
   const [line, setLine] = useState(null);
   const total = w.budget_fcfa;
+  const c = w.costs;
+  const tone = pct => (pct == null ? '' : pct > 100 ? 'danger' : pct >= (refs.settings?.chantier_budget_alert_pct ?? 90) ? 'warn' : 'ok');
   return (
     <div className="stack">
-      <Card title="Budget par poste" actions={w.can_manage && <button className="btn btn-primary" onClick={() => setLine({})}><Plus />Ajouter une ligne</button>} bodyClass="">
+      <Card title="Prévu et réel par poste" bodyClass="">
+        <div className="table-wrap"><table className="table">
+          <thead><tr><th>Poste</th><th className="right">Prévu</th><th className="right">Réel</th><th className="right">Écart</th><th style={{ minWidth: 140 }}>Consommé</th></tr></thead>
+          <tbody>
+            {w.budget_by_category.filter(x => x.amount_fcfa || x.spent_fcfa).map(x => {
+              const pct = x.amount_fcfa ? Math.round((x.spent_fcfa / x.amount_fcfa) * 100) : null;
+              return (
+                <tr key={x.category}>
+                  <td><b>{x.label}</b></td>
+                  <td className="right tabular">{x.amount_fcfa ? fcfa(x.amount_fcfa) : '—'}</td>
+                  <td className="right tabular">{fcfa(x.spent_fcfa)}</td>
+                  <td className="right tabular" style={{ color: x.spent_fcfa > x.amount_fcfa ? 'var(--danger)' : undefined }}>{fcfa(x.amount_fcfa - x.spent_fcfa)}</td>
+                  <td>{pct == null ? <Badge tone="warn">hors budget</Badge> : <Badge tone={tone(pct)}>{pct} %</Badge>}</td>
+                </tr>
+              );
+            })}
+            <tr>
+              <td><b>Total</b></td><td className="right tabular"><b>{fcfa(total)}</b></td><td className="right tabular"><b>{fcfa(w.spent_fcfa)}</b></td>
+              <td className="right tabular"><b>{fcfa(total - w.spent_fcfa)}</b></td><td>{w.consumed_pct == null ? '—' : <Badge tone={tone(w.consumed_pct)}>{w.consumed_pct} %</Badge>}</td>
+            </tr>
+          </tbody>
+        </table></div>
+        <p className="small muted card-body" style={{ margin: 0 }}>
+          Réel = factures d’achat affectées au chantier (HT, brouillons compris : {fcfa(c.drafts_fcfa)} à valider par la Comptabilité), dépenses du parc,
+          heures pointées sur le chantier valorisées au coût horaire, et bientôt les situations des sous-traitants. Réglé aux fournisseurs : {fcfa(c.paid_fcfa)}.
+        </p>
+      </Card>
+
+      <Card title="Budget prévu" actions={w.can_manage && <button className="btn btn-primary" onClick={() => setLine({})}><Plus />Ajouter une ligne</button>} bodyClass="">
         {!w.budget_lines.length ? <div className="card-body"><Empty icon={Wallet}>Aucune ligne de budget.{w.can_manage ? ' Ajoutez les postes prévus (matériaux, main-d’œuvre, sous-traitance…).' : ''}</Empty></div> : (
           <div className="table-wrap"><table className="table">
-            <thead><tr><th>Poste</th><th>Ligne</th><th>Phase</th><th className="right">Montant prévu</th><th className="right">Part</th>{w.can_manage && <th />}</tr></thead>
+            <thead><tr><th>Poste</th><th>Ligne</th><th>Phase</th><th className="right">Montant prévu</th>{w.can_manage && <th />}</tr></thead>
             <tbody>
-              {w.budget_by_category.filter(c => c.amount_fcfa > 0).flatMap(c => w.budget_lines.filter(l => l.category === c.category).map((l, i, arr) => (
+              {w.budget_by_category.filter(x => x.amount_fcfa > 0).flatMap(x => w.budget_lines.filter(l => l.category === x.category).map((l, i, arr) => (
                 <tr key={l.id}>
-                  {i === 0 && <td rowSpan={arr.length}><b>{c.label}</b><div className="small muted tabular">{fcfa(c.amount_fcfa)}</div></td>}
+                  {i === 0 && <td rowSpan={arr.length}><b>{x.label}</b></td>}
                   <td>{l.label}{l.notes && <div className="small muted">{l.notes}</div>}</td>
                   <td className="small">{w.phases.find(p => p.id === l.phase_id)?.label || '—'}</td>
                   <td className="right tabular">{fcfa(l.amount_fcfa)}</td>
-                  <td className="right small muted tabular">{total ? `${Math.round((l.amount_fcfa / total) * 100)} %` : '—'}</td>
                   {w.can_manage && <td className="right"><button className="btn btn-ghost btn-icon" onClick={() => setLine(l)} aria-label={`Modifier ${l.label}`}><Pencil /></button></td>}
                 </tr>
               )))}
-              <tr><td colSpan={3}><b>Total du budget</b></td><td className="right tabular"><b>{fcfa(total)}</b></td><td />{w.can_manage && <td />}</tr>
             </tbody>
           </table></div>
         )}
       </Card>
-      <p className="small muted">Les coûts réels (factures d’achat, parc, main-d’œuvre pointée, situations des sous-traitants) viendront se comparer à ce budget.</p>
+
+      <Card title="Coûts réels" bodyClass="">
+        {!c.purchases.length && !c.parc.length && !c.labor.length ? <div className="card-body"><Empty icon={Wallet}>Aucun coût affecté à ce chantier pour l’instant. Choisissez ce chantier comme affectation d’une facture d’achat, d’une dépense du parc ou d’un pointage.</Empty></div> : (
+          <div className="table-wrap"><table className="table">
+            <thead><tr><th>Source</th><th>Détail</th><th>Poste</th><th className="right">Montant HT</th></tr></thead>
+            <tbody>
+              {c.purchases.map(p => (
+                <tr key={`a${p.id}`}><td className="small nowrap">Achat {p.number}<div className="muted">{date(p.date)}</div></td><td>{p.label}<div className="small muted">{p.supplier_name}{p.status === 'brouillon' ? ' · à valider' : ''}</div></td><td className="small">{refs.budget_categories[p.category]}</td><td className="right tabular">{fcfa(p.amount_fcfa)}</td></tr>
+              ))}
+              {c.parc.map(p => (
+                <tr key={`p${p.id}`}><td className="small nowrap">Parc<div className="muted">{date(p.date)}</div></td><td>{p.asset}<div className="small muted">{p.label || p.kind}</div></td><td className="small">{refs.budget_categories.engins}</td><td className="right tabular">{fcfa(p.amount_fcfa)}</td></tr>
+              ))}
+              {c.labor.map(l => (
+                <tr key={`m${l.employee_id}`}><td className="small nowrap">Pointages</td><td>{l.name}<div className="small muted">{l.job_title} · {num(l.hours)} h × {fcfa(l.rate)}{l.source === 'salaire' ? ' (tiré du salaire)' : l.source === 'aucun' ? ' (aucun salaire ni taux)' : ''}</div></td><td className="small">{refs.budget_categories.main_oeuvre}</td><td className="right tabular">{fcfa(l.amount_fcfa)}</td></tr>
+              ))}
+            </tbody>
+          </table></div>
+        )}
+      </Card>
       {line && <BudgetForm w={w} line={line.id ? line : null} refs={refs} onClose={() => setLine(null)} onSaved={d => { setLine(null); onChange(d); }} />}
     </div>
   );

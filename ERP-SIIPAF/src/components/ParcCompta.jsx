@@ -13,6 +13,7 @@ import { Card, Empty, Skeleton, ErrorBox, Field, Modal, Badge } from '@admin/com
 import { date, fcfa } from '@admin/lib/format';
 import { useComptaMeta } from '../lib/compta';
 import { today } from '../lib/rh';
+import { placeLabel } from './PlacePicker';
 
 const URL = '/admin/erp/parc';
 const TONES = { a_valider: 'warn', validee: 'ok', rejetee: 'danger', note_de_frais: '' };
@@ -48,7 +49,7 @@ export function CostsToValidate({ onOpen, onChange }) {
               <tr key={c.id}>
                 <td className="small nowrap">{date(c.date)}</td>
                 <td><button className="btn-link" onClick={() => onOpen(c.asset_id)}><b className="small tabular">{c.asset_code}</b></button><div className="small muted">{c.asset_name}{c.asset_plate ? ` · ${c.asset_plate}` : ''}</div></td>
-                <td>{c.kind_label}<div className="small muted">{[c.label, c.liters && `${c.liters} L`, c.project_name || 'Frais généraux'].filter(Boolean).join(' · ')}</div></td>
+                <td>{c.kind_label}<div className="small muted">{[c.label, c.liters && `${c.liters} L`, placeLabel(c)].filter(Boolean).join(' · ')}</div></td>
                 <td className="small">{c.payment_label}<div className="muted">{c.supplier_name || c.card_label || c.employee_name || ''}</div></td>
                 <td className="small">{c.invoice_number ? <Link to="/compta/achats">Facture {c.invoice_number}</Link> : c.entry_id ? <Link to="/compta/ecritures">Écriture {c.entry_number || 'brouillon'}</Link> : '—'}</td>
                 <td className="right tabular">{fcfa(c.amount)}</td>

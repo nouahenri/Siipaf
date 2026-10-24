@@ -5,6 +5,7 @@ import { useResource, useToast } from '@admin/lib/app-context';
 import { Card, Empty, Skeleton, ErrorBox, Modal, Field, Badge } from '@admin/components/ui';
 import { date, fcfa } from '@admin/lib/format';
 import { today } from '../lib/rh';
+import PlacePicker from './PlacePicker';
 
 const URL = '/admin/erp/demandes';
 export const REQUEST_TONES = { attente_responsable: 'warn', attente_dg: 'warn', attente_sg: 'warn', en_cours: '', traitee: 'ok', refusee: 'danger', annulee: '' };
@@ -44,7 +45,7 @@ export default function MyRequests() {
 function RequestForm({ onClose, onSaved }) {
   const toast = useToast();
   const refs = useResource(`${URL}/refs`);
-  const [f, setF] = useState({ kind: 'achat', kind_other: '', title: '', details: '', quantity: '', estimated_amount: '', project_id: '', location: '', needed_by: '', urgency: 'normale' });
+  const [f, setF] = useState({ kind: 'achat', kind_other: '', title: '', details: '', quantity: '', estimated_amount: '', site: { project_id: null, worksite_id: null, place_id: null }, location: '', needed_by: '', urgency: 'normale' });
   const [error, setError] = useState(null);
   const [busy, setBusy] = useState(false);
   const set = k => e => setF(x => ({ ...x, [k]: e.target.value }));
@@ -54,7 +55,8 @@ function RequestForm({ onClose, onSaved }) {
     try {
       const body = Object.fromEntries(Object.entries(f).map(([k, v]) => [k, v === '' ? null : v]));
       body.estimated_amount = body.estimated_amount == null ? null : Number(body.estimated_amount);
-      body.project_id = body.project_id == null ? null : Number(body.project_id);
+      Object.assign(body, f.site);
+      delete body.site;
       const r = await api.post(URL, body);
       toast(`Demande ${r.reference} envoyée — ${r.status_label.toLowerCase()}`);
       onSaved();
@@ -76,7 +78,7 @@ function RequestForm({ onClose, onSaved }) {
           <Field label={kind?.purchase ? 'Montant estimé (FCFA)' : 'Montant estimé (facultatif)'} hint={over ? `Au-delà de ${fcfa(refs.data.threshold)} : validation de la direction générale` : undefined}>
             <input className="input" type="number" min="0" required={!!kind?.purchase} value={f.estimated_amount} onChange={set('estimated_amount')} />
           </Field>
-          <Field label="Pour le chantier"><select className="select" value={f.project_id} onChange={set('project_id')}><option value="">Bureau / aucun</option>{refs.data.projects.map(p => <option key={p.id} value={p.id}>{p.name}</option>)}</select></Field>
+          <Field label="Pour" hint="Programme, chantier ou lieu ; vide : siège social"><PlacePicker value={f.site} onChange={v => setF(x => ({ ...x, site: v }))} /></Field>
           <Field label="Lieu"><input className="input" maxLength={120} value={f.location} onChange={set('location')} placeholder="Siège, bureau 3, dépôt…" /></Field>
           <Field label="Pour le"><input className="input" type="date" min={today()} value={f.needed_by} onChange={set('needed_by')} /></Field>
         </form>

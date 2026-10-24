@@ -47,7 +47,7 @@ export default function Chantiers() {
           <div className="card-body"><Empty icon={HardHat}>Aucun chantier.{can('chantiers:write') ? ' Créez le premier avec « Nouveau chantier ».' : ''}</Empty></div>
         ) : (
           <div className="table-wrap"><table className="table">
-            <thead><tr><th>Chantier</th><th>Programme et zone</th><th>Conducteur</th><th>Période prévue</th><th style={{ minWidth: 140 }}>Avancement</th><th className="right">Budget</th></tr></thead>
+            <thead><tr><th>Chantier</th><th>Programme et zone</th><th>Conducteur</th><th>Période prévue</th><th style={{ minWidth: 140 }}>Avancement</th><th className="right">Réel / budget</th></tr></thead>
             <tbody>{list.data.map(w => (
               <tr key={w.id} className="clickable" onClick={() => navigate(`/chantiers/${w.id}`)}>
                 <td><b>{w.name}</b><div className="small muted tabular">{w.reference} · <Badge tone={WS_TONES[w.status]}>{w.status_label}</Badge></div></td>
@@ -55,7 +55,7 @@ export default function Chantiers() {
                 <td className="small">{w.manager_name || <span className="muted">—</span>}</td>
                 <td className="small nowrap">{w.planned_start ? `${date(w.planned_start)} → ${date(w.planned_end)}` : '—'}</td>
                 <td><Advance value={w.progress_pct} />{w.late_phases > 0 && <div className="small" style={{ marginTop: 4 }}><Badge tone="danger">{w.late_phases} phase{w.late_phases > 1 ? 's' : ''} en retard</Badge></div>}</td>
-                <td className="right tabular">{w.budget_fcfa ? fcfa(w.budget_fcfa) : '—'}</td>
+                <td className="right tabular small">{fcfa(w.spent_fcfa)}<div className="muted">{w.budget_fcfa ? `sur ${fcfa(w.budget_fcfa)} · ${w.consumed_pct} %` : 'sans budget'}</div></td>
               </tr>
             ))}</tbody>
           </table></div>

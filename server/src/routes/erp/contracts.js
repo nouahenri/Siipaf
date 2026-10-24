@@ -16,6 +16,7 @@ const bool = z.preprocess(v => v === true || v === 'true' || v === '1', z.boolea
 const contractSchema = z.object({
   kind: z.enum(Object.keys(CONTRACT_KINDS)), kind_other: opt(z.string().trim().max(100)), title: z.string().trim().min(3).max(200),
   supplier_id: num(z.number().int().positive()), counterparty: opt(z.string().trim().max(160)), project_id: num(z.number().int().positive()),
+  worksite_id: num(z.number().int().positive()), place_id: num(z.number().int().positive()),
   owner_id: num(z.number().int().positive()), start_date: day, end_date: opt(day), tacit_renewal: bool.optional(),
   renewal_months: num(z.number().int().min(1).max(120)), notice_days: num(z.number().int().min(0).max(730)),
   contract_amount: num(z.number().int().min(0)), retention_pct: num(z.number().min(0).max(100)),

@@ -28,8 +28,9 @@ function receiptUpload() {
 }
 
 const query = db => db('hr_expenses as x').join('employees as e', 'e.id', 'x.employee_id').leftJoin('projects as p', 'p.id', 'x.project_id').leftJoin('users as u', 'u.id', 'x.approved_by')
+  .leftJoin('worksites as w', 'w.id', 'x.worksite_id').leftJoin('places as pl', 'pl.id', 'x.place_id')
   .leftJoin('acc_entries as en', 'en.id', 'x.entry_id')
-  .select('x.*', 'e.matricule', 'e.last_name', 'e.first_name', 'e.manager_id', 'e.user_id as employee_user_id', 'e.pay_method', 'p.name as project_name', 'u.name as approved_by_name', 'en.number as entry_number');
+  .select('x.*', 'e.matricule', 'e.last_name', 'e.first_name', 'e.manager_id', 'e.user_id as employee_user_id', 'e.pay_method', 'p.name as project_name', 'w.reference as worksite_reference', 'w.name as worksite_name', 'pl.name as place_name', 'u.name as approved_by_name', 'en.number as entry_number');
 
 function serialize(x, settings) {
   const cat = settings.expense_categories[x.category];
@@ -56,9 +57,10 @@ async function create(db, e, data, { file, userId }) {
   const s = await rh.getSettings(db);
   if (!s.expense_categories[data.category]) throw new HttpError(400, 'Catégorie de dépense inconnue.');
   if (data.date < e.hire_date) throw new HttpError(400, 'Dépense antérieure à l’embauche.');
+  const site = await require('./lieux').placeFields(db, data);
   return db.transaction(async trx => {
     const [id] = await trx('hr_expenses').insert({
-      ...data, employee_id: e.id, reference: await nextReference(trx, data.date), created_by: userId,
+      ...data, ...site, employee_id: e.id, reference: await nextReference(trx, data.date), created_by: userId,
       ...(file ? { receipt_filename: file.filename, receipt_name: file.originalname.slice(0, 255), receipt_mime: file.mimetype } : {}),
     });
     return insertedId(id);
@@ -70,7 +72,7 @@ async function update(db, x, data, { file }) {
   if (!['brouillon', 'refusee'].includes(x.status)) throw new HttpError(409, 'Note de frais déjà soumise.');
   const s = await rh.getSettings(db);
   if (data.category && !s.expense_categories[data.category]) throw new HttpError(400, 'Catégorie de dépense inconnue.');
-  const patch = { ...data, status: 'brouillon', refusal_reason: null, updated_at: new Date() };
+  const patch = { ...data, ...(await require('./lieux').placeFields(db, data, x)), status: 'brouillon', refusal_reason: null, updated_at: new Date() };
   if (file) {
     if (x.receipt_filename) await fs.promises.unlink(path.join(receiptsDir, path.basename(x.receipt_filename))).catch(() => {});
     Object.assign(patch, { receipt_filename: file.filename, receipt_name: file.originalname.slice(0, 255), receipt_mime: file.mimetype });
@@ -110,7 +112,7 @@ async function transition(db, id, action, { user, can, note = null, journal = nu
     const cs = await compta.getSettings(db);
     const x = serialize(raw, s);
     const vat = x.vat_rate ? Math.round(x.amount - x.amount / (1 + x.vat_rate / 100)) : 0;
-    const lines = [{ account: x.account, debit: x.amount - vat, project_id: x.project_id, label: `${x.reference} · ${x.label}` }];
+    const lines = [{ account: x.account, debit: x.amount - vat, project_id: x.project_id, place_id: x.project_id ? null : x.place_id, label: `${x.reference} · ${x.label}` }];
     if (vat) lines.push({ account: cs.accounts.vat_deductible || '4452', debit: vat, label: `TVA ${x.reference}` });
     let journalCode = 'OD';
     if (x.paid_by === 'societe') {

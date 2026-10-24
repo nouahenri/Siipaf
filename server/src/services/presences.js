@@ -7,6 +7,10 @@ const { HttpError, toDate, isoTime } = require('../lib/http');
 const { hashPassword, checkPassword } = require('../auth');
 const { computeOvertime, LEAVE_TYPES } = require('../lib/rh');
 const rh = require('./rh');
+const lieux = require('./lieux');
+
+/** Lieu du pointage : programme (et chantier) ou lieu (siège, bureau, dépôt) ; sans rien, le siège. */
+const placeOf = (db, d) => lieux.resolvePlace(db, { project_id: d.project_id ?? null, worksite_id: d.worksite_id ?? null, place_id: d.place_id ?? null });
 
 const insertedId = r => (typeof r === 'object' ? r.id : r);
 const HOUR = 3600000;
@@ -20,7 +24,9 @@ const serialize = a => {
   };
 };
 const query = db => db('hr_attendances as a').join('employees as e', 'e.id', 'a.employee_id').leftJoin('projects as p', 'p.id', 'a.project_id').leftJoin('users as u', 'u.id', 'a.created_by')
-  .select('a.*', 'e.matricule', 'e.last_name', 'e.first_name', 'e.department', 'e.manager_id', 'p.name as project_name', 'u.name as created_by_name');
+  .leftJoin('worksites as w', 'w.id', 'a.worksite_id').leftJoin('places as pl', 'pl.id', 'a.place_id')
+  .select('a.*', 'e.matricule', 'e.last_name', 'e.first_name', 'e.department', 'e.manager_id', 'p.name as project_name', 'u.name as created_by_name',
+    'w.reference as worksite_reference', 'w.name as worksite_name', 'pl.name as place_name');
 
 /** Pointage en cours (arrivée sans départ) d'un employé. */
 async function openOf(db, employeeId) {
@@ -29,7 +35,7 @@ async function openOf(db, employeeId) {
 }
 
 /** Arrivée ou départ selon l'état du pointage ; refus si l'employé est sorti des effectifs. */
-async function toggle(db, e, { project_id = null, latitude = null, longitude = null, source = 'web', userId = null, at = new Date() }) {
+async function toggle(db, e, { project_id = null, worksite_id = null, place_id = null, latitude = null, longitude = null, source = 'web', userId = null, at = new Date() }) {
   if (!e.active || (e.end_date && e.end_date < at.toISOString().slice(0, 10))) throw new HttpError(400, 'Employé sorti des effectifs.');
   const open = await openOf(db, e.id);
   if (open) {
@@ -37,15 +43,16 @@ async function toggle(db, e, { project_id = null, latitude = null, longitude = n
     await db('hr_attendances').where({ id: open.id }).update({ check_out: at, updated_at: new Date() });
     return { action: 'depart', attendance: serialize(await db('hr_attendances').where({ id: open.id }).first()) };
   }
-  const [id] = await db('hr_attendances').insert({ employee_id: e.id, check_in: at, source, project_id, latitude, longitude, created_by: userId });
+  const site = await placeOf(db, { project_id, worksite_id, place_id });
+  const [id] = await db('hr_attendances').insert({ employee_id: e.id, check_in: at, source, ...site, latitude, longitude, created_by: userId });
   return { action: 'arrivee', attendance: serialize(await db('hr_attendances').where({ id: insertedId(id) }).first()) };
 }
 
 /** Borne de pointage : matricule + code personnel, sur une tablette ouverte par un compte autorisé. */
-async function kiosk(db, { matricule, pin, project_id }, userId) {
+async function kiosk(db, { matricule, pin, project_id, worksite_id, place_id }, userId) {
   const e = rh.normEmployee(await db('employees').where({ matricule: String(matricule).trim().toUpperCase() }).first());
   if (!e || !e.attendance_pin_hash || !(await checkPassword(String(pin), e.attendance_pin_hash))) throw new HttpError(401, 'Matricule ou code incorrect.');
-  const r = await toggle(db, e, { project_id, source: 'borne', userId });
+  const r = await toggle(db, e, { project_id, worksite_id, place_id, source: 'borne', userId });
   return { ...r, employee: { id: e.id, name: `${e.last_name} ${e.first_name}`, matricule: e.matricule } };
 }
 
@@ -63,22 +70,23 @@ const at = (date, hm) => {
  * Feuille de présence d'une journée de chantier : pour chaque ouvrier, une ou deux plages (matin, après-midi).
  * Remplace les pointages « feuille » de la même journée et du même chantier.
  */
-async function saveSheet(db, { date, project_id = null, rows }, userId) {
+async function saveSheet(db, { date, project_id = null, worksite_id = null, place_id = null, rows }, userId) {
   const from = new Date(`${date}T00:00:00Z`), to = new Date(from.getTime() + 24 * HOUR);
+  const site = await placeOf(db, { project_id, worksite_id, place_id });
   return db.transaction(async trx => {
     let created = 0;
     for (const r of rows) {
       const e = await trx('employees').where({ id: r.employee_id }).first();
       if (!e) throw new HttpError(404, 'Employé introuvable.');
       const del = trx('hr_attendances').where({ employee_id: e.id, source: 'feuille' }).where('check_in', '>=', from).where('check_in', '<', to);
-      if (project_id) del.where({ project_id }); else del.whereNull('project_id');
+      for (const k of ['project_id', 'worksite_id', 'place_id']) { if (site[k]) del.where(k, site[k]); else del.whereNull(k); }
       await del.del();
       for (const [start, end] of r.periods || []) {
         const a = at(date, start), b = at(date, end);
         if (b <= a) throw new HttpError(400, `${e.last_name} ${e.first_name} : l’heure de fin précède l’heure de début.`);
         const clash = (await trx('hr_attendances').where({ employee_id: e.id })).find(x => toDate(x.check_in) < b && (toDate(x.check_out) || new Date(8.64e15)) > a);
         if (clash) throw new HttpError(409, `${e.last_name} ${e.first_name} a déjà un pointage sur cette plage.`);
-        await trx('hr_attendances').insert({ employee_id: e.id, check_in: a, check_out: b, source: 'feuille', project_id, note: r.note || null, created_by: userId });
+        await trx('hr_attendances').insert({ employee_id: e.id, check_in: a, check_out: b, source: 'feuille', ...site, note: r.note || null, created_by: userId });
         created++;
       }
     }
@@ -87,14 +95,14 @@ async function saveSheet(db, { date, project_id = null, rows }, userId) {
 }
 
 /** Correction ou saisie manuelle (motif obligatoire) : arrivée avant départ, pas de chevauchement. */
-async function upsertManual(db, { id = null, employee_id, check_in, check_out, project_id = null, note }, userId) {
+async function upsertManual(db, { id = null, employee_id, check_in, check_out, project_id = null, worksite_id = null, place_id = null, note }, userId) {
   const a = toDate(check_in), b = check_out ? toDate(check_out) : null;
   if (!a || (check_out && !b)) throw new HttpError(400, 'Date et heure invalides.');
   if (b && b <= a) throw new HttpError(400, 'Le départ précède l’arrivée.');
   if (b && b - a > 24 * HOUR) throw new HttpError(400, 'Un pointage ne dépasse pas 24 heures.');
   const others = (await db('hr_attendances').where({ employee_id })).filter(x => x.id !== id);
   if (others.some(x => toDate(x.check_in) < (b || new Date(8.64e15)) && (toDate(x.check_out) || new Date(8.64e15)) > a)) throw new HttpError(409, 'Ce pointage chevauche un autre pointage.');
-  const row = { employee_id, check_in: a, check_out: b, project_id, note, source: 'manuel', created_by: userId, updated_at: new Date() };
+  const row = { employee_id, check_in: a, check_out: b, ...(await placeOf(db, { project_id, worksite_id, place_id })), note, source: 'manuel', created_by: userId, updated_at: new Date() };
   if (id) await db('hr_attendances').where({ id }).update(row);
   else id = insertedId((await db('hr_attendances').insert(row))[0]);
   return serialize(await query(db).where('a.id', id).first());

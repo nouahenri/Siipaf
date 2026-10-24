@@ -5,7 +5,7 @@ import {
   Briefcase, Columns3, ListTodo, CalendarDays, Building2, FileSignature, Landmark, Target,
   Calculator, BookOpen, ShoppingCart, FileBarChart, ListTree, Settings2, Contact, Banknote,
   Users, UserRound, Palmtree, Fingerprint, Receipt, UserPlus, GraduationCap, ShieldCheck, UserCog, Building, Mail, FileClock, Truck, BookOpenCheck, Inbox, Rocket,
-  Scale, Stamp, ShieldHalf, AlarmClock, HardHat,
+  Scale, Stamp, ShieldHalf, AlarmClock, HardHat, MapPinned,
 } from 'lucide-react';
 import { CHANTIERS, CHANTIERS_SHOW } from '../lib/chantiers';
 import { useAuth, useResource } from '@admin/lib/app-context';
@@ -74,7 +74,7 @@ const MODULES = {
   // Administration générale : vue Direction, courrier, contrats, parc, documents internes, demandes internes.
   // Le destinataire d'un courrier, le responsable d'un contrat, un chef de service ou un valideur y accède pour les siens.
   administration: {
-    label: 'Administration générale', icon: Building, perm: ['direction:read', ...COURRIER, ...CONTRATS, ...PARC, ...DEMANDES], show: ADMIN_SHOW,
+    label: 'Administration générale', icon: Building, perm: ['direction:read', ...COURRIER, ...CONTRATS, ...PARC, ...DEMANDES, 'lieux:write'], show: ADMIN_SHOW,
     items: [
       { to: '/administration', label: 'Vue Direction', icon: LayoutDashboard, end: true, perm: 'direction:read' },
       { to: '/administration/courrier', label: 'Courrier', icon: Mail, badge: 'count', perm: COURRIER, show: b => b?.mine > 0 },
@@ -82,6 +82,7 @@ const MODULES = {
       { to: '/administration/parc', label: 'Parc auto et matériel', icon: Truck, badge: 'parc_count', perm: PARC },
       { to: '/administration/documents', label: 'Documents internes', icon: BookOpenCheck, perm: 'docs:publish', show: b => b?.docs_can_publish },
       { to: '/administration/demandes', label: 'Demandes internes', icon: Inbox, badge: 'requests_count', perm: DEMANDES, show: b => b?.requests_to_approve > 0 },
+      { to: '/administration/lieux', label: 'Lieux (siège, bureaux, dépôts)', icon: MapPinned, perm: ['lieux:write', 'direction:read'] },
       { to: '/administration/acces', label: 'Rôles et privilèges', icon: ShieldCheck, perm: 'users:read' },
     ],
   },
@@ -104,6 +105,7 @@ const MODULES = {
     label: 'Chantiers', icon: HardHat, perm: CHANTIERS, show: CHANTIERS_SHOW,
     items: [
       { to: '/chantiers/liste', label: 'Chantiers', icon: HardHat, badge: 'late_phases', perm: CHANTIERS, show: CHANTIERS_SHOW },
+      { to: '/chantiers/reglages', label: 'Réglages', icon: Settings2, perm: CHANTIERS },
       { to: '/chantiers/acces', label: 'Rôles et privilèges', icon: ShieldCheck, perm: 'users:read' },
     ],
   },
@@ -122,9 +124,9 @@ const MODULES = {
 const TITLES = {
   '/': 'Modules', '/commercial': 'Service commercial', '/commercial/pipeline': 'Pipeline commercial', '/commercial/activites': 'Mes activités',
   '/commercial/rendez-vous': 'Rendez-vous', '/commercial/parc': 'Parc immobilier', '/commercial/ventes': 'Dossiers de vente',
-  '/commercial/vefa': 'Appels de fonds VEFA', '/commercial/objectifs': 'Objectifs et performance', '/administration': 'Vue Direction', '/administration/courrier': 'Courrier arrivée et départ', '/administration/contrats': 'Contrats et échéances', '/administration/parc': 'Parc auto et matériel', '/administration/documents': 'Documents internes', '/demarrer': 'Bien démarrer', '/administration/demandes': 'Demandes internes', '/administration/acces': 'Rôles et privilèges — Administration générale',
+  '/commercial/vefa': 'Appels de fonds VEFA', '/commercial/objectifs': 'Objectifs et performance', '/administration': 'Vue Direction', '/administration/courrier': 'Courrier arrivée et départ', '/administration/contrats': 'Contrats et échéances', '/administration/parc': 'Parc auto et matériel', '/administration/documents': 'Documents internes', '/demarrer': 'Bien démarrer', '/administration/demandes': 'Demandes internes', '/administration/acces': 'Rôles et privilèges — Administration générale', '/administration/lieux': 'Lieux hors programmes',
   '/juridique': 'Juridique', '/juridique/actes': 'Ventes et actes', '/juridique/litiges': 'Litiges', '/juridique/cautions': 'Cautions et garanties', '/juridique/impayes': 'Impayés transmis au Juridique', '/juridique/contrats': 'Contrats et échéances', '/juridique/reglages': 'Réglages du Juridique', '/juridique/acces': 'Rôles et privilèges — Juridique',
-  '/chantiers/liste': 'Chantiers', '/chantiers/acces': 'Rôles et privilèges — Chantiers',
+  '/chantiers/liste': 'Chantiers', '/chantiers/reglages': 'Réglages des chantiers', '/chantiers/acces': 'Rôles et privilèges — Chantiers',
   '/compta': 'Comptabilité', '/compta/ecritures': 'Écritures comptables', '/compta/achats': 'Achats et fournisseurs', '/compta/etats': 'États comptables',
   '/compta/plan': 'Plan comptable SYSCOHADA', '/compta/parametres': 'Paramètres comptables', '/compta/paie': 'Paie', '/compta/parc': 'Parc auto et matériel — Comptabilité', '/compta/employes': 'Employés', '/rh': 'Ressources humaines', '/rh/moi': 'Mon espace', '/rh/personnel': 'Personnel', '/rh/conges': 'Congés et absences', '/rh/presences': 'Présences', '/rh/borne': 'Borne de pointage', '/rh/frais': 'Notes de frais', '/rh/recrutement': 'Recrutement', '/rh/competences': 'Compétences et formations', '/rh/objectifs': 'Performance et entretiens', '/rh/reglages': 'Réglages RH', '/commercial/acces': 'Rôles et privilèges — Service commercial', '/compta/acces': 'Rôles et privilèges — Comptabilité', '/rh/acces': 'Rôles et privilèges — Ressources humaines', '/sav/acces': 'Rôles et privilèges — Client & SAV', '/comptes': 'Comptes utilisateurs', '/sav': 'Client & SAV', '/sav/reclamations': 'Réclamations', '/sav/reserves': 'Réserves de livraison', '/sav/interventions': 'Interventions',
 };

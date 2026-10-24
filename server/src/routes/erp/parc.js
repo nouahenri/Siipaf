@@ -27,7 +27,7 @@ const planSchema = z.object({
 });
 const costSchema = z.object({
   kind: z.enum(Object.keys(ASSET_COST_KINDS)), date: day, amount: z.number().int().min(0), label: opt(z.string().trim().max(200)),
-  liters: num(z.number().positive()), meter_value: num(z.number().min(0)), project_id: num(z.number().int().positive()),
+  liters: num(z.number().positive()), meter_value: num(z.number().min(0)), project_id: num(z.number().int().positive()), worksite_id: num(z.number().int().positive()), place_id: num(z.number().int().positive()),
   plan_id: num(z.number().int().positive()), purchase_invoice_id: num(z.number().int().positive()),
   payment_mode: z.enum(Object.keys(ASSET_PAYMENT_MODES), { errorMap: () => ({ message: 'Indiquez comment la dépense a été payée.' }) }),
   supplier_id: num(z.number().int().positive()), vat_rate: z.preprocess(v => (blank(v) == null ? 0 : Number(v)), z.number().min(0).max(100)).optional(),
@@ -83,7 +83,7 @@ module.exports = function parcRoutes(db) {
   r.post('/assets/:id/assign', write, ah(async (req, res) => {
     const a = await asset(req);
     const data = parse(z.object({
-      kind: z.enum(['employe', 'chantier']), employee_id: num(z.number().int().positive()), project_id: num(z.number().int().positive()),
+      kind: z.enum(['employe', 'chantier']), employee_id: num(z.number().int().positive()), project_id: num(z.number().int().positive()), worksite_id: num(z.number().int().positive()),
       date: day, condition: opt(z.string().trim().max(255)), meter: num(z.number().min(0)),
     }), req.body);
     await parc.assign(db, a, data, { userId: req.user.id });

@@ -42,8 +42,8 @@ const employeeName = e => (e.last_name ? `${e.last_name} ${e.first_name || ''}`.
 
 const query = db => db('assets as a')
   .leftJoin('employees as e', 'e.id', 'a.employee_id').leftJoin('projects as p', 'p.id', 'a.project_id')
-  .leftJoin('users as u', 'u.id', 'a.manager_id').leftJoin('suppliers as s', 's.id', 'a.supplier_id')
-  .select('a.*', 'e.last_name', 'e.first_name', 'p.name as project_name', 'u.name as manager_name', 's.name as supplier_name');
+  .leftJoin('users as u', 'u.id', 'a.manager_id').leftJoin('suppliers as s', 's.id', 'a.supplier_id').leftJoin('worksites as w', 'w.id', 'a.worksite_id')
+  .select('a.*', 'e.last_name', 'e.first_name', 'p.name as project_name', 'u.name as manager_name', 's.name as supplier_name', 'w.reference as worksite_reference', 'w.name as worksite_name');
 
 function normalize(a) {
   return {
@@ -67,7 +67,7 @@ function serialize(raw) {
   return {
     ...a, last_name: undefined, first_name: undefined, kind_label: a.kind === 'autre' && a.kind_other ? a.kind_other : kind?.label || a.kind,
     status_label: ASSET_STATUSES[a.status], employee_name: employeeName(raw), meter_unit: a.meter === 'km' ? 'km' : a.meter === 'h' ? 'h' : null,
-    holder: raw.last_name ? employeeName(raw) : raw.project_name ? `Chantier ${raw.project_name}` : null,
+    holder: raw.last_name ? employeeName(raw) : raw.worksite_reference ? `Chantier ${raw.worksite_reference} — ${raw.worksite_name}` : raw.project_name ? `Chantier ${raw.project_name}` : null,
   };
 }
 
@@ -81,8 +81,8 @@ async function detail(db, id, day = today()) {
   const raw = await load(db, id);
   const a = normalize(raw);
   const [assignments, docs, plans, costs, reservations] = await Promise.all([
-    db('asset_assignments as g').leftJoin('employees as e', 'e.id', 'g.employee_id').leftJoin('projects as p', 'p.id', 'g.project_id')
-      .where('g.asset_id', id).orderBy('g.start_date', 'desc').orderBy('g.id', 'desc').select('g.*', 'e.last_name', 'e.first_name', 'p.name as project_name'),
+    db('asset_assignments as g').leftJoin('employees as e', 'e.id', 'g.employee_id').leftJoin('projects as p', 'p.id', 'g.project_id').leftJoin('worksites as w', 'w.id', 'g.worksite_id')
+      .where('g.asset_id', id).orderBy('g.start_date', 'desc').orderBy('g.id', 'desc').select('g.*', 'e.last_name', 'e.first_name', 'p.name as project_name', 'w.reference as worksite_reference', 'w.name as worksite_name'),
     db('asset_documents').where({ asset_id: id }).orderBy('expires_on'),
     db('asset_maintenance_plans').where({ asset_id: id }).orderBy('id'),
     require('./parcCompta').costQuery(db).where('c.asset_id', id).orderBy('c.date', 'desc').orderBy('c.id', 'desc').limit(300),
@@ -97,7 +97,7 @@ async function detail(db, id, day = today()) {
     ...serialize(raw),
     assignments: assignments.map(g => ({
       ...g, start_date: isoDay(g.start_date), end_date: isoDay(g.end_date), meter_out: num(g.meter_out), meter_in: num(g.meter_in),
-      kind_label: ASSET_ASSIGNMENT_KINDS[g.kind], target: g.kind === 'employe' ? employeeName(g) : g.project_name, last_name: undefined, first_name: undefined,
+      kind_label: ASSET_ASSIGNMENT_KINDS[g.kind], target: g.kind === 'employe' ? employeeName(g) : g.worksite_reference ? `${g.project_name} · ${g.worksite_reference} — ${g.worksite_name}` : g.project_name, last_name: undefined, first_name: undefined,
     })),
     documents: docs.map(docRow),
     plans: plans.map(p => planRow(p, a, day)),
@@ -160,17 +160,19 @@ async function raiseMeter(trx, a, value, day) {
 async function assign(db, a, data, { userId }) {
   if (a.status === 'reforme') throw new HttpError(409, 'Bien réformé.');
   if (data.kind === 'employe' && !(await db('employees').where({ id: data.employee_id, active: true }).first())) throw new HttpError(400, 'Employé introuvable ou inactif.');
-  if (data.kind === 'chantier' && !(await db('projects').where({ id: data.project_id }).first())) throw new HttpError(400, 'Choisissez le chantier.');
+  if (data.kind === 'chantier' && !data.worksite_id && !(await db('projects').where({ id: data.project_id || 0 }).first())) throw new HttpError(400, 'Choisissez le chantier.');
+  // Chantier de l'ERP › Chantiers : il fixe le programme
+  const site = data.kind === 'chantier' ? await require('./chantiers').resolveSite(db, data) : { project_id: null, worksite_id: null };
   const open = await db('asset_assignments').where({ asset_id: a.id }).whereNull('end_date').first();
   if (open && data.date < isoDay(open.start_date)) throw new HttpError(400, 'La date précède l’affectation en cours.');
   await db.transaction(async trx => {
     if (open) await trx('asset_assignments').where({ id: open.id }).update({ end_date: data.date, meter_in: data.meter ?? null, updated_at: new Date() });
     await trx('asset_assignments').insert({
-      asset_id: a.id, kind: data.kind, employee_id: data.kind === 'employe' ? data.employee_id : null, project_id: data.kind === 'chantier' ? data.project_id : null,
+      asset_id: a.id, kind: data.kind, employee_id: data.kind === 'employe' ? data.employee_id : null, project_id: site.project_id, worksite_id: site.worksite_id,
       start_date: data.date, condition_out: data.condition || null, meter_out: data.meter ?? null, created_by: userId,
     });
     await trx('assets').where({ id: a.id }).update({
-      status: 'affecte', employee_id: data.kind === 'employe' ? data.employee_id : null, project_id: data.kind === 'chantier' ? data.project_id : null, updated_at: new Date(),
+      status: 'affecte', employee_id: data.kind === 'employe' ? data.employee_id : null, project_id: site.project_id, worksite_id: site.worksite_id, updated_at: new Date(),
     });
     await raiseMeter(trx, normalize(a), data.meter, data.date);
   });
@@ -183,7 +185,7 @@ async function release(db, a, data) {
   if (data.date < isoDay(open.start_date)) throw new HttpError(400, 'La restitution précède la remise.');
   await db.transaction(async trx => {
     await trx('asset_assignments').where({ id: open.id }).update({ end_date: data.date, condition_in: data.condition || null, meter_in: data.meter ?? null, updated_at: new Date() });
-    await trx('assets').where({ id: a.id }).update({ status: a.status === 'affecte' ? 'disponible' : a.status, employee_id: null, project_id: null, updated_at: new Date() });
+    await trx('assets').where({ id: a.id }).update({ status: a.status === 'affecte' ? 'disponible' : a.status, employee_id: null, project_id: null, worksite_id: null, updated_at: new Date() });
     await raiseMeter(trx, normalize(a), data.meter, data.date);
   });
 }
@@ -246,12 +248,15 @@ async function addCost(db, a, data, { userId }) {
   if (data.date > today()) throw new HttpError(400, 'La dépense ne peut pas être future.');
   if (data.kind === 'carburant' && !data.liters) throw new HttpError(400, 'Plein : indiquez les litres.');
   if (data.meter_value != null && !a.meter) delete data.meter_value;
-  let project = data.project_id;
-  if (project === undefined) {
+  // Imputation : celle indiquée (programme, chantier ou lieu), sinon le chantier où travaille le bien ce jour-là, sinon le siège
+  let pick = { project_id: data.project_id ?? null, worksite_id: data.worksite_id ?? null, place_id: data.place_id ?? null };
+  if (data.project_id === undefined && data.worksite_id === undefined && data.place_id === undefined) {
     const g = await db('asset_assignments').where({ asset_id: a.id, kind: 'chantier' }).where('start_date', '<=', data.date)
-      .where(w => w.whereNull('end_date').orWhere('end_date', '>=', data.date)).orderBy('start_date', 'desc').first('project_id');
-    project = g?.project_id || null;
+      .where(w => w.whereNull('end_date').orWhere('end_date', '>=', data.date)).orderBy('start_date', 'desc').first('project_id', 'worksite_id');
+    pick = { project_id: g?.project_id || null, worksite_id: g?.worksite_id || null, place_id: null };
   }
+  const site = await require('./lieux').resolvePlace(db, pick);
+  const project = site.project_id;
   let plan = null;
   if (data.plan_id) {
     plan = await db('asset_maintenance_plans').where({ id: data.plan_id, asset_id: a.id }).first();
@@ -260,7 +265,7 @@ async function addCost(db, a, data, { userId }) {
   if (data.purchase_invoice_id && !(await db('purchase_invoices').where({ id: data.purchase_invoice_id }).first())) throw new HttpError(404, 'Facture d’achat introuvable.');
   // Lien avec la Comptabilité (choix du client du 23/10) : la dépense part aussitôt en facture ou en écriture à valider
   const pc = require('./parcCompta');
-  const row = await pc.checkPayment(db, a, { ...data, project_id: project });
+  const row = await pc.checkPayment(db, a, { ...data, ...site });
   const id = await db.transaction(async trx => {
     const [i] = await trx('asset_costs').insert({ ...row, asset_id: a.id, project_id: project, created_by: userId });
     const costId = insertedId(i);
@@ -301,7 +306,8 @@ async function deadlines(db, { days = 60, day = today() } = {}) {
 /** Coûts de la période par chantier, par bien et par nature (frais généraux = sans chantier). */
 async function costsReport(db, { from, to }) {
   const rows = await db('asset_costs as c').join('assets as a', 'a.id', 'c.asset_id').leftJoin('projects as p', 'p.id', 'c.project_id')
-    .whereBetween('c.date', [from, to]).whereNull('c.rejected_at').select('c.kind', 'c.amount', 'c.liters', 'c.project_id', 'p.name as project_name', 'a.id as asset_id', 'a.code', 'a.name');
+    .leftJoin('places as pl', 'pl.id', 'c.place_id')
+    .whereBetween('c.date', [from, to]).whereNull('c.rejected_at').select('c.kind', 'c.amount', 'c.liters', 'c.project_id', 'p.name as project_name', 'c.place_id', 'pl.name as place_name', 'a.id as asset_id', 'a.code', 'a.name');
   const group = (keyOf, labelOf) => {
     const m = new Map();
     for (const r of rows) {
@@ -316,7 +322,7 @@ async function costsReport(db, { from, to }) {
   };
   return {
     from, to, total: rows.reduce((t, r) => t + Number(r.amount), 0),
-    by_project: group(r => r.project_id || 0, r => r.project_name || 'Frais généraux (sans chantier)'),
+    by_project: group(r => r.project_id || `lieu-${r.place_id || 0}`, r => r.project_name || r.place_name || 'Frais généraux (sans chantier)'),
     by_asset: group(r => r.asset_id, r => `${r.code} · ${r.name}`),
     by_kind: Object.fromEntries(Object.keys(ASSET_COST_KINDS).map(k => [k, rows.filter(r => r.kind === k).reduce((t, r) => t + Number(r.amount), 0)]).filter(([, v]) => v)),
   };

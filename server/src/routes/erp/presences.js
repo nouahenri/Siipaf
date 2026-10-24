@@ -32,7 +32,7 @@ module.exports = function presencesRoutes(db) {
   r.post('/me/attendance', requirePermission('self:pointage'), ah(async (req, res) => {
     const e = await me(req);
     const s = await rh.getSettings(db);
-    const data = parse(z.object({ project_id: projectId, latitude: z.number().min(-90).max(90).optional().nullable(), longitude: z.number().min(-180).max(180).optional().nullable() }), req.body);
+    const data = parse(z.object({ project_id: projectId, worksite_id: projectId, place_id: projectId, latitude: z.number().min(-90).max(90).optional().nullable(), longitude: z.number().min(-180).max(180).optional().nullable() }), req.body);
     res.json(await presences.toggle(db, e, { ...data, latitude: s.geolocation ? data.latitude ?? null : null, longitude: s.geolocation ? data.longitude ?? null : null, source: 'web', userId: req.user.id }));
   }));
   r.put('/me/pin', requirePermission('self:pointage'), ah(async (req, res) => {
@@ -44,7 +44,7 @@ module.exports = function presencesRoutes(db) {
 
   // ─── Borne de pointage (tablette ouverte par un compte autorisé) ──
   r.post('/attendance/kiosk', pointer, ah(async (req, res) => {
-    const data = parse(z.object({ matricule: z.string().trim().min(3).max(20), pin: z.string().min(4).max(6), project_id: projectId }), req.body);
+    const data = parse(z.object({ matricule: z.string().trim().min(3).max(20), pin: z.string().min(4).max(6), project_id: projectId, worksite_id: projectId, place_id: projectId }), req.body);
     res.json(await presences.kiosk(db, data, req.user.id));
   }));
   r.put('/employees/:id/pin', requirePermission('rh:files'), ah(async (req, res) => {
@@ -65,6 +65,8 @@ module.exports = function presencesRoutes(db) {
     q.where('a.check_in', '>=', from).where('a.check_in', '<', to);
     if (req.query.employee_id) q.where('a.employee_id', Number(req.query.employee_id));
     if (req.query.project_id) q.where('a.project_id', Number(req.query.project_id));
+    if (req.query.worksite_id) q.where('a.worksite_id', Number(req.query.worksite_id));
+    if (req.query.place_id) q.where('a.place_id', Number(req.query.place_id));
     res.json((await q.limit(1000)).map(presences.serialize));
   }));
 
@@ -75,7 +77,7 @@ module.exports = function presencesRoutes(db) {
 
   r.post('/attendance/sheet', pointer, ah(async (req, res) => {
     const data = parse(z.object({
-      date: day, project_id: projectId,
+      date: day, project_id: projectId, worksite_id: projectId, place_id: projectId,
       rows: z.array(z.object({ employee_id: z.number().int().positive(), periods: z.array(z.tuple([hm, hm])).max(3), note: z.string().trim().max(255).optional() })).min(1).max(300),
     }), req.body);
     if (data.date > new Date().toISOString().slice(0, 10)) throw new HttpError(400, 'Feuille de présence d’un jour à venir.');
@@ -84,14 +86,14 @@ module.exports = function presencesRoutes(db) {
 
   const manualSchema = z.object({
     employee_id: z.number().int().positive(), check_in: z.string().min(10), check_out: z.string().min(10).optional().nullable(),
-    project_id: projectId, note: z.string().trim().min(3, 'Motif de la correction obligatoire').max(255),
+    project_id: projectId, worksite_id: projectId, place_id: projectId, note: z.string().trim().min(3, 'Motif de la correction obligatoire').max(255),
   });
   r.post('/attendance', pointer, ah(async (req, res) => res.status(201).json(await presences.upsertManual(db, parse(manualSchema, req.body), req.user.id))));
   r.patch('/attendance/:id', pointer, ah(async (req, res) => {
     const a = await db('hr_attendances').where({ id: idParam(req) }).first();
     if (!a) throw new HttpError(404, 'Pointage introuvable.');
     const data = parse(manualSchema.partial().extend({ note: manualSchema.shape.note }), req.body);
-    res.json(await presences.upsertManual(db, { employee_id: a.employee_id, check_in: a.check_in, check_out: a.check_out, project_id: a.project_id, ...data, id: a.id }, req.user.id));
+    res.json(await presences.upsertManual(db, { employee_id: a.employee_id, check_in: a.check_in, check_out: a.check_out, ...(data.project_id !== undefined || data.worksite_id !== undefined || data.place_id !== undefined ? {} : { project_id: a.project_id, worksite_id: a.worksite_id, place_id: a.place_id }), ...data, id: a.id }, req.user.id));
   }));
   r.delete('/attendance/:id', pointer, ah(async (req, res) => {
     if (!(await db('hr_attendances').where({ id: idParam(req) }).del())) throw new HttpError(404, 'Pointage introuvable.');

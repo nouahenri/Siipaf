@@ -6,6 +6,7 @@ import { useToast, useSaved } from '@admin/lib/app-context';
 import { Modal, Field, ErrorBox, Badge } from '@admin/components/ui';
 import { fcfa } from '@admin/lib/format';
 import { RH, today, days, formData, useRhMeta, EXPENSE_TONES } from '../lib/rh';
+import PlacePicker from './PlacePicker';
 
 export function LeaveBadge({ leave, meta }) {
   const st = meta?.statuses[leave.status];
@@ -123,7 +124,7 @@ export function ExpenseForm({ expense = null, onClose, onSaved }) {
   const saved = useSaved();
   const [f, setF] = useState({
     date: expense?.date || today(), category: expense?.category || 'deplacement', label: expense?.label || '', amount: expense?.amount || '',
-    vat_rate: expense?.vat_rate ?? 0, paid_by: expense?.paid_by || 'employe', project_id: expense?.project_id || '',
+    vat_rate: expense?.vat_rate ?? 0, paid_by: expense?.paid_by || 'employe', site: { project_id: expense?.project_id || null, worksite_id: expense?.worksite_id || null, place_id: expense?.place_id || null },
   });
   const [file, setFile] = useState(null);
   const [error, setError] = useState(null);
@@ -133,7 +134,8 @@ export function ExpenseForm({ expense = null, onClose, onSaved }) {
   const save = async (e, submit = false) => {
     e.preventDefault(); setBusy(true); setError(null);
     try {
-      const body = formData({ ...f, project_id: f.project_id || 'null' }, { receipt: file });
+      const { site, ...rest } = f;
+      const body = formData({ ...rest, project_id: site.project_id || 'null', worksite_id: site.worksite_id || 'null', place_id: site.place_id || 'null' }, { receipt: file });
       let x = expense ? await api.patch(`${RH}/expenses/${expense.id}`, body) : await api.post(`${RH}/me/expenses`, body);
       if (submit) x = await api.post(`${RH}/expenses/${x.id}/submit`);
       saved(submit ? 'Note de frais soumise pour approbation' : 'Brouillon enregistré');
@@ -153,7 +155,7 @@ export function ExpenseForm({ expense = null, onClose, onSaved }) {
         <Field label="Montant TTC (FCFA)"><input className="input" type="number" min="1" required value={f.amount} onChange={set('amount')} /></Field>
         <Field label="TVA incluse" hint={vat ? `dont TVA ${fcfa(vat)}` : 'Facture sans TVA : laissez 0'}><select className="select" value={f.vat_rate} onChange={set('vat_rate')}><option value="0">0 %</option><option value="9">9 %</option><option value="18">18 %</option></select></Field>
         <Field label="Payé par"><select className="select" value={f.paid_by} onChange={set('paid_by')}><option value="employe">Moi (à me rembourser)</option><option value="societe">La société (caisse, carte)</option></select></Field>
-        <Field label="Programme concerné" hint="Pour imputer la dépense au chantier"><select className="select" value={f.project_id} onChange={set('project_id')}><option value="">Frais généraux</option>{projects.map(p => <option key={p.id} value={p.id}>{p.name}</option>)}</select></Field>
+        <Field label="Affectation" hint="Programme, chantier ou lieu (siège, bureau, dépôt) ; vide : siège social"><PlacePicker value={f.site} onChange={v => setF(x => ({ ...x, site: v }))} /></Field>
         <Field label="Reçu ou facture" className="full" hint="Photo ou PDF, obligatoire pour soumettre">
           <label className="btn" style={{ alignSelf: 'start' }}><Paperclip />{file ? file.name : expense?.receipt_url ? 'Remplacer le reçu' : 'Joindre le reçu'}<input type="file" hidden accept="application/pdf,image/*" capture="environment" onChange={e => setFile(e.target.files[0] || null)} /></label>
         </Field>

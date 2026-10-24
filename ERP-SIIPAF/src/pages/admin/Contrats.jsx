@@ -6,6 +6,7 @@ import { useAuth, useResource, useToast } from '@admin/lib/app-context';
 import { Card, Empty, Skeleton, ErrorBox, Field, Drawer, Modal, Badge } from '@admin/components/ui';
 import { date, fcfa } from '@admin/lib/format';
 import { today, formData } from '../../lib/rh';
+import PlacePicker, { placeLabel } from '../../components/PlacePicker';
 
 const URL = '/admin/erp/contrats';
 const STATUS_TONES = { actif: 'ok', termine: '', resilie: '' };
@@ -102,7 +103,7 @@ export default function Contrats() {
               <tbody>{list.data.map(c => (
                 <tr key={c.id} className="clickable" onClick={() => setOpen(c.id)}>
                   <td className="small tabular nowrap"><b>{c.reference}</b></td>
-                  <td>{c.title}<div className="small muted">{c.kind_label}{c.project_name ? ` · ${c.project_name}` : ''}</div></td>
+                  <td>{c.title}<div className="small muted">{c.kind_label} · {placeLabel(c)}</div></td>
                   <td>{c.counterparty_name || '—'}</td>
                   <td className="small">{c.owner_name || '—'}</td>
                   <td className="small nowrap">{c.end_date ? date(c.end_date) : 'Indéterminée'}{c.tacit_renewal && <div className="muted">tacite reconduction</div>}</td>
@@ -150,7 +151,7 @@ function ContractDrawer({ id, refs, onClose, onChange, onEdit }) {
           <div>
             <h3 style={{ margin: '0 0 8px' }}>{c.title}</h3>
             <div className="kv"><span>Cocontractant</span><b>{c.counterparty_name || '—'}</b></div>
-            {c.project_name && <div className="kv"><span>Programme</span><b>{c.project_name}</b></div>}
+            <div className="kv"><span>Affectation</span><b>{placeLabel(c)}</b></div>
             <div className="kv"><span>Responsable</span><b>{c.owner_name || '—'}</b></div>
             <div className="kv"><span>Durée</span><b>du {date(c.start_date)} {c.end_date ? `au ${date(c.end_date)}` : '— indéterminée'}</b></div>
             {c.tacit_renewal && <div className="kv"><span>Reconduction</span><b>par périodes de {c.renewal_months || 12} mois</b></div>}
@@ -270,7 +271,7 @@ function ContractForm({ contract: c, refs, onClose, onSaved }) {
   const toast = useToast();
   const [f, setF] = useState({
     kind: c?.kind || 'fournisseur', kind_other: c?.kind_other || '', title: c?.title || '', supplier_id: c?.supplier_id || '', counterparty: c?.counterparty || '',
-    project_id: c?.project_id || '', owner_id: c?.owner_id || '', start_date: c?.start_date || today(), end_date: c?.end_date || '',
+    site: { project_id: c?.project_id || null, worksite_id: c?.worksite_id || null, place_id: c?.place_id || null }, owner_id: c?.owner_id || '', start_date: c?.start_date || today(), end_date: c?.end_date || '',
     tacit_renewal: c?.tacit_renewal || false, renewal_months: c?.renewal_months || 12, notice_days: c?.notice_days ?? '', contract_amount: c?.contract_amount ?? '',
     retention_pct: c?.retention_pct ?? '', frequency: c?.frequency || '', amount_ttc: c?.amount_ttc ?? '', vat_rate: c?.vat_rate ?? 0,
     expense_account: c?.expense_account || '', next_payment_date: c?.next_payment_date || '', revision_date: c?.revision_date || '', revision_note: c?.revision_note || '', notes: c?.notes || '',
@@ -283,7 +284,8 @@ function ContractForm({ contract: c, refs, onClose, onSaved }) {
     e.preventDefault(); setBusy(true); setError(null);
     try {
       // Champ vidé : « null » efface la valeur enregistrée
-      const fields = Object.fromEntries(Object.entries(f).map(([k, v]) => [k, v === '' ? 'null' : v]));
+      const { site, ...rest } = f;
+      const fields = Object.fromEntries(Object.entries({ ...rest, ...site }).map(([k, v]) => [k, v === '' || v == null ? 'null' : v]));
       if (!f.frequency) Object.assign(fields, { amount_ttc: 'null', next_payment_date: 'null' });
       // Sans tacite reconduction, pas de période de reconduction (le formulaire en propose 12 mois si on la coche)
       if (!f.tacit_renewal) fields.renewal_months = 'null';
@@ -307,7 +309,7 @@ function ContractForm({ contract: c, refs, onClose, onSaved }) {
         </Field>
         <Field label="Autre cocontractant" hint="Bailleur, assureur… s’il n’est pas dans les fournisseurs"><input className="input" maxLength={160} value={f.counterparty} onChange={set('counterparty')} /></Field>
         <Field label="Responsable du contrat" hint="Reçoit les alertes avec le responsable d’exploitation"><select className="select" value={f.owner_id} onChange={set('owner_id')}><option value="">—</option>{refs.users.map(u => <option key={u.id} value={u.id}>{u.name}</option>)}</select></Field>
-        <Field label={sub ? 'Programme (chantier)' : 'Programme concerné'}><select className="select" value={f.project_id} onChange={set('project_id')}><option value="">Frais généraux</option>{refs.projects.map(p => <option key={p.id} value={p.id}>{p.name}</option>)}</select></Field>
+        <Field label={sub ? 'Chantier (sous-traitance)' : 'Affectation'} hint="Programme, chantier ou lieu (bail du siège, abonnement d’un bureau…) ; vide : siège social"><PlacePicker value={f.site} onChange={v => setF(x => ({ ...x, site: v }))} /></Field>
 
         <Field label="Début"><input className="input" type="date" required value={f.start_date} onChange={set('start_date')} /></Field>
         <Field label="Fin" hint="Vide : durée indéterminée"><input className="input" type="date" min={f.start_date} value={f.end_date} onChange={set('end_date')} /></Field>

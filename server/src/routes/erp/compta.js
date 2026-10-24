@@ -5,6 +5,8 @@ const { ah, parse, idParam, HttpError, isoDay } = require('../../lib/http');
 const { requirePermission } = require('../../auth');
 const { JOURNAL_KINDS, REVENUE_MODES, accountClass, partnerKindOf, splitVat } = require('../../lib/compta');
 const ct = require('../../services/compta');
+const lieux = require('../../services/lieux');
+const { BUDGET_CATEGORIES } = require('../../lib/domain');
 const { progressIndex, clientsProgress } = require('../../services/clients');
 
 const day = z.string().regex(/^\d{4}-\d{2}-\d{2}$/, 'Date attendue au format AAAA-MM-JJ');
@@ -215,9 +217,12 @@ module.exports = function comptaRoutes(db) {
     name: z.string().trim().min(2).max(160), kind: z.enum(['fournisseur', 'sous_traitant', 'prestataire', 'notaire']).default('fournisseur'),
     phone: optText(40), email: z.string().trim().toLowerCase().email().optional().nullable().or(z.literal('').transform(() => null)),
     address: optText(255), ncc: optText(40), rccm: optText(60), expense_account: z.string().trim().max(12).optional().nullable(), notes: optText(500),
+    // Imputation habituelle (programme ou lieu), proposée à la saisie de ses factures ; vide : rien de proposé
+    project_id: z.number().int().positive().optional().nullable(), place_id: z.number().int().positive().optional().nullable(),
   });
   const supplierRow = async data => {
     const { expense_account, ...rest } = data;
+    if (rest.project_id && rest.place_id) throw new HttpError(400, 'Imputation habituelle : un programme ou un lieu, pas les deux.');
     if (expense_account === undefined) return rest;
     const acc = expense_account ? await db('acc_accounts').where({ code: expense_account }).first() : null;
     if (expense_account && (!acc || acc.class !== 6)) throw new HttpError(400, 'Le compte de charge habituel doit être un compte de classe 6.');
@@ -256,11 +261,13 @@ module.exports = function comptaRoutes(db) {
 
   r.get('/purchases', read, ah(async (req, res) => {
     const q = db('purchase_invoices as i').join('suppliers as s', 's.id', 'i.supplier_id').leftJoin('projects as p', 'p.id', 'i.project_id')
-      .join('acc_accounts as a', 'a.id', 'i.expense_account_id');
+      .leftJoin('worksites as w', 'w.id', 'i.worksite_id').leftJoin('places as pl', 'pl.id', 'i.place_id').join('acc_accounts as a', 'a.id', 'i.expense_account_id');
     if (req.query.status) q.where('i.status', String(req.query.status));
     if (req.query.supplier_id) q.where('i.supplier_id', Number(req.query.supplier_id));
     if (req.query.project_id) q.where('i.project_id', Number(req.query.project_id));
-    const rows = await q.select('i.*', 's.name as supplier_name', 'p.name as project_name', 'a.code as expense_account', 'a.label as expense_label')
+    if (req.query.worksite_id) q.where('i.worksite_id', Number(req.query.worksite_id));
+    if (req.query.place_id) q.where('i.place_id', Number(req.query.place_id));
+    const rows = await q.select('i.*', 's.name as supplier_name', 'p.name as project_name', 'w.reference as worksite_reference', 'w.name as worksite_name', 'pl.name as place_name', 'a.code as expense_account', 'a.label as expense_label')
       .orderBy([{ column: 'i.date', order: 'desc' }, { column: 'i.id', order: 'desc' }]).limit(1000);
     const out = [];
     for (const i of rows) out.push(await purchaseRow(i));
@@ -269,26 +276,37 @@ module.exports = function comptaRoutes(db) {
 
   r.get('/purchases/:id', read, ah(async (req, res) => {
     const inv = await db('purchase_invoices as i').join('suppliers as s', 's.id', 'i.supplier_id').leftJoin('projects as p', 'p.id', 'i.project_id')
-      .join('acc_accounts as a', 'a.id', 'i.expense_account_id').where('i.id', idParam(req))
-      .first('i.*', 's.name as supplier_name', 'p.name as project_name', 'a.code as expense_account', 'a.label as expense_label');
+      .leftJoin('worksites as w', 'w.id', 'i.worksite_id').leftJoin('places as pl', 'pl.id', 'i.place_id').join('acc_accounts as a', 'a.id', 'i.expense_account_id').where('i.id', idParam(req))
+      .first('i.*', 's.name as supplier_name', 'p.name as project_name', 'w.reference as worksite_reference', 'w.name as worksite_name', 'pl.name as place_name', 'a.code as expense_account', 'a.label as expense_label');
     if (!inv) throw new HttpError(404, 'Facture introuvable.');
     const payments = await db('purchase_payments as pp').join('acc_journals as j', 'j.id', 'pp.journal_id').where('pp.invoice_id', inv.id)
       .select('pp.*', 'j.code as journal_code', 'j.label as journal_label').orderBy('pp.date');
     res.json({ ...(await purchaseRow(inv)), payments: payments.map(p => ({ ...p, date: isoDay(p.date), amount: Number(p.amount) })) });
   }));
 
+  // Imputation : programme (et chantier, qui fixe le programme) ou lieu (siège, bureau, dépôt) ; sans rien, le siège.
+  // Le poste range la facture dans le budget du chantier.
+  const siteFields = {
+    worksite_id: z.number().int().positive().optional().nullable(), worksite_category: z.enum(Object.keys(BUDGET_CATEGORIES)).optional().nullable(),
+    place_id: z.number().int().positive().optional().nullable(),
+  };
   const purchaseSchema = z.object({
     supplier_id: z.number().int().positive(), supplier_ref: optText(60), date: day, due_date: day.optional().nullable(),
     label: z.string().trim().min(2).max(255), project_id: z.number().int().positive().optional().nullable(),
     expense_account: z.string().trim().min(2).max(12), amount_ttc: z.number().int().positive(), vat_rate: z.number().min(0).max(100).default(0),
+    ...siteFields,
   });
+  const siteOf = async data => {
+    const site = await lieux.resolvePlace(db, { project_id: data.project_id ?? null, worksite_id: data.worksite_id ?? null, place_id: data.place_id ?? null });
+    return { ...site, worksite_category: site.worksite_id ? data.worksite_category || 'materiaux' : null };
+  };
   const purchaseFields = async data => {
     const acc = await db('acc_accounts').where({ code: data.expense_account }).first();
     if (!acc || ![2, 6].includes(acc.class)) throw new HttpError(400, 'Imputez l’achat sur un compte de charge (classe 6) ou d’immobilisation (classe 2).');
     if (!(await db('suppliers').where({ id: data.supplier_id }).first())) throw new HttpError(404, 'Fournisseur introuvable.');
     const { ht, vat } = splitVat(data.amount_ttc, data.vat_rate);
     const { expense_account, ...rest } = data;
-    return { ...rest, expense_account_id: acc.id, amount_ht: ht, vat_amount: vat };
+    return { ...rest, ...(await siteOf(data)), expense_account_id: acc.id, amount_ht: ht, vat_amount: vat };
   };
 
   r.post('/purchases', requirePermission('achats:write'), ah(async (req, res) => {
@@ -304,8 +322,25 @@ module.exports = function comptaRoutes(db) {
     const inv = await db('purchase_invoices').where({ id: idParam(req) }).first();
     if (!inv) throw new HttpError(404, 'Facture introuvable.');
     if (inv.status !== 'brouillon') throw new HttpError(409, 'Facture validée : elle ne se modifie plus (contrepassez son écriture si besoin).');
-    const merged = { supplier_id: inv.supplier_id, date: isoDay(inv.date), label: inv.label, amount_ttc: Number(inv.amount_ttc), vat_rate: Number(inv.vat_rate), expense_account: (await db('acc_accounts').where({ id: inv.expense_account_id }).first()).code, ...parse(purchaseSchema.partial(), req.body) };
+    const merged = { supplier_id: inv.supplier_id, project_id: inv.project_id, worksite_id: inv.worksite_id, worksite_category: inv.worksite_category, place_id: inv.place_id, date: isoDay(inv.date), label: inv.label, amount_ttc: Number(inv.amount_ttc), vat_rate: Number(inv.vat_rate), expense_account: (await db('acc_accounts').where({ id: inv.expense_account_id }).first()).code, ...parse(purchaseSchema.partial(), req.body) };
     await db('purchase_invoices').where({ id: inv.id }).update({ ...(await purchaseFields(merged)), updated_at: new Date() });
+    res.json(await purchaseRow(await db('purchase_invoices').where({ id: inv.id }).first()));
+  }));
+
+  /**
+   * Chantier et poste d'une facture, même validée : le chantier ne change pas le programme de l'écriture, il doit
+   * donc appartenir au programme de la facture (une facture sans programme se corrige en brouillon).
+   */
+  r.patch('/purchases/:id/chantier', requirePermission('achats:write'), ah(async (req, res) => {
+    const inv = await db('purchase_invoices').where({ id: idParam(req) }).first();
+    if (!inv) throw new HttpError(404, 'Facture introuvable.');
+    const data = parse(z.object(siteFields), req.body);
+    const site = await require('../../services/chantiers').resolveSite(db, { project_id: inv.project_id, worksite_id: data.worksite_id ?? null });
+    if (site.worksite_id && !inv.project_id && inv.status !== 'brouillon') throw new HttpError(409, 'Facture validée sans programme : son chantier ne peut plus être indiqué.');
+    await db('purchase_invoices').where({ id: inv.id }).update({
+      worksite_id: site.worksite_id, worksite_category: site.worksite_id ? data.worksite_category || inv.worksite_category || 'materiaux' : null,
+      ...(inv.status === 'brouillon' && site.worksite_id ? { project_id: site.project_id, place_id: null } : {}), updated_at: new Date(),
+    });
     res.json(await purchaseRow(await db('purchase_invoices').where({ id: inv.id }).first()));
   }));
 

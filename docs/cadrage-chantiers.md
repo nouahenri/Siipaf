@@ -15,6 +15,17 @@
 | Coût de main-d'œuvre | **Les deux** : taux saisi s'il existe (journaliers, intérim), sinon calculé depuis le salaire de la fiche employé |
 | En plus dans la v1 | Travaux modificatifs acquéreurs (TMA) · Besoins en matériaux · Retards et dates promises · Tableau de bord Direction |
 
+### Lieux hors programmes (demande du client du 24/10, en cours du lot 2)
+
+| Sujet | Choix |
+|---|---|
+| Liste des lieux | Administrable dans **ERP › Administration générale › Lieux** |
+| Types | Siège social · Bureau annexe / agence · Dépôt / magasin · Autre (libellé libre) |
+| Qui modifie | Super administrateur, Comptabilité, Administration générale (droit `lieux:write`, par défaut comptable et responsable des exploitations) |
+| Où choisir « programme / chantier OU lieu » | Achats et fournisseurs (lieu par défaut de la fiche) · Parc et dépenses · Notes de frais et demandes internes · Pointages et contrats |
+| Comptabilité | **Axe analytique** : chaque écriture porte un programme (et un chantier) ou un lieu ; états par lieu |
+| Sans programme ni lieu | **Siège social par défaut** ; l'existant sans programme est repris sur le siège |
+
 ## 2. Modèle (une seule source par donnée)
 
 - **Chantier** (`worksites`, réf. `CH-AAAA-NNN`) : programme (`projects`), nom, zone (îlots, bâtiments ou lots couverts), conducteur de travaux (compte), statut (préparation, en cours, suspendu, réceptionné, clos), dates prévues et réelles.

@@ -6,6 +6,7 @@ import { useAuth, useResource, useToast, useSaved } from '@admin/lib/app-context
 import { Card, Empty, Skeleton, ErrorBox, Modal, Field, Badge } from '@admin/components/ui';
 import { date, fcfa } from '@admin/lib/format';
 import { RH, hours, hm, today, thisMonth, useRhMeta } from '../../lib/rh';
+import PlacePicker, { placeLabel, NO_PLACE } from '../../components/PlacePicker';
 
 /** Présences (référence : Odoo Présences) : qui est là, feuilles de chantier, corrections, heures supplémentaires. */
 export default function Attendance() {
@@ -37,7 +38,7 @@ function Today() {
   return (
     <div className="grid grid-3" style={{ alignItems: 'start' }}>
       <Card title={<span className="row" style={{ gap: 8 }}><UserCheck className="ico" />Présents ({t.data.present.length})</span>} bodyClass="">
-        <List rows={t.data.present} empty="Personne n’a pointé pour l’instant." render={a => <li key={a.id} className="list-row"><span><b>{a.employee_name}</b><div className="small muted">{a.project_name || 'Siège'} · {a.source}</div></span><span className="tabular small">depuis {hm(a.check_in)}</span></li>} />
+        <List rows={t.data.present} empty="Personne n’a pointé pour l’instant." render={a => <li key={a.id} className="list-row"><span><b>{a.employee_name}</b><div className="small muted">{placeLabel(a)} · {a.source}</div></span><span className="tabular small">depuis {hm(a.check_in)}</span></li>} />
       </Card>
       <Card title={<span className="row" style={{ gap: 8 }}><Clock3 className="ico" />Partis ({t.data.done.length})</span>} bodyClass="">
         <List rows={t.data.done} empty="Aucun départ pointé." render={a => <li key={a.id} className="list-row"><span><b>{a.employee_name}</b><div className="small muted">{hm(a.check_in)} → {hm(a.check_out)}</div></span><span className="tabular small">{hours(a.hours)}</span></li>} />
@@ -55,7 +56,7 @@ function Sheet() {
   const toast = useToast();
   const saved = useSaved();
   const [day, setDay] = useState(today());
-  const [project, setProject] = useState('');
+  const [site, setSite] = useState(NO_PLACE);
   const [dept, setDept] = useState('chantier');
   const [rows, setRows] = useState({});
   const [busy, setBusy] = useState(false);
@@ -67,16 +68,16 @@ function Sheet() {
     const list = people.filter(e => row(e.id).present).map(e => ({ employee_id: e.id, periods: [row(e.id).am, ...(row(e.id).pmOn ? [row(e.id).pm] : [])] }));
     if (!list.length) return toast('Cochez les présents.', 'err');
     setBusy(true);
-    try { const r = await api.post(`${RH}/attendance/sheet`, { date: day, project_id: Number(project) || null, rows: list }); saved(`${r.created} plage(s) enregistrée(s) pour ${list.length} personne(s)`); } catch (e) { toast(e.message, 'err'); } finally { setBusy(false); }
+    try { const r = await api.post(`${RH}/attendance/sheet`, { date: day, ...site, rows: list }); saved(`${r.created} plage(s) enregistrée(s) pour ${list.length} personne(s)`); } catch (e) { toast(e.message, 'err'); } finally { setBusy(false); }
   };
   return (
     <Card title="Feuille de présence" actions={<button className="btn btn-primary btn-sm" disabled={busy} onClick={save}><Save />Enregistrer la feuille</button>} bodyClass="">
       <div className="card-body row" style={{ gap: 10, borderBottom: '1px solid var(--border)' }}>
         <input className="input" type="date" style={{ width: 'auto' }} max={today()} value={day} onChange={e => setDay(e.target.value)} aria-label="Jour" />
-        <select className="select" style={{ width: 'auto' }} value={project} onChange={e => setProject(e.target.value)} aria-label="Chantier"><option value="">Siège</option>{meta?.projects.map(p => <option key={p.id} value={p.id}>{p.name}</option>)}</select>
+        <div style={{ maxWidth: 280 }}><PlacePicker value={site} onChange={setSite} empty="Siège social" ariaLabel="Lieu ou chantier" /></div>
         <select className="select" style={{ width: 'auto' }} value={dept} onChange={e => setDept(e.target.value)} aria-label="Service"><option value="">Tous les services</option>{meta && Object.entries(meta.departments).map(([k, v]) => <option key={k} value={k}>{v}</option>)}</select>
         <button className="btn btn-sm" onClick={() => setRows(Object.fromEntries(people.map(e => [e.id, { ...row(e.id), present: true }])))}><CheckCheck />Tous présents</button>
-        <span className="small muted">Enregistrer à nouveau remplace la feuille du jour pour ce chantier.</span>
+        <span className="small muted">Enregistrer à nouveau remplace la feuille du jour pour ce lieu ou ce chantier.</span>
       </div>
       {!people.length ? <div className="card-body"><Empty>Aucun employé dans ce service.</Empty></div> : (
         <div className="table-wrap"><table className="table">
@@ -129,7 +130,7 @@ function Records() {
               <tr key={a.id}>
                 <td><b>{a.employee_name}</b></td><td className="small nowrap">{date(a.check_in)}</td><td className="tabular">{hm(a.check_in)}</td>
                 <td className="tabular">{a.check_out ? hm(a.check_out) : <Badge tone="warn">en cours</Badge>}</td><td className="right tabular">{hours(a.hours)}</td>
-                <td className="small">{a.project_name || 'Siège'}{a.latitude != null && <a className="link" style={{ marginLeft: 6 }} href={`https://www.openstreetmap.org/?mlat=${a.latitude}&mlon=${a.longitude}#map=17/${a.latitude}/${a.longitude}`} target="_blank" rel="noreferrer">carte</a>}</td>
+                <td className="small">{placeLabel(a)}{a.latitude != null && <a className="link" style={{ marginLeft: 6 }} href={`https://www.openstreetmap.org/?mlat=${a.latitude}&mlon=${a.longitude}#map=17/${a.latitude}/${a.longitude}`} target="_blank" rel="noreferrer">carte</a>}</td>
                 <td className="small muted">{meta?.attendance_sources[a.source]}{a.note ? ` · ${a.note}` : ''}{a.created_by_name && a.source !== 'web' ? ` · ${a.created_by_name}` : ''}</td>
                 <td className="right nowrap">{editable && <><button className="btn btn-ghost btn-icon btn-sm" onClick={() => setEdit(a)} aria-label="Corriger"><Pencil /></button><button className="btn btn-ghost btn-icon btn-sm" onClick={() => del(a)} aria-label="Supprimer"><Trash2 /></button></>}</td>
               </tr>
@@ -146,12 +147,12 @@ const local = iso => (iso ? iso.slice(0, 16) : '');
 function ManualForm({ record, onClose, onSaved }) {
   const saved = useSaved();
   const { meta } = useRhMeta();
-  const [f, setF] = useState({ employee_id: record.employee_id || '', check_in: local(record.check_in) || `${today()}T07:30`, check_out: local(record.check_out), project_id: record.project_id || '', note: '' });
+  const [f, setF] = useState({ employee_id: record.employee_id || '', check_in: local(record.check_in) || `${today()}T07:30`, check_out: local(record.check_out), site: { project_id: record.project_id || null, worksite_id: record.worksite_id || null, place_id: record.place_id || null }, note: '' });
   const [error, setError] = useState(null);
   const set = k => e => setF(x => ({ ...x, [k]: e.target.value }));
   const save = async e => {
     e.preventDefault();
-    const body = { employee_id: Number(f.employee_id), check_in: `${f.check_in}:00Z`, check_out: f.check_out ? `${f.check_out}:00Z` : null, project_id: Number(f.project_id) || null, note: f.note };
+    const body = { employee_id: Number(f.employee_id), check_in: `${f.check_in}:00Z`, check_out: f.check_out ? `${f.check_out}:00Z` : null, ...f.site, note: f.note };
     try { await (record.id ? api.patch(`${RH}/attendance/${record.id}`, body) : api.post(`${RH}/attendance`, body)); saved("Pointage enregistré"); onSaved(); } catch (err) { setError(err); }
   };
   return (
@@ -161,7 +162,7 @@ function ManualForm({ record, onClose, onSaved }) {
         {!record.id && <Field label="Employé" className="full"><select className="select" required value={f.employee_id} onChange={set('employee_id')}><option value="">— Choisir —</option>{meta?.employees.map(e => <option key={e.id} value={e.id}>{e.last_name} {e.first_name}</option>)}</select></Field>}
         <Field label="Arrivée"><input className="input" type="datetime-local" required value={f.check_in} onChange={set('check_in')} /></Field>
         <Field label="Départ"><input className="input" type="datetime-local" value={f.check_out} onChange={set('check_out')} /></Field>
-        <Field label="Lieu" className="full"><select className="select" value={f.project_id} onChange={set('project_id')}><option value="">Siège</option>{meta?.projects.map(p => <option key={p.id} value={p.id}>{p.name}</option>)}</select></Field>
+        <Field label="Lieu ou chantier" className="full"><PlacePicker value={f.site} onChange={v => setF(x => ({ ...x, site: v }))} empty="Siège social" /></Field>
         <Field label="Motif de la correction" className="full" hint="Tracé avec votre nom : oubli de pointage, panne de la borne…"><input className="input" required minLength={3} value={f.note} onChange={set('note')} /></Field>
       </form>
     </Modal>
