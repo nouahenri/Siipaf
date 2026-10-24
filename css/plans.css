@@ -24,6 +24,8 @@
   .nav-sub a { padding: 10px 24px 10px 36px; font-size: .92rem; border-radius: 0; }
   .nav-sub a i { width: 26px; height: 26px; }
   .nav-caret { display: none; }
+  /* « Projets » aligné à gauche comme les autres entrées du menu (le bouton était centré) */
+  .nav-sub-toggle { display: block; width: 100%; text-align: left; }
 }
 
 /* ─── Liste des lotissements ────────────────────────────── */

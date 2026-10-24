@@ -201,10 +201,10 @@ function Journals({ meta, write, onChange }) {
   };
   return (
     <Card title="Journaux" bodyClass="" actions={write && <button className="btn btn-sm" onClick={() => setAdding(true)}><Plus />Journal</button>}>
-      <table className="table">
+      <div className="table-wrap"><table className="table">
         <thead><tr><th>Code</th><th>Journal</th><th>Compte</th></tr></thead>
         <tbody>{meta.journals.map(j => <tr key={j.id} style={{ opacity: j.active ? 1 : 0.5 }}><td className="tabular"><b>{j.code}</b></td><td className="small">{j.label}<div className="muted">{meta.journal_kinds[j.kind]}</div></td><td className="small tabular">{j.account_code || '—'}</td></tr>)}</tbody>
-      </table>
+      </table></div>
       <p className="small muted" style={{ padding: '10px 16px' }}>Les versements clients vont en banque (virement, chèque), en caisse (espèces) ou en Mobile Money selon le moyen de paiement saisi. Ajoutez un journal par compte bancaire supplémentaire (avec un sous-compte 521…).</p>
       {adding && (
         <Modal title="Nouveau journal" onClose={() => setAdding(false)} footer={<><button className="btn btn-ghost" onClick={() => setAdding(false)}>Annuler</button><button className="btn btn-primary" onClick={save}>Créer</button></>}>

@@ -216,6 +216,9 @@ details > summary { list-style-position: inside; }
 .kv:last-child { border-bottom: none; }
 .kv > span { color: var(--ink-3); flex-shrink: 0; }
 .kv > b { font-weight: 500; text-align: right; overflow-wrap: anywhere; }
+/* Petit écran : la valeur passe sous son libellé (alignée à droite) au lieu de dépasser */
+.kv { flex-wrap: wrap; column-gap: 16px; row-gap: 2px; }
+.kv > b { margin-left: auto; min-width: 0; }
 .type-dot { display: inline-block; width: 9px; height: 9px; border-radius: 3px; margin-right: 7px; vertical-align: 0; flex-shrink: 0; }
 .chip { display: inline-flex; align-items: center; gap: 6px; padding: 4px 6px 4px 10px; border-radius: 999px; background: var(--surface-2); border: 1px solid var(--border); font-size: 13px; }
 .chip button { border: none; background: none; padding: 2px; cursor: pointer; color: var(--ink-3); display: inline-grid; }

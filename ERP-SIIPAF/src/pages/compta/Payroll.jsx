@@ -192,7 +192,7 @@ function Payslip({ run, slip, onClose }) {
           <span><b>{e.name}</b> · {e.matricule}</span><span>{e.job_title} · {meta?.contract_types[e.contract_type] || e.contract_type}</span>
           <span>N° CNPS : {e.cnps_number || '—'}</span><span>Entrée : {date(e.hire_date)}</span><span>Parts fiscales : {r.parts}</span><span>Jours payés : {r.days_worked} / 30</span>
         </div>
-        <table className="table">
+        <div className="table-wrap"><table className="table">
           <thead><tr><th>Rubrique</th><th className="right">Base</th><th className="right">Taux</th><th className="right">Gain</th><th className="right">Retenue</th></tr></thead>
           <tbody>
             {r.lines.filter(l => l.kind === 'gain').map(l => <tr key={l.label}><td className="small">{l.label}</td><td /><td /><td className="right tabular small">{amt(l.amount)}</td><td /></tr>)}
@@ -203,7 +203,7 @@ function Payslip({ run, slip, onClose }) {
             {r.advance > 0 && <tr><td className="small">Avance sur salaire</td><td /><td /><td /><td className="right tabular small">{amt(r.advance)}</td></tr>}
           </tbody>
           <tfoot><tr><td colSpan={3}><b>Net à payer</b> ({meta?.pay_methods?.[e.pay_method] || e.pay_method})</td><td colSpan={2} className="right tabular"><b>{fcfa(r.net)}</b></td></tr></tfoot>
-        </table>
+        </table></div>
         <p className="small muted" style={{ marginTop: 10 }}>
           Charges patronales : CNPS retraite {amt(r.employer.pension, { zero: '0' })} · prestations familiales {amt(r.employer.family, { zero: '0' })} · maternité {amt(r.employer.maternity, { zero: '0' })} · accident du travail {amt(r.employer.accident, { zero: '0' })} · CMU {amt(r.employer.cmu, { zero: '0' })} · contribution employeur {amt(r.employer.salary_tax, { zero: '0' })} · taxe d’apprentissage {amt(r.employer.apprenticeship, { zero: '0' })} · formation continue {amt(r.employer.training, { zero: '0' })}. Coût employeur : <b>{fcfa(r.employer_cost)}</b>.
         </p>
@@ -221,17 +221,17 @@ function Declarations({ run, onClose }) {
       <div className="stack" style={{ gap: 14 }}>
         <div>
           <h3 className="erp-h3">CNPS (déclaration mensuelle)</h3>
-          <table className="table"><tbody>
+          <div className="table-wrap"><table className="table"><tbody>
             {row('Base retraite (plafonnée)', t.pension_base)}{row('Retraite — part salariale', t.cnps_employee)}{row('Retraite — part patronale', t.pension_employer)}
             {row('Base prestations familiales, maternité, AT (plafonnée)', t.small_base)}{row('Prestations familiales', t.family)}{row('Assurance maternité', t.maternity)}{row('Accidents du travail', t.accident)}
             {row('CMU (salarié + employeur)', t.cmu_employee + t.cmu_employer)}
-          </tbody><tfoot><tr><td><b>Total à reverser à la CNPS</b></td><td className="right tabular"><b>{fcfa(t.cnps_employee + t.cmu_employee + t.employer_social)}</b></td></tr></tfoot></table>
+          </tbody><tfoot><tr><td><b>Total à reverser à la CNPS</b></td><td className="right tabular"><b>{fcfa(t.cnps_employee + t.cmu_employee + t.employer_social)}</b></td></tr></tfoot></table></div>
         </div>
         <div>
           <h3 className="erp-h3">DGI (impôts sur salaires)</h3>
-          <table className="table"><tbody>
+          <div className="table-wrap"><table className="table"><tbody>
             {row('Brut imposable', t.taxable)}{row('ITS retenu à la source', t.its)}{row('Contribution employeur', t.salary_tax)}{row('Taxe d’apprentissage (FDFP)', t.apprenticeship)}{row('Formation professionnelle continue (FDFP)', t.training)}
-          </tbody><tfoot><tr><td><b>Total à reverser</b></td><td className="right tabular"><b>{fcfa(t.its + t.employer_taxes)}</b></td></tr></tfoot></table>
+          </tbody><tfoot><tr><td><b>Total à reverser</b></td><td className="right tabular"><b>{fcfa(t.its + t.employer_taxes)}</b></td></tr></tfoot></table></div>
         </div>
         <p className="small muted">Récapitulatifs d’aide à la déclaration : les formulaires officiels (e-CNPS, e-impôts) restent à remplir par le comptable.</p>
       </div>
@@ -278,7 +278,7 @@ function Scale() {
         </Card>
         <Card title="ITS et taxes patronales">
           <div className="stack" style={{ gap: 12 }}>
-            <table className="table">
+            <div className="table-wrap"><table className="table">
               <thead><tr><th>Jusqu’à (FCFA / mois)</th><th>Taux</th></tr></thead>
               <tbody>{s.its_brackets.map(([c, r], i) => (
                 <tr key={i}>
@@ -286,7 +286,7 @@ function Scale() {
                   <td style={{ width: 110 }}><input className="input tabular" type="number" min="0" max="100" step="0.5" value={r} onChange={e => setS(x => ({ ...x, its_brackets: x.its_brackets.map((b, j) => (j === i ? [b[0], e.target.value] : b)) }))} aria-label="Taux de la tranche" /></td>
                 </tr>
               ))}</tbody>
-            </table>
+            </table></div>
             <div className="form-grid">
               {F('Réduction par demi-part (FCFA)', 'ricf_per_half_part')}{F('Parts maximum', 'max_parts')}
               {F('Contribution employeur — nationaux (%)', 'employer_tax_local')}{F('Contribution employeur — expatriés (%)', 'employer_tax_expat')}

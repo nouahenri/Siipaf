@@ -288,14 +288,15 @@ table.table { width: 100%; border-collapse: collapse; }
   .sidebar { position: fixed; left: 0; z-index: 52; width: var(--sidebar); transform: translateX(-100%); transition: transform .25s; }
   .sidebar.open { transform: none; box-shadow: var(--shadow-lg); }
   .menu-btn { display: inline-flex; }
-  .grid-3, .grid-2, .edit-grid { grid-template-columns: 1fr; }
+  /* minmax(0, 1fr) : une colonne « 1fr » s'élargissait au contenu le plus long (page plus large que l'écran) */
+  .grid-3, .grid-2, .edit-grid { grid-template-columns: minmax(0, 1fr); }
   .login { grid-template-columns: 1fr; }
   .login-art { display: none; }
 }
 @media (max-width: 640px) {
   .content { padding: 16px; }
   .topbar { padding: 0 16px; }
-  .grid-4 { grid-template-columns: 1fr 1fr; gap: 12px; }
+  .grid-4 { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; }
   .form-grid { grid-template-columns: 1fr; }
   .user-chip > div { display: none; }
   .slide-row { grid-template-columns: 1fr; }
@@ -307,6 +308,16 @@ table.table { width: 100%; border-collapse: collapse; }
 fieldset { min-width: 0; }
 .tabs { scrollbar-width: none; }
 .tabs::-webkit-scrollbar { display: none; }
+/* Téléphone : onglets, boutons segmentés et listes déroulantes restent dans la largeur de l'écran
+   (ils défilent ou se réduisent au lieu d'élargir la page) */
+.tabs { max-width: 100%; }
+.seg { max-width: 100%; overflow-x: auto; scrollbar-width: none; }
+.seg::-webkit-scrollbar { display: none; }
+.seg button { flex-shrink: 0; white-space: nowrap; }
+.select { max-width: 100%; min-width: 0; }
+.row > *, .row-between > * { max-width: 100%; min-width: 0; }
+.card-head { min-width: 0; flex-wrap: wrap; }
+.card-head h2 { min-width: 0; }
 @media (max-width: 640px) {
   .slide-row .slide-thumb { max-width: 220px; }
 }

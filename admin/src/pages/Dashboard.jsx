@@ -196,7 +196,7 @@ export default function Dashboard() {
             {upcoming.loading ? <div className="card-body"><Skeleton h={60} /></div>
               : !upcoming.data?.length ? <Empty icon={CalendarDays}>Aucun rendez-vous prévu.</Empty>
               : (
-                <table className="table"><tbody>
+                <div className="table-wrap"><table className="table"><tbody>
                   {upcoming.data.slice(0, 6).map(a => (
                     <tr key={a.id}>
                       <td className="nowrap"><strong>{dateTime(a.starts_at)}</strong><div className="small muted">{relative(a.starts_at)}</div></td>
@@ -204,7 +204,7 @@ export default function Dashboard() {
                       <td className="right"><Badge tone={APPT_STATUS[a.status].tone}>{APPT_STATUS[a.status].label}</Badge></td>
                     </tr>
                   ))}
-                </tbody></table>
+                </tbody></table></div>
               )}
           </Card>
         )}
@@ -218,7 +218,7 @@ export default function Dashboard() {
             {leads.loading ? <div className="card-body"><Skeleton h={60} /></div>
               : !leads.data?.rows.length ? <Empty icon={Users}>Aucun prospect pour l’instant.</Empty>
               : (
-                <table className="table"><tbody>
+                <div className="table-wrap"><table className="table"><tbody>
                   {leads.data.rows.map(l => (
                     <tr key={l.id}>
                       <td><strong>{l.name}</strong><div className="small muted">{l.phone || l.email}</div></td>
@@ -226,7 +226,7 @@ export default function Dashboard() {
                       <td className="right"><Badge>{stageLabel(l.stage)}</Badge></td>
                     </tr>
                   ))}
-                </tbody></table>
+                </tbody></table></div>
               )}
           </Card>
         )}

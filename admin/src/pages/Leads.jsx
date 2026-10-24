@@ -357,16 +357,16 @@ function LeadDrawer({ id, onClose, onSaved, projects }) {
               </dl>
               {d.options.length > 0 && (
                 <Card title="Options sur lots" bodyClass="">
-                  <table className="table"><tbody>{d.options.map(o => (
+                  <div className="table-wrap"><table className="table"><tbody>{d.options.map(o => (
                     <tr key={o.id}><td>Lot {o.lot_code}</td><td><Badge tone={o.state === 'active' ? 'warn' : o.state === 'confirmee' ? 'ok' : ''}>{o.state}</Badge></td><td className="small muted right">expire {dateTime(o.expires_at)}</td></tr>
-                  ))}</tbody></table>
+                  ))}</tbody></table></div>
                 </Card>
               )}
               {d.appointments.length > 0 && (
                 <Card title="Rendez-vous" bodyClass="">
-                  <table className="table"><tbody>{d.appointments.map(a => (
+                  <div className="table-wrap"><table className="table"><tbody>{d.appointments.map(a => (
                     <tr key={a.id}><td className="nowrap">{dateTime(a.starts_at)}</td><td>{APPT_KINDS[a.kind]}</td><td className="right"><Badge tone={APPT_STATUS[a.status].tone}>{APPT_STATUS[a.status].label}</Badge></td></tr>
-                  ))}</tbody></table>
+                  ))}</tbody></table></div>
                 </Card>
               )}
               {d.messages.length > 0 && (

@@ -143,14 +143,14 @@ function Overview({ d, sale, onOpened, onSaleChange, onLotChanged, onDeleted }) 
           </Card>
 
           <Card title={`Dossier administratif — ${docsDone}/${sale.documents.length} finalisés`} bodyClass="">
-            <table className="table"><tbody>
+            <div className="table-wrap"><table className="table"><tbody>
               {sale.documents.map(doc => (
                 <tr key={doc.id}>
                   <td>{doc.label}{doc.note && <div className="small muted">{doc.note}</div>}</td>
                   <td className="right"><Badge tone={DOC_STATUS[doc.status].tone} dot>{DOC_STATUS[doc.status].label}</Badge></td>
                 </tr>
               ))}
-            </tbody></table>
+            </tbody></table></div>
           </Card>
         </>
       ) : (
@@ -268,7 +268,7 @@ function Payments({ sale, onChange }) {
       )}
       <Card title="Historique des versements" bodyClass="">
         {!sale.payments.length ? <Empty>Aucun versement enregistré.</Empty> : (
-          <table className="table"><tbody>
+          <div className="table-wrap"><table className="table"><tbody>
             {sale.payments.map(p => (
               <tr key={p.id}>
                 <td className="nowrap">{date(p.paid_at)}</td>
@@ -277,7 +277,7 @@ function Payments({ sale, onChange }) {
                 {can('payments:write') && <td style={{ width: 40 }}><button className="btn btn-sm btn-ghost btn-icon btn-danger" onClick={() => remove(p)} aria-label="Supprimer le versement"><Trash2 /></button></td>}
               </tr>
             ))}
-          </tbody></table>
+          </tbody></table></div>
         )}
       </Card>
     </div>
@@ -304,7 +304,7 @@ function Documents({ sale, onChange }) {
     <div className="stack">
       <p className="small muted">Les documents marqués « visible client » apparaîtront dans l’espace client de l’acquéreur.</p>
       <Card title="Pièces du dossier" bodyClass="" actions={editable && <button className="btn btn-sm" onClick={addDoc}><Plus />Ajouter</button>}>
-        <table className="table"><tbody>
+        <div className="table-wrap"><table className="table"><tbody>
           {sale.documents.map(doc => (
             <tr key={doc.id}>
               <td>
@@ -329,7 +329,7 @@ function Documents({ sale, onChange }) {
               </td>
             </tr>
           ))}
-        </tbody></table>
+        </tbody></table></div>
       </Card>
       {picker && <MediaPicker type="" selectedId={picker.media_id} onPick={m => patch(picker, { media_id: m.id })} onClose={() => setPicker(null)} />}
     </div>

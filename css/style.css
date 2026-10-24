@@ -1444,6 +1444,9 @@ button {
 }
 
 .pricing-table-wrap {
+  /* position : garde dans le cadre défilant le libellé caché (.sr-only, en absolu) de la dernière colonne ;
+     sans elle il dépassait et élargissait toute la page sur téléphone */
+  position: relative;
   overflow-x: auto;
   border-radius: var(--radius-sm);
   box-shadow: var(--shadow);
@@ -2730,12 +2733,30 @@ button {
     align-items: center;
   }
 
+  /* Deux colonnes : sur une seule, les quatre chiffres prenaient plus d'un écran */
   .counters-grid {
-    grid-template-columns: 1fr;
+    grid-template-columns: repeat(2, 1fr);
+    gap: 28px 12px;
+  }
+
+  .counter-item i {
+    font-size: 1.8rem;
+    margin-bottom: 10px;
+  }
+
+  .counter-num {
+    font-size: 2.4rem;
   }
 
   .contact-form-wrap {
     padding: 24px;
+  }
+
+  /* Un bouton au libellé long passe à la ligne au lieu de sortir de l'écran (ex. « Obtenir l'itinéraire (Google Maps) ») */
+  .btn {
+    max-width: 100%;
+    white-space: normal;
+    text-align: center;
   }
 }
 

@@ -99,6 +99,10 @@ main.page { flex: 1; width: 100%; max-width: var(--max); margin: 0 auto; padding
   font-size: 10.5px; font-weight: 500; color: var(--ink-3); border-radius: 12px; transition: color .15s;
 }
 .tab svg { width: 22px; height: 22px; stroke-width: 1.7; }
+/* Petits téléphones : chaque libellé reste dans sa case (à 320 px, « Paiements » et « Documents » se chevauchaient) */
+.tab { min-width: 0; }
+.tab > span { max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+@media (max-width: 360px) { .tabbar { padding-left: 2px; padding-right: 2px; } .tab { font-size: 9px; letter-spacing: -.2px; } .tab svg { width: 20px; height: 20px; } }
 .tab.active { color: var(--ink); }
 .tab.active::before {
   content: ''; position: absolute; top: 2px; width: 22px; height: 3px; border-radius: 3px; background: var(--brand);
@@ -180,6 +184,8 @@ main.page { flex: 1; width: 100%; max-width: var(--max); margin: 0 auto; padding
 }
 .input:focus { outline: none; border-color: var(--ink); box-shadow: 0 0 0 4px rgba(26, 23, 20, .08); }
 .input.code { text-transform: uppercase; letter-spacing: .08em; font-weight: 500; }
+/* L'exemple (code ou téléphone) reste lisible en entier sur téléphone : ni majuscules ni espacement */
+.input.code::placeholder { text-transform: none; letter-spacing: 0; font-weight: 400; }
 .input-wrap .input { padding-right: 52px; }
 .input-action { position: absolute; right: 6px; top: 6px; width: 40px; height: 40px; border-radius: 10px; display: grid; place-items: center; color: var(--ink-3); }
 .input-action:hover { color: var(--ink); background: var(--paper); }

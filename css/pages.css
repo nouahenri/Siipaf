@@ -806,8 +806,11 @@ body.page-inner #navbar {
 @media (max-width: 600px) {
   .agr-grid { grid-template-columns: 1fr; }
   .values-grid { grid-template-columns: 1fr; }
-  .ap-id-stats { flex-direction: column; gap: 20px; }
-  .ap-id-stat-sep { width: 40px; height: 1px; }
+  /* Les trois chiffres restent sur une ligne (empilés, ils occupaient tout un écran) */
+  .ap-id-stats { padding: 18px 12px; }
+  .ap-id-stat-num { font-size: 1.7rem; }
+  .ap-id-stat-label { font-size: 0.68rem; letter-spacing: 0; }
+  .ap-id-stat-sep { margin: 0 4px; }
   .act-tl-item { grid-template-columns: 48px 1fr; }
   .act-tl-num { width: 40px; height: 40px; font-size: 0.8rem; }
   .act-tl-body { padding-left: 20px; }

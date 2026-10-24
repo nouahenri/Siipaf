@@ -116,26 +116,26 @@ function Statements({ q }) {
   return (
     <div className="grid grid-2" style={{ alignItems: 'start' }}>
       <Card title="Compte de résultat" bodyClass="">
-        <table className="table">
+        <div className="table-wrap"><table className="table">
           <tbody>
             {d.income.map(g => (
               <tr key={g.key}><td className="small">{g.sign === 1 ? '+ ' : '− '}{g.label}</td><td className="right tabular small">{signed(g.value)}</td></tr>
             ))}
           </tbody>
           <tfoot><tr><td><b>Résultat net</b></td><td className="right tabular" style={{ color: d.result >= 0 ? 'var(--ok)' : 'var(--danger)' }}><b>{signed(d.result)}</b></td></tr></tfoot>
-        </table>
+        </table></div>
       </Card>
       <Card title="Bilan (présentation simplifiée)" bodyClass="">
-        <table className="table">
+        <div className="table-wrap"><table className="table">
           <thead><tr><th>Actif</th><th className="right">Montant</th></tr></thead>
           <tbody>{d.actif.map(g => <tr key={g.key}><td className="small">{g.label}</td><td className="right tabular small">{signed(g.value)}</td></tr>)}</tbody>
           <tfoot><tr><td><b>Total actif</b></td><td className="right tabular"><b>{amt(d.total_actif, { zero: '0' })}</b></td></tr></tfoot>
-        </table>
-        <table className="table">
+        </table></div>
+        <div className="table-wrap"><table className="table">
           <thead><tr><th>Passif</th><th className="right">Montant</th></tr></thead>
           <tbody>{d.passif.map(g => <tr key={g.key}><td className="small">{g.label}</td><td className="right tabular small">{signed(g.value)}</td></tr>)}</tbody>
           <tfoot><tr><td><b>Total passif</b></td><td className="right tabular"><b>{amt(d.total_passif, { zero: '0' })}</b></td></tr></tfoot>
-        </table>
+        </table></div>
         <p className="small muted" style={{ padding: '10px 16px' }}>Regroupements indicatifs : les états financiers officiels SYSCOHADA (et la DSF) sont à établir avec le comptable à partir de la balance.</p>
       </Card>
     </div>
@@ -148,10 +148,10 @@ function Vat({ q }) {
   return (
     <Card bodyClass="" title="TVA par mois">
       {!data.data ? <div className="card-body"><Skeleton h={160} /></div> : !rows.length ? <div className="card-body"><Empty>Aucune TVA sur la période.</Empty></div> : (
-        <table className="table">
+        <div className="table-wrap"><table className="table">
           <thead><tr><th>Mois</th><th className="right">Collectée (443)</th><th className="right">Récupérable (445)</th><th className="right">À payer / (crédit)</th></tr></thead>
           <tbody>{rows.map(m => <tr key={m.month}><td className="small" style={{ textTransform: 'capitalize' }}>{monthLabel(m.month)}</td><td className="right tabular small">{amt(m.collected, { zero: '0' })}</td><td className="right tabular small">{amt(m.deductible, { zero: '0' })}</td><td className="right tabular small"><b>{signed(m.due)}</b></td></tr>)}</tbody>
-        </table>
+        </table></div>
       )}
     </Card>
   );
@@ -163,10 +163,10 @@ function Margins({ q }) {
   return (
     <Card bodyClass="" title="Marge par programme (comptabilité analytique)">
       {!data.data ? <div className="card-body"><Skeleton h={160} /></div> : !rows.length ? <div className="card-body"><Empty>Aucun produit ni charge sur la période.</Empty></div> : (
-        <table className="table">
+        <div className="table-wrap"><table className="table">
           <thead><tr><th>Programme</th><th className="right">Produits (classe 7)</th><th className="right">Charges (classe 6)</th><th className="right">Marge</th><th className="right">Taux</th><th>Avancement chantier</th></tr></thead>
           <tbody>{rows.map(m => <tr key={m.project_id || 0}><td className="small">{m.name}</td><td className="right tabular small">{amt(m.produits, { zero: '0' })}</td><td className="right tabular small">{amt(m.charges, { zero: '0' })}</td><td className="right tabular small"><b>{signed(m.marge)}</b></td><td className="right tabular small">{m.taux == null ? '—' : `${m.taux} %`}</td><td>{m.progress_pct == null ? <span className="muted">—</span> : <Advance value={m.progress_pct} />}</td></tr>)}</tbody>
-        </table>
+        </table></div>
       )}
       <p className="small muted" style={{ padding: '10px 16px' }}>Les ventes et appels de fonds sont affectés au programme du lot ; les achats, au programme choisi sur la facture. Les charges non affectées apparaissent en frais généraux.</p>
     </Card>
@@ -185,14 +185,14 @@ function Partners({ q }) {
       </div>
     )}>
       {!data.data ? <div className="card-body"><Skeleton h={160} /></div> : !rows.length ? <div className="card-body"><Empty>Aucun solde.</Empty></div> : (
-        <table className="table">
+        <div className="table-wrap"><table className="table">
           <thead><tr><th>{kind === 'client' ? 'Client' : 'Fournisseur'}</th><th className="right">Débit</th><th className="right">Crédit</th><th className="right">Solde</th>{kind === 'client' && <th>Avancement</th>}</tr></thead>
           <tbody>{rows.map(r => (
             <tr key={r.partner_id}><td className="small">{r.name}</td><td className="right tabular small">{amt(r.debit)}</td><td className="right tabular small">{amt(r.credit)}</td>
               <td className="right tabular small"><b>{signed(r.balance)}</b><div className="muted">{kind === 'client' ? (r.balance > 0 ? 'nous doit' : 'avance reçue') : (r.balance < 0 ? 'nous lui devons' : 'avance versée')}</div></td>
               {kind === 'client' && <td>{r.progress_pct == null ? <span className="muted">—</span> : <Advance value={r.progress_pct} />}</td>}</tr>
           ))}</tbody>
-        </table>
+        </table></div>
       )}
     </Card>
   );
