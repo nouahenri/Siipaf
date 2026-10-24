@@ -161,7 +161,8 @@ function SectionCard({ section: s, index, ctx, open, onToggle, onOpenTab }) {
   const hidden = ctx.hidden.includes(s.key);
   const changed = countBlocks(s.blocks, ctx.texts, ctx.hidden);
   return (
-    <div className={`card editorial-section${hidden ? ' is-hidden' : ''}`}>
+    // Classe fixe : l'apparition des cartes (classe « in » posée par script) ne doit pas être effacée au décochage
+    <div className="card editorial-section" data-masked={hidden || undefined}>
       <div className="card-head editorial-head">
         <button type="button" className="editorial-toggle" onClick={onToggle} aria-expanded={open}>
           {open ? <ChevronDown /> : <ChevronRight />}
