@@ -40,6 +40,8 @@ const needSchema = z.object({
   label: z.string().trim().min(2).max(200), quantity: z.number().positive().max(1e9), unit: z.string().trim().min(1).max(30),
   needed_on: day.nullable().optional(), phase_id: z.number().int().positive().nullable().optional(), supplier_id: z.number().int().positive().nullable().optional(),
   estimate_fcfa: z.number().int().min(0).nullable().optional(), note: z.string().trim().max(1000).nullable().optional(),
+  // Article du catalogue Achats & stocks (désignation et unité reprises) ; absent : besoin « hors catalogue »
+  article_id: z.number().int().positive().nullable().optional(),
 });
 const handoverSchema = z.object({
   handed_on: day, client_signed: z.preprocess(v => !(v === false || v === 'false' || v === '0'), z.boolean()).optional(),

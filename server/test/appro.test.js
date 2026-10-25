@@ -35,7 +35,7 @@ before(async () => {
   depot = ok(await conducteur.post(`${A}/locations`).send({ place_id: pid }), 201);
   chantier = ok(await conducteur.post(`${A}/locations`).send({ worksite_id: worksite.id }), 201);
   unit = (await db('worksite_ref_items').where({ kind: 'unite', active: true }).first()).code;
-  article = ok(await conducteur.post(`${A}/articles`).send({ code: 'CIM-TEST', label: 'Ciment test', unit, min_quantity: 2 }), 201);
+  article = ok(await comptable.post(`${A}/articles`).send({ code: 'CIM-TEST', label: 'Ciment test', unit, min_quantity: 2 }), 201);
 });
 after(async () => { if (db) await db.destroy(); });
 
@@ -56,8 +56,8 @@ test('catalogue et emplacements : mêmes sources, unité utilisée figée, aller
   const refs = ok(await admin.get(`${A}/refs`)); assert.ok(refs.suppliers.some(s => s.id === supplier.id));
   assert.equal((await conducteur.post(`${A}/locations`).send({ worksite_id: worksite.id })).status, 409);
   assert.equal((await conducteur.post(`${A}/locations`).send({ worksite_id: worksite.id, place_id: depot.place_id })).status, 400);
-  assert.equal((await conducteur.post(`${A}/articles`).send({ code: 'BAD', label: 'Mauvaise unité', unit: 'absente' })).status, 400);
-  const updated = ok(await conducteur.put(`${A}/articles/${article.id}`).send({ code: article.code, label: 'Ciment test', unit, min_quantity: 2.25, active: true })); assert.equal(updated.min_quantity, 2.25);
+  assert.equal((await comptable.post(`${A}/articles`).send({ code: 'BAD', label: 'Mauvaise unité', unit: 'absente' })).status, 400);
+  const updated = ok(await comptable.put(`${A}/articles/${article.id}`).send({ code: article.code, label: 'Ciment test', unit, min_quantity: 2.25, active: true })); assert.equal(updated.min_quantity, 2.25);
   assert.equal(ok(await conducteur.get(`${A}/articles`)).find(a => a.id === article.id).min_quantity, 2.25);
 });
 test('annuler un devis ne clôture pas la notification d’une commande portant le même identifiant', async () => {
@@ -193,9 +193,9 @@ test('brouillon supprimé en Comptabilité : réception libérée ; référence 
 test('article déjà utilisé : refus de changement d’unité, conservation d’une unité désactivée', async () => {
   const other = await db('worksite_ref_items').where({ kind: 'unite' }).whereNot({ code: unit }).first();
   const body = { code: article.code, label: 'Ciment test', unit, min_quantity: 2.25, active: true };
-  assert.equal((await conducteur.put(`${A}/articles/${article.id}`).send({ ...body, unit: other.code })).status, 409);
+  assert.equal((await comptable.put(`${A}/articles/${article.id}`).send({ ...body, unit: other.code })).status, 409);
   await db('worksite_ref_items').where({ kind: 'unite', code: unit }).update({ active: false });
-  assert.equal(ok(await conducteur.put(`${A}/articles/${article.id}`).send(body)).unit, unit);
+  assert.equal(ok(await comptable.put(`${A}/articles/${article.id}`).send(body)).unit, unit);
   await db('worksite_ref_items').where({ kind: 'unite', code: unit }).update({ active: true });
 });
 
@@ -265,4 +265,53 @@ test('émetteur choisi parmi les comptes habilités ; super administrateur seul 
   assert.equal(own.issuer_id, ids.super_admin, 'émetteur par défaut : compte connecté');
   assert.equal(ok(await admin.post(`${A}/orders/${own.id}/submit`)).status, 'attente_direction');
   const done = ok(await admin.post(`${A}/orders/${own.id}/approve`)); assert.equal(done.status, 'confirmee'); assert.equal(done.approved_by_name, done.issuer_name);
+});
+test('préparer la commande d’un besoin : emplacement du chantier, article du catalogue, prix estimé, fournisseur et note repris', async () => {
+  const n = ok(await conducteur.post(`${CH}/${worksite.id}/besoins`).send({ label: '  ciment TEST ', quantity: 4, unit, estimate_fcfa: 10000, supplier_id: supplier.id, needed_on: date, note: 'Dalle du bloc B' }), 201);
+  assert.equal((await lecteur.post(`${A}/needs/${n.id}/prepare`)).status, 403, 'préparer les achats requis');
+  let p = ok(await conducteur.post(`${A}/needs/${n.id}/prepare`));
+  assert.deepEqual([p.location_id, p.article_id, p.suggestion, p.unit_price_fcfa, p.supplier_id, p.needed_on], [chantier.id, article.id, null, 2500, supplier.id, date], 'même désignation (casse, espaces) et même unité');
+  assert.ok(p.note.includes('Dalle du bloc B') && p.note.includes(worksite.reference));
+  // Chantier sans emplacement de stock : créé une seule fois ; article absent : code proposé
+  const project = await db('projects').where({ slug: 'ahoutoue' }).first();
+  const other = ok(await conducteur.post(CH).send({ project_id: project.id, name: 'Chantier sans stock', zone_kind: 'programme', manager_id: ids.conducteur_travaux }), 201);
+  const m = ok(await conducteur.post(`${CH}/${other.id}/besoins`).send({ label: 'Pointe de 10', quantity: 20, unit }), 201);
+  p = ok(await conducteur.post(`${A}/needs/${m.id}/prepare`));
+  const loc = await db('appro_locations').where({ worksite_id: other.id }).first();
+  assert.equal(p.location_id, loc.id); assert.equal(p.article_id, null); assert.equal(p.unit_price_fcfa, null);
+  assert.deepEqual(p.suggestion, { code: 'POINTE-DE-10', label: 'Pointe de 10', unit });
+  assert.equal(ok(await conducteur.post(`${A}/needs/${m.id}/prepare`)).location_id, loc.id, 'pas de second emplacement');
+  const created = ok(await comptable.post(`${A}/articles`).send({ ...p.suggestion, min_quantity: 0, active: true }), 201);
+  assert.equal(ok(await conducteur.post(`${A}/needs/${m.id}/prepare`)).article_id, created.id);
+  const o = await newOrder(conducteur, { supplier_id: supplier.id, location_id: loc.id, date, vat_rate: 18, lines: [{ article_id: created.id, quantity: 20, unit_price_fcfa: 50, need_id: m.id }] });
+  assert.equal(o.lines[0].need_id, m.id);
+  assert.equal((await conducteur.post(`${A}/needs/${m.id}/prepare`)).status, 200, 'préparation relançable tant que le bon n’est pas validé');
+});
+test('catalogue : géré par le privilège dédié ; besoin chantier choisi dans le catalogue ou hors catalogue puis rattaché', async () => {
+  assert.equal((await conducteur.post(`${A}/articles`).send({ code: 'COND-1', label: 'Essai conducteur', unit })).status, 403, 'le conducteur consulte le catalogue sans le gérer');
+  const buyer = await login(app, await createUser(db, 'resp_achats'), 'motdepasse-test-123');
+  const sable = ok(await buyer.post(`${A}/articles`).send({ code: 'SAB-01', label: 'Sable lagunaire', unit, min_quantity: 0 }), 201);
+  assert.ok(ok(await conducteur.get(`${CH}/refs`)).articles.some(a => a.id === sable.id), 'catalogue proposé au chantier');
+  const n = ok(await conducteur.post(`${CH}/${worksite.id}/besoins`).send({ label: 'texte ignoré', quantity: 3, unit: 'autre', article_id: sable.id }), 201);
+  assert.deepEqual([n.label, n.unit, n.article_id, n.off_catalog], ['Sable lagunaire', unit, sable.id, false], 'désignation et unité du catalogue');
+  assert.equal(ok(await conducteur.post(`${A}/needs/${n.id}/prepare`)).article_id, sable.id);
+  assert.equal((await conducteur.post(`${A}/orders`).send(orderData([{ ...line(3), need_id: n.id }]))).status, 400, 'l’article choisi par le chantier s’impose');
+  ok(await conducteur.post(`${A}/needs/${n.id}/refuse`).send({ reason: 'Essai' }));
+  const free = ok(await conducteur.post(`${CH}/${worksite.id}/besoins`).send({ label: 'Clous spéciaux', quantity: 2, unit }), 201);
+  assert.equal(free.off_catalog, true);
+  await newOrder(conducteur, orderData([{ ...line(2), need_id: free.id }]));
+  assert.equal((await db('worksite_needs').where({ id: free.id }).first()).article_id, article.id, 'besoin hors catalogue rattaché à l’article commandé');
+});
+test('import CSV du catalogue : séparateur « ; », virgule décimale, mise à jour par code, tout ou rien avec lignes fautives signalées', async () => {
+  const label = (await db('worksite_ref_items').where({ kind: 'unite', code: unit }).first()).label;
+  assert.equal((await conducteur.post(`${A}/articles/import`).send({ csv: 'code;désignation;unité\nX;Y;' + unit })).status, 403);
+  let r = ok(await comptable.post(`${A}/articles/import`).send({ csv: `﻿Code;Désignation;Unité;Seuil\nPARP-15;Parpaing de 15;${label};12,5\nPARP-15;Doublon;${unit};\nBAD;Article;inconnue;1\n` }));
+  assert.equal(r.ok, false); assert.deepEqual(r.errors.map(e => e.line), [3, 4]);
+  assert.equal(await db('appro_articles').where({ code: 'PARP-15' }).first(), undefined, 'rien n’est enregistré en cas d’erreur');
+  r = ok(await comptable.post(`${A}/articles/import`).send({ csv: `code,désignation,unité,seuil\nPARP-15,"Parpaing de 15, creux",${unit},"12,5"\n${article.code},Ciment test importé,${unit},3\n` }));
+  assert.deepEqual([r.ok, r.created, r.updated], [true, 1, 1]);
+  const parp = await db('appro_articles').where({ code: 'PARP-15' }).first();
+  assert.deepEqual([parp.label, Number(parp.min_units)], ['Parpaing de 15, creux', 1250]);
+  assert.equal((await db('appro_articles').where({ id: article.id }).first()).label, 'Ciment test importé');
+  assert.equal(ok(await comptable.post(`${A}/articles/import`).send({ csv: 'nom;prix\nA;1' })).errors[0].line, 1, 'en-tête contrôlé');
 });

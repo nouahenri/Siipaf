@@ -388,13 +388,13 @@ const PERMISSIONS = {
     'chantiers:read', 'chantiers:write', ...SELF_SERVICE,
   ],
   comptable: [
-    ...APPRO_ACTIONS,
+    ...APPRO_ACTIONS, 'appro:articles',
     'projects:read', 'lots:read', 'leads:read', 'appointments:read', 'sales:read', 'payments:write',
     'schedule:write', 'client_messages', 'commercial:read', 'leads:all', 'compta:read', ...COMPTA_ACTIONS,
     'rh:read', ...RH_ACTIONS, 'presence:write', 'paie:read', ...PAIE_ACTIONS, 'contrats:read', 'parc:read', 'chantiers:read', 'lieux:write', ...SELF_SERVICE,
   ],
   resp_exploitation: [
-    ...APPRO_ACTIONS, 'appro:direction',
+    ...APPRO_ACTIONS, 'appro:direction', 'appro:articles',
     'projects:read', 'projects:write', 'plans:write', 'lots:read', 'lots:status', 'leads:read', 'leads:delete',
     'appointments:read', 'contacts:read', 'users:read', 'newsletter:read',
     'sales:read', 'sales:write', 'documents:write', 'testimonials:write',
@@ -442,7 +442,8 @@ const PERMISSION_CATALOG = [
   ] },
   { group: 'ERP · Achats & stocks', items: [
     ['appro:read', 'Consulter les achats et stocks', 'Besoins, demandes de prix, commandes, réceptions et stocks par emplacement'],
-    ['appro:write', 'Préparer les achats', 'Articles, emplacements, demandes de prix et bons de commande'],
+    ['appro:write', 'Préparer les achats', 'Emplacements, demandes de prix et bons de commande ; traiter les besoins des chantiers'],
+    ['appro:articles', 'Gérer le catalogue des articles', 'Créer, modifier, désactiver et importer (CSV) les articles ; rattacher un besoin hors catalogue'],
     ['appro:validate', 'Valider les commandes', 'Peut être désigné validateur des commandes sous le plafond (jamais de ses propres commandes)'],
     ['appro:direction', 'Valider à partir du plafond', 'Validation ou refus des commandes à partir du plafond ; peut se substituer au validateur désigné'],
     ['appro:stock', 'Gérer les mouvements et réceptions', 'Entrées, sorties, transferts et réceptions ; aucun stock négatif'],

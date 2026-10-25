@@ -561,12 +561,14 @@ async function reorderList(db, kind, ids) {
 // ─── Références et pastilles ──────────────────────────────────────────────
 
 async function refs(db) {
-  const [projects, users, employees, suppliers, postes, meteo, unites] = await Promise.all([
+  const [projects, users, employees, suppliers, postes, meteo, unites, articles] = await Promise.all([
+    // (articles : catalogue Achats & stocks, proposé pour les besoins en matériaux)
     db('projects').orderBy('name').select('id', 'name'),
     db('users').where({ active: true }).orderBy('name').select('id', 'name', 'role'),
     db('employees').where({ active: true }).orderBy(['last_name', 'first_name']).select('id', 'last_name', 'first_name', 'job_title'),
     db('suppliers').where({ active: true }).orderBy('name').select('id', 'name', 'kind'),
     listItems(db, 'poste', { all: true }), listItems(db, 'meteo', { all: true }), listItems(db, 'unite', { all: true }),
+    db('appro_articles').where({ active: true }).orderBy('label').select('id', 'code', 'label', 'unit'),
   ]);
   return {
     statuses: WORKSITE_STATUSES, zones: WORKSITE_ZONES, task_statuses: TASK_STATUSES, phase_states: PHASE_STATES,
@@ -574,7 +576,7 @@ async function refs(db) {
     budget_categories: Object.fromEntries(postes.filter(p => p.active).map(p => [p.code, p.label])), budget_labels: Object.fromEntries(postes.map(p => [p.code, p.label])),
     weather: Object.fromEntries(meteo.filter(p => p.active).map(p => [p.code, p.label])), weather_labels: Object.fromEntries(meteo.map(p => [p.code, p.label])),
     units: Object.fromEntries(unites.filter(p => p.active).map(p => [p.code, p.label])), unit_labels: Object.fromEntries(unites.map(p => [p.code, p.label])),
-    tma_statuses: TMA_STATUSES, need_statuses: NEED_STATUSES, sav_categories: SAV_CATEGORIES,
+    articles, tma_statuses: TMA_STATUSES, need_statuses: NEED_STATUSES, sav_categories: SAV_CATEGORIES,
     lists: { poste: postes, meteo, unite: unites },
     stages: SITE_STAGES.map(k => ({ key: k, label: SITE_STAGE_LABELS[k] })), projects, users,
     employees: employees.map(e => ({ id: e.id, label: `${e.last_name} ${e.first_name}`, job_title: e.job_title || null })), suppliers,

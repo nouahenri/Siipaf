@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import { Link, useNavigate, useParams, useSearchParams } from 'react-router-dom';
-import { Boxes, Plus, Search, ShoppingCart, ClipboardList } from 'lucide-react';
+import { Boxes, Plus, Search, ShoppingCart, ClipboardList, Upload } from 'lucide-react';
 import { api } from '@admin/lib/api';
 import { useAuth, useResource } from '@admin/lib/app-context';
 import { Card, Empty, Skeleton, ErrorBox, Field, Badge, Modal } from '@admin/components/ui';
@@ -56,14 +56,17 @@ function RefuseNeed({ need, onClose, onSaved }) {
 }
 export function ApproNeeds() {
   const res = useResource(`${APPRO}/needs`), refs = useApproRefs(), { can } = useAuth(), navigate = useNavigate(), [params, setParams] = useSearchParams(), [need, setNeed] = useState(null), [refusing, setRefusing] = useState(null), [creating, setCreating] = useState(false), [q, setQ] = useState('');
-  // Lien « Commander » de la fiche chantier : ouvre directement le bon de commande du besoin validé.
+  // Préparation serveur (emplacement du chantier, article, prix…) puis bon de commande pré-rempli
+  const prep = useApproAction();
+  const startOrder = n => prep.run(async () => { const pre = await api.post(`${APPRO}/needs/${n.id}/prepare`); await refs.reload(); return pre; }, null, pre => setNeed({ ...n, prefill: pre }));
+  // Lien « Commander » de la fiche chantier : ouvre directement le bon de commande du besoin.
   const toOrder = Number(params.get('commander')) || null;
-  useEffect(() => { const n = toOrder && res.data?.find(x => x.id === toOrder); if (n) { if (['demande', 'valide'].includes(n.status) && !n.order_id) setNeed(n); setParams({}, { replace: true }); } }, [toOrder, res.data]);
+  useEffect(() => { const n = toOrder && res.data?.find(x => x.id === toOrder); if (n) { if (['demande', 'valide'].includes(n.status) && !n.order_id) startOrder(n); setParams({}, { replace: true }); } }, [toOrder, res.data]);
   if (!refs.data) return <Loading res={refs} />;
   const rows = (res.data || []).filter(n => `${n.label} ${n.worksite_reference}`.toLowerCase().includes(q.toLowerCase()));
   return <div className="stack"><p className="muted">Besoins en matériaux des chantiers : le chantier les exprime (fiche du chantier › Besoins) et ils arrivent ici ; les Achats préparent le bon de commande, qui est soumis à validation, réceptionné puis facturé par la Comptabilité — ou refusent le besoin avec un motif.</p><div className="row-between"><SearchBox value={q} onChange={setQ} placeholder="Matériau, chantier…" />{can('chantiers:write') && <button className="btn btn-primary" disabled={!refs.data.worksites.length} onClick={() => setCreating(true)}><Plus />Exprimer un besoin</button>}</div>
-    {refusing && <RefuseNeed need={refusing} onClose={() => setRefusing(null)} onSaved={() => { setRefusing(null); res.reload(); }} />}{creating && <ToWorksiteNeeds worksites={refs.data.worksites} onClose={() => setCreating(false)} />}<ErrorBox error={res.error} /><Card bodyClass="">{!res.data ? <Loading res={res} /> : !rows.length ? <div className="card-body"><Empty icon={Boxes}>Aucun besoin en matériaux.</Empty></div> : <div className="table-wrap"><table className="table"><thead><tr><th>Chantier</th><th>Besoin</th><th>Quantité</th><th>Souhaité le</th><th>État</th><th>Suite</th></tr></thead><tbody>{rows.map(n => <tr key={n.id}><td className="small"><Link className="link" to={`/chantiers/${n.worksite_id}?onglet=besoins`}>{n.worksite_reference}</Link></td><td><b>{n.label}</b>{n.note && <div className="small muted">{n.note}</div>}</td><td className="tabular nowrap">{qty(n.quantity)} {n.unit_label}</td><td className="small nowrap">{n.needed_on ? date(n.needed_on) : '—'}</td><td><Badge tone={tone(n.status)}>{n.status_label}</Badge></td><td>{n.order_id ? <Link to={`/achats/commandes?fiche=${n.order_id}`} className="link">{n.order_reference}</Link> : ['demande', 'valide'].includes(n.status) && can('appro:write') ? <span className="row nowrap" style={{ gap: 6 }}><button className="btn btn-sm btn-primary" onClick={() => setNeed(n)}>Préparer la commande</button><button className="btn btn-sm btn-ghost" onClick={() => setRefusing(n)}>Refuser</button></span> : <Link className="link small" to={`/chantiers/${n.worksite_id}?onglet=besoins`}>Voir le besoin</Link>}</td></tr>)}</tbody></table></div>}</Card>
-    {need && <DocumentForm kind="order" need={need} refs={refs.data} onClose={() => setNeed(null)} onSaved={d => { setNeed(null); navigate(`/achats/commandes?fiche=${d.id}`); }} />}
+    {refusing && <RefuseNeed need={refusing} onClose={() => setRefusing(null)} onSaved={() => { setRefusing(null); res.reload(); }} />}{creating && <ToWorksiteNeeds worksites={refs.data.worksites} onClose={() => setCreating(false)} />}<ErrorBox error={res.error} /><Card bodyClass="">{!res.data ? <Loading res={res} /> : !rows.length ? <div className="card-body"><Empty icon={Boxes}>Aucun besoin en matériaux.</Empty></div> : <div className="table-wrap"><table className="table"><thead><tr><th>Chantier</th><th>Besoin</th><th>Quantité</th><th>Souhaité le</th><th>État</th><th>Suite</th></tr></thead><tbody>{rows.map(n => <tr key={n.id}><td className="small"><Link className="link" to={`/chantiers/${n.worksite_id}?onglet=besoins`}>{n.worksite_reference}</Link></td><td><b>{n.label}</b>{n.article_code ? <span className="small muted"> · {n.article_code}</span> : <> <Badge tone="warn">Hors catalogue</Badge></>}{n.note && <div className="small muted">{n.note}</div>}</td><td className="tabular nowrap">{qty(n.quantity)} {n.unit_label}</td><td className="small nowrap">{n.needed_on ? date(n.needed_on) : '—'}</td><td><Badge tone={tone(n.status)}>{n.status_label}</Badge></td><td>{n.order_id ? <Link to={`/achats/commandes?fiche=${n.order_id}`} className="link">{n.order_reference}</Link> : ['demande', 'valide'].includes(n.status) && can('appro:write') ? <span className="row nowrap" style={{ gap: 6 }}><button className="btn btn-sm btn-primary" disabled={prep.busy} onClick={() => startOrder(n)}>Préparer la commande</button><button className="btn btn-sm btn-ghost" onClick={() => setRefusing(n)}>Refuser</button></span> : <Link className="link small" to={`/chantiers/${n.worksite_id}?onglet=besoins`}>Voir le besoin</Link>}</td></tr>)}</tbody></table></div>}</Card>
+    <ErrorBox error={prep.error} />{need && <DocumentForm kind="order" need={need} prefill={need.prefill} refs={refs.data} onClose={() => setNeed(null)} onSaved={d => { setNeed(null); navigate(`/achats/commandes?fiche=${d.id}`); }} />}
   </div>;
 }
 export function ApproStock() {
@@ -84,11 +87,30 @@ export function ApproStock() {
     {open && <MovementDrawer key={open} id={open} refs={r} onClose={() => setOpen(null)} onChange={refresh} />}
   </div>;
 }
+/** Import CSV du catalogue (code ; désignation ; unité ; seuil) : tout ou rien, lignes fautives signalées. */
+function ImportArticles({ refs, onClose, onDone }) {
+  const action = useApproAction(), [file, setFile] = useState(null), [report, setReport] = useState(null);
+  const units = refs.units.map(u => u.label || u.code).slice(0, 6).join(', ');
+  // Modèle avec BOM (accents lus correctement par Excel)
+  const template = `data:text/csv;charset=utf-8,${encodeURIComponent(['﻿code;désignation;unité;seuil', `CIM-42;Ciment CPJ 42,5;${(refs.units.find(u => u.code === 'sac') || refs.units[0])?.label || 'sac'};20`, ''].join('\r\n'))}`;
+  const submit = e => { e.preventDefault(); action.run(async () => api.post(`${APPRO}/articles/import`, { csv: await file.text() }), null, r => { setReport(r); if (r.ok) onDone(r); }); };
+  return <Modal title="Importer des articles (CSV)" onClose={onClose} footer={<><button className="btn btn-ghost" onClick={onClose}>{report?.ok ? 'Fermer' : 'Retour'}</button>{!report?.ok && <button className="btn btn-primary" form="import-articles" disabled={action.busy || !file}>Importer</button>}</>}>
+    <form id="import-articles" className="stack" onSubmit={submit}><ErrorBox error={action.error} />
+      <p className="small">Colonnes : <b>code ; désignation ; unité ; seuil</b> (seuil facultatif). Séparateur « ; » ou « , » ; Excel : « Enregistrer sous › CSV ». Un code existant met la fiche à jour ; l’unité d’un article déjà utilisé ne change pas.</p>
+      <p className="small muted">Unités reconnues (code ou libellé, liste de Chantiers › Réglages) : {units}{refs.units.length > 6 ? '…' : ''}</p>
+      <p><a className="link small" href={template} download="modele-articles.csv">Télécharger le modèle</a></p>
+      <Field label="Fichier CSV *"><input className="input" type="file" accept=".csv,text/csv" required onChange={e => { setFile(e.target.files[0] || null); setReport(null); }} /></Field>
+      {report && (report.ok ? <p className="small" style={{ color: 'var(--ok)' }}>{report.created} article(s) créé(s), {report.updated} mis à jour.</p>
+        : <div className="small"><p style={{ color: 'var(--danger)' }}>Rien n’a été importé. Corrigez le fichier puis recommencez :</p><ul>{report.errors.map((x, k) => <li key={k}>Ligne {x.line} — {x.message}</li>)}</ul></div>)}
+    </form></Modal>;
+}
 export function ApproArticles() {
-  const refs = useApproRefs(), { can } = useAuth(), [q, setQ] = useState(''), [edit, setEdit] = useState(null);
+  const refs = useApproRefs(), { can } = useAuth(), [q, setQ] = useState(''), [edit, setEdit] = useState(null), [importing, setImporting] = useState(false);
   if (!refs.data) return <Loading res={refs} />; const r = refs.data, rows = r.articles.filter(a => `${a.code} ${a.label}`.toLowerCase().includes(q.toLowerCase()));
-  return <div className="stack"><div className="row-between"><SearchBox value={q} onChange={setQ} placeholder="Code, désignation…" />{can('appro:write') && <button className="btn btn-primary" onClick={() => setEdit({})}><Plus />Article</button>}</div><Card bodyClass="">{!rows.length ? <div className="card-body"><Empty icon={Boxes}>Aucun article. Créez les matériaux à suivre en stock.</Empty></div> : <div className="table-wrap"><table className="table"><thead><tr><th>Code</th><th>Désignation</th><th>Unité</th><th className="right">Seuil par défaut</th><th>État</th>{can('appro:write') && <th>Action</th>}</tr></thead><tbody>{rows.map(a => <tr key={a.id}><td className="small">{a.code}</td><td><b>{a.label}</b></td><td>{a.unit_label || a.unit}</td><td className="right tabular">{qty(a.min_quantity)}</td><td><Badge tone={a.active ? 'ok' : ''}>{a.active ? 'Actif' : 'Désactivé'}</Badge></td>{can('appro:write') && <td><button className="btn btn-sm" onClick={() => setEdit(a)}>Modifier</button></td>}</tr>)}</tbody></table></div>}</Card>
+  return <div className="stack"><div className="row-between"><SearchBox value={q} onChange={setQ} placeholder="Code, désignation…" />{can('appro:articles') && <div className="row"><button className="btn" onClick={() => setImporting(true)}><Upload />Importer (CSV)</button><button className="btn btn-primary" onClick={() => setEdit({})}><Plus />Article</button></div>}</div><Card bodyClass="">{!rows.length ? <div className="card-body"><Empty icon={Boxes}>Aucun article. Créez les matériaux à suivre en stock.</Empty></div> : <div className="table-wrap"><table className="table"><thead><tr><th>Code</th><th>Désignation</th><th>Unité</th><th className="right">Seuil par défaut</th><th>État</th>{can('appro:articles') && <th>Action</th>}</tr></thead><tbody>{rows.map(a => <tr key={a.id}><td className="small">{a.code}</td><td><b>{a.label}</b></td><td>{a.unit_label || a.unit}</td><td className="right tabular">{qty(a.min_quantity)}</td><td><Badge tone={a.active ? 'ok' : ''}>{a.active ? 'Actif' : 'Désactivé'}</Badge></td>{can('appro:articles') && <td><button className="btn btn-sm" onClick={() => setEdit(a)}>Modifier</button></td>}</tr>)}</tbody></table></div>}</Card>
     {edit && <ArticleForm article={edit.id ? edit : null} refs={r} onClose={() => setEdit(null)} onSaved={() => { setEdit(null); refs.reload(); }} />}
+    {importing && <ImportArticles refs={r} onClose={() => setImporting(false)} onDone={() => refs.reload()} />}
+    {!can('appro:articles') && <p className="small muted">Catalogue géré par le responsable des achats, la Comptabilité et le responsable des exploitations (privilège « Gérer le catalogue des articles »).</p>}
   </div>;
 }
 export function ApproPartners() {

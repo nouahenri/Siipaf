@@ -170,7 +170,7 @@ export function Needs({ w, refs }) {
             <thead><tr><th>Article</th><th className="right">Quantité</th><th>Souhaité le</th><th>État</th><th>Fournisseur</th><th /></tr></thead>
             <tbody>{res.data.map(n => (
               <tr key={n.id}>
-                <td><b>{n.label}</b>{n.phase_label && <div className="small muted">{n.phase_label}</div>}{n.note && <div className="small muted">{n.note}</div>}
+                <td><b>{n.label}</b>{n.article_code ? <span className="small muted"> · {n.article_code}</span> : <> <Badge tone="warn">Hors catalogue</Badge></>}{n.phase_label && <div className="small muted">{n.phase_label}</div>}{n.note && <div className="small muted">{n.note}</div>}
                   <div className="small muted">Demandé par {n.requested_by_name || '—'}{n.validated_by_name ? ` · ${n.status === 'refuse' ? 'refusé' : 'traité'} par ${n.validated_by_name}` : ''}</div>
                   {n.refusal_reason && <div className="small" style={{ color: 'var(--danger)' }}>Motif : {n.refusal_reason}</div>}</td>
                 <td className="right tabular nowrap">{num(n.quantity)} {n.unit_label}{n.estimate_fcfa != null && <div className="small muted">≈ {fcfa(n.estimate_fcfa)}</div>}</td>
@@ -201,19 +201,22 @@ function NeedForm({ w, refs, need, onClose, onSaved }) {
   const [f, setF] = useState({
     label: need?.label || '', quantity: need?.quantity ?? '', unit: need?.unit || units[0]?.[0] || '', needed_on: need?.needed_on || '',
     phase_id: need?.phase_id || '', supplier_id: need?.supplier_id || '', estimate_fcfa: need?.estimate_fcfa ?? '', note: need?.note || '',
+    // Catalogue Achats & stocks : article choisi (désignation et unité imposées) ou « absent du catalogue » (texte libre)
+    article_id: need ? need.article_id || 'hors' : '',
   });
+  const articles = refs.articles || [], offCatalog = f.article_id === 'hors', chosenArticle = articles.find(a => a.id === Number(f.article_id));
   const [error, setError] = useState(null);
   const [busy, setBusy] = useState(false);
   const set = k => e => setF(x => ({ ...x, [k]: e.target.value }));
   const submit = async e => {
     e.preventDefault(); setBusy(true); setError(null);
     const body = {
-      label: f.label, quantity: Number(f.quantity), unit: f.unit, needed_on: f.needed_on || null, phase_id: f.phase_id ? Number(f.phase_id) : null,
+      article_id: offCatalog ? null : Number(f.article_id), label: offCatalog ? f.label : chosenArticle?.label, quantity: Number(f.quantity), unit: offCatalog ? f.unit : chosenArticle?.unit, needed_on: f.needed_on || null, phase_id: f.phase_id ? Number(f.phase_id) : null,
       supplier_id: f.supplier_id ? Number(f.supplier_id) : null, estimate_fcfa: f.estimate_fcfa === '' ? null : Number(f.estimate_fcfa), note: f.note || null,
     };
     try {
       if (need) await api.patch(`${CH}/${w.id}/besoins/${need.id}`, body); else await api.post(`${CH}/${w.id}/besoins`, body);
-      saved(need ? 'Besoin modifié' : 'Besoin envoyé pour validation');
+      saved(need ? 'Besoin modifié' : 'Besoin transmis aux Achats');
       onSaved();
     } catch (err) { setError(err); } finally { setBusy(false); }
   };
@@ -222,9 +225,19 @@ function NeedForm({ w, refs, need, onClose, onSaved }) {
       footer={<><button type="button" className="btn btn-ghost" onClick={onClose}>Annuler</button><button className="btn btn-primary" form="need-form" disabled={busy}><Check />Enregistrer</button></>}>
       <form id="need-form" className="form-grid" onSubmit={submit}>
         <div className="full"><ErrorBox error={error} /></div>
-        <Field label="Article" className="full"><input className="input" required minLength={2} maxLength={200} value={f.label} onChange={set('label')} placeholder="Ciment CPJ 42,5, fer de 12, parpaings de 15…" /></Field>
+        <Field label="Article" className="full" hint={offCatalog ? 'Les Achats rattacheront ce besoin au bon article du catalogue (ou le créeront) avant de le commander.' : 'Catalogue des Achats & stocks : la désignation et l’unité de l’article font foi.'}>
+          <select className="select" required value={f.article_id} onChange={set('article_id')}>
+            <option value="">— Choisir dans le catalogue —</option>
+            {articles.map(a => <option key={a.id} value={a.id}>{a.label} ({a.code} · {refs.unit_labels?.[a.unit] || a.unit})</option>)}
+            <option value="hors">Article absent du catalogue…</option>
+          </select>
+        </Field>
+        {offCatalog && <Field label="Désignation de l’article" className="full"><input className="input" required minLength={2} maxLength={200} value={f.label} onChange={set('label')} placeholder="Ciment CPJ 42,5, fer de 12, parpaings de 15…" /></Field>}
         <Field label="Quantité"><input className="input" type="number" required min={0.01} step="0.01" value={f.quantity} onChange={set('quantity')} /></Field>
-        <Field label="Unité" hint="Liste réglable dans Chantiers › Réglages"><select className="select" required value={f.unit} onChange={set('unit')}>{units.map(([k, l]) => <option key={k} value={k}>{l}</option>)}</select></Field>
+        <Field label="Unité" hint={offCatalog ? 'Liste réglable dans Chantiers › Réglages' : 'Unité de l’article du catalogue'}>
+          {offCatalog ? <select className="select" required value={f.unit} onChange={set('unit')}>{units.map(([k, l]) => <option key={k} value={k}>{l}</option>)}</select>
+            : <input className="input" readOnly aria-readonly="true" value={chosenArticle ? refs.unit_labels?.[chosenArticle.unit] || chosenArticle.unit : '—'} />}
+        </Field>
         <Field label="Souhaité le"><input className="input" type="date" value={f.needed_on} onChange={set('needed_on')} /></Field>
         <Field label="Phase"><select className="select" value={f.phase_id} onChange={set('phase_id')}><option value="">—</option>{w.phases.map(p => <option key={p.id} value={p.id}>{p.label}</option>)}</select></Field>
         <Field label="Fournisseur pressenti"><select className="select" value={f.supplier_id} onChange={set('supplier_id')}><option value="">—</option>{refs.suppliers.map(s => <option key={s.id} value={s.id}>{s.name}</option>)}</select></Field>

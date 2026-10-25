@@ -163,7 +163,8 @@ async function lineRows(db, type, lines, locationId, excluding = null) {
       if (needIds.has(l.need_id)) fail(400, 'Un besoin ne peut figurer qu’une fois dans le document.'); needIds.add(l.need_id);
       const n = await row(db, 'worksite_needs', l.need_id);
       if (!['demande', 'valide'].includes(n.status)) fail(409, 'Ce besoin est déjà commandé, livré, refusé ou annulé.');
-      if (a.unit !== n.unit || quantity_units !== units(n.quantity)) fail(400, 'Reprenez la quantité et l’unité du besoin validé.');
+      if (n.article_id && Number(n.article_id) !== a.id) fail(400, 'Commandez l’article choisi par le chantier pour ce besoin.');
+      if (a.unit !== n.unit || quantity_units !== units(n.quantity)) fail(400, 'Reprenez la quantité et l’unité du besoin.');
       if (Number(loc.worksite_id) !== Number(n.worksite_id)) fail(400, 'Pour ce besoin, choisissez l’emplacement du chantier destinataire.');
       if (type === 'order') {
         const q = db('appro_order_lines as l').join('appro_orders as o', 'o.id', 'l.order_id').where('l.need_id', l.need_id).whereNotIn('o.status', ['annulee', 'refusee']);
@@ -195,6 +196,7 @@ async function saveDocument(db, type, data, id, userId) {
     if (old) { await trx(cfg.table).where({ id }).update({ ...header, ...amounts, updated_at: new Date() }); await trx(cfg.lines).where({ [cfg.key]: id }).del(); }
     else { const [r] = await trx(cfg.table).insert({ ...header, ...amounts, created_by: userId }); id = insertedId(r); await reference(trx, cfg.table, id, cfg.prefix, data.date); }
     await trx(cfg.lines).insert(lines.map(l => ({ ...l, [cfg.key]: id })));
+    for (const l of lines.filter(l => l.need_id)) await trx('worksite_needs').where({ id: l.need_id }).whereNull('article_id').update({ article_id: l.article_id });
     await event(trx, type, id, old ? 'modification' : 'creation', userId); return detail(trx, type, id);
   });
 }
@@ -424,6 +426,39 @@ async function prepareInvoice(db, id, data, userId) {
     return { invoice_id: invoiceId, number, status: 'brouillon', ...amounts };
   });
 }
+/**
+ * Préparation d'un bon de commande depuis un besoin chantier : emplacement de stock du chantier (créé au besoin),
+ * article du catalogue de même désignation et même unité (sinon proposition de création), prix unitaire estimé,
+ * fournisseur pressenti, date souhaitée et note reprise du besoin.
+ */
+async function prepareNeed(db, id, userId) {
+  return db.transaction(async trx => {
+    const n = await trx('worksite_needs as n').join('worksites as w', 'w.id', 'n.worksite_id').where('n.id', id).first('n.*', 'w.reference as worksite_reference', 'w.name as worksite_name', 'w.status as worksite_status');
+    if (!n) fail(404, 'Besoin introuvable.');
+    if (!['demande', 'valide'].includes(n.status)) fail(409, 'Ce besoin est déjà commandé, livré, refusé ou annulé.');
+    let loc = await trx('appro_locations').where({ worksite_id: n.worksite_id }).first();
+    if (loc && !loc.active) fail(409, 'L’emplacement de stock de ce chantier est désactivé : réactivez-le dans Stocks › Emplacements.');
+    if (!loc) {
+      if (n.worksite_status === 'clos') fail(409, 'Ce chantier est clos.');
+      const [r] = await trx('appro_locations').insert({ worksite_id: n.worksite_id, name: `${n.worksite_reference} — ${n.worksite_name}` });
+      loc = { id: insertedId(r) }; await event(trx, 'location', loc.id, 'creation', userId, { need_id: id });
+    }
+    const norm = s => String(s || '').normalize('NFD').replace(/[̀-ͯ]/g, '').toLowerCase().replace(/\s+/g, ' ').trim();
+    const article = n.article_id ? await trx('appro_articles').where({ id: n.article_id, active: true }).first()
+      : (await trx('appro_articles').where({ unit: n.unit, active: true })).find(a => norm(a.label) === norm(n.label));
+    if (n.article_id && !article) fail(409, 'L’article choisi par le chantier a été désactivé : réactivez-le dans Articles ou refusez le besoin.');
+    let suggestion = null;
+    if (!article) {
+      const base = norm(n.label).toUpperCase().replace(/[^A-Z0-9]+/g, '-').replace(/^-|-$/g, '').slice(0, 30) || 'ARTICLE';
+      let code = base; for (let i = 2; await trx('appro_articles').where({ code }).first('id'); i++) code = `${base}-${i}`;
+      suggestion = { code, label: n.label, unit: n.unit };
+    }
+    const quantity = Number(n.quantity);
+    return { need_id: n.id, location_id: loc.id, article_id: article?.id || null, off_catalog: !n.article_id, suggestion, supplier_id: n.supplier_id || null, needed_on: isoDay(n.needed_on),
+      unit_price_fcfa: n.estimate_fcfa != null && quantity ? Math.round(Number(n.estimate_fcfa) / quantity) : null,
+      note: [`Besoin ${n.worksite_reference} — ${n.worksite_name} : ${n.label}`, n.note].filter(Boolean).join('\n') };
+  });
+}
 /** Refus motivé d'un besoin par les Achats (déjà couvert par le stock, doublon…) ; le chantier en est prévenu. */
 async function refuseNeed(db, id, reason, userId) {
   return db.transaction(async trx => {
@@ -431,6 +466,67 @@ async function refuseNeed(db, id, reason, userId) {
     const active = await trx('appro_order_lines as l').join('appro_orders as o', 'o.id', 'l.order_id').where('l.need_id', id).whereNotIn('o.status', ['annulee', 'refusee']).first('o.reference');
     if (active) fail(409, `Ce besoin figure dans le bon de commande ${active.reference} : annulez ou refusez d'abord ce bon.`);
     return ch.moveNeed(trx, await row(trx, 'worksites', n.worksite_id), n, { status: 'refuse', reason }, { userId });
+  });
+}
+/** Lecture d'un CSV (séparateur « ; » ou « , », guillemets doublés) en lignes de cellules. */
+function csvRows(text) {
+  const src = String(text).replace(/^﻿/, ''), first = src.split(/\r?\n/, 1)[0] || '';
+  const sep = (first.match(/;/g) || []).length >= (first.match(/,/g) || []).length ? ';' : ',';
+  const rows = []; let row = [], cell = '', quoted = false;
+  for (let i = 0; i < src.length; i++) {
+    const c = src[i];
+    if (quoted) { if (c === '"' && src[i + 1] === '"') { cell += '"'; i++; } else if (c === '"') quoted = false; else cell += c; continue; }
+    if (c === '"') quoted = true;
+    else if (c === sep) { row.push(cell); cell = ''; }
+    else if (c === '\n' || c === '\r') { if (c === '\r' && src[i + 1] === '\n') i++; row.push(cell); rows.push(row); row = []; cell = ''; }
+    else cell += c;
+  }
+  if (cell || row.length) { row.push(cell); rows.push(row); }
+  return rows.map(r => r.map(x => x.trim())).filter(r => r.some(Boolean));
+}
+/**
+ * Import du catalogue (choix du client du 25/10) : colonnes code ; désignation ; unité (code ou libellé de la liste des
+ * chantiers) ; seuil (facultatif). Un code existant met la fiche à jour (l'unité d'un article déjà utilisé ne change pas).
+ * Tout ou rien : à la moindre erreur, rien n'est enregistré et chaque ligne fautive est signalée.
+ */
+async function importArticles(db, csv, userId) {
+  const rows = csvRows(csv);
+  const key = s => String(s || '').normalize('NFD').replace(/[̀-ͯ]/g, '').toLowerCase().replace(/[^a-z]/g, '');
+  const head = (rows.shift() || []).map(key);
+  const col = names => head.findIndex(h => names.includes(h));
+  const at = { code: col(['code', 'reference']), label: col(['designation', 'libelle', 'article']), unit: col(['unite', 'unit']), min: col(['seuil', 'seuildestock', 'minimum']) };
+  if (at.code < 0 || at.label < 0 || at.unit < 0) return { ok: false, created: 0, updated: 0, errors: [{ line: 1, message: 'En-tête attendu : code ; désignation ; unité ; seuil (facultatif).' }] };
+  if (!rows.length) return { ok: false, created: 0, updated: 0, errors: [{ line: 2, message: 'Aucune ligne d’article.' }] };
+  if (rows.length > 2000) return { ok: false, created: 0, updated: 0, errors: [{ line: 2002, message: '2 000 articles au plus par fichier.' }] };
+  const unitsList = await db('worksite_ref_items').where({ kind: 'unite', active: true }).select('code', 'label');
+  const existing = new Map((await db('appro_articles').select('*')).map(a => [a.code.toLowerCase(), a]));
+  const errors = [], seen = new Set(), plan = [];
+  for (const [i, r] of rows.entries()) {
+    const line = i + 2, code = r[at.code] || '', label = r[at.label] || '', unitText = r[at.unit] || '', minText = at.min >= 0 ? (r[at.min] || '') : '';
+    const unit = unitsList.find(u => key(u.code) === key(unitText) || key(u.label) === key(unitText))?.code;
+    const minimum = minText === '' ? 0 : Number(minText.replace(/\s/g, '').replace(',', '.'));
+    const fault = !code || code.length > 40 ? 'code manquant ou trop long (40 caractères)'
+      : seen.has(code.toLowerCase()) ? 'code en double dans le fichier'
+        : label.length < 2 || label.length > 200 ? 'désignation de 2 à 200 caractères'
+          : !unit ? `unité « ${unitText} » absente de la liste (Chantiers › Réglages)`
+            : stockQuantityUnits(minimum) === null ? 'seuil positif, au centième' : null;
+    if (fault) { errors.push({ line, message: `${code || '—'} : ${fault}` }); continue; }
+    seen.add(code.toLowerCase());
+    const old = existing.get(code.toLowerCase());
+    if (old && old.unit !== unit && (await db('appro_order_lines').where({ article_id: old.id }).first() || await db('appro_movement_lines').where({ article_id: old.id }).first() || await db('appro_quote_lines').where({ article_id: old.id }).first())) {
+      errors.push({ line, message: `${code} : article déjà utilisé, son unité ne change pas` }); continue;
+    }
+    plan.push({ old, data: { code: old ? old.code : code, label, unit, min_units: stockQuantityUnits(minimum) } });
+  }
+  if (errors.length) return { ok: false, created: 0, updated: 0, errors };
+  return db.transaction(async trx => {
+    let created = 0, updated = 0;
+    for (const { old, data } of plan) {
+      if (old) { await trx('appro_articles').where({ id: old.id }).update({ ...data, updated_at: new Date() }); await event(trx, 'article', old.id, 'import', userId); updated++; }
+      else { const [r] = await trx('appro_articles').insert({ ...data, active: true }); await event(trx, 'article', insertedId(r), 'import', userId); created++; }
+    }
+    await stockAlerts(trx, userId);
+    return { ok: true, created, updated, errors: [] };
   });
 }
 async function needs(db) {
@@ -455,6 +551,6 @@ async function dashboard(db) {
     needs: Number(needsCount.n), quotes_waiting: Number(quotesCount.n), recent_orders: recent.map(o => serializeDocument(o, 'order')), settings: conf };
 }
 module.exports = { settings, saveSettings, refs, articles, saveArticle, locations, createLocation, stock, setStockMinimum, needs, contracts, dashboard,
-  approvers, issuers, refuseNeed, listDocuments, detail, saveDocument, receiveQuote, quoteToOrder, cancelDocument, submitOrder, approveOrder, reopenOrder, informPayment, movements, movementDetail, saveMovement, postMovement, cancelMovement, receiveOrder, prepareInvoice };
+  approvers, issuers, prepareNeed, refuseNeed, importArticles, listDocuments, detail, saveDocument, receiveQuote, quoteToOrder, cancelDocument, submitOrder, approveOrder, reopenOrder, informPayment, movements, movementDetail, saveMovement, postMovement, cancelMovement, receiveOrder, prepareInvoice };
 
 

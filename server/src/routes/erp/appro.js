@@ -25,13 +25,16 @@ module.exports = db => {
   r.get('/settings', action('appro:settings'), ah(async (req, res) => res.json(await s.settings(db))));
   r.put('/settings', action('appro:settings'), ah(async (req, res) => res.json(await s.saveSettings(db, parse(z.object({ direction_threshold: z.number().int().min(0).max(1000000000000) }), req.body), req.user.id))));
   r.get('/articles', ah(async (req, res) => res.json(await s.articles(db))));
-  r.post('/articles', action('appro:write'), ah(async (req, res) => res.status(201).json(await s.saveArticle(db, parse(article, req.body), null, req.user.id))));
-  r.put('/articles/:id', action('appro:write'), ah(async (req, res) => res.json(await s.saveArticle(db, parse(article, req.body), idParam(req), req.user.id))));
+  // Catalogue : responsable des achats, Comptabilité, responsable des exploitations (appro:articles)
+  r.post('/articles/import', action('appro:articles'), ah(async (req, res) => res.json(await s.importArticles(db, parse(z.object({ csv: z.string().min(1).max(2000000) }), req.body).csv, req.user.id))));
+  r.post('/articles', action('appro:articles'), ah(async (req, res) => res.status(201).json(await s.saveArticle(db, parse(article, req.body), null, req.user.id))));
+  r.put('/articles/:id', action('appro:articles'), ah(async (req, res) => res.json(await s.saveArticle(db, parse(article, req.body), idParam(req), req.user.id))));
   r.get('/locations', ah(async (req, res) => res.json(await s.locations(db))));
   r.post('/locations', action('appro:write'), ah(async (req, res) => res.status(201).json(await s.createLocation(db, parse(z.object({ place_id: optId, worksite_id: optId }), req.body), req.user.id))));
   r.get('/stock', ah(async (req, res) => res.json(await s.stock(db))));
   r.put('/stock/minimum', action('appro:stock'), ah(async (req, res) => res.json(await s.setStockMinimum(db, parse(z.object({ article_id: id, location_id: id, min_quantity: minimum.nullable() }), req.body), req.user.id))));
   r.get('/needs', ah(async (req, res) => res.json(await s.needs(db))));
+  r.post('/needs/:id/prepare', action('appro:write'), ah(async (req, res) => res.json(await s.prepareNeed(db, idParam(req), req.user.id))));
   r.post('/needs/:id/refuse', action('appro:write'), ah(async (req, res) => res.json(await s.refuseNeed(db, idParam(req), parse(z.object({ reason: z.string().trim().min(3).max(255) }), req.body).reason, req.user.id))));
   r.get('/contracts', action('contrats:read'), ah(async (req, res) => res.json(await s.contracts(db))));
   for (const [url, type] of [['orders', 'order'], ['quotes', 'quote']]) {

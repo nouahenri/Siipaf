@@ -31,12 +31,14 @@ function OrderCircuit({ d }) {
   ];
   return <ol className="appro-circuit">{steps.map(([label, text, done]) => <li key={label} className={done ? 'done' : ''}><b className="small">{label}</b><span className="small muted">{text}</span></li>)}</ol>;
 }
-function LinesEditor({ lines, setLines, refs, prices, priceRequired }) {
+function LinesEditor({ lines, setLines, refs, prices, priceRequired, onCreateArticle }) {
   const update = (i, patch) => setLines(lines.map((l, j) => i === j ? { ...l, ...patch } : l));
   return <div className="stack" style={{ gap: 10 }}>
     <div className="table-wrap"><table className="table" style={{ minWidth: prices ? 660 : 480 }}><thead><tr><th>Article</th><th>Quantité</th><th>Unité</th>{prices && <th>Prix unitaire HT</th>}<th><span className="sr-only">Retirer</span></th></tr></thead><tbody>
       {lines.map((l, i) => { const a = refs.articles.find(a => a.id === Number(l.article_id)); return <tr key={i}>
-        <td style={{ minWidth: 220 }}><Select label={`Article ${i + 1}`} value={l.article_id} onChange={v => update(i, { article_id: v })} rows={refs.articles.filter(a => a.active && (!l.required_unit || a.unit === l.required_unit)).map(a => ({ id: a.id, name: `${a.code} · ${a.label}` }))} />{l.need_id && <div className="small muted">Besoin chantier : {l.need_label || l.need_id}</div>}</td>
+        <td style={{ minWidth: 220 }}><Select label={`Article ${i + 1}`} value={l.article_id} onChange={v => update(i, { article_id: v })} rows={refs.articles.filter(a => a.active && (!l.required_unit || a.unit === l.required_unit)).map(a => ({ id: a.id, name: `${a.code} · ${a.label}` }))} />{l.need_id && <div className="small muted">Besoin chantier : {l.need_label || l.need_id}</div>}
+          {/* Article absent du catalogue : création en un clic avec la désignation et l'unité du besoin */}
+          {!l.article_id && l.suggestion && <div className="small" style={{ marginTop: 6 }}><span className="muted">Hors catalogue : choisissez l’article correspondant</span>{onCreateArticle ? <> ou <button type="button" className="btn btn-sm" onClick={() => onCreateArticle(i)}><Plus />Créer sa fiche</button></> : <span className="muted"> (ou demandez sa création au responsable du catalogue)</span>}</div>}</td>
         <td><input aria-label={`Quantité ${i + 1}`} className="input" style={{ width: 100 }} type="number" min="0.01" max="10000000" step="0.01" required readOnly={!!l.need_id} value={l.quantity} onChange={e => update(i, { quantity: e.target.value })} /></td>
         <td className="small">{a?.unit_label || a?.unit || l.required_unit || '—'}</td>
         {prices && <td><input aria-label={`Prix unitaire HT ${i + 1}`} className="input" style={{ width: 130 }} type="number" min="0" max="1000000000" step="1" required={priceRequired} value={l.unit_price_fcfa ?? ''} onChange={e => update(i, { unit_price_fcfa: e.target.value })} /></td>}
@@ -53,12 +55,17 @@ function eligibleApprovers(refs, parties, ttc) {
   return refs.approvers.filter(a => (a.super_admin || !parties.includes(a.id)) && (direction ? a.direction : a.validate || a.direction))
     .map(a => ({ id: a.id, name: `${a.name} — ${a.role_label}${a.direction ? ' · Direction' : ''}` }));
 }
-export function DocumentForm({ kind, document: d, need, refs, onClose, onSaved }) {
-  const isOrder = kind === 'order', url = `${APPRO}/${isOrder ? 'orders' : 'quotes'}`, action = useApproAction(), { user } = useAuth();
-  const [f, setF] = useState(() => ({ supplier_id: d?.supplier_id || need?.supplier_id || '', location_id: d?.location_id || refs.locations.find(l => l.worksite_id === need?.worksite_id)?.id || '', date: d?.date || today(), needed_on: d?.needed_on || need?.needed_on || '', vat_rate: d?.vat_rate ?? refs.vat_rate ?? 0, supplier_ref: d?.supplier_ref || '', note: d?.note || '', approver_id: d?.approver_id || '',
+/** `prefill` : préparation serveur depuis un besoin chantier (emplacement du chantier, article, prix estimé, fournisseur, date, note). */
+export function DocumentForm({ kind, document: d, need, prefill: p = null, refs: baseRefs, onClose, onSaved }) {
+  const isOrder = kind === 'order', url = `${APPRO}/${isOrder ? 'orders' : 'quotes'}`, action = useApproAction(), { user, can } = useAuth();
+  const [created, setCreated] = useState([]), refs = created.length ? { ...baseRefs, articles: [...baseRefs.articles, ...created] } : baseRefs;
+  const [f, setF] = useState(() => ({ supplier_id: d?.supplier_id || p?.supplier_id || need?.supplier_id || '', location_id: d?.location_id || p?.location_id || refs.locations.find(l => l.worksite_id === need?.worksite_id)?.id || '', date: d?.date || today(), needed_on: d?.needed_on || p?.needed_on || need?.needed_on || '', vat_rate: d?.vat_rate ?? refs.vat_rate ?? 0, supplier_ref: d?.supplier_ref || '', note: d?.note || p?.note || '', approver_id: d?.approver_id || '',
     issuer_id: d?.issuer_id || (refs.issuers.some(u => u.id === user?.id) ? user.id : '') }));
-  const [lines, setLines] = useState(() => d?.lines.map(l => ({ ...l })) || (need ? [{ article_id: '', quantity: need.quantity, unit_price_fcfa: '', need_id: need.id, need_label: need.label, required_unit: need.unit }] : [{ article_id: '', quantity: 1, unit_price_fcfa: '' }]));
+  const [lines, setLines] = useState(() => d?.lines.map(l => ({ ...l })) || (need ? [{ article_id: p?.article_id || '', quantity: need.quantity, unit_price_fcfa: p?.unit_price_fcfa ?? '', need_id: need.id, need_label: need.label, required_unit: need.unit, suggestion: p?.suggestion || null }] : [{ article_id: '', quantity: 1, unit_price_fcfa: '' }]));
   const set = k => e => setF(v => ({ ...v, [k]: e.target.value }));
+  // Besoin hors catalogue : la fiche proposée (désignation et unité du chantier) est relue avant sa création
+  const [drafting, setDrafting] = useState(null);
+  const articleCreated = a => { const i = drafting; setDrafting(null); setCreated(c => [...c, a]); setLines(ls => ls.map((l, j) => j === i ? { ...l, article_id: a.id, suggestion: null } : l)); };
   const total = lines.reduce((sum, l) => sum + Math.round(Number(l.quantity || 0) * Number(l.unit_price_fcfa || 0)), 0), ttc = total + Math.round(total * Number(f.vat_rate || 0) / 100);
   const parties = [Number(f.issuer_id), d?.created_by ?? user?.id].filter(Boolean), approvers = isOrder ? eligibleApprovers(refs, parties, ttc) : [], direction = ttc >= refs.settings.direction_threshold;
   const approverId = approvers.some(a => a.id === Number(f.approver_id)) ? f.approver_id : '';
@@ -79,11 +86,14 @@ export function DocumentForm({ kind, document: d, need, refs, onClose, onSaved }
         {!isOrder && <Field label="Référence du devis fournisseur"><input className="input" maxLength={100} value={f.supplier_ref} onChange={set('supplier_ref')} /></Field>}
       </div>
       {!refs.locations.length && <p className="small muted">Ajoutez d’abord un emplacement dans <Link to="/achats/stocks?onglet=emplacements" className="link">Stocks › Emplacements</Link>.</p>}
-      <LinesEditor lines={lines} setLines={setLines} refs={refs} prices priceRequired={isOrder} />
+      <LinesEditor lines={lines} setLines={setLines} refs={refs} prices priceRequired={isOrder} onCreateArticle={can('appro:articles') ? setDrafting : null} />
       <p className="right tabular small">Total HT : <b>{fcfa(total)}</b> · TTC : <b>{fcfa(ttc)}</b></p>
       <Field label="Notes"><textarea className="textarea" maxLength={5000} rows={3} value={f.note} onChange={set('note')} /></Field>
       {isOrder && <p className="small muted">Le bon reste en brouillon : soumettez-le ensuite à son validateur depuis la fiche. Il est prévenu dans sa cloche.</p>}
-    </form></Modal>;
+    </form>
+    {/* Hors du formulaire du bon : sa validation ne soumet pas le bon de commande */}
+    {drafting !== null && <ArticleForm initial={lines[drafting].suggestion} refs={refs} onClose={() => setDrafting(null)} onSaved={articleCreated} />}
+  </Modal>;
 }
 export function ReceiptForm({ document: d, onClose, onSaved }) {
   const action = useApproAction(), pending = d.lines.filter(l => l.received_quantity < l.quantity);
@@ -174,8 +184,9 @@ export function MovementDrawer({ id, refs, onClose, onChange }) {
     {edit && <MovementForm document={d} refs={refs} onClose={() => setEdit(false)} onSaved={() => { setEdit(false); refresh(); }} />}
   </div>}</Drawer>;
 }
-export function ArticleForm({ article: a, refs, onClose, onSaved }) {
-  const action = useApproAction(), [f, setF] = useState({ code: a?.code || '', label: a?.label || '', unit: a?.unit || '', min_quantity: a?.min_quantity ?? 0, active: a?.active ?? true });
+/** `initial` : fiche proposée (ex. besoin hors catalogue), relue avant création. */
+export function ArticleForm({ article: a, initial = null, refs, onClose, onSaved }) {
+  const src = a || initial, action = useApproAction(), [f, setF] = useState({ code: src?.code || '', label: src?.label || '', unit: src?.unit || '', min_quantity: src?.min_quantity ?? 0, active: src?.active ?? true });
   const set = k => e => setF(v => ({ ...v, [k]: e.target.value }));
   return <Modal title={a ? `Modifier ${a.code}` : 'Nouvel article'} onClose={onClose} footer={<><button className="btn btn-ghost" onClick={onClose}>Retour</button><button className="btn btn-primary" form="appro-article" disabled={action.busy}>Enregistrer</button></>}><form id="appro-article" className="stack" onSubmit={e => { e.preventDefault(); const body = { ...f, min_quantity: Number(f.min_quantity) }; action.run(() => a ? api.put(`${APPRO}/articles/${a.id}`, body) : api.post(`${APPRO}/articles`, body), 'Article enregistré', onSaved); }}><ErrorBox error={action.error} />
     <div className="form-grid"><Field label="Code article *"><input className="input" maxLength={40} required value={f.code} onChange={set('code')} /></Field><Field label="Désignation *"><input className="input" minLength={2} maxLength={200} required value={f.label} onChange={set('label')} /></Field>

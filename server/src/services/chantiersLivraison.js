@@ -188,11 +188,13 @@ async function clientChanges(db, saleId) {
 const needQuery = db => db('worksite_needs as n').join('worksites as w', 'w.id', 'n.worksite_id').leftJoin('worksite_phases as ph', 'ph.id', 'n.phase_id')
   .leftJoin('suppliers as f', 'f.id', 'n.supplier_id').leftJoin('users as r', 'r.id', 'n.requested_by').leftJoin('users as v', 'v.id', 'n.validated_by')
   .leftJoin('worksite_ref_items as u', function () { this.on('u.code', '=', 'n.unit').andOn('u.kind', '=', db.raw('?', ['unite'])); })
-  .select('n.*', 'w.reference as worksite_reference', 'w.name as worksite_name', 'w.manager_id', 'ph.label as phase_label', 'f.name as supplier_name',
+  .leftJoin('appro_articles as a', 'a.id', 'n.article_id')
+  .select('n.*', 'a.code as article_code', 'w.reference as worksite_reference', 'w.name as worksite_name', 'w.manager_id', 'ph.label as phase_label', 'f.name as supplier_name',
     'r.name as requested_by_name', 'v.name as validated_by_name', 'u.label as unit_label');
 
 const serializeNeed = n => ({
   id: n.id, worksite_id: n.worksite_id, worksite_reference: n.worksite_reference, phase_id: n.phase_id, phase_label: n.phase_label || null,
+  article_id: n.article_id || null, article_code: n.article_code || null, off_catalog: !n.article_id,
   label: n.label, quantity: Number(n.quantity), unit: n.unit, unit_label: n.unit_label || n.unit, needed_on: isoDay(n.needed_on),
   status: n.status, status_label: NEED_STATUSES[n.status], supplier_id: n.supplier_id, supplier_name: n.supplier_name || null,
   estimate_fcfa: n.estimate_fcfa == null ? null : Number(n.estimate_fcfa), note: n.note, refusal_reason: n.refusal_reason,
@@ -214,6 +216,12 @@ async function loadNeed(db, w, id) {
 }
 
 async function checkNeed(db, w, data, current = null) {
+  // Article choisi dans le catalogue : sa désignation et son unité font foi
+  if (data.article_id) {
+    const a = await db('appro_articles').where({ id: data.article_id }).first();
+    if (!a || (!a.active && Number(current?.article_id) !== a.id)) throw new HttpError(400, 'Article introuvable ou désactivé dans le catalogue.');
+    Object.assign(data, { label: a.label, unit: a.unit });
+  }
   await require('./chantiers').checkListCode(db, 'unite', data.unit, current?.unit);
   if (data.phase_id && !(await db('worksite_phases').where({ id: data.phase_id, worksite_id: w.id }).first())) throw new HttpError(400, 'Phase inconnue pour ce chantier.');
   if (data.supplier_id && !(await db('suppliers').where({ id: data.supplier_id }).first())) throw new HttpError(404, 'Fournisseur introuvable.');

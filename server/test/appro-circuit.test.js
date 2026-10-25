@@ -37,7 +37,7 @@ before(async () => {
   depot = ok(await conducteur.post(`${A}/locations`).send({ place_id: place.id }), 201);
   chantier = ok(await conducteur.post(`${A}/locations`).send({ worksite_id: w.id }), 201);
   const unit = (await db('worksite_ref_items').where({ kind: 'unite', active: true }).first()).code;
-  article = ok(await conducteur.post(`${A}/articles`).send({ code: 'CIRCUIT', label: 'Matériau circuit', unit, min_quantity: 0 }), 201);
+  article = ok(await comptable.post(`${A}/articles`).send({ code: 'CIRCUIT', label: 'Matériau circuit', unit, min_quantity: 0 }), 201);
 });
 beforeEach(async () => {
   await db('notifications').del(); await db('app_settings').where({ key: 'info_routes' }).del();
