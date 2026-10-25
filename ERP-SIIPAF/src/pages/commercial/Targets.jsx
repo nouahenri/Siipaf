@@ -70,7 +70,7 @@ function MonthlyTargets() {
       )}
       <Card bodyClass="">
         {!report.data ? <div className="card-body"><Skeleton h={200} /></div> : !rows.length ? <div className="card-body"><Empty icon={Target}>Aucun commercial.</Empty></div> : (
-          <div className="table-wrap"><table className="table">
+          <div className="table-wrap table-scroll"><table className="table">
             <thead><tr><th>Commercial</th>{METRICS.map(([k, l]) => <th key={k}>{l}</th>)}<th /></tr></thead>
             <tbody>
               {rows.map(r => (

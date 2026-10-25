@@ -71,7 +71,7 @@ export default function CommercialDashboard() {
       <div className="grid grid-2">
         <Card title={`Équipe commerciale — objectifs de ${monthName(d.month)}`} bodyClass="" actions={<Link className="btn btn-sm btn-ghost" to="/commercial/objectifs">Objectifs <ArrowRight /></Link>}>
           {!team.length ? <div className="card-body"><Empty icon={Gauge}>Aucun objectif fixé ce mois-ci.</Empty></div> : (
-            <div className="table-wrap"><table className="table">
+            <div className="table-wrap table-scroll"><table className="table">
               <thead><tr><th>Commercial</th><th className="right">CA signé</th><th>Atteinte</th><th className="right">Ventes</th></tr></thead>
               <tbody>
                 {team.map(r => (

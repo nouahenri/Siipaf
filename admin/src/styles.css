@@ -143,14 +143,15 @@ img { max-width: 100%; display: block; }
 .search .input { padding-left: 34px; }
 
 .table-wrap { overflow-x: auto; }
-/* Tableaux de synthèse (Vue Direction…) : resserrés, barre de défilement verticale à droite, en-tête et première colonne fixes */
-.table-wrap.table-scroll { max-height: min(460px, 65vh); overflow: auto; scrollbar-width: thin; scrollbar-color: var(--border-strong) transparent; overscroll-behavior: contain; }
-.table-scroll::-webkit-scrollbar { width: 8px; height: 8px; }
-.table-scroll::-webkit-scrollbar-thumb { background: var(--border-strong); border-radius: 99px; }
-.table-scroll .table th { position: sticky; top: 0; z-index: 2; }
-.table-scroll .table td:first-child { position: sticky; left: 0; z-index: 1; background: var(--surface); }
-.table-scroll .table th:first-child { left: 0; z-index: 3; }
-.table-scroll .table tbody tr:hover td:first-child { background: var(--surface-2); }
+/* Tableaux de synthèse (Vue Direction, tableaux de bord, états) : barres de défilement toujours visibles en bas et à
+   droite, en-tête fixe ; pas de colonne fixe (les autres colonnes glisseraient dessous) */
+.table-wrap.table-scroll { max-height: min(460px, 65vh); overflow-x: scroll; overflow-y: scroll; scrollbar-width: thin; scrollbar-color: var(--border-strong) var(--surface-2); border-bottom: 1px solid var(--border); }
+.table-scroll::-webkit-scrollbar { width: 10px; height: 10px; }
+.table-scroll::-webkit-scrollbar-track { background: var(--surface-2); }
+.table-scroll::-webkit-scrollbar-thumb { background: var(--border-strong); border-radius: 99px; border: 2px solid var(--surface-2); }
+.table-scroll .table th { position: sticky; top: 0; z-index: 2; box-shadow: inset 0 -1px 0 var(--border); }
+.table-scroll .table tbody tr:hover td { background: var(--surface-2); }
+@media print { .table-wrap.table-scroll { max-height: none; overflow: visible; } }
 .table-compact th { padding: 8px 10px; white-space: normal; }
 .table-compact td { padding: 8px 10px; }
 .table-compact .cell-stack { display: flex; flex-direction: column; gap: 2px; }

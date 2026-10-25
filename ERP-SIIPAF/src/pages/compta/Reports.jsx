@@ -51,7 +51,7 @@ function Balance({ q }) {
     )}>
       <ErrorBox error={data.error} />
       {!data.data ? <div className="card-body"><Skeleton h={240} /></div> : !rows.length ? <div className="card-body"><Empty>Aucun mouvement sur la période.</Empty></div> : (
-        <div className="table-wrap"><table className="table">
+        <div className="table-wrap table-scroll"><table className="table">
           <thead><tr><th>Compte</th><th>Intitulé</th><th className="right">Débit</th><th className="right">Crédit</th><th className="right">Solde débiteur</th><th className="right">Solde créditeur</th></tr></thead>
           <tbody>
             {byClass.map(g => [
@@ -85,7 +85,7 @@ function Ledger({ q }) {
     <Card bodyClass="" title="Grand livre" actions={<span style={{ width: 160 }}><AccountInput value={account} onChange={setAccount} placeholder="Compte ou racine" /></span>}>
       <ErrorBox error={data.error} />
       {!d ? <div className="card-body"><Skeleton h={200} /></div> : (
-        <div className="table-wrap"><table className="table">
+        <div className="table-wrap table-scroll"><table className="table">
           <thead><tr><th>Date</th><th>N°</th><th>Jnl</th><th>Compte</th><th>Libellé · tiers</th><th className="right">Débit</th><th className="right">Crédit</th><th className="right">Solde</th></tr></thead>
           <tbody>
             <tr className="group-row"><td colSpan={7}>Report à nouveau (mouvements antérieurs de la période)</td><td className="right tabular">{signed(d.opening)}</td></tr>
@@ -116,7 +116,7 @@ function Statements({ q }) {
   return (
     <div className="grid grid-2" style={{ alignItems: 'start' }}>
       <Card title="Compte de résultat" bodyClass="">
-        <div className="table-wrap"><table className="table">
+        <div className="table-wrap table-scroll"><table className="table">
           <tbody>
             {d.income.map(g => (
               <tr key={g.key}><td className="small">{g.sign === 1 ? '+ ' : '− '}{g.label}</td><td className="right tabular small">{signed(g.value)}</td></tr>
@@ -126,12 +126,12 @@ function Statements({ q }) {
         </table></div>
       </Card>
       <Card title="Bilan (présentation simplifiée)" bodyClass="">
-        <div className="table-wrap"><table className="table">
+        <div className="table-wrap table-scroll"><table className="table">
           <thead><tr><th>Actif</th><th className="right">Montant</th></tr></thead>
           <tbody>{d.actif.map(g => <tr key={g.key}><td className="small">{g.label}</td><td className="right tabular small">{signed(g.value)}</td></tr>)}</tbody>
           <tfoot><tr><td><b>Total actif</b></td><td className="right tabular"><b>{amt(d.total_actif, { zero: '0' })}</b></td></tr></tfoot>
         </table></div>
-        <div className="table-wrap"><table className="table">
+        <div className="table-wrap table-scroll"><table className="table">
           <thead><tr><th>Passif</th><th className="right">Montant</th></tr></thead>
           <tbody>{d.passif.map(g => <tr key={g.key}><td className="small">{g.label}</td><td className="right tabular small">{signed(g.value)}</td></tr>)}</tbody>
           <tfoot><tr><td><b>Total passif</b></td><td className="right tabular"><b>{amt(d.total_passif, { zero: '0' })}</b></td></tr></tfoot>
@@ -148,7 +148,7 @@ function Vat({ q }) {
   return (
     <Card bodyClass="" title="TVA par mois">
       {!data.data ? <div className="card-body"><Skeleton h={160} /></div> : !rows.length ? <div className="card-body"><Empty>Aucune TVA sur la période.</Empty></div> : (
-        <div className="table-wrap"><table className="table">
+        <div className="table-wrap table-scroll"><table className="table">
           <thead><tr><th>Mois</th><th className="right">Collectée (443)</th><th className="right">Récupérable (445)</th><th className="right">À payer / (crédit)</th></tr></thead>
           <tbody>{rows.map(m => <tr key={m.month}><td className="small" style={{ textTransform: 'capitalize' }}>{monthLabel(m.month)}</td><td className="right tabular small">{amt(m.collected, { zero: '0' })}</td><td className="right tabular small">{amt(m.deductible, { zero: '0' })}</td><td className="right tabular small"><b>{signed(m.due)}</b></td></tr>)}</tbody>
         </table></div>
@@ -163,7 +163,7 @@ function Margins({ q }) {
   return (
     <Card bodyClass="" title="Marge par programme (comptabilité analytique)">
       {!data.data ? <div className="card-body"><Skeleton h={160} /></div> : !rows.length ? <div className="card-body"><Empty>Aucun produit ni charge sur la période.</Empty></div> : (
-        <div className="table-wrap"><table className="table">
+        <div className="table-wrap table-scroll"><table className="table">
           <thead><tr><th>Programme ou lieu</th><th className="right">Produits (classe 7)</th><th className="right">Charges (classe 6)</th><th className="right">Marge</th><th className="right">Taux</th><th>Avancement chantier</th></tr></thead>
           <tbody>{rows.map(m => <tr key={m.project_id ? `p${m.project_id}` : `l${m.place_id || 0}`}><td className="small">{m.name}{m.kind === 'lieu' && <span className="muted"> · lieu</span>}</td><td className="right tabular small">{amt(m.produits, { zero: '0' })}</td><td className="right tabular small">{amt(m.charges, { zero: '0' })}</td><td className="right tabular small"><b>{signed(m.marge)}</b></td><td className="right tabular small">{m.taux == null ? '—' : `${m.taux} %`}</td><td>{m.progress_pct == null ? <span className="muted">—</span> : <Advance value={m.progress_pct} />}</td></tr>)}</tbody>
         </table></div>
@@ -185,7 +185,7 @@ function Partners({ q }) {
       </div>
     )}>
       {!data.data ? <div className="card-body"><Skeleton h={160} /></div> : !rows.length ? <div className="card-body"><Empty>Aucun solde.</Empty></div> : (
-        <div className="table-wrap"><table className="table">
+        <div className="table-wrap table-scroll"><table className="table">
           <thead><tr><th>{kind === 'client' ? 'Client' : 'Fournisseur'}</th><th className="right">Débit</th><th className="right">Crédit</th><th className="right">Solde</th>{kind === 'client' && <th>Avancement</th>}</tr></thead>
           <tbody>{rows.map(r => (
             <tr key={r.partner_id}><td className="small">{r.name}</td><td className="right tabular small">{amt(r.debit)}</td><td className="right tabular small">{amt(r.credit)}</td>
