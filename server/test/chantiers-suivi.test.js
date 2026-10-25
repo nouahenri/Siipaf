@@ -112,7 +112,7 @@ test('livraisons : date promise (dossier de vente), livraison prévue du chantie
   assert.equal(d.body.promised_delivery_on, day(100), JSON.stringify(d.body).slice(0, 200));
 
   assert.ok(await suivi.tick(db) > 0);
-  assert.ok(await db('notifications').where({ user_id: ids.commercial, event: 'chantier.retard' }).first());
+  assert.ok(await db('notifications').where({ user_id: ids.commercial, event: 'chantier.livraison_retard' }).first());
   assert.equal(await suivi.tick(db), 0, 'une seule fois pour cette date prévue');
   // Le planning rattrape la date promise : plus de retard
   const phase = (await conducteur.get(`${W}/${worksite.id}`)).body.phases.find(p => p.stage === 'livraison');

@@ -13,7 +13,7 @@ const { notifyTeam } = require('../lib/mailer');
 const { SAV_CATEGORIES, SAV_STATUS_LABELS, SAV_OPEN_STATUSES, WARRANTIES } = require('../lib/domain');
 const { ownSale } = require('../services/clients');
 const sav = require('../services/sav');
-const { notify, usersWith } = require('../services/notifications');
+const { notify, usersWith, inform } = require('../services/notifications');
 
 const ids = z.array(z.number().int().positive()).max(6).optional();
 
@@ -60,8 +60,9 @@ module.exports = function clientSavRoutes(db) {
     const t = await sav.createTicket(db, { ...data, priority: 'normale' }, { source: 'client' });
     const lead = await db('leads').where({ id: req.client.lead_id }).first();
     notifyTeam(`Réclamation ${t.ref} — ${lead.client_code}`, `${lead.name} (${lead.client_code}) a signalé un problème depuis l’espace client :\n\n${t.title}\n${t.description || ''}`).catch(() => {});
-    await notify(db, {
-      to: await usersWith(db, 'sav:assign'), module: 'sav', event: 'reclamation.ouverte', title: `Nouvelle réclamation ${t.ref} — ${lead.name}`,
+    // Les comptes qui attribuent les réclamations et les services du circuit (SAV, exploitation)
+    await inform(db, 'reclamation.ouverte', {
+      direct: await usersWith(db, 'sav:assign'), title: `Nouvelle réclamation ${t.ref} — ${lead.name}`,
       body: t.title, link: `/sav/reclamations?t=${t.id}`, priority: 'action', key: `sav:${t.id}:ouverte`,
     });
     res.status(201).json(await sav.ticketDetail(db, t.id, { forClient: true }));

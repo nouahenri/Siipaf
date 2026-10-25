@@ -24,6 +24,7 @@ import Roles from './pages/Roles';
 import Account from './pages/Account';
 import Settings from './pages/Settings';
 import './styles.css';
+import { installScrollers } from './lib/scrollers';
 
 function Guard({ perm, children }) {
   const { can } = useAuth();
@@ -61,6 +62,9 @@ function App() {
     </Routes>
   );
 }
+
+// Onglets et bandes qui défilent : molette et onglet choisi ramené en vue
+installScrollers();
 
 createRoot(document.getElementById('root')).render(
   <StrictMode>

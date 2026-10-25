@@ -12,6 +12,8 @@ import { JUR } from '../../lib/juridique';
 const HINTS = {
   legal_unpaid_days: 'Le commercial est prévenu dès le premier jour de retard ; à partir de ce nombre de jours, le dossier apparaît dans Juridique › Impayés et le juriste est prévenu.',
   legal_warranty_months: 'Date de libération proposée pour une retenue de garantie, comptée depuis la réception des travaux (modifiable sur chaque retenue).',
+  legal_alert_first_days: 'Le juriste en charge et le Juridique (et la Comptabilité pour une retenue à libérer) sont prévenus ce nombre de jours avant l’échéance d’une caution.',
+  legal_alert_second_days: 'Second rappel, plus proche de l’échéance ; doit rester inférieur au premier.',
 };
 
 export default function JuridiqueSettings() {

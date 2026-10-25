@@ -306,13 +306,29 @@ table.table { width: 100%; border-collapse: collapse; }
 
 /* Les <fieldset> ont par défaut une largeur minimale égale à leur contenu : on la neutralise */
 fieldset { min-width: 0; }
-.tabs { scrollbar-width: none; }
-.tabs::-webkit-scrollbar { display: none; }
 /* Téléphone : onglets, boutons segmentés et listes déroulantes restent dans la largeur de l'écran
    (ils défilent ou se réduisent au lieu d'élargir la page) */
 .tabs { max-width: 100%; }
-.seg { max-width: 100%; overflow-x: auto; scrollbar-width: none; }
-.seg::-webkit-scrollbar { display: none; }
+.seg { max-width: 100%; overflow-x: auto; }
+
+/* Onglets et boutons segmentés trop longs pour l'écran : barre de défilement fine et visible (le « curseur »),
+   bords estompés tant qu'il reste des onglets cachés de ce côté (navigateurs récents), défilement à la molette
+   et onglet choisi ramené en vue (lib/scrollers.js). */
+.tabs, .seg { scrollbar-width: thin; scrollbar-color: var(--border-strong) transparent; overscroll-behavior-x: contain; }
+.tabs::-webkit-scrollbar, .seg::-webkit-scrollbar { display: block; height: 6px; }
+.tabs::-webkit-scrollbar-track, .seg::-webkit-scrollbar-track { background: transparent; }
+.tabs::-webkit-scrollbar-thumb, .seg::-webkit-scrollbar-thumb { background: var(--border-strong); border-radius: 999px; }
+.tabs::-webkit-scrollbar-thumb:hover, .seg::-webkit-scrollbar-thumb:hover { background: var(--ink-3); }
+@property --fade-start { syntax: '<length>'; inherits: false; initial-value: 0px; }
+@property --fade-end { syntax: '<length>'; inherits: false; initial-value: 0px; }
+@keyframes scroll-fade { 0% { --fade-start: 0px; --fade-end: 36px; } 8% { --fade-start: 36px; } 92% { --fade-end: 36px; } 100% { --fade-start: 36px; --fade-end: 0px; } }
+@supports (animation-timeline: scroll(self inline)) {
+  .tabs, .seg {
+    mask-image: linear-gradient(to right, transparent 0, #000 var(--fade-start), #000 calc(100% - var(--fade-end)), transparent 100%);
+    animation: scroll-fade linear both; animation-timeline: scroll(self inline);
+  }
+}
+@media (prefers-reduced-motion: reduce) { .tabs, .seg { scroll-behavior: auto; } }
 .seg button { flex-shrink: 0; white-space: nowrap; }
 .select { max-width: 100%; min-width: 0; }
 .row > *, .row-between > * { max-width: 100%; min-width: 0; }
@@ -661,6 +677,14 @@ fieldset { min-width: 0; }
 .notif-empty { padding: 24px 16px; text-align: center; }
 .notif-foot { display: block; width: 100%; padding: 11px; border: 0; border-top: 1px solid var(--border); background: var(--surface-2); color: var(--brand); font-weight: 600; cursor: pointer; }
 .notif-foot:hover { background: var(--bg); }
+/* Son des notifications, choisi par chaque compte (cloche du dashboard et de l'ERP) */
+.notif-sound { display: flex; align-items: center; gap: 8px; padding: 9px 10px 9px 16px; border-top: 1px solid var(--border); background: var(--surface-2); }
+.notif-sound label { flex-shrink: 0; }
+.notif-sound .select { flex: 1; min-height: 32px; padding-top: 4px; padding-bottom: 4px; font-size: 13px; }
+.notif-scroll { max-height: min(460px, 65vh); overflow-y: auto; }
+.notif-scroll .notif-list { max-height: none; overflow: visible; }
+.notif-scroll .notif-body > b, .notif-scroll .notif-body > .small:not(.muted) { white-space: normal; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; }
+.notif-section { padding: 8px 16px 4px; font-size: 11px; font-weight: 600; letter-spacing: .04em; text-transform: uppercase; color: var(--ink-3); }
 @media (prefers-reduced-motion: reduce) { .notif-btn.ringing svg { animation: none; } }
 
 /* ─── Pastille Rendez-vous (ouvre le panneau des demandes du site) ─── */

@@ -10,7 +10,6 @@ const { SITE_STAGE_LABELS } = require('../lib/domain');
 
 // La vue Direction voit toute l'entreprise, quel que soit le compte qui l'ouvre
 const EVERYONE = { id: 0, permissions: ['*'] };
-const STALE_DAYS = 60; // programme sans point de chantier publié depuis 60 jours : signalé
 const monthKey = d => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
 
 async function commercialPart(db, now) {
@@ -45,7 +44,8 @@ async function projectsPart(db, now) {
     db('site_updates').where('visible_client', true).select('project_id', 'ilot', 'lot_id', 'progress_pct', 'published_at'),
     progressIndex(db),
   ]);
-  const staleBefore = now.getTime() - STALE_DAYS * 86400000;
+  // Programme sans point de chantier publié depuis N jours (Service commercial › Réglages) : signalé
+  const staleBefore = now.getTime() - (await require('./moduleSettings').value(db, 'commercial_stale_days')) * 86400000;
   return projects.map(p => {
     const mine = lots.filter(l => l.project_id === p.id);
     const sold = sales.filter(s => s.project_id === p.id);
@@ -198,18 +198,57 @@ async function legalPart(db) {
   };
 }
 
+/**
+ * Chantiers (ERP › Chantiers) : chantiers ouverts, avancement, retards, budget consommé, étapes signalées à déclarer
+ * (elles émettent les appels de fonds VEFA), situations de sous-traitants à valider, livraisons promises en retard.
+ */
+async function worksitesPart(db) {
+  const chantiers = require('./chantiers');
+  const suivi = require('./chantiersSuivi');
+  const all = { user: { id: 0 }, can: () => true };
+  const [list, declarations, situations] = await Promise.all([
+    chantiers.list(db, all, { status: 'ouverts' }),
+    suivi.declarations(db, { status: 'signalee' }),
+    require('./chantiersSousTraitance').toValidate(db),
+  ]);
+  let lateDeliveries = 0;
+  for (const w of list) lateDeliveries += (await suivi.deliveries(db, await chantiers.loadWorksite(db, w.id))).rows.filter(r => r.delay_days > 0).length;
+  const over = list.filter(w => w.consumed_pct != null && w.consumed_pct > 100);
+  const attention = [
+    ...declarations.map(d => ({ module: 'chantiers', label: `Étape à déclarer : ${d.stage_label}`, detail: `${d.scope_label} · ${d.project_name}${d.reported_by_name ? ` · signalée par ${d.reported_by_name}` : ''}`, date: d.reached_on, link: d.worksite_id ? `/chantiers/${d.worksite_id}?onglet=etapes` : '/commercial/vefa' })),
+    ...situations.map(x => ({ module: 'chantiers', label: `Situation n° ${x.number} à valider : ${x.contract_reference}`, detail: `${x.supplier_name || x.contract_title} · ${x.worksite_reference}`, date: x.period_end, link: `/chantiers/${x.worksite_id}?onglet=sous-traitants` })),
+    ...over.map(w => ({ module: 'chantiers', label: `Budget dépassé : ${w.reference} (${w.consumed_pct} %)`, detail: `${w.name} · ${w.project_name}`, date: null, link: `/chantiers/${w.id}?onglet=budget` })),
+  ];
+  const withBudget = list.filter(w => w.budget_fcfa);
+  return {
+    open: list.length,
+    progress_pct: list.length ? Math.round(list.reduce((t, w) => t + w.progress_pct, 0) / list.length) : null,
+    late_phases: list.reduce((t, w) => t + w.late_phases, 0), late_worksites: list.filter(w => w.late_phases).length,
+    budget_fcfa: withBudget.reduce((t, w) => t + w.budget_fcfa, 0), spent_fcfa: list.reduce((t, w) => t + (w.spent_fcfa || 0), 0), over_budget: over.length,
+    to_declare: declarations.length, situations_to_validate: situations.length, late_deliveries: lateDeliveries,
+    declarations: declarations.slice(0, 10), situations: situations.slice(0, 10),
+    worksites: list.map(w => ({
+      id: w.id, reference: w.reference, name: w.name, project_name: w.project_name, manager_name: w.manager_name, status_label: w.status_label,
+      progress_pct: w.progress_pct, late_phases: w.late_phases, late_days: w.late_days, budget_fcfa: w.budget_fcfa, spent_fcfa: w.spent_fcfa, consumed_pct: w.consumed_pct,
+    })),
+    attention,
+  };
+}
+
 async function overview(db, now = new Date()) {
   const ct = require('./compta');
   const rh = require('./rh');
   const { departmentReport } = require('./performance');
   const { savStats } = require('./sav');
-  const [commercial, projects, collections, finance, staff, payroll, performance, sav, administration, juridique] = await Promise.all([
+  const [commercial, projects, collections, finance, staff, payroll, performance, sav, administration, juridique, worksites] = await Promise.all([
     commercialPart(db, now), projectsPart(db, now), collectionsPart(db), ct.dashboard(db),
     rh.dashboard(db, isoDay(now)), payrollPart(db, now), departmentReport(db, now.getFullYear(), { now }), savStats(db, now), adminPart(db, now), legalPart(db),
+    worksitesPart(db),
   ]);
-  // « À traiter en priorité » : les délais dépassés du Juridique rejoignent ceux de l'Administration générale
-  const attention = [...administration.attention, ...juridique.attention].sort((a, b) => String(a.date || '').localeCompare(String(b.date || '')));
-  administration.attention_total += juridique.attention.length;
+  // « À traiter en priorité » : les délais dépassés du Juridique et les décisions des chantiers rejoignent ceux de l'Administration générale
+  const attention = [...administration.attention, ...juridique.attention, ...worksites.attention].sort((a, b) => String(a.date || '').localeCompare(String(b.date || '')));
+  administration.attention_total += juridique.attention.length + worksites.attention.length;
+  delete worksites.attention;
   administration.attention = attention.slice(0, 15);
   delete juridique.attention;
   const withSales = projects.filter(p => p.dossiers);
@@ -222,6 +261,7 @@ async function overview(db, now = new Date()) {
       dossiers_progress_pct: withSales.length ? Math.round(withSales.reduce((t, p) => t + p.dossiers_progress_pct * p.dossiers, 0) / withSales.reduce((t, p) => t + p.dossiers, 0)) : null,
       stale: projects.filter(p => p.stale && p.dossiers).length,
       vefa: collections.vefa,
+      worksites,
     },
     finance: {
       fiscal_year: finance.fiscal_year, treasury_total: finance.treasury_total, treasury: finance.treasury,

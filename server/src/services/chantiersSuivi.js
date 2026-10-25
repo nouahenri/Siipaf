@@ -13,7 +13,7 @@ const { uploadsDir } = require('../config');
 const {
   SITE_STAGES, SITE_STAGE_LABELS, DECLARATION_STATUSES, lotInZone, deliveryForecast, deliveryDelay, phaseState, addDays,
 } = require('../lib/domain');
-const { notify, usersWith } = require('./notifications');
+const { notify, usersWith, inform } = require('./notifications');
 
 const insertedId = r => (typeof r === 'object' ? r.id : r);
 const today = () => new Date().toISOString().slice(0, 10);
@@ -76,10 +76,10 @@ async function saveJournal(db, w, data, { files = [], userId }) {
   if (current) await db('worksite_journal').where({ id }).update({ ...row, updated_at: new Date() });
   else id = insertedId((await db('worksite_journal').insert({ ...row, worksite_id: w.id, day: data.day, created_by: userId }))[0]);
   for (const f of files) await db('worksite_journal_files').insert({ journal_id: id, ...fileFields(f) });
-  // Un incident prévient la Direction (cloche)
+  // Un incident prévient les services du circuit d'information (Direction générale, exploitation par défaut)
   if (data.incidents && data.incidents !== current?.incidents) {
-    await notify(db, {
-      to: await usersWith(db, ['chantiers:direction', 'direction:read']), module: 'chantiers', event: 'chantier.incident', priority: 'action', except: userId,
+    await inform(db, 'chantier.incident', {
+      except: userId,
       title: `Incident sur le chantier ${w.reference}`, body: `${fr(data.day)} — ${data.incidents}`.slice(0, 500), link: `/chantiers/${w.id}?onglet=journal`,
       key: `chantier-incident:${id}:${crypto.createHash('md5').update(data.incidents).digest('hex').slice(0, 8)}`,
     });
@@ -193,8 +193,9 @@ async function signal(db, w, data, { file, userId }) {
     reported_by: userId, reported_at: new Date(), ...fileFields(file),
   });
   const id = insertedId(r);
-  await notify(db, {
-    to: await usersWith(db, 'chantiers:direction'), module: 'chantiers', event: 'chantier.etape_signalee', priority: 'action', except: userId,
+  // Les comptes qui déclarent (chantiers:direction) et les services du circuit (Direction générale, exploitation)
+  await inform(db, 'chantier.etape_signalee', {
+    direct: await usersWith(db, 'chantiers:direction'), except: userId,
     title: `Étape à déclarer : ${SITE_STAGE_LABELS[data.stage]} — ${w.reference}`, body: `${w.name} — atteinte le ${fr(data.reached_on)}. Sa déclaration émettra les appels de fonds VEFA.`,
     link: `/chantiers/${w.id}?onglet=etapes`, key: `etape:${id}:signalee`,
   });
@@ -251,13 +252,17 @@ async function declare(db, { id = null, worksite = null, projectId = null, ilot 
   // Prévenir : le conducteur (signalement), les commerciaux des acquéreurs appelés, le comptable
   const label = SITE_STAGE_LABELS[d.stage];
   const link = d.worksite_id ? `/chantiers/${d.worksite_id}?onglet=etapes` : '/commercial/vefa';
-  if (d.reported_by) {
-    await notify(db, { to: d.reported_by, module: 'chantiers', event: 'chantier.etape_declaree', except: userId, title: `Étape déclarée : ${label}`, body: `${result.calls} appel(s) de fonds émis (${money(result.amount_fcfa)}).`, link, key: `etape:${d.id}:declaree` });
-  }
+  // Le conducteur qui l'a signalée et les services du circuit (Direction générale, exploitation, Comptabilité par défaut)
+  const scope = d.worksite_id ? (await db('worksites').where({ id: d.worksite_id }).first('reference', 'name')) : null;
+  await inform(db, 'chantier.etape_declaree', {
+    direct: d.reported_by ? [d.reported_by] : [], except: userId, link, links: { compta: '/compta' }, key: `etape:${d.id}:declaree`,
+    title: `Étape déclarée : ${label}${scope ? ` — ${scope.reference}` : ''}`,
+    body: `${scope ? `${scope.name} · ` : ''}${result.calls} appel(s) de fonds VEFA émis (${money(result.amount_fcfa)})${result.calls ? ' : écritures à synchroniser dans la Comptabilité.' : '.'}`,
+  });
   if (result.calls) {
+    // Les commerciaux des acquéreurs appelés (Service commercial)
     const commercials = result.sale_ids.length ? await db('sales as s').join('leads as c', 'c.id', 's.lead_id').whereIn('s.id', result.sale_ids).whereNotNull('c.assigned_to').distinct('c.assigned_to') : [];
     await notify(db, { to: commercials.map(c => c.assigned_to), module: 'commercial', event: 'vefa.appel_emis', title: `Appels de fonds émis : ${label}`, body: 'Vos acquéreurs concernés ont reçu l’appel dans leur espace client.', link: '/commercial/vefa', key: `etape:${d.id}:commercial` });
-    await notify(db, { to: await usersWith(db, 'compta:entries'), module: 'compta', event: 'vefa.appel_emis', priority: 'action', title: `Appels de fonds VEFA à comptabiliser : ${label}`, body: `${result.calls} appel(s), ${money(result.amount_fcfa)} — à synchroniser dans la Comptabilité.`, link: '/compta', key: `etape:${d.id}:compta` });
   }
   return result;
 }
@@ -267,9 +272,9 @@ async function refuse(db, id, reason, userId) {
   if (!d) throw new HttpError(404, 'Étape introuvable.');
   if (d.status !== 'signalee') throw new HttpError(409, 'Cette étape n’est plus à déclarer.');
   await db('stage_declarations').where({ id }).update({ status: 'refusee', refusal_reason: reason, declared_by: userId, declared_at: new Date(), updated_at: new Date() });
-  if (d.reported_by) {
-    await notify(db, {
-      to: d.reported_by, module: 'chantiers', event: 'chantier.etape_refusee', priority: 'action', except: userId, title: `Étape refusée : ${SITE_STAGE_LABELS[d.stage]}`, body: reason,
+  {
+    await inform(db, 'chantier.etape_refusee', {
+      direct: d.reported_by ? [d.reported_by] : [], priority: 'action', except: userId, title: `Étape refusée : ${SITE_STAGE_LABELS[d.stage]}`, body: reason,
       link: d.worksite_id ? `/chantiers/${d.worksite_id}?onglet=etapes` : '/chantiers/liste', key: `etape:${id}:refusee`,
     });
   }
@@ -325,22 +330,22 @@ async function tick(db) {
   const open = await db('worksites').whereIn('status', ['preparation', 'en_cours', 'suspendu']);
   const day = today();
   let n = 0;
-  const direction = await usersWith(db, ['chantiers:direction', 'direction:read']);
-  const sav = await usersWith(db, 'sav:handle');
   for (const w of open) {
     const phases = await db('worksite_phases').where({ worksite_id: w.id });
     for (const p of phases) {
       const s = phaseState({ planned_start: isoDay(p.planned_start), planned_end: isoDay(p.planned_end), actual_start: isoDay(p.actual_start), actual_end: isoDay(p.actual_end), progress_pct: p.progress_pct }, day);
       if (s.state !== 'en_retard' || !w.manager_id) continue;
-      n += await notify(db, {
-        to: w.manager_id, module: 'chantiers', event: 'chantier.retard', priority: 'action', title: `Phase en retard : ${p.label} — ${w.reference}`,
+      // Le conducteur et les services du circuit (exploitation par défaut)
+      n += await inform(db, 'chantier.phase_retard', {
+        direct: [w.manager_id], title: `Phase en retard : ${p.label} — ${w.reference}`,
         body: `${w.name} — ${s.late_days} jour(s) de retard sur le planning.`, link: `/chantiers/${w.id}`, key: `phase-retard:${p.id}:${isoDay(p.planned_end) || isoDay(p.planned_start)}`,
       });
     }
     const { forecast, rows } = await deliveries(db, w, phases);
     for (const r of rows.filter(x => x.delay_days > 0)) {
-      n += await notify(db, {
-        to: [r.assigned_to, ...sav, ...direction], module: 'chantiers', event: 'chantier.retard', priority: 'action',
+      // Le commercial de l'acquéreur et les services du circuit (Direction générale, exploitation, SAV par défaut)
+      n += await inform(db, 'chantier.livraison_retard', {
+        direct: [r.assigned_to],
         title: `Livraison en retard prévue : lot ${r.lot_code} (${r.client_name})`, body: `Promise le ${fr(r.promised_delivery_on)}, prévue le ${fr(forecast)} (${r.delay_days} j) — ${w.reference}.`,
         link: `/chantiers/${w.id}?onglet=livraisons`, key: `livraison-retard:${r.sale_id}:${forecast}`,
       });

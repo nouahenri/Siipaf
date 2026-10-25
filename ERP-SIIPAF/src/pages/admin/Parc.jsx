@@ -444,7 +444,7 @@ function DocForm({ refs, onCancel, onSubmit }) {
   return (
     <div className="form-grid" style={{ marginTop: 10 }}>
       <Field label="Type"><select className="select" value={f.kind} onChange={set('kind')}>{Object.entries(refs.doc_kinds).map(([k, l]) => <option key={k} value={k}>{l}</option>)}</select></Field>
-      <Field label="Expire le" hint="Alerte 30 puis 7 jours avant"><input className="input" type="date" value={f.expires_on} onChange={set('expires_on')} /></Field>
+      <Field label="Expire le" hint={`Alerte ${refs.alert_days[0]} puis ${refs.alert_days[1]} jours avant`}><input className="input" type="date" value={f.expires_on} onChange={set('expires_on')} /></Field>
       <Field label="Intitulé"><input className="input" maxLength={160} value={f.label} onChange={set('label')} placeholder={refs.doc_kinds[f.kind]} /></Field>
       <Field label="Référence"><input className="input" maxLength={80} value={f.reference} onChange={set('reference')} placeholder="N° de police, de PV…" /></Field>
       <Field label="Montant à prévoir (FCFA)" hint="Apparaît dans la trésorerie de la Comptabilité à l’approche de l’échéance" className="full"><input className="input" type="number" min="0" value={f.amount_estimate} onChange={set('amount_estimate')} /></Field>

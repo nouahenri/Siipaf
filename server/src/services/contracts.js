@@ -225,6 +225,9 @@ async function prepareInvoice(db, c, due) {
  */
 async function tick(db, day = today()) {
   const stats = { renewed: 0, ended: 0, invoices: 0, alerts: 0 };
+  // Rappels et factures préparées : Administration générale › Réglages
+  const ms = require('./moduleSettings');
+  const [stages, leadDays] = [await ms.alertStages(db), await ms.value(db, 'contract_invoice_lead_days')];
   const rows = await query(db).where('c.status', 'actif');
   for (const raw of rows) {
     let c = normalize(raw);
@@ -244,7 +247,7 @@ async function tick(db, day = today()) {
     const docs = (await docsByContract(db, [c.id]))[c.id] || [];
     for (const d of contractDeadlines(c, docs)) {
       if (d.kind === 'paiement') continue;
-      const stage = contractAlertStage(d.date, day);
+      const stage = contractAlertStage(d.date, day, stages);
       if (!stage || daysBetween(d.date, day) > 30) continue; // pas d'alerte pour une échéance oubliée depuis longtemps
       // Chaque palier une fois ; le palier de 30 jours est sauté si celui de 7 jours est déjà passé
       const done = (await db('contract_alerts').where({ contract_id: c.id, deadline_key: d.key, due_date: d.date }).pluck('stage')).map(Number);
@@ -267,7 +270,7 @@ async function tick(db, day = today()) {
   return stats;
 
   async function payments(c) {
-    const { dates, next } = contractPaymentsDue(c, day);
+    const { dates, next } = contractPaymentsDue(c, day, leadDays);
     if (!dates.length) return;
     for (const due of dates) {
       if (!(await prepareInvoice(db, c, due))) continue;

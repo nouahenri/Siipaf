@@ -80,7 +80,10 @@ module.exports = function juridiqueRoutes(db) {
   // ─── Réglages ─────────────────────────────────────────────
   r.put('/reglages', write, ah(async (req, res) => {
     const shape = Object.fromEntries(Object.entries(LEGAL_SETTINGS).map(([k, s]) => [k, z.number().int().min(s.min).max(s.max)]));
-    res.json(await juridique.saveSettings(db, parse(z.object(shape).partial(), req.body)));
+    const data = parse(z.object(shape).partial(), req.body);
+    const next = { ...(await juridique.settings(db)), ...data };
+    if (next.legal_alert_second_days >= next.legal_alert_first_days) throw new HttpError(400, 'Le second rappel des cautions doit venir après le premier (moins de jours avant l’échéance).');
+    res.json(await juridique.saveSettings(db, data));
   }));
   const kindSchema = z.object({ label: z.string().trim().min(2).max(120), direction: z.enum(Object.keys(GUARANTEE_DIRECTIONS)), active: z.boolean().optional() });
   r.post('/sortes', write, ah(async (req, res) => {

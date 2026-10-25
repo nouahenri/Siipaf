@@ -1,8 +1,9 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Bell, CheckCheck } from 'lucide-react';
+import { Bell, BellOff, CheckCheck, Volume2 } from 'lucide-react';
 import { api } from '@admin/lib/api';
 import { relative } from '@admin/lib/format';
+import { playSound, soundFor } from '@admin/lib/sounds';
 
 const POLL_MS = 30000;
 const URL = '/admin/erp/notifications';
@@ -10,6 +11,7 @@ const URL = '/admin/erp/notifications';
 /**
  * Centre de notifications commun (docs/analyse-liaisons-inter-services.md §6.1) : interroge le serveur toutes les 30 s
  * et au retour sur l'onglet. L'événement « siipaf:erp-notifications » relance la lecture (après une action).
+ * La cloche sonne quand un module a de nouvelles non-lues : son du module (ses Réglages), sinon son général (panneau).
  */
 export function useErpNotifications() {
   const [data, setData] = useState(null);
@@ -27,12 +29,27 @@ export function useErpNotifications() {
 }
 
 export default function NotificationCenter() {
-  const { data, markRead } = useErpNotifications();
+  const { data, load, markRead } = useErpNotifications();
   const [open, setOpen] = useState(false);
+  const last = useRef(null);
   const [onlyUnread, setOnlyUnread] = useState(false);
   const ref = useRef(null);
   const navigate = useNavigate();
   const unread = data?.unread || 0;
+  const sound = data?.sound || 'carillon';
+
+  // Nouvelle notification depuis le dernier passage : le son du compte
+  useEffect(() => {
+    if (!data) return;
+    const sound = soundFor(last.current, data);
+    if (sound) playSound(sound);
+    last.current = data;
+  }, [data]);
+
+  const chooseSound = value => {
+    playSound(value);
+    api.put(`${URL}/son`, { sound: value }).then(load).catch(() => {});
+  };
 
   useEffect(() => {
     if (!open) return undefined;
@@ -54,7 +71,7 @@ export default function NotificationCenter() {
     <div className="notif" ref={ref}>
       <button type="button" className={`btn btn-ghost btn-icon notif-btn ${unread ? 'ringing' : ''}`} onClick={() => setOpen(o => !o)}
         aria-label={unread ? `${unread} notification${unread > 1 ? 's' : ''} non lue${unread > 1 ? 's' : ''}` : 'Notifications'} aria-expanded={open}>
-        <Bell />
+        {sound === 'aucun' ? <BellOff /> : <Bell />}
         {unread > 0 && <span className="notif-count" aria-hidden="true">{unread > 99 ? '99+' : unread}</span>}
       </button>
       {open && (
@@ -92,6 +109,15 @@ export default function NotificationCenter() {
                 ))}
               </ul>
             )}
+          {data?.sounds && (
+            <div className="notif-sound">
+              <label className="small muted" htmlFor="erp-notif-sound">Son des notifications</label>
+              <select id="erp-notif-sound" className="select" value={sound} onChange={e => chooseSound(e.target.value)}>
+                {Object.entries(data.sounds).map(([k, label]) => <option key={k} value={k}>{label}</option>)}
+              </select>
+              <button type="button" className="btn btn-ghost btn-icon btn-sm" onClick={() => playSound(sound)} disabled={sound === 'aucun'} aria-label="Écouter le son" title="Écouter"><Volume2 size={16} /></button>
+            </div>
+          )}
         </div>
       )}
     </div>

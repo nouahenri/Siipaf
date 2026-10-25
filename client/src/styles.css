@@ -388,8 +388,10 @@ textarea.input { height: auto; min-height: 52px; padding: 14px 16px; resize: non
 .segmented { display: inline-flex; padding: 4px; border-radius: 999px; background: var(--paper-2); gap: 2px; }
 .segmented button { height: 36px; padding: 0 16px; border-radius: 999px; font-size: 13.5px; font-weight: 600; color: var(--ink-2); }
 .segmented button[aria-pressed='true'] { background: #fff; color: var(--ink); box-shadow: var(--shadow); }
-.chips { display: flex; gap: 8px; overflow-x: auto; scrollbar-width: none; padding-bottom: 2px; }
-.chips::-webkit-scrollbar { display: none; }
+.chips { display: flex; gap: 8px; overflow-x: auto; padding-bottom: 4px; scrollbar-width: thin; scrollbar-color: var(--line-strong) transparent; overscroll-behavior-x: contain; }
+/* Barre de défilement fine et visible : on voit qu'il y a d'autres filtres (lib/scrollers.js : molette, choix ramené en vue) */
+.chips::-webkit-scrollbar { height: 6px; }
+.chips::-webkit-scrollbar-thumb { background: var(--line-strong); border-radius: 999px; }
 .chip { height: 34px; padding: 0 14px; border-radius: 999px; border: 1px solid var(--line-strong); font-size: 13px; font-weight: 500; white-space: nowrap; color: var(--ink-2); background: var(--surface); }
 .chip[aria-pressed='true'] { background: var(--ink); border-color: var(--ink); color: #fff; }
 .chip .count { opacity: .6; margin-left: 4px; }

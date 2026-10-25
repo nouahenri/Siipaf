@@ -1,7 +1,7 @@
 /**
  * Juridique › Cautions et garanties (choix du client du 23/10) : retenues de garantie de la sous-traitance (libérées
  * à la fin du délai de garantie compté depuis la réception), cautions reçues des tiers, cautions données par SIIPAF,
- * et toute autre sorte réglée dans Juridique › Réglages. Alertes 30 puis 7 jours avant l'échéance.
+ * et toute autre sorte réglée dans Juridique › Réglages. Alertes avant l'échéance aux délais de Juridique › Réglages (30 puis 7 jours par défaut).
  */
 import { useEffect, useState } from 'react';
 import { useSearchParams } from 'react-router-dom';
@@ -203,7 +203,7 @@ function GuaranteeForm({ guarantee: g, refs, onClose, onSaved }) {
         ) : (
           <>
             <Field label="Émise le"><input className="input" type="date" value={f.issued_on} onChange={set('issued_on')} /></Field>
-            <Field label="Expire le" hint="Alerte 30 puis 7 jours avant"><input className="input" type="date" min={f.issued_on || undefined} value={f.expires_on} onChange={set('expires_on')} /></Field>
+            <Field label="Expire le" hint={`Alerte ${refs.settings.legal_alert_first_days} puis ${refs.settings.legal_alert_second_days} jours avant`}><input className="input" type="date" min={f.issued_on || undefined} value={f.expires_on} onChange={set('expires_on')} /></Field>
           </>
         )}
         <Field label="Responsable" hint="Reçoit les alertes avec le juriste"><select className="select" value={f.owner_id} onChange={set('owner_id')}><option value="">—</option>{refs.users.map(u => <option key={u.id} value={u.id}>{u.name}</option>)}</select></Field>

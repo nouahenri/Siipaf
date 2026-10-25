@@ -5,7 +5,7 @@ import {
   Briefcase, Columns3, ListTodo, CalendarDays, Building2, FileSignature, Landmark, Target,
   Calculator, BookOpen, ShoppingCart, FileBarChart, ListTree, Settings2, Contact, Banknote,
   Users, UserRound, Palmtree, Fingerprint, Receipt, UserPlus, GraduationCap, ShieldCheck, UserCog, Building, Mail, FileClock, Truck, BookOpenCheck, Inbox, Rocket,
-  Scale, Stamp, ShieldHalf, AlarmClock, HardHat, MapPinned,
+  Scale, Stamp, ShieldHalf, AlarmClock, HardHat, MapPinned, Share2,
 } from 'lucide-react';
 import { CHANTIERS, CHANTIERS_SHOW } from '../lib/chantiers';
 import { useAuth, useResource } from '@admin/lib/app-context';
@@ -36,6 +36,8 @@ const MODULES = {
       { to: '/commercial/ventes', label: 'Dossiers de vente', icon: FileSignature, perm: 'sales:read', also: 'commercial:read' },
       { to: '/commercial/vefa', label: 'Appels de fonds VEFA', icon: Landmark, perm: ['commercial:read', 'vefa:write'] },
       { to: '/commercial/objectifs', label: 'Objectifs et performance', icon: Target, perm: 'commercial:read' },
+      // Réglages : « Mes notifications » pour tout compte du module, paramètres pour ceux qui y ont droit
+      { to: '/commercial/reglages', label: 'Réglages', icon: Settings2 },
       { to: '/commercial/acces', label: 'Rôles et privilèges', icon: ShieldCheck, perm: 'users:read' },
     ],
   },
@@ -50,7 +52,7 @@ const MODULES = {
       { to: '/compta/employes', label: 'Employés', icon: Contact, perm: ['paie:read', 'rh:read'] },
       { to: '/compta/etats', label: 'États et export', icon: FileBarChart, perm: 'compta:read' },
       { to: '/compta/plan', label: 'Plan comptable', icon: ListTree, perm: 'compta:read' },
-      { to: '/compta/parametres', label: 'Paramètres', icon: Settings2, perm: 'compta:read' },
+      { to: '/compta/parametres', label: 'Réglages', icon: Settings2 },
       { to: '/compta/acces', label: 'Rôles et privilèges', icon: ShieldCheck, perm: 'users:read' },
     ],
   },
@@ -67,14 +69,14 @@ const MODULES = {
       { to: '/rh/recrutement', label: 'Recrutement', icon: UserPlus, perm: 'rh:read' },
       { to: '/rh/competences', label: 'Compétences et formations', icon: GraduationCap, perm: 'rh:read' },
       { to: '/rh/objectifs', label: 'Performance et entretiens', icon: Target, perm: 'rh:read', show: b => b?.team_size > 0 },
-      { to: '/rh/reglages', label: 'Réglages', icon: Settings2, perm: 'rh:read' },
+      { to: '/rh/reglages', label: 'Réglages', icon: Settings2 },
       { to: '/rh/acces', label: 'Rôles et privilèges', icon: ShieldCheck, perm: 'users:read' },
     ],
   },
   // Administration générale : vue Direction, courrier, contrats, parc, documents internes, demandes internes.
   // Le destinataire d'un courrier, le responsable d'un contrat, un chef de service ou un valideur y accède pour les siens.
   administration: {
-    label: 'Administration générale', icon: Building, perm: ['direction:read', ...COURRIER, ...CONTRATS, ...PARC, ...DEMANDES, 'lieux:write'], show: ADMIN_SHOW,
+    label: 'Administration générale', icon: Building, perm: ['direction:read', ...COURRIER, ...CONTRATS, ...PARC, ...DEMANDES, 'lieux:write', 'users:write'], show: ADMIN_SHOW,
     items: [
       { to: '/administration', label: 'Vue Direction', icon: LayoutDashboard, end: true, perm: 'direction:read' },
       { to: '/administration/courrier', label: 'Courrier', icon: Mail, badge: 'count', perm: COURRIER, show: b => b?.mine > 0 },
@@ -83,6 +85,8 @@ const MODULES = {
       { to: '/administration/documents', label: 'Documents internes', icon: BookOpenCheck, perm: 'docs:publish', show: b => b?.docs_can_publish },
       { to: '/administration/demandes', label: 'Demandes internes', icon: Inbox, badge: 'requests_count', perm: DEMANDES, show: b => b?.requests_to_approve > 0 },
       { to: '/administration/lieux', label: 'Lieux (siège, bureaux, dépôts)', icon: MapPinned, perm: ['lieux:write', 'direction:read'] },
+      { to: '/administration/circuit', label: 'Circuit d’information', icon: Share2, perm: ['users:write', 'demandes:dg', 'direction:read'] },
+      { to: '/administration/reglages', label: 'Réglages', icon: Settings2 },
       { to: '/administration/acces', label: 'Rôles et privilèges', icon: ShieldCheck, perm: 'users:read' },
     ],
   },
@@ -96,7 +100,7 @@ const MODULES = {
       { to: '/juridique/cautions', label: 'Cautions et garanties', icon: ShieldHalf, badge: 'guarantees_due', perm: [...JURIDIQUE, 'compta:read'] },
       { to: '/juridique/impayes', label: 'Impayés', icon: AlarmClock, perm: JURIDIQUE },
       { to: '/juridique/contrats', label: 'Contrats et échéances', icon: FileClock, perm: CONTRATS },
-      { to: '/juridique/reglages', label: 'Réglages', icon: Settings2, perm: JURIDIQUE },
+      { to: '/juridique/reglages', label: 'Réglages', icon: Settings2 },
       { to: '/juridique/acces', label: 'Rôles et privilèges', icon: ShieldCheck, perm: 'users:read' },
     ],
   },
@@ -105,7 +109,7 @@ const MODULES = {
     label: 'Chantiers', icon: HardHat, perm: CHANTIERS, show: CHANTIERS_SHOW,
     items: [
       { to: '/chantiers/liste', label: 'Chantiers', icon: HardHat, badge: 'late_phases', perm: CHANTIERS, show: CHANTIERS_SHOW },
-      { to: '/chantiers/reglages', label: 'Réglages', icon: Settings2, perm: CHANTIERS },
+      { to: '/chantiers/reglages', label: 'Réglages', icon: Settings2 },
       { to: '/chantiers/acces', label: 'Rôles et privilèges', icon: ShieldCheck, perm: 'users:read' },
     ],
   },
@@ -116,6 +120,7 @@ const MODULES = {
       { to: '/sav/reclamations', label: 'Réclamations', icon: ClipboardList, badge: 'open', perm: 'sav:read' },
       { to: '/sav/reserves', label: 'Réserves de livraison', icon: ClipboardCheck, perm: 'sav:read' },
       { to: '/sav/interventions', label: 'Interventions', icon: CalendarClock, perm: 'sav:read' },
+      { to: '/sav/reglages', label: 'Réglages', icon: Settings2 },
       { to: '/sav/acces', label: 'Rôles et privilèges', icon: ShieldCheck, perm: 'users:read' },
     ],
   },
@@ -124,11 +129,11 @@ const MODULES = {
 const TITLES = {
   '/': 'Modules', '/commercial': 'Service commercial', '/commercial/pipeline': 'Pipeline commercial', '/commercial/activites': 'Mes activités',
   '/commercial/rendez-vous': 'Rendez-vous', '/commercial/parc': 'Parc immobilier', '/commercial/ventes': 'Dossiers de vente',
-  '/commercial/vefa': 'Appels de fonds VEFA', '/commercial/objectifs': 'Objectifs et performance', '/administration': 'Vue Direction', '/administration/courrier': 'Courrier arrivée et départ', '/administration/contrats': 'Contrats et échéances', '/administration/parc': 'Parc auto et matériel', '/administration/documents': 'Documents internes', '/demarrer': 'Bien démarrer', '/administration/demandes': 'Demandes internes', '/administration/acces': 'Rôles et privilèges — Administration générale', '/administration/lieux': 'Lieux hors programmes',
-  '/juridique': 'Juridique', '/juridique/actes': 'Ventes et actes', '/juridique/litiges': 'Litiges', '/juridique/cautions': 'Cautions et garanties', '/juridique/impayes': 'Impayés transmis au Juridique', '/juridique/contrats': 'Contrats et échéances', '/juridique/reglages': 'Réglages du Juridique', '/juridique/acces': 'Rôles et privilèges — Juridique',
-  '/chantiers/liste': 'Chantiers', '/chantiers/reglages': 'Réglages des chantiers', '/chantiers/acces': 'Rôles et privilèges — Chantiers',
+  '/commercial/vefa': 'Appels de fonds VEFA', '/commercial/objectifs': 'Objectifs et performance', '/administration': 'Vue Direction', '/administration/courrier': 'Courrier arrivée et départ', '/administration/contrats': 'Contrats et échéances', '/administration/parc': 'Parc auto et matériel', '/administration/documents': 'Documents internes', '/demarrer': 'Bien démarrer', '/administration/demandes': 'Demandes internes', '/administration/acces': 'Rôles et privilèges — Administration générale', '/administration/lieux': 'Lieux hors programmes', '/administration/circuit': 'Circuit d’information entre les services', '/administration/reglages': 'Réglages — Administration générale', '/commercial/reglages': 'Réglages — Service commercial', '/sav/reglages': 'Réglages — Client & SAV',
+  '/juridique': 'Juridique', '/juridique/actes': 'Ventes et actes', '/juridique/litiges': 'Litiges', '/juridique/cautions': 'Cautions et garanties', '/juridique/impayes': 'Impayés transmis au Juridique', '/juridique/contrats': 'Contrats et échéances', '/juridique/reglages': 'Réglages — Juridique', '/juridique/acces': 'Rôles et privilèges — Juridique',
+  '/chantiers/liste': 'Chantiers', '/chantiers/reglages': 'Réglages — Chantiers', '/chantiers/acces': 'Rôles et privilèges — Chantiers',
   '/compta': 'Comptabilité', '/compta/ecritures': 'Écritures comptables', '/compta/achats': 'Achats et fournisseurs', '/compta/etats': 'États comptables',
-  '/compta/plan': 'Plan comptable SYSCOHADA', '/compta/parametres': 'Paramètres comptables', '/compta/paie': 'Paie', '/compta/parc': 'Parc auto et matériel — Comptabilité', '/compta/employes': 'Employés', '/rh': 'Ressources humaines', '/rh/moi': 'Mon espace', '/rh/personnel': 'Personnel', '/rh/conges': 'Congés et absences', '/rh/presences': 'Présences', '/rh/borne': 'Borne de pointage', '/rh/frais': 'Notes de frais', '/rh/recrutement': 'Recrutement', '/rh/competences': 'Compétences et formations', '/rh/objectifs': 'Performance et entretiens', '/rh/reglages': 'Réglages RH', '/commercial/acces': 'Rôles et privilèges — Service commercial', '/compta/acces': 'Rôles et privilèges — Comptabilité', '/rh/acces': 'Rôles et privilèges — Ressources humaines', '/sav/acces': 'Rôles et privilèges — Client & SAV', '/comptes': 'Comptes utilisateurs', '/sav': 'Client & SAV', '/sav/reclamations': 'Réclamations', '/sav/reserves': 'Réserves de livraison', '/sav/interventions': 'Interventions',
+  '/compta/plan': 'Plan comptable SYSCOHADA', '/compta/parametres': 'Réglages — Comptabilité', '/compta/paie': 'Paie', '/compta/parc': 'Parc auto et matériel — Comptabilité', '/compta/employes': 'Employés', '/rh': 'Ressources humaines', '/rh/moi': 'Mon espace', '/rh/personnel': 'Personnel', '/rh/conges': 'Congés et absences', '/rh/presences': 'Présences', '/rh/borne': 'Borne de pointage', '/rh/frais': 'Notes de frais', '/rh/recrutement': 'Recrutement', '/rh/competences': 'Compétences et formations', '/rh/objectifs': 'Performance et entretiens', '/rh/reglages': 'Réglages — Ressources humaines', '/commercial/acces': 'Rôles et privilèges — Service commercial', '/compta/acces': 'Rôles et privilèges — Comptabilité', '/rh/acces': 'Rôles et privilèges — Ressources humaines', '/sav/acces': 'Rôles et privilèges — Client & SAV', '/comptes': 'Comptes utilisateurs', '/sav': 'Client & SAV', '/sav/reclamations': 'Réclamations', '/sav/reserves': 'Réserves de livraison', '/sav/interventions': 'Interventions',
 };
 
 // Le dashboard est sur admin.siipaf.com quand l'ERP est sur erp.siipaf.com (admin.localhost en local)

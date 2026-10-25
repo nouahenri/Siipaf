@@ -79,7 +79,11 @@ async function nextRef(trx, now = new Date()) {
   return `${prefix}${String(n).padStart(4, '0')}`;
 }
 
-const dueFrom = (priority, from = new Date()) => new Date(from.getTime() + (SAV_PRIORITIES[priority] || SAV_PRIORITIES.normale).hours * HOUR);
+// Échéance de traitement : délai de la priorité réglé dans Client & SAV › Réglages (défauts : SAV_PRIORITIES)
+const dueFrom = async (db, priority, from = new Date()) => {
+  const hours = await require('./moduleSettings').savHours(db);
+  return new Date(from.getTime() + (hours[priority] || hours.normale || SAV_PRIORITIES.normale.hours) * HOUR);
+};
 
 async function addEvent(trx, ticketId, { kind, author, userId = null, body = null, internal = false, media = null }) {
   await trx('sav_events').insert({
@@ -122,7 +126,7 @@ async function createTicket(db, data, { userId = null, source = 'equipe' } = {})
       source,
       warranty: data.warranty || warrantyFor(data.category, ctx.delivered_at, now),
       assigned_to: data.assigned_to || null,
-      due_at: dueFrom(priority, now),
+      due_at: await dueFrom(trx, priority, now),
       media: data.media_ids && data.media_ids.length ? JSON.stringify(data.media_ids) : null,
       created_by: userId,
     };

@@ -104,7 +104,7 @@ export default function Layout() {
           <button className="btn btn-ghost btn-icon menu-btn" onClick={() => setOpen(true)} aria-label="Ouvrir le menu"><Menu /></button>
           <h1>{title}</h1>
           <div className="spacer" />
-          {can('leads:read') && <NotificationBell notif={notif} />}
+          <NotificationBell notif={notif} />
           <div className="user-chip">
             <div className="right">
               <strong>{user.name}</strong>

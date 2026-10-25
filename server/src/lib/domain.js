@@ -938,10 +938,10 @@ function contractDeadlines(c, docs = []) {
 }
 
 /** Palier d'alerte atteint pour une échéance (30 puis 7 jours avant ; 7 aussi une fois l'échéance passée). */
-function contractAlertStage(date, today) {
+function contractAlertStage(date, today, [first, second] = CONTRACT_ALERT_STAGES) {
   const left = daysBetween(today, date);
-  if (left <= 7) return 7;
-  if (left <= 30) return 30;
+  if (left <= second) return second;
+  if (left <= first) return first;
   return null;
 }
 
@@ -957,12 +957,12 @@ function renewedEnd(c, today) {
  * Paiements à préparer à `today` : chaque échéance dès 7 jours avant, sans dépasser la fin du contrat (une facture
  * par échéance). Renvoie les dates et la prochaine échéance restante.
  */
-function contractPaymentsDue(c, today) {
+function contractPaymentsDue(c, today, leadDays = CONTRACT_INVOICE_LEAD_DAYS) {
   const step = CONTRACT_FREQUENCIES[c.frequency]?.months;
   if (c.status !== 'actif' || !step || !c.next_payment_date || !c.amount_ttc) return { dates: [], next: c.next_payment_date || null };
   const dates = [];
   let next = c.next_payment_date;
-  const limit = addDays(today, CONTRACT_INVOICE_LEAD_DAYS);
+  const limit = addDays(today, leadDays);
   while (next <= limit && (!c.end_date || next <= c.end_date || c.tacit_renewal) && dates.length < 24) {
     dates.push(next);
     next = addMonths(next, step);
@@ -1002,15 +1002,15 @@ const MAINTENANCE_SOON = { days: 7, km: 500, h: 20 };
  * Prochain entretien d'un plan (vidange tous les 10 000 km ou 6 mois, révision toutes les 250 h…) : le premier atteint
  * du compteur ou de la date. Renvoie { next_date, next_meter, state: 'ok' | 'bientot' | 'du' }.
  */
-function maintenanceDue(plan, asset, today) {
+function maintenanceDue(plan, asset, today, soon = MAINTENANCE_SOON) {
   const meterStep = asset.meter === 'km' ? plan.every_km : asset.meter === 'h' ? plan.every_hours : null;
   const next_meter = meterStep && plan.last_meter != null ? Number(plan.last_meter) + Number(meterStep) : null;
   const next_date = plan.every_months && plan.last_date ? addMonths(plan.last_date, plan.every_months) : null;
   const current = asset.meter_value == null ? null : Number(asset.meter_value);
   let state = 'ok';
   if ((next_date && next_date <= today) || (next_meter != null && current != null && current >= next_meter)) state = 'du';
-  else if ((next_date && daysBetween(today, next_date) <= MAINTENANCE_SOON.days)
-    || (next_meter != null && current != null && next_meter - current <= (asset.meter === 'h' ? MAINTENANCE_SOON.h : MAINTENANCE_SOON.km))) state = 'bientot';
+  else if ((next_date && daysBetween(today, next_date) <= soon.days)
+    || (next_meter != null && current != null && next_meter - current <= (asset.meter === 'h' ? soon.h : soon.km))) state = 'bientot';
   return { next_date, next_meter, state };
 }
 
@@ -1226,6 +1226,8 @@ function guaranteeDeadline(g) {
 const LEGAL_SETTINGS = {
   legal_unpaid_days: { label: 'Impayé transmis au Juridique après (jours de retard)', default: 90, min: 1, max: 720 },
   legal_warranty_months: { label: 'Délai de garantie des retenues (mois après la réception)', default: 12, min: 1, max: 120 },
+  legal_alert_first_days: { label: 'Cautions : premier rappel (jours avant l’échéance)', default: 30, min: 2, max: 120 },
+  legal_alert_second_days: { label: 'Cautions : second rappel (jours avant l’échéance)', default: 7, min: 1, max: 60 },
 };
 
 /** Plus ancienne échéance impayée d'un échéancier (lignes de allocatePayments) et son retard en jours. */
@@ -1325,6 +1327,79 @@ function deliveryDelay(promised, forecast, deliveredAt = null) {
   return Math.max(0, daysBetween(promised, forecast));
 }
 
+/* ─── Circuit d'information entre les services ─────────────────────────────── */
+
+/**
+ * Demande du client du 25/10 : chaque événement métier (déclaration, transfert, échange d'informations entre modules)
+ * prévient, par la cloche, les services concernés en plus des personnes directement visées. Les destinataires par
+ * défaut ci-dessous sont réglables dans ERP › Administration générale › Circuit d'information.
+ * Un service = les comptes qui ont l'un des droits indiqués (rôles et privilèges) ; la Direction générale comprend
+ * aussi le super administrateur.
+ */
+const INFO_AUDIENCES = {
+  dg: { label: 'Direction générale', hint: 'Super administrateur et comptes qui valident en direction (demandes, chantiers)', perms: ['demandes:dg', 'chantiers:direction'], superAdmin: true },
+  exploitation: { label: 'Direction des exploitations', hint: 'Comptes qui ouvrent la Vue Direction', perms: ['direction:read'] },
+  compta: { label: 'Comptabilité', hint: 'Comptes qui saisissent les écritures ou les achats', perms: ['compta:entries', 'achats:write'], module: 'compta' },
+  juridique: { label: 'Juridique', hint: 'Comptes qui gèrent le Juridique', perms: ['juridique:write'], module: 'juridique' },
+  sav: { label: 'Client & SAV', hint: 'Comptes qui traitent les réclamations', perms: ['sav:handle'], module: 'sav' },
+  chantiers: { label: 'Chantiers', hint: 'Gestionnaires des chantiers', perms: ['chantiers:write'], module: 'chantiers' },
+  rh: { label: 'Ressources humaines', hint: 'Comptes qui tiennent les dossiers du personnel', perms: ['rh:files'], module: 'rh' },
+  services_generaux: { label: 'Services généraux', hint: 'Comptes qui traitent les demandes internes ou gèrent le parc', perms: ['demandes:handle', 'parc:write'], module: 'administration' },
+};
+const INFO_EVENTS = {
+  'chantier.cree': { module: 'chantiers', label: 'Nouveau chantier ouvert', audiences: ['dg', 'exploitation'] },
+  'chantier.etape_signalee': { module: 'chantiers', label: 'Étape de chantier signalée, à déclarer', audiences: ['dg', 'exploitation'], priority: 'action' },
+  'chantier.etape_declaree': { module: 'chantiers', label: 'Étape déclarée : appels de fonds VEFA émis', audiences: ['dg', 'exploitation', 'compta'] },
+  'chantier.etape_refusee': { module: 'chantiers', label: 'Étape de chantier refusée', audiences: ['exploitation'] },
+  'chantier.incident': { module: 'chantiers', label: 'Incident au journal de chantier', audiences: ['dg', 'exploitation'], priority: 'action' },
+  'chantier.situation_verifiee': { module: 'chantiers', label: 'Situation de sous-traitant à valider', audiences: ['dg', 'exploitation'], priority: 'action' },
+  'chantier.situation_validee': { module: 'chantiers', label: 'Situation de sous-traitant validée (facture et retenue)', audiences: ['exploitation', 'compta', 'juridique'] },
+  'chantier.situation_refusee': { module: 'chantiers', label: 'Situation de sous-traitant refusée', audiences: ['exploitation'] },
+  'budget.depasse': { module: 'chantiers', label: 'Budget de chantier au seuil ou dépassé', audiences: ['dg', 'exploitation', 'compta'], priority: 'action' },
+  'chantier.livraison_retard': { module: 'chantiers', label: 'Livraison promise à un acquéreur en retard prévu', audiences: ['dg', 'exploitation', 'sav'], priority: 'action' },
+  'vente.ouverte': { module: 'commercial', label: 'Nouveau dossier de vente (lot réservé)', audiences: ['dg', 'exploitation', 'compta', 'juridique'] },
+  'acte.signe': { module: 'juridique', label: 'Acte notarié signé (lot vendu)', audiences: ['dg', 'exploitation', 'compta', 'sav'] },
+  'reclamation.ouverte': { module: 'sav', label: 'Nouvelle réclamation d’un acquéreur', audiences: ['sav', 'exploitation'] },
+  'litige.ouvert': { module: 'juridique', label: 'Litige ouvert', audiences: ['dg', 'juridique'], priority: 'action' },
+  'impaye.transmis': { module: 'juridique', label: 'Impayé transmis au Juridique', audiences: ['dg', 'juridique', 'exploitation'], priority: 'action' },
+  'chantier.phase_retard': { module: 'chantiers', label: 'Phase de chantier en retard sur le planning', audiences: ['exploitation'], priority: 'action' },
+  'vente.versement': { module: 'commercial', label: 'Versement d’un client enregistré', audiences: ['compta'] },
+  'echeance.impayee': { module: 'commercial', label: 'Échéance d’un client impayée', audiences: ['compta'], priority: 'action' },
+  'rh.depart': { module: 'rh', label: 'Départ d’un employé (solde de tout compte)', audiences: ['compta'] },
+};
+
+/**
+ * Paramètres des modules sans page de réglages propre (ERP › module › Réglages) ; les défauts sont les règles en
+ * place avant le réglage. `perm` : droits qui modifient le paramètre ; `who` : qui le règle (affiché aux autres).
+ */
+const MODULE_SETTINGS = {
+  commercial: {
+    vefa_due_days: { group: 'Appels de fonds VEFA', label: 'Délai de paiement d’un appel de fonds (jours)', hint: 'Délai laissé à l’acquéreur pour régler un appel de fonds, pour les programmes sans plan VEFA propre (un plan de programme garde son délai)', default: 15, min: 1, max: 90, perm: 'vefa:write', who: 'le responsable des appels de fonds' },
+    commercial_stale_days: { group: 'Suivi des programmes', label: 'Programme à relancer sans point de chantier publié depuis (jours)', hint: 'Signalé « À relancer » dans la Vue Direction quand des dossiers de vente attendent des nouvelles du chantier', default: 60, min: 7, max: 365, perm: 'targets:write', who: 'la direction commerciale' },
+  },
+  sav: {
+    sav_hours_urgente: { group: 'Délais de traitement des réclamations', label: 'Priorité urgente (heures)', hint: 'Échéance de traitement calculée à l’ouverture de la réclamation', default: 24, min: 1, max: 720, perm: 'sav:assign', who: 'le responsable du SAV' },
+    sav_hours_haute: { group: 'Délais de traitement des réclamations', label: 'Priorité haute (heures)', hint: 'Échéance de traitement calculée à l’ouverture de la réclamation', default: 48, min: 1, max: 720, perm: 'sav:assign', who: 'le responsable du SAV' },
+    sav_hours_normale: { group: 'Délais de traitement des réclamations', label: 'Priorité normale (heures)', hint: 'Échéance de traitement calculée à l’ouverture de la réclamation', default: 120, min: 1, max: 1440, perm: 'sav:assign', who: 'le responsable du SAV' },
+    sav_hours_basse: { group: 'Délais de traitement des réclamations', label: 'Priorité basse (heures)', hint: 'Échéance de traitement calculée à l’ouverture de la réclamation', default: 240, min: 1, max: 2160, perm: 'sav:assign', who: 'le responsable du SAV' },
+  },
+  administration: {
+    admin_alert_first_days: { group: 'Rappels d’échéances (contrats et parc)', label: 'Premier rappel (jours avant l’échéance)', hint: 'Fin de contrat, préavis, révision, pièce à renouveler, assurance, visite technique, entretien daté', default: 30, min: 2, max: 120, perm: ['contrats:write', 'parc:write'], who: 'les services généraux' },
+    admin_alert_second_days: { group: 'Rappels d’échéances (contrats et parc)', label: 'Second rappel (jours avant l’échéance)', hint: 'Doit rester inférieur au premier rappel', default: 7, min: 1, max: 60, perm: ['contrats:write', 'parc:write'], who: 'les services généraux' },
+    contract_invoice_lead_days: { group: 'Contrats', label: 'Facture d’achat préparée (jours avant chaque paiement)', hint: 'Brouillon créé dans Comptabilité › Achats pour chaque échéance de paiement d’un contrat', default: 7, min: 0, max: 60, perm: 'contrats:write', who: 'les services généraux' },
+    parc_soon_days: { group: 'Parc : entretien « bientôt »', label: 'Entretien signalé bientôt dû à (jours)', hint: 'Entretien daté affiché « bientôt » dans la fiche du bien', default: 7, min: 1, max: 60, perm: 'parc:write', who: 'le gestionnaire du parc' },
+    parc_soon_km: { group: 'Parc : entretien « bientôt »', label: 'Véhicules : entretien bientôt dû à (km)', hint: 'Kilomètres restants avant l’entretien suivant', default: 500, min: 50, max: 10000, perm: 'parc:write', who: 'le gestionnaire du parc' },
+    parc_soon_h: { group: 'Parc : entretien « bientôt »', label: 'Engins : entretien bientôt dû à (heures moteur)', hint: 'Heures restantes avant l’entretien suivant', default: 20, min: 1, max: 500, perm: 'parc:write', who: 'le gestionnaire du parc' },
+  },
+};
+
+// Sons de notification proposés (cloche du dashboard et de l'ERP), choisis par chaque compte ; synthétisés par le
+// navigateur, donc libres de droits et sans fichier à télécharger
+const NOTIF_SOUNDS = {
+  carillon: 'Carillon (deux notes)', clochette: 'Clochette', cristal: 'Cristal (trois notes montantes)', goutte: 'Goutte d’eau',
+  marimba: 'Marimba', double_bip: 'Double bip', aucun: 'Aucun son',
+};
+
 // Situations de travaux des sous-traitants (lot 4)
 const SITUATION_STATUSES = { brouillon: 'Brouillon', verifiee: 'Vérifiée, à valider', validee: 'Validée', refusee: 'Refusée' };
 
@@ -1383,6 +1458,7 @@ function phaseRefusal(p, phases = []) {
 module.exports = {
   CHANTIER_ACTIONS, WORKSITE_STATUSES, WORKSITE_OPEN, WORKSITE_ZONES, TASK_STATUSES, PHASE_STATES, lotInZone, phaseState, worksiteProgress, phaseRefusal,
   CHANTIER_SETTINGS, budgetAlertLevel, PLACE_KINDS, DECLARATION_STATUSES, deliveryForecast, deliveryDelay, SITUATION_STATUSES, situationAmounts,
+  INFO_AUDIENCES, INFO_EVENTS, NOTIF_SOUNDS,
   DEED_STEPS, DEED_STEP_KEYS, deedProgress, deedStepRefusal, LITIGATION_ORIGINS, LITIGATION_STAGES, LITIGATION_OUTCOMES, litigationReminder,
   GUARANTEE_DIRECTIONS, DEFAULT_GUARANTEE_KINDS, GUARANTEE_STATUSES, guaranteeDeadline, LEGAL_SETTINGS, unpaidAge, LEGAL_ACTIONS,
   DOC_KINDS, DOC_AUDIENCES, DOC_STATUSES, DOC_ACTION_STATUSES, docReference, readReminder,
@@ -1391,7 +1467,7 @@ module.exports = {
   assetCode, maintenanceDue, fuelConsumption, reservationsOverlap,
   ASSET_PAYMENT_MODES, COST_ACCOUNTING_STATUSES, costAccountingStatus, depreciationAt, depreciationFor, addDays,
   MAIL_DIRECTIONS, MAIL_SUITES, MAIL_NATURES, MAIL_CHANNELS, MAIL_STATUSES, mailNumber, mailVisibility, mailReminder,
-  CONTRACT_KINDS, CONTRACT_FREQUENCIES, CONTRACT_STATUSES, CONTRACT_DOC_KINDS, CONTRACT_ALERT_STAGES, CONTRACT_INVOICE_LEAD_DAYS, CONTRACT_ACTIONS,
+  MODULE_SETTINGS, CONTRACT_KINDS, CONTRACT_FREQUENCIES, CONTRACT_STATUSES, CONTRACT_DOC_KINDS, CONTRACT_ALERT_STAGES, CONTRACT_INVOICE_LEAD_DAYS, CONTRACT_ACTIONS,
   contractDeadlines, contractAlertStage, renewedEnd, contractPaymentsDue, daysBetween,
   PORTFOLIO_EVENTS, PORTFOLIO_REASONS, portfolioState, replayPortfolio, portfolioDiff, portfolioCounts,
   SELF_SERVICE, SAV_ACTIONS, COURRIER_ACTIONS, COMPTA_ACTIONS, PAIE_ACTIONS, RH_ACTIONS,

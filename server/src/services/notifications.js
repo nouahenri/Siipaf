@@ -2,18 +2,27 @@
  * Centre de notifications commun de l'ERP (docs/analyse-liaisons-inter-services.md §6.1). Chaque module appelle
  * `notify` au lieu d'envoyer ses e-mails lui-même : une notification par destinataire dans la cloche de l'ERP,
  * plus l'e-mail quand le module le demande. Sans doublon : une même clé n'est notifiée qu'une fois par compte.
- * Personne n'est notifié de sa propre action (`except`).
+ * Personne n'est notifié de sa propre action (`except`), ni d'un module dont il a coupé les notifications.
  */
 const { isoTime } = require('../lib/http');
 const { erpUrl } = require('../config');
 const { sendMail } = require('../lib/mailer');
 const { effectivePermissions, hasPermission } = require('./permissions');
+const { INFO_EVENTS, INFO_AUDIENCES } = require('../lib/domain');
 
 const NOTIF_MODULES = {
   commercial: 'Service commercial', sav: 'Client & SAV', compta: 'Comptabilité', rh: 'Ressources humaines', administration: 'Administration générale',
   juridique: 'Juridique', chantiers: 'Chantiers',
 };
 const PRIORITIES = ['info', 'action', 'urgent'];
+
+/** Préférences d'un compte par module : { commercial: { enabled: false, sound: 'goutte' }, … } (vide = tout activé). */
+function prefsOf(u) {
+  try {
+    const p = u?.notif_prefs ? JSON.parse(u.notif_prefs) : {};
+    return p && typeof p === 'object' && !Array.isArray(p) ? p : {};
+  } catch { return {}; }
+}
 
 /**
  * Comptes actifs qui ont l'un des droits donnés. Le super administrateur (tous les droits) n'est retenu que si
@@ -46,9 +55,10 @@ async function notify(db, { to, module, event, title, body = null, link = null, 
   const list = [].concat(to || []).filter(Boolean);
   const ids = [...new Set(list.map(u => (typeof u === 'object' ? u.id : Number(u))).filter(id => id && id !== except))];
   if (!ids.length) return 0;
-  const users = await db('users').whereIn('id', ids).where({ active: true }).select('id', 'name', 'email');
+  const users = await db('users').whereIn('id', ids).where({ active: true }).select('id', 'name', 'email', 'notif_prefs');
   let count = 0;
   for (const u of users) {
+    if (prefsOf(u)[module]?.enabled === false) continue;
     if (key && (await db('notifications').where({ user_id: u.id, dedupe_key: key }).first('id'))) continue;
     await db('notifications').insert({
       user_id: u.id, module, event, title: title.slice(0, 255), body: body ? String(body).slice(0, 500) : null, link,
@@ -96,4 +106,68 @@ async function resolve(db, keyPrefix) {
   return db('notifications').where('dedupe_key', 'like', `${keyPrefix}%`).whereNull('read_at').update({ read_at: new Date() });
 }
 
-module.exports = { NOTIF_MODULES, notify, usersWith, employeeUser, list, markRead, resolve };
+// ─── Circuit d'information entre les services (lib/domain.js : INFO_EVENTS, INFO_AUDIENCES) ──────────────
+
+const ROUTES_KEY = 'info_routes';
+
+/** Services prévenus pour chaque événement : réglage enregistré (Administration générale › Circuit d'information), sinon défaut. */
+async function infoRoutes(db) {
+  const row = await db('app_settings').where({ key: ROUTES_KEY }).first('value');
+  let saved = {};
+  try { saved = row?.value ? JSON.parse(row.value) : {}; } catch { saved = {}; }
+  return Object.fromEntries(Object.entries(INFO_EVENTS).map(([event, def]) => {
+    const list = Array.isArray(saved[event]) ? saved[event].filter(a => INFO_AUDIENCES[a]) : def.audiences;
+    return [event, list];
+  }));
+}
+
+async function saveInfoRoutes(db, routes) {
+  const clean = Object.fromEntries(Object.entries(routes).filter(([e]) => INFO_EVENTS[e]).map(([e, list]) => [e, [...new Set(list)].filter(a => INFO_AUDIENCES[a])]));
+  const value = JSON.stringify({ ...(await infoRoutes(db)), ...clean });
+  if (await db('app_settings').where({ key: ROUTES_KEY }).first()) await db('app_settings').where({ key: ROUTES_KEY }).update({ value, updated_at: new Date() });
+  else await db('app_settings').insert({ key: ROUTES_KEY, value });
+  return infoRoutes(db);
+}
+
+/** Comptes d'un service (les droits du service ; la Direction générale comprend le super administrateur). */
+async function audienceUsers(db, audience) {
+  const def = INFO_AUDIENCES[audience];
+  if (!def) return [];
+  const users = await db('users').where({ active: true }).select('id', 'name', 'email', 'role');
+  const out = [];
+  for (const u of users) {
+    if (u.role === 'super_admin') { if (def.superAdmin) out.push(u); continue; }
+    const p = await effectivePermissions(db, u);
+    if (def.perms.some(x => hasPermission(p, x))) out.push(u);
+  }
+  return out;
+}
+
+/**
+ * Informe les services d'un événement selon le circuit réglé, en plus des personnes directement visées (`direct`).
+ * `links` : lien propre à un service (ex. { compta: '/compta/ecritures' }), sinon `link`. Un compte présent dans
+ * plusieurs groupes ne reçoit qu'une notification (même clé) ; jamais l'auteur de l'action (`except`).
+ */
+async function inform(db, event, { title, body = null, link = null, links = {}, key = null, except = null, priority = null, direct = [], email = false }) {
+  const def = INFO_EVENTS[event];
+  if (!def) throw new Error(`Événement inconnu du circuit d'information : ${event}`);
+  const dedupe = key || `${event}:${Date.now()}:${Math.random().toString(36).slice(2, 8)}`;
+  const base = { module: def.module, event, title, body, key: dedupe, except, priority: priority || def.priority || 'info', email };
+  let n = await notify(db, { ...base, to: direct, link });
+  // Chaque service la reçoit dans son module (badge de sa tuile, réglage de notifications de son module)
+  for (const a of (await infoRoutes(db))[event] || []) {
+    n += await notify(db, { ...base, module: INFO_AUDIENCES[a].module || def.module, to: await audienceUsers(db, a), link: links[a] || link });
+  }
+  return n;
+}
+
+/** Active ou coupe les notifications d'un module pour un compte, et leur son (null = son général). */
+async function savePrefs(db, userId, module, { enabled, sound }) {
+  const u = await db('users').where({ id: userId }).first('notif_prefs');
+  const prefs = prefsOf(u);
+  prefs[module] = { enabled: !!enabled, sound: sound || null };
+  await db('users').where({ id: userId }).update({ notif_prefs: JSON.stringify(prefs), updated_at: new Date() });
+  return prefs;
+}
+
+module.exports = { NOTIF_MODULES, prefsOf, savePrefs, notify, usersWith, employeeUser, list, markRead, resolve, infoRoutes, saveInfoRoutes, audienceUsers, inform };

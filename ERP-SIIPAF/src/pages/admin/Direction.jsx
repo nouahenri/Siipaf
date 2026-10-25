@@ -5,7 +5,7 @@
  */
 import {
   Banknote, Wallet, Landmark, HardHat, Gauge, Target, Users, UserMinus, LifeBuoy, AlarmClock, Star, Scale, ReceiptText, Briefcase,
-  Building, Mail, FileClock, Truck, Inbox, FileText, ListChecks, Stamp, ShieldHalf,
+  Building, Mail, FileClock, Truck, Inbox, FileText, ListChecks, Stamp, ShieldHalf, Flag, Handshake, CalendarClock,
 } from 'lucide-react';
 import { Link } from 'react-router-dom';
 import { useResource } from '@admin/lib/app-context';
@@ -22,6 +22,7 @@ const ATTENTION = {
   courrier: { icon: Mail, label: 'Courrier' }, contrats: { icon: FileClock, label: 'Contrats' },
   parc: { icon: Truck, label: 'Parc' }, documents: { icon: FileText, label: 'Documents internes' },
   litiges: { icon: Scale, label: 'Litiges' }, cautions: { icon: ShieldHalf, label: 'Cautions' }, impayes: { icon: AlarmClock, label: 'Impayés' },
+  chantiers: { icon: HardHat, label: 'Chantiers' },
 };
 
 function Section({ icon: Icon, title, to, children }) {
@@ -41,6 +42,7 @@ export default function Direction() {
   const { commercial: c, chantiers: ch, finance: f, rh, sav, administration: a, juridique: j } = d;
   const lastPay = rh.payroll[rh.payroll.length - 1];
   const withSales = ch.projects.filter(p => p.dossiers || p.lots);
+  const w = ch.worksites;
 
   return (
     <div className="stack">
@@ -53,7 +55,7 @@ export default function Direction() {
       </div>
 
       {a.attention.length > 0 && (
-        <Card title="À traiter en priorité" actions={<span className="small muted">{num(a.attention_total)} délai(s) dépassé(s)</span>} bodyClass="">
+        <Card title="À traiter en priorité" actions={<span className="small muted">{num(a.attention_total)} point(s) : délais dépassés et décisions attendues</span>} bodyClass="">
           <ul className="list">
             {a.attention.map(x => {
               const M = ATTENTION[x.module];
@@ -135,6 +137,57 @@ export default function Direction() {
           )}
         </Card>
         <p className="small muted">Avancement : dernier point publié aux clients pour le programme, l’îlot ou le lot (journal de chantier du dashboard). Le détail par client se trouve dans Service commercial › Dossiers de vente.</p>
+
+        <h3 className="row" style={{ gap: 8, fontSize: 14, fontWeight: 600, marginTop: 4 }}>Chantiers en cours<Link className="small muted" style={{ fontWeight: 400, marginLeft: 'auto' }} to="/chantiers">Ouvrir ERP › Chantiers</Link></h3>
+        <div className="grid grid-4">
+          <Kpi to="/chantiers" icon={HardHat} label="Chantiers ouverts" count={w.open} foot={w.progress_pct == null ? 'aucun chantier ouvert' : `avancement moyen ${w.progress_pct} %`} />
+          <Kpi to="/chantiers" icon={CalendarClock} label="Phases en retard" count={w.late_phases} tint={w.late_phases ? 'amber' : undefined} foot={`sur ${num(w.late_worksites)} chantier(s)`} />
+          <Kpi to="/chantiers" icon={Wallet} label="Budget consommé" count={w.budget_fcfa ? Math.round((w.spent_fcfa / w.budget_fcfa) * 100) : null} format={v => `${v} %`} tint={w.over_budget ? 'amber' : undefined}
+            foot={w.budget_fcfa ? `${money(w.spent_fcfa)} / ${money(w.budget_fcfa)} · ${num(w.over_budget)} dépassé(s)` : 'aucun budget saisi'} />
+          <Kpi to="/chantiers" icon={Flag} label="Décisions de la Direction" count={w.to_declare + w.situations_to_validate} tint={w.to_declare + w.situations_to_validate ? 'amber' : undefined}
+            foot={`${num(w.to_declare)} étape(s) à déclarer · ${num(w.situations_to_validate)} situation(s) à valider · ${num(w.late_deliveries)} livraison(s) en retard`} />
+        </div>
+        <div className="grid grid-2" style={{ alignItems: 'start' }}>
+          <Card title="Étapes signalées à déclarer" actions={<span className="small muted">la déclaration émet les appels de fonds VEFA</span>} bodyClass="">
+            {!w.declarations.length ? <Empty icon={Flag}>Aucune étape en attente de déclaration.</Empty> : (
+              <ul className="list">{w.declarations.map(x => (
+                <li key={x.id}><Link to={x.worksite_id ? `/chantiers/${x.worksite_id}?onglet=etapes` : '/chantiers'} className="list-row">
+                  <span style={{ minWidth: 0, flex: 1 }}><strong className="ellipsis">{x.stage_label}</strong><span className="small muted ellipsis">{x.scope_label} · {x.project_name}{x.reported_by_name ? ` · signalée par ${x.reported_by_name}` : ''}</span></span>
+                  <span className="small nowrap muted">{x.reached_on ? `atteinte le ${date(x.reached_on)}` : ''}</span>
+                </Link></li>
+              ))}</ul>
+            )}
+          </Card>
+          <Card title="Situations de sous-traitants à valider" bodyClass="">
+            {!w.situations.length ? <Empty icon={Handshake}>Aucune situation en attente de validation.</Empty> : (
+              <ul className="list">{w.situations.map(x => (
+                <li key={x.id}><Link to={`/chantiers/${x.worksite_id}?onglet=sous-traitants`} className="list-row">
+                  <span style={{ minWidth: 0, flex: 1 }}><strong className="ellipsis">{x.contract_reference} · situation n° {x.number}</strong><span className="small muted ellipsis">{x.supplier_name || x.contract_title} · {x.worksite_reference}</span></span>
+                  <span className="small nowrap tabular">{compact(x.amount_ttc)} TTC</span>
+                </Link></li>
+              ))}</ul>
+            )}
+          </Card>
+        </div>
+        {w.worksites.length > 0 && (
+          <Card bodyClass="">
+            <div className="table-wrap"><table className="table">
+              <thead><tr><th>Chantier</th><th>Programme</th><th>Conducteur</th><th>Statut</th><th>Avancement</th><th className="right">Phases en retard</th><th className="right">Budget</th><th className="right">Consommé</th></tr></thead>
+              <tbody>{w.worksites.map(x => (
+                <tr key={x.id}>
+                  <td><Link to={`/chantiers/${x.id}`}><strong>{x.reference}</strong></Link><div className="small muted">{x.name}</div></td>
+                  <td>{x.project_name}</td>
+                  <td>{x.manager_name || <span className="muted">—</span>}</td>
+                  <td>{x.status_label}</td>
+                  <td><Advance value={x.progress_pct} /></td>
+                  <td className="right tabular">{x.late_phases ? <Badge tone="warn">{num(x.late_phases)}{x.late_days ? ` · ${num(x.late_days)} j` : ''}</Badge> : '0'}</td>
+                  <td className="right tabular">{x.budget_fcfa ? compact(x.budget_fcfa) : '—'}</td>
+                  <td className="right tabular">{x.consumed_pct == null ? '—' : <span style={x.consumed_pct > 100 ? { color: 'var(--danger)', fontWeight: 600 } : undefined}>{x.consumed_pct} %</span>}</td>
+                </tr>
+              ))}</tbody>
+            </table></div>
+          </Card>
+        )}
       </Section>
 
       <Section icon={Scale} title="Finance" to="/compta">

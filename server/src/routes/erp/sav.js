@@ -115,7 +115,7 @@ module.exports = function savRoutes(db) {
     if (Object.keys(data).some(k => k !== 'assigned_to') && !req.can('sav:handle')) throw new HttpError(403, 'Modifier une réclamation demande le droit « Traiter les réclamations ».');
     const patch = { ...data, updated_at: new Date() };
     // Un changement de priorité recalcule l'échéance depuis la date de dépôt
-    if (data.priority && data.priority !== t.priority) patch.due_at = sav.dueFrom(data.priority, new Date(t.created_at));
+    if (data.priority && data.priority !== t.priority) patch.due_at = await sav.dueFrom(db, data.priority, new Date(t.created_at));
     await db.transaction(async trx => {
       await trx('sav_tickets').where({ id }).update(patch);
       if (data.assigned_to !== undefined && data.assigned_to !== t.assigned_to) {

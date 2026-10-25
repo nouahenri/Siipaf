@@ -17,7 +17,7 @@ const {
 } = require('../lib/domain');
 const { DEPARTMENTS } = require('../lib/paie');
 const { sendMail } = require('../lib/mailer');
-const { notify, usersWith, resolve } = require('./notifications');
+const { notify, usersWith, resolve, inform } = require('./notifications');
 
 const insertedId = r => (typeof r === 'object' ? r.id : r);
 const today = () => new Date().toISOString().slice(0, 10);
@@ -152,8 +152,11 @@ async function announceDeed(db, saleId, userId) {
   const date = fr(d.steps.find(s => s.key === 'acte').date);
   const base = { event: 'acte.signe', title: `Acte signé le ${date} : ${what}`, body: d.notary_name ? `Notaire : ${d.notary_name}${d.deed_number ? ` · acte n° ${d.deed_number}` : ''}` : null, key: `acte:${saleId}`, except: userId };
   await notify(db, { ...base, to: d.commercial_id, module: 'commercial', link: '/commercial/ventes', priority: 'info' });
-  await notify(db, { ...base, to: await usersWith(db, 'compta:entries'), module: 'compta', link: '/compta/ecritures', priority: 'action' });
-  await notify(db, { ...base, to: await usersWith(db, 'direction:read'), module: 'juridique', link: `/juridique/actes?fiche=${saleId}`, priority: 'info' });
+  // Circuit d'information : Direction générale, exploitation, Comptabilité (écriture « CA à l'acte »), SAV (réglable)
+  await inform(db, 'acte.signe', {
+    title: base.title, body: base.body, key: base.key, except: userId,
+    link: `/juridique/actes?fiche=${saleId}`, links: { compta: '/compta/ecritures', sav: '/sav/reserves' },
+  });
   if (d.client_email) {
     await sendMail({
       to: d.client_email,
@@ -294,8 +297,8 @@ async function createLitigation(db, data, user) {
   });
   const l = await litigationDetail(db, id);
   // Litige ouvert : le juriste et la Direction sont prévenus (cloche) ; le juriste nommé aussi
-  await notify(db, {
-    to: [...await usersWith(db, 'juridique:write'), ...await usersWith(db, 'direction:read'), l.owner_id], except: user.id, module: 'juridique', event: 'litige.ouvert',
+  await inform(db, 'litige.ouvert', {
+    direct: [l.owner_id].filter(Boolean), except: user.id,
     title: `Litige ouvert : ${l.reference} — ${l.title}`, body: `${l.origin_label} · ${l.opponent}${l.amount_fcfa ? ` · ${money(l.amount_fcfa)}` : ''}`,
     link: `/juridique/litiges?fiche=${id}`, priority: 'action', key: `litige:${id}:ouvert`,
   });
@@ -518,6 +521,7 @@ async function badges(db, user, can) {
 async function tick(db, day = today()) {
   const stats = { litigations: 0, guarantees: 0, unpaid_commercial: 0, unpaid_legal: 0 };
   const jurists = await usersWith(db, 'juridique:write');
+  const legal = await settings(db); // rappels des cautions (Juridique › Réglages)
 
   for (const raw of await litigationQuery(db).where('g.status', 'ouvert').whereNotNull('g.next_date')) {
     const l = serializeLitigation(raw, day);
@@ -535,7 +539,7 @@ async function tick(db, day = today()) {
   const accountants = await usersWith(db, 'achats:write');
   for (const g of await guarantees(db, { status: 'active' })) {
     if (!g.deadline) continue;
-    const stage = contractAlertStage(g.deadline.date, day);
+    const stage = contractAlertStage(g.deadline.date, day, [legal.legal_alert_first_days, legal.legal_alert_second_days]);
     if (!stage || daysBetween(g.deadline.date, day) > 30) continue;
     const left = g.deadline.days_left;
     const when = left < 0 ? `dépassée depuis ${-left} jour(s)` : left === 0 ? 'aujourd’hui' : `dans ${left} jour(s)`;
@@ -552,12 +556,13 @@ async function tick(db, day = today()) {
 
   for (const u of (await unpaid(db, { day })).items) {
     const what = `${u.client_name} — ${u.project_name}, lot ${u.lot_code}`;
-    if (u.commercial_id && await notify(db, {
-      to: u.commercial_id, module: 'commercial', event: 'echeance.impayee', title: `Échéance impayée : ${what}`,
-      body: `${money(u.overdue_fcfa)} en retard depuis le ${fr(u.oldest_due)}`, link: '/commercial/ventes', priority: 'action', key: `impaye:${u.sale_id}:${u.oldest_due}`,
-    })) stats.unpaid_commercial++;
-    if (u.transmitted && !u.litigation && await notify(db, {
-      to: jurists, module: 'juridique', event: 'impaye.transmis', title: `Impayé de ${u.days_late} jours transmis au Juridique : ${what}`,
+    // Le commercial du client et les services du circuit (Comptabilité par défaut, pour le recouvrement)
+    if (await inform(db, 'echeance.impayee', {
+      direct: u.commercial_id ? [u.commercial_id] : [], title: `Échéance impayée : ${what}`,
+      body: `${money(u.overdue_fcfa)} en retard depuis le ${fr(u.oldest_due)}`, link: '/commercial/ventes', links: { compta: '/compta' }, key: `impaye:${u.sale_id}:${u.oldest_due}`,
+    }) && u.commercial_id) stats.unpaid_commercial++;
+    if (u.transmitted && !u.litigation && await inform(db, 'impaye.transmis', {
+      direct: jurists, title: `Impayé de ${u.days_late} jours transmis au Juridique : ${what}`,
       body: `${money(u.overdue_fcfa)} en retard · commercial : ${u.commercial_name || '—'}`, link: '/juridique/impayes', priority: 'action', key: `impaye-jur:${u.sale_id}:${u.oldest_due}`,
     })) stats.unpaid_legal++;
   }

@@ -8,7 +8,7 @@
  */
 const { HttpError, isoDay, isoTime } = require('../lib/http');
 const { SITUATION_STATUSES, situationAmounts } = require('../lib/domain');
-const { notify, usersWith } = require('./notifications');
+const { usersWith, inform } = require('./notifications');
 
 const insertedId = r => (typeof r === 'object' ? r.id : r);
 const money = n => `${Number(n || 0).toLocaleString('fr-FR').replace(/[  ]/g, ' ')} FCFA`;
@@ -128,8 +128,9 @@ async function verify(db, w, id, userId) {
   if (s.status !== 'brouillon') throw new HttpError(409, 'Cette situation n’est plus en brouillon.');
   await db('worksite_situations').where({ id }).update({ status: 'verifiee', verified_by: userId, verified_at: new Date(), updated_at: new Date() });
   const c = await db('contracts').where({ id: s.contract_id }).first('reference', 'title');
-  await notify(db, {
-    to: await usersWith(db, 'chantiers:direction'), module: 'chantiers', event: 'chantier.situation_verifiee', priority: 'action', except: userId,
+  // Les comptes qui valident (chantiers:direction) et les services du circuit (Direction générale, exploitation)
+  await inform(db, 'chantier.situation_verifiee', {
+    direct: await usersWith(db, 'chantiers:direction'), except: userId,
     title: `Situation n° ${s.number} à valider — ${c.reference}`, body: `${c.title} · ${w.reference} — ${money(s.amount_ttc)} TTC, retenue ${money(s.retention_amount)}.`,
     link: `/chantiers/${w.id}?onglet=sous-traitants`, key: `situation:${id}:verifiee`,
   });
@@ -159,14 +160,13 @@ async function validate(db, w, id, userId) {
     await trx('worksite_situations').where({ id }).update({ status: 'validee', validated_by: userId, validated_at: new Date(), purchase_invoice_id: insertedId(inv), updated_at: new Date() });
   });
   await syncRetention(db, w, c, userId);
-  const accounting = await usersWith(db, 'achats:write');
-  await notify(db, {
-    to: accounting, module: 'compta', event: 'chantier.situation_validee', priority: 'action',
-    title: `Situation à comptabiliser : ${c.reference} n° ${s.number}`,
-    body: `${money(s.amount_ttc)} TTC, dont retenue de garantie ${money(s.retention_amount)} à conserver : net à payer ${money(s.net_payable)}.`,
-    link: '/compta/achats', key: `situation:${id}:compta`,
+  // Le conducteur qui l'a saisie, les comptes des achats et les services du circuit (exploitation, Comptabilité, Juridique)
+  await inform(db, 'chantier.situation_validee', {
+    direct: [s.created_by, ...(await usersWith(db, 'achats:write'))].filter(Boolean), except: userId, priority: 'action', key: `situation:${id}:validee`,
+    title: `Situation n° ${s.number} validée — ${c.reference}`,
+    body: `${c.title} · ${money(s.amount_ttc)} TTC, retenue de garantie ${money(s.retention_amount)} à conserver : net à payer ${money(s.net_payable)} (facture en brouillon).`,
+    link: `/chantiers/${w.id}?onglet=sous-traitants`, links: { compta: '/compta/achats', juridique: '/juridique/cautions' },
   });
-  if (s.created_by) await notify(db, { to: s.created_by, module: 'chantiers', event: 'chantier.situation_validee', except: userId, title: `Situation n° ${s.number} validée — ${c.reference}`, link: `/chantiers/${w.id}?onglet=sous-traitants`, key: `situation:${id}:validee` });
 }
 
 /** Renvoi en brouillon d'une situation vérifiée (correction avant validation). */
@@ -180,9 +180,9 @@ async function refuse(db, w, id, reason, userId) {
   const s = await loadSituation(db, w, id);
   if (FINAL.includes(s.status)) throw new HttpError(409, 'Cette situation est déjà close.');
   await db('worksite_situations').where({ id }).update({ status: 'refusee', refusal_reason: reason, validated_by: userId, validated_at: new Date(), updated_at: new Date() });
-  if (s.created_by) {
-    await notify(db, {
-      to: s.created_by, module: 'chantiers', event: 'chantier.situation_refusee', priority: 'action', except: userId, title: `Situation n° ${s.number} refusée`,
+  {
+    await inform(db, 'chantier.situation_refusee', {
+      direct: s.created_by ? [s.created_by] : [], priority: 'action', except: userId, title: `Situation n° ${s.number} refusée`,
       body: reason, link: `/chantiers/${w.id}?onglet=sous-traitants`, key: `situation:${id}:refusee`,
     });
   }
@@ -211,7 +211,7 @@ async function toValidate(db) {
   const rows = await db('worksite_situations as s').join('contracts as c', 'c.id', 's.contract_id').join('worksites as w', 'w.id', 's.worksite_id')
     .leftJoin('suppliers as f', 'f.id', 'c.supplier_id').where('s.status', 'verifiee').orderBy('s.verified_at')
     .select('s.*', 'c.reference as contract_reference', 'c.title as contract_title', 'f.name as supplier_name', 'w.reference as worksite_reference', 'w.name as worksite_name');
-  return rows.map(r => ({ ...serialize(r), contract_reference: r.contract_reference, contract_title: r.contract_title, supplier_name: r.supplier_name, worksite_reference: r.worksite_reference, worksite_name: r.worksite_name }));
+  return rows.map(r => ({ ...serialize(r), worksite_id: r.worksite_id, contract_reference: r.contract_reference, contract_title: r.contract_title, supplier_name: r.supplier_name, worksite_reference: r.worksite_reference, worksite_name: r.worksite_name }));
 }
 
 const filePath = s => {

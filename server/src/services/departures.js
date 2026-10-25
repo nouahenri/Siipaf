@@ -6,7 +6,7 @@
  */
 const { isoDay } = require('../lib/http');
 const { SAV_OPEN_STATUSES } = require('../lib/domain');
-const { notify, usersWith } = require('./notifications');
+const { notify, usersWith, inform } = require('./notifications');
 
 const n = async q => Number((await q.count({ n: '*' }).first()).n || 0);
 
@@ -61,6 +61,13 @@ async function notifyDeparture(db, e, { user }) {
   const who = r.employee.name;
   const key = `depart:${e.id}:${r.employee.end_date || isoDay(new Date())}`;
   const link = `/rh/personnel/${e.id}`;
+  // Circuit d'information : Comptabilité (solde de tout compte) par défaut ; la Direction, les services généraux et
+  // l'administrateur des comptes reçoivent ci-dessous ce qu'ils ont à régler
+  await inform(db, 'rh.depart', {
+    except: user.id, key: `${key}:info`, link,
+    title: `Départ de ${who}${r.employee.end_date ? ` le ${new Date(r.employee.end_date).toLocaleDateString('fr-FR')}` : ''}`,
+    body: [r.assets.length ? `${r.assets.length} bien(s) du parc à récupérer` : null, r.items.length ? 'dossiers à réaffecter' : null].filter(Boolean).join(' · ') || null,
+  });
   if (r.account?.active) {
     await notify(db, {
       to: await usersWith(db, 'users:write'), except: user.id, module: 'rh', event: 'depart.compte', priority: 'action',

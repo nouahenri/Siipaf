@@ -21,7 +21,7 @@ function DaysLeft({ n }) {
 /**
  * Contrats et échéances (choix du client du 22/10) : tous les contrats de l'entreprise, leur fin ou renouvellement
  * tacite, le préavis, la révision de prix, les paiements périodiques (facture d'achat en brouillon en Comptabilité)
- * et les pièces à renouveler. Alertes 30 puis 7 jours avant au responsable du contrat et au responsable d'exploitation.
+ * et les pièces à renouveler. Alertes (par défaut 30 puis 7 jours avant, Administration générale › Réglages) au responsable du contrat et au responsable d'exploitation.
  */
 export default function Contrats() {
   const { can } = useAuth();
@@ -82,7 +82,7 @@ export default function Contrats() {
               <tbody>{deadlines.data.map(d => (
                 <tr key={`${d.contract_id}-${d.key}`} className="clickable" onClick={() => setOpen(d.contract_id)}>
                   <td className="nowrap"><span className="small">{date(d.date)}</span><div><DaysLeft n={d.days_left} /></div></td>
-                  <td>{d.label}{d.kind === 'paiement' && <div className="small muted">Facture d’achat préparée 7 jours avant</div>}</td>
+                  <td>{d.label}{d.kind === 'paiement' && <div className="small muted">Facture d’achat préparée {refs.data?.invoice_lead_days} jours avant</div>}</td>
                   <td><b className="small tabular">{d.reference}</b><div>{d.title}</div></td>
                   <td>{d.counterparty_name || '—'}</td>
                   <td className="small">{d.owner_name || '—'}</td>
@@ -258,7 +258,7 @@ function DocForm({ contract, doc, refs, onClose, onSaved }) {
       <form id="doc-form" className="form-grid" onSubmit={save}>
         <div className="full"><ErrorBox error={error} /></div>
         <Field label="Type"><select className="select" value={f.kind} onChange={set('kind')}>{Object.entries(refs.doc_kinds).map(([k, l]) => <option key={k} value={k}>{l}</option>)}</select></Field>
-        <Field label="Expire le" hint="Alerte 30 puis 7 jours avant"><input className="input" type="date" value={f.expires_on} onChange={set('expires_on')} /></Field>
+        <Field label="Expire le" hint={`Alerte ${refs.alert_days[0]} puis ${refs.alert_days[1]} jours avant`}><input className="input" type="date" value={f.expires_on} onChange={set('expires_on')} /></Field>
         <Field label="Intitulé" className="full"><input className="input" maxLength={160} value={f.label} onChange={set('label')} placeholder={refs.doc_kinds[f.kind]} /></Field>
         <Field label="Fichier" className="full" hint="PDF ou photo, 20 Mo au plus">
           <label className="btn" style={{ alignSelf: 'start' }}><Paperclip />{file ? file.name : doc?.file_url ? 'Remplacer le fichier' : 'Joindre le fichier'}<input type="file" hidden accept="application/pdf,image/jpeg,image/png,image/webp" onChange={e => setFile(e.target.files[0] || null)} /></label>
@@ -329,7 +329,7 @@ export function ContractForm({ contract: c, preset = null, refs, onClose, onSave
           <Field label="Compte de charge" hint="Vide : celui de la fiche du sous-traitant"><input className="input" maxLength={12} value={f.expense_account} onChange={set('expense_account')} placeholder="604 (sous-traitance)…" /></Field>
         </>}
 
-        <Field label="Paiement périodique" hint="Prépare une facture d’achat en brouillon 7 jours avant chaque échéance"><select className="select" value={f.frequency} onChange={set('frequency')}><option value="">Aucun</option>{Object.entries(refs.frequencies).map(([k, x]) => <option key={k} value={k}>{x.label}</option>)}</select></Field>
+        <Field label="Paiement périodique" hint={`Prépare une facture d’achat en brouillon ${refs.invoice_lead_days} jours avant chaque échéance`}><select className="select" value={f.frequency} onChange={set('frequency')}><option value="">Aucun</option>{Object.entries(refs.frequencies).map(([k, x]) => <option key={k} value={k}>{x.label}</option>)}</select></Field>
         {f.frequency ? (
           <>
             <Field label="Prochaine échéance"><input className="input" type="date" required value={f.next_payment_date} onChange={set('next_payment_date')} /></Field>

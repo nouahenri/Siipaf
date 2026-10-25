@@ -16,7 +16,7 @@ const frDate = s => new Date(`${s}T00:00:00Z`).toLocaleDateString('fr-FR', { day
 /** Plan du programme, ou plan par défaut s'il n'a pas été réglé. */
 async function getPlan(db, projectId) {
   const row = await db('vefa_plans').where({ project_id: projectId }).first();
-  if (!row) return { project_id: projectId, milestones: DEFAULT_VEFA_PLAN, due_days: VEFA_DUE_DAYS, custom: false };
+  if (!row) return { project_id: projectId, milestones: DEFAULT_VEFA_PLAN, due_days: await require('./moduleSettings').value(db, 'vefa_due_days'), custom: false };
   return { project_id: projectId, milestones: json(row.milestones, DEFAULT_VEFA_PLAN), due_days: row.due_days, custom: true, updated_at: row.updated_at };
 }
 

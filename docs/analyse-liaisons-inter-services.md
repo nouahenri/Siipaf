@@ -254,3 +254,19 @@ Une notification ne contient **que le titre et le lien** ; le détail s'ouvre av
 3. Qui valide l'étape de chantier qui déclenche l'appel de fonds : conducteur de travaux, Direction, ou les deux ?
 4. Le Juridique reprend-il la gestion des contrats de l'Administration, ou les deux services restent-ils sur la même liste ?
 5. Le Courrier affecté doit-il apparaître dans le module du service destinataire, ou seulement dans la cloche ?
+
+---
+
+## 10. État au 25 octobre 2026 — circuit d'information en place
+
+- **Centre de notifications** (§6.1) ✅ : table `notifications`, fonction `notify`, cloche de l'ERP **et du dashboard** (badge, son), pastille par module dans « Tous les modules ».
+- **Circuit d'information** ✅ : `inform(db, événement, …)` prévient les personnes directement concernées **et les services** réglés pour l'événement (`INFO_EVENTS`, `INFO_AUDIENCES` dans `server/src/lib/domain.js`). Réglage : ERP › Administration générale › **Circuit d'information** (Direction générale, administrateur ; lecture pour la Direction des exploitations). Chaque service reçoit l'information **dans son module** (la Comptabilité sous « Comptabilité »…).
+- **Événements branchés** : chantier ouvert, étape signalée / déclarée / refusée, incident, situation vérifiée / validée / refusée, budget au seuil ou dépassé, phase en retard, livraison promise en retard, vente ouverte, versement reçu, échéance impayée, acte signé, réclamation ouverte, litige ouvert, impayé transmis, départ d'un employé.
+- **Vue Direction** ✅ : section « Chantiers en cours » (avancement, phases en retard, budget consommé, étapes à déclarer, situations à valider, livraisons en retard) et décisions des chantiers dans « À traiter en priorité ».
+- **Réglages de chaque module** ✅ : « Mes notifications » (activer / couper le module, son propre ou son général) pour tout compte, puis les paramètres du module (Commercial : délai VEFA, programme à relancer ; SAV : délais par priorité ; Administration : rappels d'échéance, facture préparée, entretien « bientôt » ; Juridique : rappels des cautions, en plus de l'existant).
+- **Sons** : synthétisés par le navigateur (carillon, clochette, cristal, goutte, marimba, double bip, aucun), sans fichier ni licence.
+
+**Règle de développement** (client, 25/10) : tout nouveau module ou fonctionnalité relit ce document, déclare ses événements dans `INFO_EVENTS`, passe par `inform` pour informer les autres services, reçoit un menu Réglages, et met à jour cet état.
+
+Reste à faire (modules à venir) : `chantier.besoin_materiel`, `commande.validee`, `livraison.recue`, `stock.seuil_bas` (Achats & stocks), `lot.livre` → SAV (réception, lot 5 des chantiers), `tma.demandee`, `tresorerie.seuil`, journal des événements (§6.2).
+

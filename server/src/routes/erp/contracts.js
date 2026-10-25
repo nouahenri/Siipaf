@@ -44,7 +44,9 @@ module.exports = function contractRoutes(db) {
       db('projects').orderBy('name').select('id', 'name'),
       db('users').where({ active: true }).orderBy('name').select('id', 'name'),
     ]) : [[], [], []];
-    res.json({ kinds: CONTRACT_KINDS, frequencies: CONTRACT_FREQUENCIES, statuses: CONTRACT_STATUSES, doc_kinds: CONTRACT_DOC_KINDS, suppliers, projects, users });
+    const ms = require('../../services/moduleSettings');
+    // Rappels et facture préparée (Administration générale › Réglages), repris dans les aides de l'écran
+    res.json({ kinds: CONTRACT_KINDS, frequencies: CONTRACT_FREQUENCIES, statuses: CONTRACT_STATUSES, doc_kinds: CONTRACT_DOC_KINDS, suppliers, projects, users, alert_days: await ms.alertStages(db), invoice_lead_days: await ms.value(db, 'contract_invoice_lead_days') });
   }));
 
   /** Échéances des contrats visibles dans les `days` jours (dépassées comprises). */

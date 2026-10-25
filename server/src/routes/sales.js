@@ -7,6 +7,7 @@ const { PAYMENT_METHODS, DOCUMENT_TYPES, DOCUMENT_STATUSES, SCHEDULE_KINDS } = r
 const { openSale, refreshSaleStatus, totals, ACTIVE } = require('../services/sales');
 const { regenerateSchedule, replaceSchedule, scheduleStatus } = require('../services/schedule');
 const juridique = require('../services/juridique');
+const { inform } = require('../services/notifications');
 
 const day = z.coerce.date();
 
@@ -84,6 +85,14 @@ module.exports = function salesRoutes(db) {
     }
     const { lead_id, name, phone, email, ...rest } = data;
     const sale = await openSale(db, { lotId: idParam(req), leadId: lead_id, leadData: { name, phone, email }, ...rest, user: req.user });
+    // Circuit d'information : Direction générale, exploitation, Comptabilité, Juridique (réglable dans l'ERP)
+    const info = await db('sales as s').join('lots as l', 'l.id', 's.lot_id').join('projects as p', 'p.id', 'l.project_id').join('leads as c', 'c.id', 's.lead_id')
+      .where('s.id', sale.id).first('c.name as client_name', 'c.assigned_to', 'p.name as project_name', 'l.code as lot_code', 's.price_fcfa', 's.vefa');
+    await inform(db, 'vente.ouverte', {
+      direct: info.assigned_to ? [info.assigned_to] : [], except: req.user.id, key: `vente:${sale.id}:ouverte`,
+      title: `Nouveau dossier de vente : ${info.client_name}`, body: `${info.project_name}, lot ${info.lot_code}${info.vefa ? ' · VEFA' : ''}`,
+      link: '/commercial/ventes', links: { compta: '/compta', juridique: `/juridique/actes?fiche=${sale.id}` },
+    });
     res.status(201).json(await saleDetail(sale));
   }));
 
@@ -167,9 +176,18 @@ module.exports = function salesRoutes(db) {
     if (data.amount_fcfa > t.remaining_fcfa) {
       throw new HttpError(409, `Le versement dépasse le reste à payer (${t.remaining_fcfa.toLocaleString('fr-FR')} FCFA).`);
     }
-    await db.transaction(async trx => {
-      await trx('payments').insert({ ...data, sale_id: id, recorded_by: req.user.id });
+    const pid = await db.transaction(async trx => {
+      const [p] = await trx('payments').insert({ ...data, sale_id: id, recorded_by: req.user.id });
       await refreshSaleStatus(trx, id);
+      return typeof p === 'object' ? p.id : p;
+    });
+    // Circuit d'information : le commercial du client et la Comptabilité (écriture d'encaissement à synchroniser)
+    const info = await db('sales as s').join('lots as l', 'l.id', 's.lot_id').join('projects as p', 'p.id', 'l.project_id').join('leads as c', 'c.id', 's.lead_id')
+      .where('s.id', id).first('c.name as client_name', 'c.assigned_to', 'p.name as project_name', 'l.code as lot_code');
+    await inform(db, 'vente.versement', {
+      direct: info.assigned_to ? [info.assigned_to] : [], except: req.user.id, key: `versement:${pid}`,
+      title: `Versement reçu : ${info.client_name} — ${data.amount_fcfa.toLocaleString('fr-FR')} FCFA`, body: `${info.project_name}, lot ${info.lot_code} · le ${data.paid_at.toLocaleDateString('fr-FR')}`,
+      link: '/commercial/ventes', links: { compta: '/compta' },
     });
     res.status(201).json(await saleDetail(await db('sales').where({ id }).first()));
   }));

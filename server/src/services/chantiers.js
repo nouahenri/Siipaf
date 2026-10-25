@@ -11,7 +11,7 @@ const {
 } = require('../lib/domain');
 const { computePayslip } = require('../lib/paie');
 const { splitVat } = require('../lib/compta');
-const { notify, employeeUser, usersWith } = require('./notifications');
+const { notify, employeeUser, inform } = require('./notifications');
 
 const insertedId = r => (typeof r === 'object' ? r.id : r);
 const today = () => new Date().toISOString().slice(0, 10);
@@ -219,6 +219,10 @@ async function create(db, data, user) {
   });
   const w = await loadWorksite(db, id);
   await announceManager(db, w, user.id);
+  await inform(db, 'chantier.cree', {
+    except: user.id, key: `chantier:${w.id}:cree`, link: `/chantiers/${w.id}`,
+    title: `Nouveau chantier : ${w.reference} — ${w.name}`, body: `${w.project_name}${w.manager_name ? ` · conducteur : ${w.manager_name}` : ''}`,
+  });
   return w;
 }
 
@@ -479,7 +483,6 @@ async function tick(db) {
     db('worksite_budget_lines').whereIn('worksite_id', ids).groupBy('worksite_id').select('worksite_id').sum({ total: 'amount_fcfa' }),
     spentByWorksite(db, ids), settings(db),
   ]);
-  const direction = await usersWith(db, ['chantiers:direction', 'direction:read']);
   let n = 0;
   for (const w of open) {
     const budget = Number(budgets.find(b => b.worksite_id === w.id)?.total || 0);
@@ -487,8 +490,9 @@ async function tick(db) {
     if (!level) continue;
     const pct = Math.round(((spent[w.id] || 0) / budget) * 100);
     const title = level === 'depasse' ? `Budget dépassé : ${w.reference} (${pct} %)` : `Budget consommé à ${pct} % : ${w.reference}`;
-    n += await notify(db, {
-      to: [w.manager_id, ...direction], module: 'chantiers', event: 'budget.depasse', priority: level === 'depasse' ? 'urgent' : 'action', title,
+    // Le conducteur et les services du circuit (Direction générale, exploitation, Comptabilité par défaut)
+    n += await inform(db, 'budget.depasse', {
+      direct: [w.manager_id], priority: level === 'depasse' ? 'urgent' : 'action', title, links: { compta: '/compta' },
       body: `${w.name} — ${w.project_name}`, link: `/chantiers/${w.id}?onglet=budget`, key: `chantier-budget:${w.id}:${level}`, email: level === 'depasse',
     });
   }

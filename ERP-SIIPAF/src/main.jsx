@@ -25,6 +25,7 @@ import Parc from './pages/admin/Parc';
 import Documents from './pages/admin/Documents';
 import Demandes from './pages/admin/Demandes';
 import Lieux from './pages/admin/Lieux';
+import Circuit from './pages/admin/Circuit';
 import JuridiqueDashboard from './pages/juridique/JuridiqueDashboard';
 import Actes from './pages/juridique/Actes';
 import Litiges from './pages/juridique/Litiges';
@@ -59,10 +60,19 @@ import Accounts from './pages/Accounts';
 import Onboarding from './pages/Onboarding';
 import '@admin/styles.css';
 import './erp.css';
+import { installScrollers } from '@admin/lib/scrollers';
+import { SettingsShell } from './components/NotificationPrefs';
+import ModuleSettings from './pages/ModuleSettings';
 
 function Guard({ perm, children }) {
   const { can } = useAuth();
   return [].concat(perm).some(can) ? children : <Navigate to="/" replace />;
+}
+
+/** Réglages d'un module : « Mes notifications » pour tout compte, paramètres du module pour les droits donnés. */
+function Settings({ module, perm, who, children }) {
+  const { can } = useAuth();
+  return <SettingsShell module={module} allowed={[].concat(perm).some(can)} who={who}>{children}</SettingsShell>;
 }
 
 /** Entrée du module RH : le tableau de bord pour le service RH, « Mon espace » pour les autres. */
@@ -78,6 +88,7 @@ function AdminHome() {
   const first = [
     [['courrier:read', 'courrier:write', 'courrier:assign'], '/administration/courrier'], [['contrats:read', 'contrats:write'], '/administration/contrats'],
     [['parc:read', 'parc:write'], '/administration/parc'], [['demandes:handle', 'demandes:dg'], '/administration/demandes'], [['docs:publish'], '/administration/documents'], [['lieux:write'], '/administration/lieux'],
+    [['users:write', 'demandes:dg'], '/administration/circuit'],
   ].find(([perms]) => perms.some(can));
   return <Navigate to={first ? first[1] : '/administration/courrier'} replace />;
 }
@@ -106,6 +117,7 @@ function App() {
         <Route path="commercial/ventes" element={<Guard perm="commercial:read"><Guard perm="sales:read"><Sales /></Guard></Guard>} />
         <Route path="commercial/vefa" element={<Guard perm={['commercial:read', 'vefa:write']}><Vefa /></Guard>} />
         <Route path="commercial/objectifs" element={<Guard perm="commercial:read"><Targets /></Guard>} />
+        <Route path="commercial/reglages" element={<ModuleSettings module="commercial" />} />
         <Route path="compta" element={<Guard perm="compta:read"><ComptaDashboard /></Guard>} />
         <Route path="compta/ecritures" element={<Guard perm="compta:read"><Entries /></Guard>} />
         <Route path="compta/achats" element={<Guard perm="compta:read"><Purchases /></Guard>} />
@@ -115,7 +127,7 @@ function App() {
         <Route path="compta/paie" element={<Guard perm="paie:read"><Payroll /></Guard>} />
         <Route path="compta/paie/:id" element={<Guard perm="paie:read"><PayrollRun /></Guard>} />
         <Route path="compta/employes" element={<Guard perm={['paie:read', 'rh:read']}><Employees /></Guard>} />
-        <Route path="compta/parametres" element={<Guard perm="compta:read"><ComptaSettings /></Guard>} />
+        <Route path="compta/parametres" element={<Settings module="compta" perm="compta:read" who="la Comptabilité"><ComptaSettings /></Settings>} />
         <Route path="rh" element={<RhHome />} />
         <Route path="rh/moi" element={<MySpace />} />
         <Route path="rh/personnel" element={<Guard perm="rh:read"><Staff /></Guard>} />
@@ -127,7 +139,7 @@ function App() {
         <Route path="rh/recrutement" element={<Guard perm="rh:read"><Recruitment /></Guard>} />
         <Route path="rh/competences" element={<Guard perm="rh:read"><Skills /></Guard>} />
         <Route path="rh/objectifs" element={<Reviews />} />
-        <Route path="rh/reglages" element={<Guard perm="rh:read"><RhSettings /></Guard>} />
+        <Route path="rh/reglages" element={<Settings module="rh" perm="rh:read" who="le service des ressources humaines"><RhSettings /></Settings>} />
         <Route path="comptes" element={<Guard perm="users:read"><Accounts /></Guard>} />
         <Route path="demarrer" element={<Guard perm={['users:read', 'rh:read']}><Onboarding /></Guard>} />
         <Route path="commercial/acces" element={<Guard perm="users:read"><ModuleAccess module="commercial" label="Service commercial" /></Guard>} />
@@ -138,6 +150,8 @@ function App() {
         <Route path="administration/documents" element={<Documents />} />
         <Route path="administration/demandes" element={<Demandes />} />
         <Route path="administration/lieux" element={<Guard perm={['lieux:write', 'direction:read']}><Lieux /></Guard>} />
+        <Route path="administration/reglages" element={<ModuleSettings module="administration" />} />
+        <Route path="administration/circuit" element={<Guard perm={['users:write', 'demandes:dg', 'direction:read']}><Circuit /></Guard>} />
         <Route path="administration/acces" element={<Guard perm="users:read"><ModuleAccess module="administration" label="Administration générale" /></Guard>} />
         <Route path="juridique" element={<JuridiqueHome />} />
         <Route path="juridique/actes" element={<Guard perm={JURIDIQUE}><Actes /></Guard>} />
@@ -145,11 +159,11 @@ function App() {
         <Route path="juridique/cautions" element={<Guard perm={[...JURIDIQUE, 'compta:read']}><Cautions /></Guard>} />
         <Route path="juridique/impayes" element={<Guard perm={JURIDIQUE}><Impayes /></Guard>} />
         <Route path="juridique/contrats" element={<Contrats />} />
-        <Route path="juridique/reglages" element={<Guard perm={JURIDIQUE}><JuridiqueSettings /></Guard>} />
+        <Route path="juridique/reglages" element={<Settings module="juridique" perm={JURIDIQUE} who="le service juridique"><JuridiqueSettings /></Settings>} />
         <Route path="juridique/acces" element={<Guard perm="users:read"><ModuleAccess module="juridique" label="Juridique" /></Guard>} />
         <Route path="chantiers" element={<Navigate to="/chantiers/liste" replace />} />
         <Route path="chantiers/liste" element={<Chantiers />} />
-        <Route path="chantiers/reglages" element={<Guard perm={['chantiers:read', 'chantiers:write', 'chantiers:direction', 'direction:read']}><ChantiersSettings /></Guard>} />
+        <Route path="chantiers/reglages" element={<Settings module="chantiers" perm={['chantiers:read', 'chantiers:write', 'chantiers:direction', 'direction:read']} who="les gestionnaires des chantiers"><ChantiersSettings /></Settings>} />
         <Route path="chantiers/:id" element={<Chantier />} />
         <Route path="chantiers/acces" element={<Guard perm="users:read"><ModuleAccess module="chantiers" label="Chantiers" /></Guard>} />
         <Route path="compta/acces" element={<Guard perm="users:read"><ModuleAccess module="compta" label="Comptabilité et paie" /></Guard>} />
@@ -159,11 +173,15 @@ function App() {
         <Route path="sav/reclamations" element={<Guard perm="sav:read"><Tickets /></Guard>} />
         <Route path="sav/reserves" element={<Guard perm="sav:read"><Reserves /></Guard>} />
         <Route path="sav/interventions" element={<Guard perm="sav:read"><Interventions /></Guard>} />
+        <Route path="sav/reglages" element={<ModuleSettings module="sav" />} />
         <Route path="*" element={<Navigate to="/" replace />} />
       </Route>
     </Routes>
   );
 }
+
+// Onglets et bandes qui défilent : molette et onglet choisi ramené en vue
+installScrollers();
 
 createRoot(document.getElementById('root')).render(
   <StrictMode>

@@ -54,7 +54,7 @@ module.exports = function parcRoutes(db) {
     res.json({
       kinds: ASSET_KINDS, statuses: ASSET_STATUSES, assignment_kinds: ASSET_ASSIGNMENT_KINDS, doc_kinds: ASSET_DOC_KINDS, cost_kinds: ASSET_COST_KINDS,
       reservation_statuses: RESERVATION_STATUSES, employees: employees.map(e => ({ id: e.id, name: `${e.last_name} ${e.first_name || ''}`.trim(), matricule: e.matricule })),
-      projects, users, suppliers, payment_modes: ASSET_PAYMENT_MODES, cost_statuses: COST_ACCOUNTING_STATUSES,
+      projects, users, suppliers, payment_modes: ASSET_PAYMENT_MODES, cost_statuses: COST_ACCOUNTING_STATUSES, alert_days: await require('../../services/moduleSettings').alertStages(db),
       cards: (await pc.cards(db)).filter(c => c.active).map(c => ({ id: c.id, label: c.label, supplier_name: c.supplier_name, balance: c.balance })),
     });
   }));

@@ -51,8 +51,8 @@ function normalize(a) {
     purchase_amount: num(a.purchase_amount),
   };
 }
-const planRow = (p, asset, day) => {
-  const due = maintenanceDue({ ...p, last_date: isoDay(p.last_date) }, asset, day);
+const planRow = (p, asset, day, soon) => {
+  const due = maintenanceDue({ ...p, last_date: isoDay(p.last_date) }, asset, day, soon);
   return { ...p, active: !!p.active, last_date: isoDay(p.last_date), last_meter: num(p.last_meter), ...due };
 };
 const docRow = d => ({
@@ -78,6 +78,7 @@ async function load(db, id) {
 }
 
 async function detail(db, id, day = today()) {
+  const soon = await require('./moduleSettings').parcSoon(db);
   const raw = await load(db, id);
   const a = normalize(raw);
   const [assignments, docs, plans, costs, reservations] = await Promise.all([
@@ -100,7 +101,7 @@ async function detail(db, id, day = today()) {
       kind_label: ASSET_ASSIGNMENT_KINDS[g.kind], target: g.kind === 'employe' ? employeeName(g) : g.worksite_reference ? `${g.project_name} · ${g.worksite_reference} — ${g.worksite_name}` : g.project_name, last_name: undefined, first_name: undefined,
     })),
     documents: docs.map(docRow),
-    plans: plans.map(p => planRow(p, a, day)),
+    plans: plans.map(p => planRow(p, a, day, soon)),
     costs: costRows,
     consumption: fuelConsumption(costRows.filter(c => c.kind === 'carburant'), a.meter),
     costs_12m: { total: year.reduce((t, c) => t + c.amount, 0), by_kind: Object.fromEntries(Object.keys(ASSET_COST_KINDS).map(k => [k, year.filter(c => c.kind === k).reduce((t, c) => t + c.amount, 0)]).filter(([, v]) => v)) },
@@ -281,6 +282,7 @@ async function addCost(db, a, data, { userId }) {
 // ─── Vues transverses ───────────────────────────────────────
 /** Échéances administratives et entretiens (dus, à prévoir, ou dans `days` jours) de tous les biens en service. */
 async function deadlines(db, { days = 60, day = today() } = {}) {
+  const soon = await require('./moduleSettings').parcSoon(db);
   const assets = (await query(db).whereNot('a.status', 'reforme')).map(normalize);
   const ids = assets.map(a => a.id);
   const by = id => assets.find(a => a.id === id);
@@ -293,7 +295,7 @@ async function deadlines(db, { days = 60, day = today() } = {}) {
   }
   for (const p of await db('asset_maintenance_plans').whereIn('asset_id', ids).where({ active: true })) {
     const a = by(p.asset_id);
-    const r = planRow(p, a, day);
+    const r = planRow(p, a, day, soon);
     const left = r.next_date ? daysBetween(day, r.next_date) : null;
     if (r.state !== 'ok' || (left != null && left <= days)) {
       out.push({ key: `plan:${p.id}`, kind: 'entretien', asset_id: p.asset_id, date: r.next_date, days_left: left, next_meter: r.next_meter, meter_value: a.meter_value, meter_unit: a.meter, label: p.label, state: r.state });
@@ -399,6 +401,8 @@ async function alertRecipients(db, a) {
  * entretien atteint au compteur (une fois). Rien pour une échéance dépassée depuis plus de 30 jours.
  */
 async function tick(db, day = today()) {
+  // Rappels d'échéance et entretien « bientôt » : Administration générale › Réglages
+  const [stages, soon] = [await require('./moduleSettings').alertStages(db), await require('./moduleSettings').parcSoon(db)];
   let alerts = 0;
   const assets = new Map((await db('assets').whereNot('status', 'reforme')).map(a => [a.id, normalize(a)]));
   const items = [];
@@ -408,7 +412,7 @@ async function tick(db, day = today()) {
   for (const p of await db('asset_maintenance_plans').where({ active: true })) {
     const a = assets.get(p.asset_id);
     if (!a) continue;
-    const r = planRow(p, a, day);
+    const r = planRow(p, a, day, soon);
     if (r.next_date) items.push({ asset: a, key: `plan:${p.id}`, date: r.next_date, label: p.label });
     if (r.next_meter != null && a.meter_value != null && a.meter_value >= r.next_meter) items.push({ asset: a, key: `plan:${p.id}:compteur`, due: String(r.next_meter), stage: 0, label: `${p.label} (compteur atteint : ${r.next_meter} ${a.meter})` });
   }
@@ -416,7 +420,7 @@ async function tick(db, day = today()) {
     let stage = it.stage;
     const due = it.due || it.date;
     if (stage == null) {
-      stage = contractAlertStage(it.date, day);
+      stage = contractAlertStage(it.date, day, stages);
       if (!stage || daysBetween(it.date, day) > 30) continue;
     }
     const done = (await db('asset_alerts').where({ asset_id: it.asset.id, deadline_key: it.key, due }).pluck('stage')).map(Number);
