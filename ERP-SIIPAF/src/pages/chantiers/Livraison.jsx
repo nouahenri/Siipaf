@@ -149,8 +149,6 @@ export function Needs({ w, refs }) {
   const saved = useSaved();
   const res = useResource(`${CH}/${w.id}/besoins`);
   const [form, setForm] = useState(null);
-  const [order, setOrder] = useState(null);
-  const validator = can('chantiers:direction') || can('achats:write');
   const manage = w.can_manage;
   const move = async (n, body, msg) => {
     try { await api.post(`${CH}/${w.id}/besoins/${n.id}/statut`, body); saved(msg); res.reload(); } catch (e) { toast(e.message, 'err'); }
@@ -162,8 +160,8 @@ export function Needs({ w, refs }) {
   return (
     <div className="stack">
       <div className="callout-erp"><ShoppingCart /><span className="small">
-        Le conducteur exprime ses <b>besoins en matériaux</b> ; la <b>Direction ou l’acheteur</b> les valide (ou les refuse avec un motif), puis les commande ; le conducteur confirme la livraison.
-        Unités réglables dans Chantiers › Réglages. « Commander » prépare le bon de commande dans Achats & stocks, qui suit validation, réception et facture.
+        Le chantier exprime ses <b>besoins en matériaux</b> ; ils sont <b>transmis aux Achats</b>, qui les commandent par un bon de commande soumis à validation
+        (ou les refusent avec un motif). La réception du bon de commande sur ce chantier les passe à « Livré ». Unités réglables dans Chantiers › Réglages.
       </span></div>
       <Card title="Besoins en matériaux" bodyClass="" actions={manage && <button className="btn btn-primary" onClick={() => setForm({})}><Plus />Nouveau besoin</button>}>
         <ErrorBox error={res.error} />
@@ -173,7 +171,7 @@ export function Needs({ w, refs }) {
             <tbody>{res.data.map(n => (
               <tr key={n.id}>
                 <td><b>{n.label}</b>{n.phase_label && <div className="small muted">{n.phase_label}</div>}{n.note && <div className="small muted">{n.note}</div>}
-                  <div className="small muted">Demandé par {n.requested_by_name || '—'}{n.validated_by_name ? ` · ${n.status === 'refuse' ? 'refusé' : 'validé'} par ${n.validated_by_name}` : ''}</div>
+                  <div className="small muted">Demandé par {n.requested_by_name || '—'}{n.validated_by_name ? ` · ${n.status === 'refuse' ? 'refusé' : 'traité'} par ${n.validated_by_name}` : ''}</div>
                   {n.refusal_reason && <div className="small" style={{ color: 'var(--danger)' }}>Motif : {n.refusal_reason}</div>}</td>
                 <td className="right tabular nowrap">{num(n.quantity)} {n.unit_label}{n.estimate_fcfa != null && <div className="small muted">≈ {fcfa(n.estimate_fcfa)}</div>}</td>
                 <td className="small nowrap">{n.needed_on ? date(n.needed_on) : '—'}</td>
@@ -182,14 +180,10 @@ export function Needs({ w, refs }) {
                   {n.delivered_on && <div className="small muted">livré le {date(n.delivered_on)}</div>}</td>
                 <td className="small">{n.supplier_name || '—'}</td>
                 <td className="right nowrap">
-                  {validator && n.status === 'demande' && <><button className="btn btn-sm btn-primary" onClick={() => move(n, { status: 'valide' }, 'Besoin validé')}><CheckCircle2 />Valider</button> <button className="btn btn-sm btn-ghost" onClick={() => { const reason = window.prompt('Motif du refus (transmis au conducteur) :'); if (reason) move(n, { status: 'refuse', reason }, 'Besoin refusé'); }}><XCircle />Refuser</button></>}
-                  {/* Commande par un bon de commande Achats & stocks (émetteur, validateur, réception) ; saisie directe seulement sans accès au module. */}
-                  {validator && n.status === 'valide' && (can('appro:write')
-                    ? <Link className="btn btn-sm btn-primary" to={`/achats/besoins?commander=${n.id}`}><ShoppingCart />Commander</Link>
-                    : <button className="btn btn-sm btn-primary" onClick={() => setOrder(n)}><ShoppingCart />Commander</button>)}
-                  {(validator || manage) && ['valide', 'commande'].includes(n.status) && <button className="btn btn-sm btn-ghost" onClick={() => move(n, { status: 'livre' }, 'Livraison enregistrée')}><PackageCheck />Livré</button>}
+                  {/* Suite donnée par les Achats : le chantier suit, il ne valide ni ne commande. */}
+                  {can('appro:read') && ['demande', 'valide', 'commande'].includes(n.status) && <Link className="btn btn-sm btn-ghost" to="/achats/besoins"><ShoppingCart />Suivi Achats</Link>}
                   {manage && n.status === 'demande' && <><button className="btn btn-ghost btn-icon" onClick={() => setForm(n)} aria-label={`Modifier ${n.label}`}><Pencil /></button><button className="btn btn-ghost btn-icon" onClick={() => remove(n)} aria-label={`Supprimer ${n.label}`}><Trash2 /></button></>}
-                  {(validator || manage) && n.status === 'valide' && <button className="btn btn-ghost btn-icon" onClick={() => window.confirm('Annuler ce besoin ?') && move(n, { status: 'annule' }, 'Besoin annulé')} aria-label="Annuler le besoin"><Ban /></button>}
+                  {manage && n.status === 'valide' && <button className="btn btn-ghost btn-icon" onClick={() => window.confirm('Annuler ce besoin ?') && move(n, { status: 'annule' }, 'Besoin annulé')} aria-label="Annuler le besoin"><Ban /></button>}
                 </td>
               </tr>
             ))}</tbody>
@@ -197,7 +191,6 @@ export function Needs({ w, refs }) {
         )}
       </Card>
       {form && <NeedForm w={w} refs={refs} need={form.id ? form : null} onClose={() => setForm(null)} onSaved={() => { setForm(null); res.reload(); }} />}
-      {order && <OrderForm w={w} refs={refs} need={order} onClose={() => setOrder(null)} onSaved={() => { setOrder(null); res.reload(); }} />}
     </div>
   );
 }
@@ -237,31 +230,6 @@ function NeedForm({ w, refs, need, onClose, onSaved }) {
         <Field label="Fournisseur pressenti"><select className="select" value={f.supplier_id} onChange={set('supplier_id')}><option value="">—</option>{refs.suppliers.map(s => <option key={s.id} value={s.id}>{s.name}</option>)}</select></Field>
         <Field label="Coût estimé (FCFA)"><input className="input" type="number" min={0} value={f.estimate_fcfa} onChange={set('estimate_fcfa')} /></Field>
         <Field label="Note" className="full"><input className="input" maxLength={1000} value={f.note} onChange={set('note')} /></Field>
-      </form>
-    </Modal>
-  );
-}
-
-function OrderForm({ w, refs, need, onClose, onSaved }) {
-  const saved = useSaved();
-  const [f, setF] = useState({ supplier_id: need.supplier_id || '', estimate_fcfa: need.estimate_fcfa ?? '', date: today() });
-  const [error, setError] = useState(null);
-  const submit = async e => {
-    e.preventDefault(); setError(null);
-    try {
-      await api.post(`${CH}/${w.id}/besoins/${need.id}/statut`, { status: 'commande', supplier_id: f.supplier_id ? Number(f.supplier_id) : null, estimate_fcfa: f.estimate_fcfa === '' ? null : Number(f.estimate_fcfa), date: f.date });
-      saved('Commande enregistrée');
-      onSaved();
-    } catch (err) { setError(err); }
-  };
-  return (
-    <Modal title={`Commander — ${need.label}`} onClose={onClose}
-      footer={<><button type="button" className="btn btn-ghost" onClick={onClose}>Annuler</button><button className="btn btn-primary" form="order-form"><Check />Enregistrer la commande</button></>}>
-      <form id="order-form" className="form-grid" onSubmit={submit}>
-        <div className="full"><ErrorBox error={error} /></div>
-        <Field label="Fournisseur" className="full"><select className="select" value={f.supplier_id} onChange={e => setF({ ...f, supplier_id: e.target.value })}><option value="">—</option>{refs.suppliers.map(s => <option key={s.id} value={s.id}>{s.name}</option>)}</select></Field>
-        <Field label="Commandé le"><input className="input" type="date" required max={today()} value={f.date} onChange={e => setF({ ...f, date: e.target.value })} /></Field>
-        <Field label="Montant estimé (FCFA)"><input className="input" type="number" min={0} value={f.estimate_fcfa} onChange={e => setF({ ...f, estimate_fcfa: e.target.value })} /></Field>
       </form>
     </Modal>
   );

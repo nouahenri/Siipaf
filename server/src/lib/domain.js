@@ -1327,7 +1327,9 @@ const TMA_STATUSES = {
   annulee: 'Annulée', realisee: 'Réalisée',
 };
 const TMA_BILLED = ['acceptee', 'realisee']; // statuts dont le montant s'ajoute à l'échéancier du dossier
-const NEED_STATUSES = { demande: 'Demandé', valide: 'Validé', refuse: 'Refusé', commande: 'Commandé', livre: 'Livré', annule: 'Annulé' };
+// Circuit (choix du client du 25/10) : le chantier exprime le besoin, transmis aux Achats ; les Achats le commandent
+// (bon de commande validé) ou le refusent ; la réception du bon le livre. « Validé » : état antérieur, encore commandable.
+const NEED_STATUSES = { demande: 'Transmis aux Achats', valide: 'Validé', refuse: 'Refusé par les Achats', commande: 'Commandé', livre: 'Livré', annule: 'Annulé' };
 
 // Étapes déclarées (lot 3) ; la météo du journal et les postes du budget sont des listes réglables (table worksite_ref_items)
 const DECLARATION_STATUSES = { signalee: 'Signalée, à déclarer', declaree: 'Déclarée par la Direction', refusee: 'Refusée' };
@@ -1400,7 +1402,7 @@ const INFO_EVENTS = {
   'tma.demandee': { module: 'chantiers', label: 'Travaux modificatifs (TMA) demandés par un acquéreur', audiences: ['exploitation'], priority: 'action' },
   'tma.acceptee': { module: 'chantiers', label: 'TMA acceptée par l’acquéreur (montant ajouté à l’échéancier)', audiences: ['exploitation', 'compta'], priority: 'action' },
   'tma.refusee': { module: 'chantiers', label: 'TMA refusée par l’acquéreur', audiences: [] },
-  'chantier.besoin': { module: 'chantiers', label: 'Besoin en matériaux à valider', audiences: [], priority: 'action' },
+  'chantier.besoin': { module: 'achats', label: 'Besoin en matériaux transmis par un chantier aux Achats', audiences: [], priority: 'action' },
   'lot.livre': { module: 'chantiers', label: 'Lot réceptionné par l’acquéreur (PV, réserves, garanties)', audiences: ['dg', 'exploitation', 'sav', 'juridique', 'compta'] },
   'chantier.marche_receptionne': { module: 'chantiers', label: 'Travaux d’un sous-traitant réceptionnés (libération de la retenue programmée)', audiences: ['juridique', 'compta'] },
   'chantier.phase_retard': { module: 'chantiers', label: 'Phase de chantier en retard sur le planning', audiences: ['exploitation'], priority: 'action' },

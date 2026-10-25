@@ -32,6 +32,7 @@ module.exports = db => {
   r.get('/stock', ah(async (req, res) => res.json(await s.stock(db))));
   r.put('/stock/minimum', action('appro:stock'), ah(async (req, res) => res.json(await s.setStockMinimum(db, parse(z.object({ article_id: id, location_id: id, min_quantity: minimum.nullable() }), req.body), req.user.id))));
   r.get('/needs', ah(async (req, res) => res.json(await s.needs(db))));
+  r.post('/needs/:id/refuse', action('appro:write'), ah(async (req, res) => res.json(await s.refuseNeed(db, idParam(req), parse(z.object({ reason: z.string().trim().min(3).max(255) }), req.body).reason, req.user.id))));
   r.get('/contracts', action('contrats:read'), ah(async (req, res) => res.json(await s.contracts(db))));
   for (const [url, type] of [['orders', 'order'], ['quotes', 'quote']]) {
     r.get(`/${url}`, ah(async (req, res) => res.json(await s.listDocuments(db, type, { status: req.query.status || null }))));

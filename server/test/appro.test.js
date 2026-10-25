@@ -123,15 +123,15 @@ test('stock négatif bloqué, transfert atomique, centièmes exacts et mouvement
   const dup = await movement('sortie', 4); await db('appro_movement_lines').insert({ movement_id: dup.id, article_id: article.id, quantity_units: 400, label: 'Ciment test', unit });
   assert.equal((await conducteur.post(`${A}/movements/${dup.id}/post`)).status, 409); assert.equal(await quantity(depot.id), 7, 'rollback de toutes les lignes');
 });
-test('besoin chantier réutilisé, même quantité/unité, commande unique puis livraison dans le circuit existant', async () => {
+test('besoin exprimé par le chantier, commandé par les Achats (même quantité/unité, commande unique), livré à la réception', async () => {
   let n = ok(await conducteur.post(`${CH}/${worksite.id}/besoins`).send({ label: 'Ciment test', quantity: 2, unit }), 201);
   const data = orderData([{ ...line(2), need_id: n.id }]);
-  assert.equal((await conducteur.post(`${A}/orders`).send(data)).status, 409);
-  ok(await admin.post(`${CH}/${worksite.id}/besoins/${n.id}/statut`).send({ status: 'valide' }));
+  assert.equal(ok(await conducteur.get(`${A}/dashboard`)).needs >= 1, true, 'besoin à traiter par les Achats');
   assert.equal((await conducteur.post(`${A}/orders`).send(orderData([{ ...line(1), need_id: n.id }]))).status, 400);
   const o = await newOrder(conducteur, data);
   assert.equal((await conducteur.post(`${A}/orders`).send(data)).status, 409);
   assert.equal(ok(await conducteur.get(`${A}/needs`)).find(x => x.id === n.id).order_id, o.id);
+  assert.equal((await conducteur.post(`${A}/needs/${n.id}/refuse`).send({ reason: 'Déjà en stock' })).status, 409, 'pas de refus d’un besoin déjà dans un bon');
   await confirmOrder(conducteur, o); assert.equal((await db('worksite_needs').where({ id: n.id }).first()).status, 'commande');
   ok(await conducteur.post(`${A}/orders/${o.id}/receive`).send({ date, lines: [{ order_line_id: o.lines[0].id, quantity: 2 }] }));
   assert.equal((await db('worksite_needs').where({ id: n.id }).first()).status, 'livre');

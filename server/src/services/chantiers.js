@@ -602,8 +602,7 @@ async function badges(db, v) {
   return {
     to_declare: toDeclare,
     situations_to_validate: toValidate,
-    // Lot 5 : besoins à valider (Direction, acheteurs), TMA à chiffrer sur les chantiers du compte
-    needs_to_validate: v.can('chantiers:direction') || v.can('achats:write') ? Number((await db('worksite_needs').where({ status: 'demande' }).count({ n: '*' }).first()).n) : 0,
+    // Lot 5 : TMA à chiffrer sur les chantiers du compte (les besoins sont traités par les Achats)
     tma_to_quote: visible.length ? Number((await db('worksite_changes').where({ status: 'demandee' }).whereIn('worksite_id', visible.filter(w => canManage(w, v)).map(w => w.id)).count({ n: '*' }).first()).n) : 0,
     mine: open.filter(w => Number(w.manager_id) === Number(v.user.id)).length,
     open: visible.length,

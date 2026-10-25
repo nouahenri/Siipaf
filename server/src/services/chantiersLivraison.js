@@ -2,7 +2,8 @@
  * ERP · Chantiers, lot 5 (choix du client du 25/10) :
  * - travaux modificatifs des acquéreurs (TMA) : demande (équipe ou espace client) → devis du conducteur → réponse de
  *   l'acquéreur dans son espace → montant ajouté à l'échéancier du dossier (Comptabilité prévenue) → réalisation ;
- * - besoins en matériaux : demandé → validé (Direction ou acheteur) → commandé → livré ;
+ * - besoins en matériaux : exprimés par le chantier et transmis aux Achats → commandés (bon de commande validé) ou
+ *   refusés par les Achats → livrés à la réception du bon de commande ;
  * - réception d'un lot : PV, date de livraison du dossier, réserves au SAV, garanties, étape « Livraison » du lot
  *   signalée à la Direction (dernier appel de fonds VEFA), acquéreur et Juridique prévenus ;
  * - réception des travaux d'un marché : départ du délai de garantie de la retenue (Juridique).
@@ -218,30 +219,31 @@ async function checkNeed(db, w, data, current = null) {
   if (data.supplier_id && !(await db('suppliers').where({ id: data.supplier_id }).first())) throw new HttpError(404, 'Fournisseur introuvable.');
 }
 
-const validators = db => usersWith(db, ['chantiers:direction', 'achats:write']);
+// Les Achats reçoivent les besoins exprimés par les chantiers.
+const buyers = db => usersWith(db, 'appro:write');
 
 async function createNeed(db, w, data, { userId }) {
   await checkNeed(db, w, data);
   const [r] = await db('worksite_needs').insert({ ...data, worksite_id: w.id, status: 'demande', requested_by: userId });
   const id = insertedId(r);
   await inform(db, 'chantier.besoin', {
-    direct: await validators(db), except: userId, key: `besoin:${id}`,
-    title: `Besoin à valider : ${data.label} (${data.quantity} ${data.unit}) — ${w.reference}`, body: `${w.name}${data.needed_on ? ` · souhaité le ${fr(data.needed_on)}` : ''}`,
-    link: `/chantiers/${w.id}?onglet=besoins`,
+    direct: await buyers(db), except: userId, key: `besoin:${id}`,
+    title: `Besoin chantier à traiter : ${data.label} (${data.quantity} ${data.unit}) — ${w.reference}`, body: `${w.name}${data.needed_on ? ` · souhaité le ${fr(data.needed_on)}` : ''}`,
+    link: '/achats/besoins',
   });
   return serializeNeed(await loadNeed(db, w, id));
 }
 
 async function updateNeed(db, w, n, data) {
-  if (n.status !== 'demande') throw new HttpError(409, 'Un besoin validé ou refusé ne se modifie plus.');
+  if (n.status !== 'demande') throw new HttpError(409, 'Un besoin traité par les Achats ne se modifie plus.');
   await checkNeed(db, w, data, n);
   await db('worksite_needs').where({ id: n.id }).update({ ...data, updated_at: new Date() });
   return serializeNeed(await loadNeed(db, w, n.id));
 }
 
-/** Validation ou refus (Direction ou acheteur), puis commande et livraison. */
+/** Suite donnée par les Achats (commande, refus, livraison à la réception) ou annulation par le chantier. */
 async function moveNeed(db, w, n, { status, reason = null, supplier_id, estimate_fcfa, date = null }, { userId }) {
-  const allowed = { valide: ['demande'], refuse: ['demande'], commande: ['valide'], livre: ['valide', 'commande'], annule: ['demande', 'valide'] };
+  const allowed = { refuse: ['demande', 'valide'], commande: ['demande', 'valide'], livre: ['commande'], annule: ['demande', 'valide'] };
   if (!allowed[status]?.includes(n.status)) throw new HttpError(409, `Passage impossible : ${NEED_STATUSES[n.status]} → ${NEED_STATUSES[status] || status}.`);
   if (status === 'refuse' && !reason) throw new HttpError(400, 'Indiquez le motif du refus.');
   const day = date || today();
@@ -253,9 +255,9 @@ async function moveNeed(db, w, n, { status, reason = null, supplier_id, estimate
   if (estimate_fcfa !== undefined) patch.estimate_fcfa = estimate_fcfa;
   if (patch.supplier_id && !(await db('suppliers').where({ id: patch.supplier_id }).first())) throw new HttpError(404, 'Fournisseur introuvable.');
   await db('worksite_needs').where({ id: n.id }).update(patch);
-  if (['valide', 'refuse', 'annule'].includes(status)) await resolve(db, `besoin:${n.id}`);
+  if (['commande', 'refuse', 'annule'].includes(status)) await resolve(db, `besoin:${n.id}`);
   // Le conducteur qui l'a demandé suit sa demande
-  if (['valide', 'refuse', 'commande', 'livre'].includes(status) && n.requested_by) {
+  if (['refuse', 'commande', 'livre'].includes(status) && n.requested_by) {
     await notify(db, {
       to: n.requested_by, except: userId, module: 'chantiers', event: `besoin.${status}`, link: `/chantiers/${w.id}?onglet=besoins`, key: `besoin:${n.id}:${status}`,
       title: `Besoin ${NEED_STATUSES[status].toLowerCase()} : ${n.label} — ${w.reference}`, body: status === 'refuse' ? reason : null, priority: status === 'refuse' ? 'action' : 'info',

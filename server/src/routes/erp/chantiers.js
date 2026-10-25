@@ -196,14 +196,6 @@ module.exports = function chantiersRoutes(db) {
     sendFile(res, t, 'devis');
   }));
 
-  // ─── Besoins en matériaux : à valider par la Direction ou l'acheteur (encart de la liste) ──
-  const validator = req => req.can('chantiers:direction') || req.can('achats:write');
-  r.get('/besoins', ah(async (req, res) => {
-    if (!validator(req) && !chantiers.seesAll(viewer(req))) throw new HttpError(403, 'Accès refusé.');
-    const { statut } = parse(z.object({ statut: z.enum(Object.keys(NEED_STATUSES)).optional() }), req.query);
-    res.json(await livraison.needs(db, { status: statut || null }));
-  }));
-
   // Pièce du PV de réception d'un lot
   r.get('/receptions/:hId/pv', ah(async (req, res) => {
     const h = await livraison.loadHandover(db, childId(req, 'hId'));
@@ -402,14 +394,10 @@ module.exports = function chantiersRoutes(db) {
   r.post('/:id/besoins/:needId/statut', ah(async (req, res) => {
     const w = await chantiers.loadWorksite(db, idParam(req));
     const data = parse(z.object({
-      status: z.enum(['valide', 'refuse', 'commande', 'livre', 'annule']), reason: z.string().trim().max(255).nullable().optional(),
-      supplier_id: z.number().int().positive().nullable().optional(), estimate_fcfa: z.number().int().min(0).nullable().optional(), date: day.nullable().optional(),
+      // Le chantier exprime et peut annuler ; la commande, le refus et la livraison relèvent des Achats.
+      status: z.enum(['annule']),
     }), req.body);
-    const manage = chantiers.canManage(w, viewer(req));
-    // Valider, refuser, commander : Direction ou acheteur ; réceptionner ou annuler : aussi le conducteur
-    if (['valide', 'refuse', 'commande'].includes(data.status) ? !validator(req) : !validator(req) && !manage) {
-      throw new HttpError(403, 'Seuls la Direction et les acheteurs valident ou commandent un besoin.');
-    }
+    if (!chantiers.canManage(w, viewer(req)) && !req.can('appro:write')) throw new HttpError(403, 'Seul le chantier qui l’a exprimé annule ce besoin.');
     res.json(await livraison.moveNeed(db, w, await livraison.loadNeed(db, w, childId(req, 'needId')), data, { userId: req.user.id }));
   }));
 

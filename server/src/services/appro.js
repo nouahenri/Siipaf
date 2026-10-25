@@ -162,7 +162,7 @@ async function lineRows(db, type, lines, locationId, excluding = null) {
     if (l.need_id) {
       if (needIds.has(l.need_id)) fail(400, 'Un besoin ne peut figurer qu’une fois dans le document.'); needIds.add(l.need_id);
       const n = await row(db, 'worksite_needs', l.need_id);
-      if (!(type === 'order' ? ['valide'] : ['demande', 'valide']).includes(n.status)) fail(409, 'Le besoin doit être validé avant la commande et ne doit pas être déjà commandé.');
+      if (!['demande', 'valide'].includes(n.status)) fail(409, 'Ce besoin est déjà commandé, livré, refusé ou annulé.');
       if (a.unit !== n.unit || quantity_units !== units(n.quantity)) fail(400, 'Reprenez la quantité et l’unité du besoin validé.');
       if (Number(loc.worksite_id) !== Number(n.worksite_id)) fail(400, 'Pour ce besoin, choisissez l’emplacement du chantier destinataire.');
       if (type === 'order') {
@@ -387,8 +387,7 @@ async function receiveOrder(db, id, data, actor) {
     await trx('appro_orders').where({ id }).update({ status: complete ? 'recue' : 'partielle', updated_at: new Date() });
     for (const l of allLines.filter(l => l.need_id && Number(l.received_units) === Number(l.quantity_units))) {
       const n = await row(trx, 'worksite_needs', l.need_id), w = await row(trx, 'worksites', n.worksite_id);
-      const canConfirm = actor.can('achats:write') || actor.can('chantiers:direction') || require('./chantiers').canManage(w, { user: { id: actor.userId }, can: actor.can });
-      if (n.status === 'commande' && Number(loc.worksite_id) === Number(w.id) && canConfirm) await ch.moveNeed(trx, w, n, { status: 'livre', date: data.date }, { userId: actor.userId });
+      if (n.status === 'commande' && Number(loc.worksite_id) === Number(w.id)) await ch.moveNeed(trx, w, n, { status: 'livre', date: data.date }, { userId: actor.userId });
     }
     await event(trx, 'movement', receiptId, 'reception', actor.userId, { order_id: id }); await event(trx, 'order', id, 'reception', actor.userId, { receipt_id: receiptId, complete });
     await inform(trx, 'appro.reception', { direct: [...approParties(o), ...await locationContacts(trx, [loc.id])], except: actor.userId, key: `appro:reception:${receiptId}`, title: `Réception ${complete ? 'complète' : 'partielle'} : ${o.reference}`, body: `${loc.name} · ${lines.map(l => `${Number(l.quantity_units) / 100} ${l.unit} ${l.label}`).join(' · ')}`, link: `/achats/commandes?fiche=${id}` });
@@ -425,6 +424,15 @@ async function prepareInvoice(db, id, data, userId) {
     return { invoice_id: invoiceId, number, status: 'brouillon', ...amounts };
   });
 }
+/** Refus motivé d'un besoin par les Achats (déjà couvert par le stock, doublon…) ; le chantier en est prévenu. */
+async function refuseNeed(db, id, reason, userId) {
+  return db.transaction(async trx => {
+    const n = await trx('worksite_needs').where({ id }).forUpdate().first(); if (!n) fail(404, 'Besoin introuvable.');
+    const active = await trx('appro_order_lines as l').join('appro_orders as o', 'o.id', 'l.order_id').where('l.need_id', id).whereNotIn('o.status', ['annulee', 'refusee']).first('o.reference');
+    if (active) fail(409, `Ce besoin figure dans le bon de commande ${active.reference} : annulez ou refusez d'abord ce bon.`);
+    return ch.moveNeed(trx, await row(trx, 'worksites', n.worksite_id), n, { status: 'refuse', reason }, { userId });
+  });
+}
 async function needs(db) {
   const rows = await ch.needs(db);
   const links = await db('appro_order_lines as l').join('appro_orders as o', 'o.id', 'l.order_id').whereNotNull('l.need_id').whereNotIn('o.status', ['annulee', 'refusee']).select('l.need_id', 'o.id as order_id', 'o.reference as order_reference');
@@ -436,7 +444,7 @@ async function contracts(db) {
 async function dashboard(db) {
   const [open, positions, needsCount, quotesCount, conf, recent, waiting, receipts] = await Promise.all([
     db('appro_orders').whereIn('status', ['confirmee', 'partielle']).select('id', 'amount_ttc'), stock(db),
-    db('worksite_needs').whereIn('status', ['demande', 'valide']).count({ n: '*' }).first(),
+    db('worksite_needs as n').whereIn('n.status', ['demande', 'valide']).whereNotExists(db('appro_order_lines as l').join('appro_orders as o', 'o.id', 'l.order_id').whereRaw('l.need_id = n.id').whereNotIn('o.status', ['annulee', 'refusee'])).count({ n: '*' }).first(),
     db('appro_quotes').where({ status: 'brouillon' }).count({ n: '*' }).first(), settings(db),
     documentQuery(db, 'order').orderBy('d.id', 'desc').limit(8), db('appro_orders').whereIn('status', APPRO_PENDING_STATUSES).count({ n: '*' }).first(),
     db('appro_movements').where({ kind: 'reception', status: 'valide' }).groupBy('order_id').select('order_id').sum({ received_ttc: 'amount_ttc' }),
@@ -447,6 +455,6 @@ async function dashboard(db) {
     needs: Number(needsCount.n), quotes_waiting: Number(quotesCount.n), recent_orders: recent.map(o => serializeDocument(o, 'order')), settings: conf };
 }
 module.exports = { settings, saveSettings, refs, articles, saveArticle, locations, createLocation, stock, setStockMinimum, needs, contracts, dashboard,
-  approvers, issuers, listDocuments, detail, saveDocument, receiveQuote, quoteToOrder, cancelDocument, submitOrder, approveOrder, reopenOrder, informPayment, movements, movementDetail, saveMovement, postMovement, cancelMovement, receiveOrder, prepareInvoice };
+  approvers, issuers, refuseNeed, listDocuments, detail, saveDocument, receiveQuote, quoteToOrder, cancelDocument, submitOrder, approveOrder, reopenOrder, informPayment, movements, movementDetail, saveMovement, postMovement, cancelMovement, receiveOrder, prepareInvoice };
 
 

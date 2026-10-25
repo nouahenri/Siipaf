@@ -24,8 +24,6 @@ export default function Chantiers() {
   // Direction : étapes signalées par les conducteurs, à déclarer (elles émettront les appels de fonds)
   const pending = useResource(can('chantiers:direction') ? `${CH}/etapes?status=signalee` : null);
   const situations = useResource(can('chantiers:direction') ? `${CH}/situations` : null);
-  // Direction et acheteurs : besoins en matériaux exprimés par les conducteurs, à valider
-  const needs = useResource(can('chantiers:direction') || can('achats:write') ? `${CH}/besoins?statut=demande` : null);
   useEffect(() => { const t = setTimeout(() => setQ(text.trim()), 300); return () => clearTimeout(t); }, [text]);
 
   return (
@@ -69,21 +67,6 @@ export default function Chantiers() {
                 <button type="button" className="list-row btn-link" style={{ width: '100%' }} onClick={() => navigate(`/chantiers/${s.worksite_id}?onglet=sous-traitants`)}>
                   <span><b>{s.contract_reference} · situation n° {s.number}</b> — {s.supplier_name || s.contract_title}<div className="small muted">{s.worksite_reference} — {s.worksite_name} · arrêtée au {date(s.period_end)}</div></span>
                   <span className="small tabular">{fcfa(s.amount_ttc)} TTC</span>
-                </button>
-              </li>
-            ))}
-          </ul>
-        </Card>
-      )}
-
-      {needs.data?.length > 0 && (
-        <Card title={`Besoins en matériaux à valider (${needs.data.length})`} bodyClass="">
-          <ul className="list">
-            {needs.data.map(n => (
-              <li key={n.id}>
-                <button type="button" className="list-row btn-link" style={{ width: '100%' }} onClick={() => navigate(`/chantiers/${n.worksite_id}?onglet=besoins`)}>
-                  <span><ShoppingCart className="ico" /><b>{n.label}</b> — {n.quantity.toLocaleString('fr-FR')} {n.unit_label}<div className="small muted">{n.worksite_reference} · demandé par {n.requested_by_name || '—'}{n.needed_on ? ` · souhaité le ${date(n.needed_on)}` : ''}</div></span>
-                  <span className="small">Valider ou refuser</span>
                 </button>
               </li>
             ))}

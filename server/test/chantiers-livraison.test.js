@@ -90,26 +90,26 @@ test('TMA : demande, devis du conducteur, accord de l’acquéreur dans son espa
   assert.equal((await client.post(`/api/client/tma/${typeof other[0] === 'object' ? other[0].id : other[0]}/reponse`).send({ accept: true })).status, 404);
 });
 
-test('besoins en matériaux : demandés par le conducteur, validés par la Direction ou l’acheteur, commandés, livrés', async () => {
+test('besoins en matériaux : exprimés par le chantier, transmis aux Achats qui les commandent ou les refusent', async () => {
   const url = `${W}/${worksite.id}/besoins`;
   assert.equal((await conducteur.post(url).send({ label: 'Ciment CPJ 42,5', quantity: 200, unit: 'palette' })).status, 400, 'unité de la liste réglable');
   let res = await conducteur.post(url).send({ label: 'Ciment CPJ 42,5', quantity: 200, unit: 'sac', needed_on: day(7) });
   assert.equal(res.status, 201, JSON.stringify(res.body));
   const need = res.body;
   assert.deepEqual([need.status, need.unit_label], ['demande', 'Sac']);
-  assert.ok(await db('notifications').where({ dedupe_key: `besoin:${need.id}` }).first(), 'validateurs prévenus');
-  assert.equal((await admin.get(`${W}/badges`)).body.needs_to_validate, 1);
-  assert.equal((await conducteur.post(`${url}/${need.id}/statut`).send({ status: 'valide' })).status, 403, 'le conducteur ne valide pas');
-  assert.equal((await admin.post(`${url}/${need.id}/statut`).send({ status: 'livre' })).status, 409, 'dans l’ordre');
-  assert.equal((await admin.post(`${url}/${need.id}/statut`).send({ status: 'valide' })).body.status, 'valide');
-  assert.equal((await conducteur.patch(`${url}/${need.id}`).send({ quantity: 250 })).status, 409, 'validé : figé');
-  assert.ok(await bell(ids.conducteur_travaux, 'besoin.valide'));
-  assert.equal((await admin.post(`${url}/${need.id}/statut`).send({ status: 'commande', date: day(0) })).body.ordered_on, day(0));
-  res = await conducteur.post(`${url}/${need.id}/statut`).send({ status: 'livre' });
-  assert.deepEqual([res.body.status, res.body.delivered_on], ['livre', day(0)]);
+  const sent = await db('notifications').where({ dedupe_key: `besoin:${need.id}`, user_id: ids.comptable }).first();
+  assert.deepEqual([sent?.module, sent?.link], ['achats', '/achats/besoins'], 'les Achats reçoivent le besoin');
+  assert.equal((await admin.get(`${W}/badges`)).body.needs_to_validate, undefined, 'aucune validation de besoin côté Chantiers');
+  for (const status of ['valide', 'refuse', 'commande', 'livre']) assert.equal((await admin.post(`${url}/${need.id}/statut`).send({ status })).status, 400, `${status} : hors du module Chantiers`);
+  assert.equal((await conducteur.patch(`${url}/${need.id}`).send({ quantity: 250 })).body.quantity, 250, 'modifiable tant que les Achats ne l’ont pas traité');
+  const A = '/api/admin/erp/achats';
+  assert.equal((await conducteur.post(`${A}/needs/${need.id}/refuse`).send({ reason: 'Stock suffisant au dépôt' })).status, 200, 'le conducteur a le droit de préparer les achats');
+  assert.equal((await db('worksite_needs').where({ id: need.id }).first()).status, 'refuse');
+  assert.equal((await conducteur.patch(`${url}/${need.id}`).send({ quantity: 1 })).status, 409, 'traité : figé');
   const other = (await conducteur.post(url).send({ label: 'Fer de 12', quantity: 1.5, unit: 't' })).body;
-  assert.equal((await admin.post(`${url}/${other.id}/statut`).send({ status: 'refuse' })).status, 400, 'motif obligatoire');
-  assert.equal((await admin.post(`${url}/${other.id}/statut`).send({ status: 'refuse', reason: 'Stock suffisant au dépôt' })).body.status, 'refuse');
+  assert.equal((await admin.post(`${A}/needs/${other.id}/refuse`).send({ reason: '' })).status, 400, 'motif obligatoire');
+  assert.equal((await commercial.post(`${url}/${other.id}/statut`).send({ status: 'annule' })).status, 403, 'hors de ses chantiers');
+  assert.equal((await conducteur.post(`${url}/${other.id}/statut`).send({ status: 'annule' })).body.status, 'annule', 'le chantier annule son besoin');
 });
 
 test('réception d’un lot : PV, réserves au SAV, garanties, dernier appel de fonds du seul lot, espace client', async () => {
