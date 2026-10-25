@@ -3,13 +3,14 @@
  * conducteur, son avancement (phases pondérées par leur durée), ses phases en retard et son budget.
  */
 import { useEffect, useState } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useSearchParams } from 'react-router-dom';
 import { Plus, Search, HardHat, Check, Flag, ShoppingCart } from 'lucide-react';
 import { api, qs } from '@admin/lib/api';
 import { useAuth, useResource, useSaved } from '@admin/lib/app-context';
 import { Card, Empty, Skeleton, ErrorBox, Field, Modal, Badge, Advance } from '@admin/components/ui';
 import { date, fcfa } from '@admin/lib/format';
 import { CH, WS_TONES, useChantierRefs, body } from '../../lib/chantiers';
+import { dashboardWithReturn } from '../../lib/links';
 
 export default function Chantiers() {
   const { can } = useAuth();
@@ -19,7 +20,11 @@ export default function Chantiers() {
   const [project, setProject] = useState('');
   const [text, setText] = useState('');
   const [q, setQ] = useState('');
-  const [creating, setCreating] = useState(false);
+  // Retour du dashboard après « Nouveau programme » : formulaire rouvert, programme créé déjà choisi
+  const [params, setParams] = useSearchParams();
+  const [creating, setCreating] = useState(params.get('nouveau') === '1' && can('chantiers:write'));
+  const [newProject] = useState(params.get('programme') || '');
+  useEffect(() => { if (params.get('nouveau')) setParams({}, { replace: true }); }, []);
   const list = useResource(`${CH}${qs({ status, project_id: project, q })}`);
   // Direction : étapes signalées par les conducteurs, à déclarer (elles émettront les appels de fonds)
   const pending = useResource(can('chantiers:direction') ? `${CH}/etapes?status=signalee` : null);
@@ -95,17 +100,17 @@ export default function Chantiers() {
         )}
       </Card>
 
-      {creating && refs && <WorksiteForm refs={refs} onClose={() => setCreating(false)} onSaved={w => navigate(`/chantiers/${w.id}`)} />}
+      {creating && refs && <WorksiteForm refs={refs} initialProject={newProject} onClose={() => setCreating(false)} onSaved={w => navigate(`/chantiers/${w.id}`)} />}
     </div>
   );
 }
 
 /** Création ou modification d'un chantier : programme (fixé après création), zone, conducteur, dates, phases de départ. */
-export function WorksiteForm({ worksite: w, refs, onClose, onSaved }) {
+export function WorksiteForm({ worksite: w, refs, initialProject = '', onClose, onSaved }) {
   const saved = useSaved();
   const { can } = useAuth();
   const [f, setF] = useState({
-    project_id: w?.project_id || '', name: w?.name || '', zone_kind: w?.zone_kind || 'programme', zone: w?.zone || [],
+    project_id: w?.project_id || (refs.projects.some(p => String(p.id) === String(initialProject)) ? initialProject : ''), name: w?.name || '', zone_kind: w?.zone_kind || 'programme', zone: w?.zone || [],
     manager_id: w?.manager_id || '', status: w?.status || 'preparation', planned_start: w?.planned_start || '', planned_end: w?.planned_end || '',
     actual_start: w?.actual_start || '', actual_end: w?.actual_end || '', description: w?.description || '',
     stages: w ? [] : refs.stages.map(s => s.key),
@@ -140,6 +145,8 @@ export function WorksiteForm({ worksite: w, refs, onClose, onSaved }) {
           <select className="select" required disabled={!!w} value={f.project_id} onChange={e => setF(x => ({ ...x, project_id: e.target.value, zone: [] }))}>
             <option value="">— Choisir —</option>{refs.projects.map(p => <option key={p.id} value={p.id}>{p.name}</option>)}
           </select>
+          {/* Les programmes se créent dans le dashboard (saisie) ; retour ici, programme choisi. */}
+          {!w && can('projects:write') && <a className="link small" href={dashboardWithReturn('projets?nouveau=1', '/chantiers/liste?nouveau=1')}><Plus size={14} aria-hidden="true" /> Nouveau programme</a>}
         </Field>
         <Field label="Nom du chantier"><input className="input" required minLength={2} maxLength={160} value={f.name} onChange={set('name')} placeholder="Tranche 1 — îlots A et B, VRD…" /></Field>
         <Field label="Zone couverte" hint="Lots concernés : leurs acquéreurs suivront l’avancement de ce chantier" className="full">

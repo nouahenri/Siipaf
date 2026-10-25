@@ -67,7 +67,8 @@ module.exports = function rhRoutes(db) {
   /** Liste des postes : pour les formulaires (fiche, compte, paie) et les réglages ; rôles proposables joints. */
   r.get('/positions', ah(async (req, res) => {
     if (!['rh:read', 'rh:files', 'paie:read', 'paie:employees', 'users:read', 'users:write'].some(p => req.can(p))) throw new HttpError(403, 'Droits insuffisants.');
-    const roles = (await listRoles(db)).filter(x => x.id !== 'super_admin').map(x => ({ id: x.id, label: x.label }));
+    // Super administrateur : droits fixes, proposable pour un poste par un super administrateur seulement (choix du client du 25/10)
+    const roles = (await listRoles(db)).map(x => ({ id: x.id, label: x.label, reserved: x.id === 'super_admin' }));
     res.json({ positions: await positions.list(db, { all: req.query.all === '1' }), roles, reasons: POSITION_CHANGE_REASONS });
   }));
   const positionSchema = z.object({
@@ -75,13 +76,13 @@ module.exports = function rhRoutes(db) {
     default_role: z.string().trim().max(40).optional().nullable().transform(v => v || null), active: z.boolean().optional(),
   });
   r.post('/positions', requirePermission('rh:settings'), ah(async (req, res) => {
-    const id = await positions.create(db, parse(positionSchema, req.body));
+    const id = await positions.create(db, parse(positionSchema, req.body), req.user);
     res.status(201).json(await db('hr_positions').where({ id }).first());
   }));
   r.patch('/positions/:id', requirePermission('rh:settings'), ah(async (req, res) => {
     const p = await db('hr_positions').where({ id: idParam(req) }).first();
     if (!p) throw new HttpError(404, 'Poste introuvable.');
-    await positions.update(db, p, parse(positionSchema.partial(), req.body));
+    await positions.update(db, p, parse(positionSchema.partial(), req.body), req.user);
     res.json(await db('hr_positions').where({ id: p.id }).first());
   }));
 

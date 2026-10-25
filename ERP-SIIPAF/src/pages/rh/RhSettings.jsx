@@ -128,7 +128,7 @@ export default function RhSettings() {
  * et le changement de poste ; chacun rattaché à un service, avec la catégorie et le rôle du compte proposés.
  */
 function Positions() {
-  const { can } = useAuth();
+  const { can, user } = useAuth();
   const { meta } = useRhMeta();
   const toast = useToast();
   const list = useResource(`${RH}/positions?all=1`);
@@ -138,6 +138,8 @@ function Positions() {
   const [newRole, setNewRole] = useState(false);
   const write = can('rh:settings');
   const roles = list.data?.roles || [];
+  // Super administrateur : proposé ou retiré par un super administrateur seulement (le serveur le contrôle aussi)
+  const superAdmin = user?.role === 'super_admin', lockedRole = roles.find(r => r.id === f.default_role)?.reserved && !superAdmin;
   const set = k => e => setF(x => ({ ...x, [k]: e.target.value }));
   const close = () => { setOpen(null); setF(blank); };
   const edit = p => { setOpen(p.id); setF({ title: p.title, department: p.department, category: p.category || '', default_role: p.default_role || '' }); };
@@ -171,9 +173,9 @@ function Positions() {
           <Field label={open === 'new' ? 'Nouveau poste' : 'Intitulé du poste'}><input className="input" required minLength={2} maxLength={120} value={f.title} onChange={set('title')} placeholder="Responsable commercial, conducteur de travaux…" autoFocus /></Field>
           <Field label="Service"><select className="select" value={f.department} onChange={set('department')}>{meta && Object.entries(meta.departments).map(([k, v]) => <option key={k} value={k}>{v}</option>)}</select></Field>
           <Field label="Catégorie habituelle"><input className="input" maxLength={40} value={f.category} onChange={set('category')} placeholder="Cadre, agent de maîtrise…" /></Field>
-          <Field label="Rôle du compte proposé" hint={can('roles:write') ? 'Absent de la liste : « + Créer un nouveau rôle »' : 'Rôle absent : à créer par le super administrateur ou la personne qui en a le droit'}>
-            <select className="select" value={f.default_role} onChange={pickRole}>
-              <option value="">— Aucun —</option>{roles.map(r => <option key={r.id} value={r.id}>{r.label}</option>)}
+          <Field label="Rôle du compte proposé" hint={lockedRole ? 'Rôle réservé : seul un super administrateur le modifie' : can('roles:write') ? 'Absent de la liste : « + Créer un nouveau rôle ». Super administrateur : droits fixes, réservé au super administrateur' : 'Rôle absent : à créer par le super administrateur ou la personne qui en a le droit'}>
+            <select className="select" value={f.default_role} onChange={pickRole} disabled={lockedRole}>
+              <option value="">— Aucun —</option>{roles.filter(r => !r.reserved || superAdmin || r.id === f.default_role).map(r => <option key={r.id} value={r.id}>{r.label}{r.reserved ? ' (droits fixes)' : ''}</option>)}
               {can('roles:write') && <option value="__new">+ Créer un nouveau rôle…</option>}
             </select>
           </Field>

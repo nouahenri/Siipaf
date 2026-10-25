@@ -33,7 +33,15 @@ test('postes : un intitulé saisi rejoint la liste (sans doublon de casse) ; RH 
   res = await resp.post(`${RH}/positions`).send({ title: 'Responsable commercial', department: 'commercial', category: 'Cadre', default_role: 'resp_exploitation' });
   assert.equal(res.status, 201, JSON.stringify(res.body));
   assert.equal((await resp.post(`${RH}/positions`).send({ title: 'responsable COMMERCIAL', department: 'commercial' })).status, 409);
-  assert.equal((await resp.post(`${RH}/positions`).send({ title: 'DG', department: 'direction', default_role: 'super_admin' })).status, 400);
+  // Super administrateur : droits fixes, proposable pour un poste par un super administrateur seulement
+  const listed = (await resp.get(`${RH}/positions`)).body.roles.find(r => r.id === 'super_admin');
+  assert.deepEqual([listed?.label, listed?.reserved], ['Super administrateur', true], 'présent dans la liste, marqué réservé');
+  assert.equal((await resp.post(`${RH}/positions`).send({ title: 'DG', department: 'direction', default_role: 'super_admin' })).status, 403, 'réservé au super administrateur');
+  const dg = await admin.post(`${RH}/positions`).send({ title: 'Directeur Général', department: 'direction', default_role: 'super_admin' });
+  assert.equal(dg.status, 201, JSON.stringify(dg.body)); assert.equal(dg.body.default_role, 'super_admin');
+  assert.equal((await resp.patch(`${RH}/positions/${dg.body.id}`).send({ category: 'Cadre supérieur' })).status, 200, 'les autres champs restent modifiables');
+  assert.equal((await resp.patch(`${RH}/positions/${dg.body.id}`).send({ default_role: null })).status, 403, 'retrait réservé aussi');
+  assert.equal((await db('hr_positions').where({ id: dg.body.id }).first()).default_role, 'super_admin');
   await resp.patch(`${RH}/positions/${commercial[0].id}`).send({ title: 'Commercial(e)' });
   assert.equal((await db('employees').where({ id: emp.paul }).first()).job_title, 'Commercial(e)', 'les fiches suivent le renommage');
 });

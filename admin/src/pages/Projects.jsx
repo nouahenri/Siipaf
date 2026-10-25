@@ -1,15 +1,19 @@
 import { useState } from 'react';
-import { Link, useNavigate } from 'react-router-dom';
+import { Link, useNavigate, useSearchParams } from 'react-router-dom';
 import { Plus, Building2, MapPin, EyeOff } from 'lucide-react';
 import { api } from '../lib/api';
 import { useAuth, useResource, useToast } from '../lib/app-context';
 import { Modal, Field, Empty, ErrorBox, Skeleton, Badge } from '../components/ui';
 import { LOT_STATUSES } from '../lib/domain';
+import { erpReturn } from '../lib/erp-return';
 
 export default function Projects() {
   const { can } = useAuth();
   const projects = useResource('/admin/projects');
-  const [creating, setCreating] = useState(false);
+  // Lien « Nouveau programme » de l'ERP (Nouveau chantier) : ouvre la création, puis y ramène
+  const [params] = useSearchParams();
+  const back = erpReturn(params.get('retour'));
+  const [creating, setCreating] = useState(params.get('nouveau') === '1' && can('projects:write'));
   const [showArchived, setShowArchived] = useState(false);
   const archivedCount = projects.data?.filter(p => p.archived_at).length || 0;
   const visible = (projects.data || []).filter(p => showArchived ? p.archived_at : !p.archived_at);
@@ -57,12 +61,12 @@ export default function Projects() {
             })}
           </div>
         )}
-      {creating && <CreateProject onClose={() => setCreating(false)} />}
+      {creating && <CreateProject back={back} onClose={() => setCreating(false)} />}
     </div>
   );
 }
 
-function CreateProject({ onClose }) {
+function CreateProject({ back, onClose }) {
   const toast = useToast();
   const navigate = useNavigate();
   const [name, setName] = useState('');
@@ -74,12 +78,14 @@ function CreateProject({ onClose }) {
     try {
       const p = await api.post('/admin/projects', { name, slug: slug || auto(name), published: false });
       toast('Projet créé (masqué tant qu’il n’est pas publié)');
+      if (back) { back.searchParams.set('programme', p.id); window.location.assign(back.toString()); return; }
       navigate(`/projets/${p.id}`);
     } catch (e) { setError(e); }
   };
   return (
-    <Modal title="Nouveau projet" onClose={onClose} footer={<><button className="btn" onClick={onClose}>Annuler</button><button className="btn btn-primary" disabled={!name} onClick={submit}>Créer</button></>}>
+    <Modal title="Nouveau projet" onClose={onClose} footer={<><button className="btn" onClick={onClose}>Annuler</button><button className="btn btn-primary" disabled={!name} onClick={submit}>{back ? 'Créer et revenir au chantier' : 'Créer'}</button></>}>
       <ErrorBox error={error} />
+      {back && <p className="small muted">Après la création, vous revenez à l’ERP avec ce programme choisi pour le nouveau chantier. La fiche du programme (plan, prix, site) se complète ensuite ici, dans Projets.</p>}
       <Field label="Nom du projet"><input className="input" value={name} onChange={e => setName(e.target.value)} autoFocus /></Field>
       <Field label="Identifiant dans l’adresse" hint={`Exemple : projets.html#${slug || auto(name) || 'mon-projet'}`}>
         <input className="input" value={slug} placeholder={auto(name)} onChange={e => setSlug(auto(e.target.value))} />

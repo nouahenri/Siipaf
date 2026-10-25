@@ -49,11 +49,12 @@ export function ChangePositionModal({ d, onClose, onSaved }) {
   const [busy, setBusy] = useState(false);
   const set = k => ev => setF(x => ({ ...x, [k]: ev.target.type === 'checkbox' ? ev.target.checked : ev.target.value }));
   const positions = pos.data?.positions || [];
-  const roles = pos.data?.roles || [];
+  // Super administrateur proposé par le poste : appliqué seulement par un super administrateur
+  const allRoles = pos.data?.roles || [], roles = allRoles.filter(r => !r.reserved || user?.role === 'super_admin');
   const chosen = positions.find(p => p.id === Number(f.position_id));
   const pick = ev => {
     const p = positions.find(x => x.id === Number(ev.target.value));
-    setF(x => ({ ...x, position_id: ev.target.value, department: p?.department || x.department, category: p?.category || x.category, role: p?.default_role && d.user && p.default_role !== d.user.role ? p.default_role : '' }));
+    setF(x => ({ ...x, position_id: ev.target.value, department: p?.department || x.department, category: p?.category || x.category, role: p?.default_role && d.user && p.default_role !== d.user.role && roles.some(r => r.id === p.default_role) ? p.default_role : '' }));
   };
   const toggleTeam = id => setF(x => ({ ...x, team_ids: x.team_ids.includes(id) ? x.team_ids.filter(y => y !== id) : [...x.team_ids, id] }));
   const canRole = can('users:write') && d.user && d.user.id !== user.id && (d.user.role !== 'super_admin' || user.role === 'super_admin');
@@ -111,7 +112,7 @@ export function ChangePositionModal({ d, onClose, onSaved }) {
             </div>
           </Field>
           {d.user ? (
-            <Field label="Rôle du compte (droits dans le dashboard et l’ERP)" className="full" hint={canRole ? `Actuel : ${roles.find(r => r.id === d.user.role)?.label || d.user.role}${chosen?.default_role ? ` — le poste propose « ${roles.find(r => r.id === chosen.default_role)?.label} »` : ''}` : 'Réservé aux personnes qui gèrent les utilisateurs'}>
+            <Field label="Rôle du compte (droits dans le dashboard et l’ERP)" className="full" hint={canRole ? `Actuel : ${allRoles.find(r => r.id === d.user.role)?.label || d.user.role}${chosen?.default_role ? ` — le poste propose « ${allRoles.find(r => r.id === chosen.default_role)?.label} »` : ''}` : 'Réservé aux personnes qui gèrent les utilisateurs'}>
               <select className="select" disabled={!canRole} value={f.role} onChange={set('role')}><option value="">Inchangé</option>{roles.map(r => <option key={r.id} value={r.id}>{r.label}</option>)}</select>
             </Field>
           ) : <p className="full small muted" style={{ margin: 0 }}>Pas de compte relié : aucun droit à ajuster.</p>}

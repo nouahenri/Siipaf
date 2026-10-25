@@ -23,22 +23,24 @@ async function list(db, { all = true } = {}) {
   }));
 }
 
-async function check(db, data) {
+/** Le rôle Super administrateur se propose (ou se retire) pour un poste par un super administrateur seulement. */
+async function check(db, data, actor, current = null) {
   if (data.department && !DEPARTMENTS[data.department]) throw new HttpError(400, 'Service inconnu.');
   if (data.default_role) await requireRole(db, data.default_role);
-  if (data.default_role === 'super_admin') throw new HttpError(400, 'Le rôle super administrateur ne se propose pas d’office.');
+  const touchesSuper = data.default_role === 'super_admin' ? current?.default_role !== 'super_admin' : data.default_role !== undefined && current?.default_role === 'super_admin';
+  if (touchesSuper && actor?.role !== 'super_admin') throw new HttpError(403, 'Seul un super administrateur propose ou retire le rôle super administrateur pour un poste.');
 }
 
-async function create(db, data) {
-  await check(db, data);
+async function create(db, data, actor) {
+  await check(db, data, actor);
   if (await db('hr_positions').whereRaw('lower(title) = ?', [data.title.toLowerCase()]).first()) throw new HttpError(409, 'Ce poste existe déjà.');
   const [id] = await db('hr_positions').insert(data);
   return insertedId(id);
 }
 
 /** Renommer un poste renomme l'intitulé recopié sur les fiches qui l'occupent. */
-async function update(db, p, data) {
-  await check(db, data);
+async function update(db, p, data, actor) {
+  await check(db, data, actor, p);
   if (data.title && data.title.toLowerCase() !== p.title.toLowerCase()
     && await db('hr_positions').whereRaw('lower(title) = ?', [data.title.toLowerCase()]).whereNot({ id: p.id }).first()) throw new HttpError(409, 'Ce poste existe déjà.');
   await db.transaction(async trx => {

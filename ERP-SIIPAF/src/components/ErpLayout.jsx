@@ -12,6 +12,7 @@ import { useAuth, useResource } from '@admin/lib/app-context';
 import { useRevealOnScroll } from '@admin/lib/reveal';
 import { ROLE_LABELS } from '@admin/lib/domain';
 import { initials } from '@admin/lib/format';
+import { dashboardUrl } from '../lib/links';
 import NotificationCenter from './NotificationCenter';
 
 const COURRIER = ['courrier:read', 'courrier:write', 'courrier:assign'];
@@ -151,8 +152,6 @@ const TITLES = {
   '/compta/plan': 'Plan comptable SYSCOHADA', '/compta/parametres': 'Réglages — Comptabilité', '/compta/paie': 'Paie', '/compta/parc': 'Parc auto et matériel — Comptabilité', '/compta/employes': 'Employés', '/rh': 'Ressources humaines', '/rh/moi': 'Mon espace', '/rh/personnel': 'Personnel', '/rh/conges': 'Congés et absences', '/rh/presences': 'Présences', '/rh/borne': 'Borne de pointage', '/rh/frais': 'Notes de frais', '/rh/recrutement': 'Recrutement', '/rh/competences': 'Compétences et formations', '/rh/objectifs': 'Performance et entretiens', '/rh/reglages': 'Réglages — Ressources humaines', '/commercial/acces': 'Rôles et privilèges — Service commercial', '/compta/acces': 'Rôles et privilèges — Comptabilité', '/rh/acces': 'Rôles et privilèges — Ressources humaines', '/sav/acces': 'Rôles et privilèges — Client & SAV', '/comptes': 'Comptes utilisateurs', '/sav': 'Client & SAV', '/sav/reclamations': 'Réclamations', '/sav/reserves': 'Réserves de livraison', '/sav/interventions': 'Interventions',
 };
 
-// Le dashboard est sur admin.siipaf.com quand l'ERP est sur erp.siipaf.com (admin.localhost en local)
-const dashboardUrl = () => `${window.location.protocol}//${window.location.host.replace(/^erp\./, 'admin.')}/`;
 
 export default function ErpLayout() {
   const { user, logout, can: canOne } = useAuth();
