@@ -89,7 +89,7 @@ export default function Direction() {
           </Card>
           <Card title="Commerciaux" actions={<span className="small muted">mois en cours · portefeuille depuis janvier</span>} bodyClass="">
             {!c.sellers.length ? <Empty icon={Users}>Aucun commercial.</Empty> : (
-              <div className="table-wrap"><table className="table">
+              <div className="table-wrap table-scroll"><table className="table table-compact">
                 <thead><tr><th>Commercial</th><th className="right">CA signé</th><th className="right">Ventes</th><th>Objectif CA</th></tr></thead>
                 <tbody>{c.sellers.map(s => (
                   <tr key={s.user_id}>
@@ -117,20 +117,30 @@ export default function Direction() {
         </div>
         <Card bodyClass="">
           {!withSales.length ? <Empty icon={HardHat}>Aucun programme.</Empty> : (
-            <div className="table-wrap"><table className="table">
-              <thead><tr><th>Programme</th><th className="right">Lots</th><th className="right">Dossiers</th><th className="right">CA signé</th><th className="right">Encaissé</th><th className="right">Reste à encaisser</th><th>Avancement du programme</th><th>Moyenne des dossiers</th><th>Îlots</th><th>Dernier point</th></tr></thead>
+            <div className="table-wrap table-scroll"><table className="table table-compact">
+              <thead><tr><th>Programme</th><th className="right">Lots · dossiers</th><th className="right">CA signé</th><th>Avancement</th><th>Îlots · dernier point</th></tr></thead>
               <tbody>{withSales.map(p => (
                 <tr key={p.id}>
-                  <td><strong>{p.name}</strong>{p.stage_label && <div className="small muted">{p.stage_label}</div>}</td>
-                  <td className="right tabular">{num(p.lots)}<div className="small muted nowrap">dont {num((p.by_status.vendu || 0) + (p.by_status.reserve || 0))} vendus</div></td>
-                  <td className="right tabular">{num(p.dossiers)}{p.vefa ? <div className="small muted">{num(p.vefa)} VEFA</div> : null}</td>
-                  <td className="right tabular">{compact(p.ca_fcfa)}</td>
-                  <td className="right tabular">{compact(p.encaisse_fcfa)}</td>
-                  <td className="right tabular">{compact(p.reste_fcfa)}</td>
-                  <td>{p.progress_pct == null ? <span className="small muted">aucun point</span> : <Advance value={p.progress_pct} />}</td>
-                  <td>{p.dossiers_progress_pct == null ? <span className="small muted">—</span> : <Advance value={p.dossiers_progress_pct} />}</td>
-                  <td className="small">{p.ilots.length ? p.ilots.map(i => `${i.ilot} : ${i.progress_pct} %`).join(' · ') : '—'}</td>
-                  <td className="small nowrap">{p.last_update_at ? date(p.last_update_at) : '—'}{p.stale && p.dossiers ? <> <Badge tone="warn">À relancer</Badge></> : null}</td>
+                  <td style={{ minWidth: 150 }}><strong>{p.name}</strong>{p.stage_label && <div className="small muted">{p.stage_label}</div>}</td>
+                  <td className="right tabular nowrap">
+                    <div>{num(p.lots)} lots <span className="small muted">· {num((p.by_status.vendu || 0) + (p.by_status.reserve || 0))} vendus</span></div>
+                    <div className="small muted">{num(p.dossiers)} dossier(s){p.vefa ? ` · ${num(p.vefa)} VEFA` : ''}</div>
+                  </td>
+                  <td className="right tabular nowrap">
+                    <div><strong>{compact(p.ca_fcfa)}</strong></div>
+                    <div className="small muted">encaissé {compact(p.encaisse_fcfa)}</div>
+                    <div className="small muted">reste {compact(p.reste_fcfa)}</div>
+                  </td>
+                  <td>
+                    <div className="cell-stack">
+                      {p.progress_pct == null ? <span className="small muted">aucun point publié</span> : <Advance value={p.progress_pct} />}
+                      <span className="small muted">{p.dossiers_progress_pct == null ? 'dossiers : —' : `dossiers : ${p.dossiers_progress_pct} % en moyenne`}</span>
+                    </div>
+                  </td>
+                  <td className="small" style={{ minWidth: 120, maxWidth: 200 }}>
+                    <div>{p.ilots.length ? p.ilots.map(i => `${i.ilot} : ${i.progress_pct} %`).join(' · ') : '—'}</div>
+                    <div className="muted nowrap">{p.last_update_at ? `point du ${date(p.last_update_at)}` : 'aucun point'}{p.stale && p.dossiers ? <> <Badge tone="warn">À relancer</Badge></> : null}</div>
+                  </td>
                 </tr>
               ))}</tbody>
             </table></div>
@@ -184,7 +194,7 @@ export default function Direction() {
         </div>
         {w.worksites.length > 0 && (
           <Card bodyClass="">
-            <div className="table-wrap"><table className="table">
+            <div className="table-wrap table-scroll"><table className="table table-compact">
               <thead><tr><th>Chantier</th><th>Programme</th><th>Conducteur</th><th>Statut</th><th>Avancement</th><th className="right">Phases en retard</th><th className="right">Budget</th><th className="right">Consommé</th></tr></thead>
               <tbody>{w.worksites.map(x => (
                 <tr key={x.id}>
@@ -213,7 +223,7 @@ export default function Direction() {
         </div>
         {f.fiscal_year && f.margins?.length > 0 && (
           <Card title="Marge par programme" bodyClass="">
-            <div className="table-wrap"><table className="table">
+            <div className="table-wrap table-scroll"><table className="table table-compact">
               <thead><tr><th>Programme</th><th className="right">Produits</th><th className="right">Charges</th><th className="right">Marge</th></tr></thead>
               <tbody>{f.margins.map(m => (
                 <tr key={m.project_id ?? 'aucun'}><td>{m.name}</td><td className="right tabular">{compact(m.produits)}</td><td className="right tabular">{compact(m.charges)}</td><td className="right tabular"><strong>{compact(m.marge)}</strong>{m.taux != null && <span className="muted"> · {m.taux} %</span>}</td></tr>
@@ -233,7 +243,7 @@ export default function Direction() {
         <div className="grid grid-2" style={{ alignItems: 'start' }}>
           <Card title="Performance par service" bodyClass="">
             {!rh.performance.departments.length ? <Empty icon={Target}>Aucun employé.</Empty> : (
-              <div className="table-wrap"><table className="table">
+              <div className="table-wrap table-scroll"><table className="table table-compact">
                 <thead><tr><th>Service</th><th className="right">Effectif</th><th>Score</th><th className="right">Présence</th></tr></thead>
                 <tbody>{rh.performance.departments.map(s => (
                   <tr key={s.key}><td>{s.label}</td><td className="right tabular">{num(s.headcount)}</td><td>{s.score == null ? <span className="small muted">pas d’objectif</span> : <Progress value={s.score} />}</td><td className="right tabular">{s.presence == null ? '—' : `${s.presence} %`}</td></tr>
