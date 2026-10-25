@@ -58,3 +58,12 @@
 4. Sous-traitants : marchés, situations, retenues → Juridique, factures → Comptabilité.
 5. TMA, besoins en matériaux, réception des lots (PV → SAV).
 6. Tableau de bord du module et section Chantiers de la Vue Direction ; script de démo ; recette.
+
+## 5. Choix du client pour le lot 5 (25/10/2026)
+
+| Sujet | Choix |
+|---|---|
+| TMA | **Circuit complet** : demande par le commercial ou par l'acquéreur (espace client) → devis chiffré par le conducteur → **accord de l'acquéreur dans son espace client** → montant ajouté à l'échéancier de la vente (Comptabilité prévenue) → réalisation suivie sur le chantier |
+| Réception d'un lot | **PV de livraison et réserves** (date de livraison du dossier, réserves ouvertes au SAV, garanties qui démarrent) · **dernier appel de fonds** : la Direction est invitée à déclarer l'étape « Livraison » du lot · **espace client** : PV, réserves et levées visibles · **Juridique** prévenu (expédition de l'acte, fin du circuit de vente) |
+| Besoins en matériaux | **Liste suivie** : saisie par le conducteur, validée par la Direction ou l'acheteur, statut demandé → validé → commandé → livré ; reprise par Achats & stocks |
+| Retenues de garantie | **Réception du marché** : date de réception des travaux du sous-traitant saisie par le conducteur ; libération proposée à cette date + délai de garantie (Juridique › Réglages) ; Juridique et Comptabilité prévenus à l'échéance |

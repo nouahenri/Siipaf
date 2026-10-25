@@ -145,15 +145,28 @@ export default function Direction() {
           <Kpi to="/chantiers" icon={Wallet} label="Budget consommé" count={w.budget_fcfa ? Math.round((w.spent_fcfa / w.budget_fcfa) * 100) : null} format={v => `${v} %`} tint={w.over_budget ? 'amber' : undefined}
             foot={w.budget_fcfa ? `${money(w.spent_fcfa)} / ${money(w.budget_fcfa)} · ${num(w.over_budget)} dépassé(s)` : 'aucun budget saisi'} />
           <Kpi to="/chantiers" icon={Flag} label="Décisions de la Direction" count={w.to_declare + w.situations_to_validate} tint={w.to_declare + w.situations_to_validate ? 'amber' : undefined}
-            foot={`${num(w.to_declare)} étape(s) à déclarer · ${num(w.situations_to_validate)} situation(s) à valider · ${num(w.late_deliveries)} livraison(s) en retard`} />
+            foot={`${num(w.to_declare)} étape(s) à déclarer · ${num(w.situations_to_validate)} situation(s) à valider · ${num(w.late_deliveries)} livraison(s) en retard · ${num(w.declared_recent)} étape(s) déclarée(s) en ${w.decided_days} j (${num(w.calls_recent)} appel(s) de fonds)`} />
         </div>
         <div className="grid grid-2" style={{ alignItems: 'start' }}>
-          <Card title="Étapes signalées à déclarer" actions={<span className="small muted">la déclaration émet les appels de fonds VEFA</span>} bodyClass="">
-            {!w.declarations.length ? <Empty icon={Flag}>Aucune étape en attente de déclaration.</Empty> : (
+          <Card title="Étapes de chantier" actions={<span className="small muted">la déclaration émet les appels de fonds VEFA</span>} bodyClass="">
+            <div className="notif-section">À déclarer ({num(w.to_declare)})</div>
+            {!w.declarations.length ? <p className="small muted card-body" style={{ margin: 0, paddingTop: 4 }}>Aucune étape signalée en attente.</p> : (
               <ul className="list">{w.declarations.map(x => (
-                <li key={x.id}><Link to={x.worksite_id ? `/chantiers/${x.worksite_id}?onglet=etapes` : '/chantiers'} className="list-row">
+                <li key={x.id}><Link to={x.worksite_id ? `/chantiers/${x.worksite_id}?onglet=etapes` : '/commercial/vefa'} className="list-row">
                   <span style={{ minWidth: 0, flex: 1 }}><strong className="ellipsis">{x.stage_label}</strong><span className="small muted ellipsis">{x.scope_label} · {x.project_name}{x.reported_by_name ? ` · signalée par ${x.reported_by_name}` : ''}</span></span>
-                  <span className="small nowrap muted">{x.reached_on ? `atteinte le ${date(x.reached_on)}` : ''}</span>
+                  <span className="small nowrap" style={{ color: 'var(--warn, #b45309)' }}>{x.reached_on ? `atteinte le ${date(x.reached_on)}` : 'à déclarer'}</span>
+                </Link></li>
+              ))}</ul>
+            )}
+            <div className="notif-section">Décidées depuis {num(w.decided_days)} jours ({num(w.decided.length)})</div>
+            {!w.decided.length ? <p className="small muted card-body" style={{ margin: 0, paddingTop: 4 }}>Aucune étape déclarée ou refusée sur la période.</p> : (
+              <ul className="list">{w.decided.map(x => (
+                <li key={x.id}><Link to={x.worksite_id ? `/chantiers/${x.worksite_id}?onglet=etapes` : '/commercial/vefa'} className="list-row">
+                  <span style={{ minWidth: 0, flex: 1 }}>
+                    <strong className="ellipsis">{x.stage_label} {x.status === 'declaree' ? <Badge tone="ok">Déclarée</Badge> : <Badge tone="warn">Refusée</Badge>}</strong>
+                    <span className="small muted ellipsis">{x.scope_label} · {x.project_name}{x.declared_by_name ? ` · par ${x.declared_by_name}` : ''}{x.status === 'declaree' ? ` · ${num(x.calls_count)} appel(s) de fonds${x.calls_amount ? ` (${money(x.calls_amount)})` : ''}` : x.refusal_reason ? ` · ${x.refusal_reason}` : ''}</span>
+                  </span>
+                  <span className="small nowrap muted">le {date(x.declared_at)}</span>
                 </Link></li>
               ))}</ul>
             )}

@@ -13,7 +13,7 @@ const { uploadsDir } = require('../config');
 const {
   SITE_STAGES, SITE_STAGE_LABELS, DECLARATION_STATUSES, lotInZone, deliveryForecast, deliveryDelay, phaseState, addDays,
 } = require('../lib/domain');
-const { notify, usersWith, inform } = require('./notifications');
+const { notify, usersWith, inform, resolve } = require('./notifications');
 
 const insertedId = r => (typeof r === 'object' ? r.id : r);
 const today = () => new Date().toISOString().slice(0, 10);
@@ -254,6 +254,7 @@ async function declare(db, { id = null, worksite = null, projectId = null, ilot 
   const link = d.worksite_id ? `/chantiers/${d.worksite_id}?onglet=etapes` : '/commercial/vefa';
   // Le conducteur qui l'a signalée et les services du circuit (Direction générale, exploitation, Comptabilité par défaut)
   const scope = d.worksite_id ? (await db('worksites').where({ id: d.worksite_id }).first('reference', 'name')) : null;
+  await resolve(db, `etape:${d.id}:signalee`); // « Étape à déclarer » : suite donnée, lue pour tous
   await inform(db, 'chantier.etape_declaree', {
     direct: d.reported_by ? [d.reported_by] : [], except: userId, link, links: { compta: '/compta' }, key: `etape:${d.id}:declaree`,
     title: `Étape déclarée : ${label}${scope ? ` — ${scope.reference}` : ''}`,
@@ -272,6 +273,7 @@ async function refuse(db, id, reason, userId) {
   if (!d) throw new HttpError(404, 'Étape introuvable.');
   if (d.status !== 'signalee') throw new HttpError(409, 'Cette étape n’est plus à déclarer.');
   await db('stage_declarations').where({ id }).update({ status: 'refusee', refusal_reason: reason, declared_by: userId, declared_at: new Date(), updated_at: new Date() });
+  await resolve(db, `etape:${id}:signalee`);
   {
     await inform(db, 'chantier.etape_refusee', {
       direct: d.reported_by ? [d.reported_by] : [], priority: 'action', except: userId, title: `Étape refusée : ${SITE_STAGE_LABELS[d.stage]}`, body: reason,

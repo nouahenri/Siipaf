@@ -72,6 +72,12 @@ test('étapes : le conducteur signale, seule la Direction déclare ; la déclara
   const declId = res.body.id;
   assert.equal((await conducteur.post(url).field('stage', 'fondations').field('reached_on', day(-2))).status, 409, 'déjà signalée');
   assert.ok((await admin.get(`${W}/badges`)).body.to_declare >= 1);
+  // La Direction générale (super administrateur) est prévenue et voit l'étape dans la Vue Direction
+  const signalNotif = () => db('notifications').where({ dedupe_key: `etape:${declId}:signalee` }).whereIn('user_id', db('users').where({ role: 'super_admin' }).select('id')).first();
+  assert.equal((await signalNotif())?.read_at, null, 'cloche du super administrateur');
+  let view = (await admin.get('/api/admin/erp/direction/overview')).body.chantiers.worksites;
+  assert.ok(view.declarations.some(x => x.id === declId), 'Vue Direction : à déclarer');
+  assert.ok((await admin.get('/api/admin/erp/direction/overview')).body.administration.attention.some(x => x.module === 'chantiers' && /Fondations/.test(x.label)), 'À traiter en priorité');
   assert.equal((await conducteur.post(`${W}/etapes/${declId}/declarer`).send({})).status, 403);
 
   res = await admin.post(`${W}/etapes/${declId}/declarer`).send({});
@@ -81,6 +87,11 @@ test('étapes : le conducteur signale, seule la Direction déclare ; la déclara
   assert.deepEqual(called.map(c => c.stage), ['signature', 'fondations']);
   assert.ok(await db('notifications').where({ user_id: ids.conducteur_travaux, event: 'chantier.etape_declaree' }).first());
   assert.ok(await db('notifications').where({ user_id: ids.commercial, event: 'vefa.appel_emis' }).first());
+  assert.ok((await signalNotif()).read_at, 'la demande « à déclarer » est lue une fois déclarée');
+  view = (await admin.get('/api/admin/erp/direction/overview')).body.chantiers.worksites;
+  assert.equal(view.declarations.some(x => x.id === declId), false);
+  const decided = view.decided.find(x => x.id === declId);
+  assert.deepEqual([decided.status, decided.calls_count], ['declaree', 1], 'Vue Direction : déclarée, avec ses appels de fonds');
   const phase = (await conducteur.get(`${W}/${worksite.id}`)).body.phases.find(p => p.stage === 'fondations');
   assert.deepEqual([phase.actual_end, phase.progress_pct], [day(-2), 100]);
 

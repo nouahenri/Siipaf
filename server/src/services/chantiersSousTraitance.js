@@ -8,7 +8,7 @@
  */
 const { HttpError, isoDay, isoTime } = require('../lib/http');
 const { SITUATION_STATUSES, situationAmounts } = require('../lib/domain');
-const { usersWith, inform } = require('./notifications');
+const { usersWith, inform, resolve } = require('./notifications');
 
 const insertedId = r => (typeof r === 'object' ? r.id : r);
 const money = n => `${Number(n || 0).toLocaleString('fr-FR').replace(/[  ]/g, ' ')} FCFA`;
@@ -160,6 +160,7 @@ async function validate(db, w, id, userId) {
     await trx('worksite_situations').where({ id }).update({ status: 'validee', validated_by: userId, validated_at: new Date(), purchase_invoice_id: insertedId(inv), updated_at: new Date() });
   });
   await syncRetention(db, w, c, userId);
+  await resolve(db, `situation:${id}:verifiee`); // « Situation à valider » : suite donnée, lue pour tous
   // Le conducteur qui l'a saisie, les comptes des achats et les services du circuit (exploitation, Comptabilité, Juridique)
   await inform(db, 'chantier.situation_validee', {
     direct: [s.created_by, ...(await usersWith(db, 'achats:write'))].filter(Boolean), except: userId, priority: 'action', key: `situation:${id}:validee`,
@@ -180,6 +181,7 @@ async function refuse(db, w, id, reason, userId) {
   const s = await loadSituation(db, w, id);
   if (FINAL.includes(s.status)) throw new HttpError(409, 'Cette situation est déjà close.');
   await db('worksite_situations').where({ id }).update({ status: 'refusee', refusal_reason: reason, validated_by: userId, validated_at: new Date(), updated_at: new Date() });
+  await resolve(db, `situation:${id}:verifiee`);
   {
     await inform(db, 'chantier.situation_refusee', {
       direct: s.created_by ? [s.created_by] : [], priority: 'action', except: userId, title: `Situation n° ${s.number} refusée`,
