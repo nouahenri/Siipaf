@@ -6,6 +6,7 @@ import { dayLabel, monthYear } from '../lib/format';
 import { SITE_STAGES, SCOPE_LABELS, stageIndex } from '../lib/domain';
 import { Badge, Empty, ErrorState, Lightbox, PageHead, PageSkeleton, PayBar, Ring, SectionHead } from '../components/ui';
 import { NoDossier } from './Home';
+import Livraison from '../components/Livraison';
 
 function Stages({ current }) {
   const idx = stageIndex(current);
@@ -98,6 +99,8 @@ export default function Chantier() {
           </div>
         )}
       </section>
+
+      <Livraison saleId={selected.id} />
 
       {viewer && <Lightbox items={viewer.items} index={viewer.index} caption={viewer.caption} onClose={() => setViewer(null)} onIndex={index => setViewer(v => ({ ...v, index }))} />}
     </>

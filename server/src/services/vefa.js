@@ -44,14 +44,14 @@ async function notifyClient(trx, sale, calls, userId) {
  * Émet les appels « à venir » dont l'étape est atteinte. `reached(stage)` dit si l'étape d'un appel est constatée.
  * Renvoie les appels émis.
  */
-async function emitCalls(trx, sale, reached, { date, siteUpdateId = null, userId = null, notify = true }) {
+async function emitCalls(trx, sale, reached, { date, siteUpdateId = null, userId = null, notify = true, declarationId = null }) {
   const project = await trx('lots').where({ id: sale.lot_id }).first('project_id');
   const plan = await getPlan(trx, project.project_id);
   const pending = await trx('fund_calls').where({ sale_id: sale.id, status: 'a_venir' }).orderBy('seq');
   const emitted = [];
   for (const c of pending) {
     if (!reached(c.stage)) continue;
-    const row = { status: 'appele', called_at: date, due_date: addDays(date, plan.due_days), site_update_id: siteUpdateId, called_by: userId, updated_at: new Date() };
+    const row = { status: 'appele', called_at: date, due_date: addDays(date, plan.due_days), site_update_id: siteUpdateId, called_by: userId, updated_at: new Date(), ...(declarationId ? { declaration_id: declarationId } : {}) };
     await trx('fund_calls').where({ id: c.id }).update(row);
     emitted.push({ ...c, ...row });
   }

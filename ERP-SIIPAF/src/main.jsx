@@ -63,6 +63,7 @@ import './erp.css';
 import { installScrollers } from '@admin/lib/scrollers';
 import { SettingsShell } from './components/NotificationPrefs';
 import ModuleSettings from './pages/ModuleSettings';
+import { ApproDashboard, ApproDocuments, ApproStock, ApproArticles, ApproNeeds, ApproPartners, ApproSettings, ApproPrint } from './pages/achats/Achats';
 
 function Guard({ perm, children }) {
   const { can } = useAuth();
@@ -109,6 +110,17 @@ function App() {
     <Routes>
       <Route element={<ErpLayout />}>
         <Route index element={<Launcher />} />
+        <Route path="achats" element={<Guard perm="appro:read"><ApproDashboard /></Guard>} />
+        <Route path="achats/besoins" element={<Guard perm="appro:read"><ApproNeeds /></Guard>} />
+        <Route path="achats/prix" element={<Guard perm="appro:read"><ApproDocuments key="quotes" kind="quote" /></Guard>} />
+        <Route path="achats/prix/:id/impression" element={<Guard perm="appro:read"><ApproPrint kind="quote" /></Guard>} />
+        <Route path="achats/commandes" element={<Guard perm="appro:read"><ApproDocuments key="orders" kind="order" /></Guard>} />
+        <Route path="achats/commandes/:id/impression" element={<Guard perm="appro:read"><ApproPrint kind="order" /></Guard>} />
+        <Route path="achats/stocks" element={<Guard perm="appro:read"><ApproStock /></Guard>} />
+        <Route path="achats/articles" element={<Guard perm="appro:read"><ApproArticles /></Guard>} />
+        <Route path="achats/fournisseurs" element={<Guard perm="appro:read"><ApproPartners /></Guard>} />
+        <Route path="achats/reglages" element={<Guard perm="appro:read"><ApproSettings /></Guard>} />
+        <Route path="achats/acces" element={<Guard perm="appro:read"><Guard perm="users:read"><ModuleAccess module="achats" label="Achats & stocks" /></Guard></Guard>} />
         <Route path="commercial" element={<Guard perm="commercial:read"><CommercialDashboard /></Guard>} />
         <Route path="commercial/pipeline" element={<Guard perm="leads:read"><Pipeline /></Guard>} />
         <Route path="commercial/activites" element={<Guard perm="commercial:read"><Activities /></Guard>} />

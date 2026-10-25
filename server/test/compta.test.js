@@ -110,6 +110,27 @@ test('VEFA à l’avancement : chaque appel de fonds émis est facturé', async 
   assert.equal(byAccount(detail.lines, '702110')[0].credit, 3000000);
 });
 
+test('travaux modificatifs (TMA) acceptés par l’acquéreur : facturés au client à la date de l’accord', async () => {
+  const [r] = await db('worksite_changes').insert({
+    reference: 'TMA-2099-0101', sale_id: saleV.id, lot_id: saleV.lot_id, title: 'Carrelage grand format', source: 'equipe', status: 'acceptee',
+    amount_fcfa: 500000, answered_at: new Date(`${year}-05-20T10:00:00Z`), due_date: `${year}-06-04`,
+  });
+  const tmaId = typeof r === 'object' ? r.id : r;
+  const res = await comptable.post(`${C}/sync`);
+  assert.equal(res.body.created, 1, JSON.stringify(res.body));
+  const entry = await db('acc_entries').where({ source_key: `tma:${tmaId}` }).first();
+  assert.ok(entry, 'écriture de la TMA');
+  const detail = (await comptable.get(`${C}/entries/${entry.id}`)).body;
+  assert.equal(detail.journal_code, 'VT');
+  assert.equal(byAccount(detail.lines, '4111')[0].debit, 500000);
+  assert.equal(byAccount(detail.lines, '702110')[0].credit, 500000);
+  assert.equal((await comptable.post(`${C}/sync`)).body.created, 0, 'pas de doublon');
+  // Les états testés plus bas portent sur les seules ventes : on retire cette TMA et son écriture (brouillon)
+  await db('acc_lines').where({ entry_id: entry.id }).del();
+  await db('acc_entries').where({ id: entry.id }).del();
+  await db('worksite_changes').where({ id: tmaId }).del();
+});
+
 test('versement supprimé dans le dashboard : brouillon retiré, écriture validée contrepassée', async () => {
   const p = (await comptable.post(`/api/admin/sales/${saleV.id}/payments`).send({ amount_fcfa: 1000000, paid_at: `${year}-05-10`, method: 'especes' })).body;
   await comptable.post(`${C}/sync`);

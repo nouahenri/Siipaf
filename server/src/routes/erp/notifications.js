@@ -48,7 +48,7 @@ module.exports = function notificationRoutes(db) {
     res.json({
       can_edit: canRoute(req), modules: notifications.NOTIF_MODULES,
       audiences: Object.fromEntries(Object.entries(INFO_AUDIENCES).map(([k, a]) => [k, { label: a.label, hint: a.hint }])),
-      events: Object.entries(INFO_EVENTS).map(([key, e]) => ({ key, module: e.module, label: e.label, defaults: e.audiences, audiences: routes[key] })),
+      events: Object.entries(INFO_EVENTS).map(([key, e]) => ({ key, module: e.module, label: e.label, hint: e.recipient_hint || null, defaults: e.audiences, audiences: routes[key] })),
     });
   }));
   r.put('/circuit', ah(async (req, res) => {

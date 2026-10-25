@@ -354,7 +354,7 @@ module.exports = function commercialRoutes(db) {
         .select('p.*', 'u.name as recorded_by_name').orderBy([{ column: 'p.paid_at', order: 'desc' }, { column: 'p.id', order: 'desc' }]),
       scheduleStatus(db, s, t),
     ]);
-    res.json({ ...(await saleRow(s, await progressIndex(db))), notes: s.notes, promised_delivery_on: isoDay(s.promised_delivery_on), schedule, payments: payments.map(p => ({ ...p, paid_at: isoDay(p.paid_at), amount_fcfa: Number(p.amount_fcfa) })) });
+    res.json({ ...(await saleRow(s, await progressIndex(db))), notes: s.notes, promised_delivery_on: isoDay(s.promised_delivery_on), delivered_at: isoDay(s.delivered_at), schedule, payments: payments.map(p => ({ ...p, paid_at: isoDay(p.paid_at), amount_fcfa: Number(p.amount_fcfa) })) });
   }));
 
   // ─── VEFA : plans et appels de fonds ──────────────────────

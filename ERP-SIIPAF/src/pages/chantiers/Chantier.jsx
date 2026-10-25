@@ -5,7 +5,7 @@
  */
 import { useState } from 'react';
 import { Link, useNavigate, useParams, useSearchParams } from 'react-router-dom';
-import { ArrowLeft, Pencil, Plus, Check, Trash2, CalendarRange, ListChecks, Wallet, Flag, BookText, Megaphone, Truck, Handshake, ArrowUp, ArrowDown, HardHat, MapPin, Gauge, AlertTriangle } from 'lucide-react';
+import { ArrowLeft, Pencil, Plus, Check, Trash2, CalendarRange, ListChecks, Wallet, Flag, BookText, Megaphone, Truck, Handshake, ArrowUp, ArrowDown, HardHat, MapPin, Gauge, AlertTriangle, Wrench, ShoppingCart } from 'lucide-react';
 import { api } from '@admin/lib/api';
 import { useAuth, useResource, useSaved, useToast } from '@admin/lib/app-context';
 import { Card, Empty, Skeleton, ErrorBox, Field, Modal, Badge, Advance } from '@admin/components/ui';
@@ -15,10 +15,12 @@ import { CH, WS_TONES, PHASE_TONES, TASK_COLORS, useChantierRefs, body } from '.
 import { WorksiteForm } from './Chantiers';
 import { Journal, Progress, Stages, Deliveries } from './Suivi';
 import SousTraitance from './SousTraitance';
+import { Tma, Needs } from './Livraison';
 
 const TABS = [
   ['planning', 'Planning', CalendarRange], ['taches', 'Tâches', ListChecks], ['journal', 'Journal', BookText], ['avancement', 'Avancement client', Megaphone],
-  ['etapes', 'Étapes et appels de fonds', Flag], ['sous-traitants', 'Sous-traitants', Handshake], ['livraisons', 'Livraisons', Truck], ['budget', 'Budget', Wallet],
+  ['etapes', 'Étapes et appels de fonds', Flag], ['sous-traitants', 'Sous-traitants', Handshake], ['besoins', 'Besoins en matériaux', ShoppingCart], ['tma', 'TMA', Wrench],
+  ['livraisons', 'Livraisons et réception', Truck], ['budget', 'Budget', Wallet],
 ];
 
 export default function Chantier() {
@@ -74,7 +76,9 @@ export default function Chantier() {
       {tab === 'avancement' && <Progress w={w} refs={refs} />}
       {tab === 'etapes' && <Stages w={w} refs={refs} onChange={() => res.reload()} />}
       {tab === 'sous-traitants' && <SousTraitance w={w} refs={refs} onChange={() => res.reload()} />}
-      {tab === 'livraisons' && <Deliveries w={w} />}
+      {tab === 'besoins' && <Needs w={w} refs={refs} />}
+      {tab === 'tma' && <Tma w={w} />}
+      {tab === 'livraisons' && <Deliveries w={w} refs={refs} />}
       {tab === 'budget' && <Budget w={w} refs={refs} onChange={update} />}
 
       {editing && <WorksiteForm worksite={w} refs={refs} onClose={() => setEditing(false)} onSaved={data => { setEditing(false); update(data); }} />}

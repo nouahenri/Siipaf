@@ -53,6 +53,7 @@ export default function ChantiersSettings() {
 const LIST_HINTS = {
   poste: 'Postes du budget prévu et du coût réel (lignes de budget, factures d’achat affectées à un chantier). Les postes marqués d’un cadenas servent au calcul des coûts réels : ils se renomment mais ne se suppriment pas.',
   meteo: 'Choix proposés dans le journal quotidien des chantiers.',
+  unite: 'Unités proposées pour les besoins en matériaux (sac, tonne, m³…). Une unité déjà utilisée se désactive au lieu d’être supprimée.',
 };
 
 /** Liste réglable : ajouter, renommer, ordonner, désactiver (élément utilisé) ou supprimer (jamais utilisé). */
@@ -93,7 +94,7 @@ function ListEditor({ kind, title, initial, write }) {
       </ul>
       {write && (
         <form className="card-body row" style={{ gap: 8 }} onSubmit={add}>
-          <input className="input" minLength={2} maxLength={120} value={label} onChange={e => setLabel(e.target.value)} placeholder={kind === 'poste' ? 'Études et honoraires, VRD…' : 'Harmattan, brouillard…'} aria-label={`Nouvel élément : ${title}`} />
+          <input className="input" minLength={2} maxLength={120} value={label} onChange={e => setLabel(e.target.value)} placeholder={kind === 'poste' ? 'Études et honoraires, VRD…' : kind === 'unite' ? 'Rouleau, paquet, voyage de camion…' : 'Harmattan, brouillard…'} aria-label={`Nouvel élément : ${title}`} />
           <button className="btn btn-primary" disabled={!label.trim()}><Plus />Ajouter</button>
         </form>
       )}

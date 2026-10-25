@@ -5,7 +5,7 @@ import {
   Briefcase, Columns3, ListTodo, CalendarDays, Building2, FileSignature, Landmark, Target,
   Calculator, BookOpen, ShoppingCart, FileBarChart, ListTree, Settings2, Contact, Banknote,
   Users, UserRound, Palmtree, Fingerprint, Receipt, UserPlus, GraduationCap, ShieldCheck, UserCog, Building, Mail, FileClock, Truck, BookOpenCheck, Inbox, Rocket,
-  Scale, Stamp, ShieldHalf, AlarmClock, HardHat, MapPinned, Share2,
+  Scale, Stamp, ShieldHalf, AlarmClock, HardHat, MapPinned, Share2, Boxes, PackageCheck,
 } from 'lucide-react';
 import { CHANTIERS, CHANTIERS_SHOW } from '../lib/chantiers';
 import { useAuth, useResource } from '@admin/lib/app-context';
@@ -24,6 +24,20 @@ export const JURIDIQUE_SHOW = b => b?.litigations_mine > 0;
 
 // Navigation de chaque module ; les modules suivants (comptabilité, RH…) viendront s'ajouter ici
 const MODULES = {
+  achats: {
+    label: 'Achats & stocks', icon: Boxes, perm: 'appro:read',
+    items: [
+      { to: '/achats', label: 'Tableau de bord', icon: LayoutDashboard, end: true, perm: 'appro:read' },
+      { to: '/achats/besoins', label: 'Besoins chantier', icon: ClipboardList, badge: 'needs', perm: 'appro:read' },
+      { to: '/achats/prix', label: 'Demandes de prix', icon: FileSignature, badge: 'quotes_waiting', perm: 'appro:read' },
+      { to: '/achats/commandes', label: 'Bons de commande', icon: ShoppingCart, badge: 'orders_waiting', perm: 'appro:read' },
+      { to: '/achats/stocks', label: 'Stocks et mouvements', icon: PackageCheck, perm: 'appro:read' },
+      { to: '/achats/articles', label: 'Articles', icon: Boxes, perm: 'appro:read' },
+      { to: '/achats/fournisseurs', label: 'Fournisseurs et contrats', icon: Contact, perm: 'appro:read' },
+      { to: '/achats/reglages', label: 'Réglages', icon: Settings2, perm: 'appro:read' },
+      { to: '/achats/acces', label: 'Rôles et privilèges', icon: ShieldCheck, perm: 'users:read' },
+    ],
+  },
   commercial: {
     label: 'Service commercial', icon: Briefcase, perm: ['commercial:read', 'vefa:write'],
     items: [
@@ -127,6 +141,7 @@ const MODULES = {
 };
 
 const TITLES = {
+  '/achats': 'Achats & stocks', '/achats/besoins': 'Besoins en matériaux', '/achats/prix': 'Demandes de prix', '/achats/commandes': 'Bons de commande', '/achats/stocks': 'Stocks et mouvements', '/achats/articles': 'Articles', '/achats/fournisseurs': 'Fournisseurs et contrats', '/achats/reglages': 'Réglages — Achats & stocks', '/achats/acces': 'Rôles et privilèges — Achats & stocks',
   '/': 'Modules', '/commercial': 'Service commercial', '/commercial/pipeline': 'Pipeline commercial', '/commercial/activites': 'Mes activités',
   '/commercial/rendez-vous': 'Rendez-vous', '/commercial/parc': 'Parc immobilier', '/commercial/ventes': 'Dossiers de vente',
   '/commercial/vefa': 'Appels de fonds VEFA', '/commercial/objectifs': 'Objectifs et performance', '/administration': 'Vue Direction', '/administration/courrier': 'Courrier arrivée et départ', '/administration/contrats': 'Contrats et échéances', '/administration/parc': 'Parc auto et matériel', '/administration/documents': 'Documents internes', '/demarrer': 'Bien démarrer', '/administration/demandes': 'Demandes internes', '/administration/acces': 'Rôles et privilèges — Administration générale', '/administration/lieux': 'Lieux hors programmes', '/administration/circuit': 'Circuit d’information entre les services', '/administration/reglages': 'Réglages — Administration générale', '/commercial/reglages': 'Réglages — Service commercial', '/sav/reglages': 'Réglages — Client & SAV',
@@ -146,7 +161,7 @@ export default function ErpLayout() {
   const [open, setOpen] = useState(false);
   const moduleId = pathname.split('/')[1];
   const mod = MODULES[moduleId];
-  const statsUrl = moduleId === 'sav' && can('sav:read') ? '/admin/erp/sav/stats' : moduleId === 'commercial' && can('commercial:read') ? '/admin/erp/commercial/dashboard' : moduleId === 'compta' && can('compta:read') ? '/admin/erp/compta/dashboard' : moduleId === 'rh' ? '/admin/erp/rh/badges' : moduleId === 'administration' ? '/admin/erp/direction/badges' : moduleId === 'juridique' ? '/admin/erp/juridique/badges' : moduleId === 'chantiers' ? '/admin/erp/chantiers/badges' : null;
+  const statsUrl = moduleId === 'achats' && can('appro:read') ? '/admin/erp/achats/dashboard' : moduleId === 'sav' && can('sav:read') ? '/admin/erp/sav/stats' : moduleId === 'commercial' && can('commercial:read') ? '/admin/erp/commercial/dashboard' : moduleId === 'compta' && can('compta:read') ? '/admin/erp/compta/dashboard' : moduleId === 'rh' ? '/admin/erp/rh/badges' : moduleId === 'administration' ? '/admin/erp/direction/badges' : moduleId === 'juridique' ? '/admin/erp/juridique/badges' : moduleId === 'chantiers' ? '/admin/erp/chantiers/badges' : null;
   const stats = useResource(statsUrl, [pathname]);
   const contentRef = useRef(null);
   useRevealOnScroll(contentRef, [pathname]);
@@ -159,7 +174,11 @@ export default function ErpLayout() {
     <div className="shell">
       {open && <div className="overlay" onClick={() => setOpen(false)} />}
       <nav className={`sidebar ${open ? 'open' : ''}`} aria-label="Navigation principale">
-        <div className="sidebar-logo"><img src="/logo-siipaf.png" alt="SIIPAF SA" /><span className="erp-tag">ERP</span></div>
+        <div className="sidebar-logo">
+          <img src="/logo-siipaf.png" alt="SIIPAF SA" />
+          <span className="erp-tag">ERP</span>
+          <div className="erp-active-module">{mod?.label || title}</div>
+        </div>
         <div className="nav-group">
           <NavLink to="/" end className={({ isActive }) => `nav-item ${isActive ? 'active' : ''}`}><LayoutGrid aria-hidden="true" />Tous les modules</NavLink>
         </div>

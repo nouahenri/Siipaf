@@ -7,7 +7,7 @@
 const { HttpError, json, isoDay, isoTime } = require('../lib/http');
 const {
   WORKSITE_STATUSES, WORKSITE_OPEN, WORKSITE_ZONES, TASK_STATUSES, PHASE_STATES, SITE_STAGES, SITE_STAGE_LABELS,
-  lotInZone, phaseState, worksiteProgress, phaseRefusal, CHANTIER_SETTINGS, budgetAlertLevel,
+  lotInZone, phaseState, worksiteProgress, phaseRefusal, CHANTIER_SETTINGS, budgetAlertLevel, TMA_STATUSES, NEED_STATUSES, SAV_CATEGORIES,
 } = require('../lib/domain');
 const { computePayslip } = require('../lib/paie');
 const { splitVat } = require('../lib/compta');
@@ -501,9 +501,9 @@ async function tick(db) {
 
 // ─── Listes réglables (Chantiers › Réglages) : postes du budget, météo du journal ──
 
-const LIST_KINDS = { poste: 'Postes du budget', meteo: 'Météo du journal' };
+const LIST_KINDS = { poste: 'Postes du budget', meteo: 'Météo du journal', unite: 'Unités des besoins en matériaux' };
 // Où chaque liste est utilisée (un élément utilisé se désactive au lieu d'être supprimé)
-const LIST_USES = { poste: [['worksite_budget_lines', 'category'], ['purchase_invoices', 'worksite_category']], meteo: [['worksite_journal', 'weather']] };
+const LIST_USES = { poste: [['worksite_budget_lines', 'category'], ['purchase_invoices', 'worksite_category']], meteo: [['worksite_journal', 'weather']], unite: [['worksite_needs', 'unit']] };
 
 async function listItems(db, kind, { all = false } = {}) {
   const q = db('worksite_ref_items').where({ kind }).orderBy([{ column: 'sort' }, { column: 'id' }]);
@@ -561,19 +561,21 @@ async function reorderList(db, kind, ids) {
 // ─── Références et pastilles ──────────────────────────────────────────────
 
 async function refs(db) {
-  const [projects, users, employees, suppliers, postes, meteo] = await Promise.all([
+  const [projects, users, employees, suppliers, postes, meteo, unites] = await Promise.all([
     db('projects').orderBy('name').select('id', 'name'),
     db('users').where({ active: true }).orderBy('name').select('id', 'name', 'role'),
     db('employees').where({ active: true }).orderBy(['last_name', 'first_name']).select('id', 'last_name', 'first_name', 'job_title'),
     db('suppliers').where({ active: true }).orderBy('name').select('id', 'name', 'kind'),
-    listItems(db, 'poste', { all: true }), listItems(db, 'meteo', { all: true }),
+    listItems(db, 'poste', { all: true }), listItems(db, 'meteo', { all: true }), listItems(db, 'unite', { all: true }),
   ]);
   return {
     statuses: WORKSITE_STATUSES, zones: WORKSITE_ZONES, task_statuses: TASK_STATUSES, phase_states: PHASE_STATES,
     // Listes réglables : choix proposés (actifs) et libellés de tout ce qui est enregistré
     budget_categories: Object.fromEntries(postes.filter(p => p.active).map(p => [p.code, p.label])), budget_labels: Object.fromEntries(postes.map(p => [p.code, p.label])),
     weather: Object.fromEntries(meteo.filter(p => p.active).map(p => [p.code, p.label])), weather_labels: Object.fromEntries(meteo.map(p => [p.code, p.label])),
-    lists: { poste: postes, meteo },
+    units: Object.fromEntries(unites.filter(p => p.active).map(p => [p.code, p.label])), unit_labels: Object.fromEntries(unites.map(p => [p.code, p.label])),
+    tma_statuses: TMA_STATUSES, need_statuses: NEED_STATUSES, sav_categories: SAV_CATEGORIES,
+    lists: { poste: postes, meteo, unite: unites },
     stages: SITE_STAGES.map(k => ({ key: k, label: SITE_STAGE_LABELS[k] })), projects, users,
     employees: employees.map(e => ({ id: e.id, label: `${e.last_name} ${e.first_name}`, job_title: e.job_title || null })), suppliers,
   };
@@ -600,6 +602,9 @@ async function badges(db, v) {
   return {
     to_declare: toDeclare,
     situations_to_validate: toValidate,
+    // Lot 5 : besoins à valider (Direction, acheteurs), TMA à chiffrer sur les chantiers du compte
+    needs_to_validate: v.can('chantiers:direction') || v.can('achats:write') ? Number((await db('worksite_needs').where({ status: 'demande' }).count({ n: '*' }).first()).n) : 0,
+    tma_to_quote: visible.length ? Number((await db('worksite_changes').where({ status: 'demandee' }).whereIn('worksite_id', visible.filter(w => canManage(w, v)).map(w => w.id)).count({ n: '*' }).first()).n) : 0,
     mine: open.filter(w => Number(w.manager_id) === Number(v.user.id)).length,
     open: visible.length,
     late_phases: phases.filter(p => serializePhase(p, day).state === 'en_retard').length,

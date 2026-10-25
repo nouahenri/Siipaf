@@ -4,12 +4,15 @@
  * de fonds VEFA), livraisons promises et retards prévus.
  */
 import { useState } from 'react';
+import { useSearchParams } from 'react-router-dom';
 import { BookText, Camera, Check, Trash2, Megaphone, Flag, CheckCircle2, XCircle, Truck, Pencil, FileText, Users } from 'lucide-react';
 import { api } from '@admin/lib/api';
 import { useAuth, useResource, useSaved, useToast } from '@admin/lib/app-context';
-import { Card, Empty, Skeleton, ErrorBox, Field, Modal, Badge } from '@admin/components/ui';
+import { Card, Empty, Skeleton, ErrorBox, Field, Modal, Badge, Drawer } from '@admin/components/ui';
 import { date, dateTime, fcfa, num } from '@admin/lib/format';
 import { CH } from '../../lib/chantiers';
+import { MediaThumbs } from '@admin/components/MediaViewer';
+import { HandoverForm } from './Livraison';
 import { today } from '../../lib/rh';
 
 const DECL_TONES = { signalee: 'warn', declaree: 'ok', refusee: 'danger' };
@@ -61,14 +64,8 @@ export function Journal({ w, refs }) {
                 {j.incidents && <div className="small" style={{ whiteSpace: 'pre-wrap', color: 'var(--danger)' }}>Incident : {j.incidents}</div>}
                 {j.notes && <div className="small muted" style={{ whiteSpace: 'pre-wrap' }}>{j.notes}</div>}
                 {j.photos.length > 0 && (
-                  <div className="row" style={{ gap: 8, flexWrap: 'wrap' }}>
-                    {j.photos.map(p => (
-                      <span key={p.id} className="journal-photo">
-                        <a href={p.url} target="_blank" rel="noreferrer"><img src={p.url} alt={p.name || 'Photo du chantier'} loading="lazy" /></a>
-                        {w.can_manage && <button className="btn btn-ghost btn-icon" onClick={() => removePhoto(p)} aria-label="Retirer la photo"><Trash2 /></button>}
-                      </span>
-                    ))}
-                  </div>
+                  <MediaThumbs items={j.photos} caption={`Journal du ${date(j.day)}`}
+                    actions={p => w.can_manage && <button className="btn btn-ghost btn-icon" onClick={() => removePhoto(p)} aria-label="Retirer la photo"><Trash2 /></button>} />
                 )}
                 <span className="small muted">{j.created_by_name ? `Tenu par ${j.created_by_name}` : ''}</span>
               </li>
@@ -135,7 +132,7 @@ export function Progress({ w, refs }) {
                   <Badge>{u.stage_label} · {u.progress_pct} %</Badge><Badge>{u.scope_label}</Badge>{!u.visible_client && <Badge tone="warn">Masqué aux clients</Badge>}
                 </div>
                 {u.body && <div className="small" style={{ whiteSpace: 'pre-wrap' }}>{u.body}</div>}
-                {u.photos.length > 0 && <div className="row" style={{ gap: 8, flexWrap: 'wrap' }}>{u.photos.map(p => <span key={p.id} className="journal-photo"><img src={p.url} alt="" loading="lazy" /></span>)}</div>}
+                {u.photos.length > 0 && <MediaThumbs items={u.photos} caption={u.title} />}
               </li>
             ))}
           </ul>
@@ -201,6 +198,10 @@ export function Stages({ w, refs, onChange }) {
   const saved = useSaved();
   const res = useResource(`${CH}/${w.id}/etapes`);
   const [form, setForm] = useState(null);
+  // Fiche d'une étape : ?etape=ID (lien de la Vue Direction ou de la cloche), gardée avec l'onglet
+  const [params, setParams] = useSearchParams();
+  const open = Number(params.get('etape')) || null;
+  const setOpen = id => setParams(p => { const n = new URLSearchParams(p); if (id) n.set('etape', id); else n.delete('etape'); return n; }, { replace: true });
   const direction = can('chantiers:direction');
   const reload = () => { res.reload(); onChange?.(); };
   const declare = async d => {
@@ -224,14 +225,14 @@ export function Stages({ w, refs, onChange }) {
           <div className="table-wrap"><table className="table">
             <thead><tr><th>Étape</th><th>Atteinte le</th><th>État</th><th className="right">Appels émis</th><th /></tr></thead>
             <tbody>{res.data.map(d => (
-              <tr key={d.id}>
+              <tr key={d.id} className="clickable" onClick={() => setOpen(d.id)} title="Voir le détail de la déclaration">
                 <td><b>{d.stage_label}</b>{d.note && <div className="small muted" style={{ whiteSpace: 'pre-wrap' }}>{d.note}</div>}
                   <div className="small muted">{d.reported_by_name ? `Signalée par ${d.reported_by_name}` : ''}{d.declared_by_name ? ` · ${d.status === 'refusee' ? 'refusée' : 'déclarée'} par ${d.declared_by_name}` : ''}</div>
                   {d.refusal_reason && <div className="small" style={{ color: 'var(--danger)' }}>Motif : {d.refusal_reason}</div>}</td>
                 <td className="small nowrap">{date(d.reached_on)}</td>
                 <td><Badge tone={DECL_TONES[d.status]}>{d.status_label}</Badge></td>
                 <td className="right small tabular">{d.status === 'declaree' ? <>{num(d.calls_count)}<div className="muted">{fcfa(d.calls_amount)}</div></> : '—'}</td>
-                <td className="right nowrap">
+                <td className="right nowrap" onClick={e => e.stopPropagation()}>
                   {d.file_url && <a className="btn btn-ghost btn-icon" href={d.file_url} target="_blank" rel="noreferrer" aria-label="Ouvrir la pièce"><FileText /></a>}
                   {direction && d.status === 'signalee' && <><button className="btn btn-sm btn-primary" onClick={() => declare(d)}><CheckCircle2 />Déclarer</button> <button className="btn btn-sm btn-ghost" onClick={() => refuse(d)}><XCircle />Refuser</button></>}
                 </td>
@@ -241,7 +242,64 @@ export function Stages({ w, refs, onChange }) {
         )}
       </Card>
       {form && <StageForm w={w} refs={refs} direction={direction} preset={form} onClose={() => setForm(null)} onSaved={() => { setForm(null); reload(); }} />}
+      {open && <StageDetail id={open} direction={direction} onClose={() => setOpen(null)} onDeclare={d => declare(d).then(() => setOpen(null))} onRefuse={d => refuse(d).then(() => setOpen(null))} />}
     </div>
+  );
+}
+
+const INFORMED = {
+  'chantier.etape_signalee': 'Étape à déclarer', 'chantier.etape_declaree': 'Étape déclarée', 'chantier.etape_refusee': 'Signalement refusé', 'vefa.appel_emis': 'Appels de fonds émis',
+};
+const MODULE_LABELS = { chantiers: 'Chantiers', compta: 'Comptabilité', commercial: 'Service commercial', juridique: 'Juridique', sav: 'Client & SAV', rh: 'Ressources humaines', administration: 'Administration générale' };
+
+/** Fiche complète d'une déclaration : étape, portée, signalement, décision, pièce, dossiers VEFA, appels émis, personnes prévenues. */
+function StageDetail({ id, direction, onClose, onDeclare, onRefuse }) {
+  const res = useResource(`${CH}/etapes/${id}`);
+  const d = res.data;
+  return (
+    <Drawer title={d ? `${d.stage_label} — ${d.scope_label}` : 'Étape de chantier'} onClose={onClose}
+      footer={d && direction && d.status === 'signalee' && <><button className="btn btn-ghost" onClick={() => onRefuse(d)}><XCircle />Refuser</button><button className="btn btn-primary" onClick={() => onDeclare(d)}><CheckCircle2 />Déclarer</button></>}>
+      <ErrorBox error={res.error} />
+      {!d ? <Skeleton h={240} /> : (
+        <div className="stack">
+          <div className="row" style={{ gap: 8 }}><Badge tone={DECL_TONES[d.status]}>{d.status_label}</Badge><span className="small muted">{d.project_name}</span></div>
+          <dl className="dl">
+            <dt>Étape</dt><dd>{d.stage_label}</dd>
+            <dt>Portée</dt><dd>{d.scope_label}</dd>
+            <dt>Atteinte le</dt><dd>{date(d.reached_on)}</dd>
+            <dt>Signalée</dt><dd>{d.reported_by_name ? `par ${d.reported_by_name}` : '—'}{d.reported_at ? ` le ${dateTime(d.reported_at)}` : ''}</dd>
+            {d.status !== 'signalee' && <><dt>{d.status === 'refusee' ? 'Refusée' : 'Déclarée'}</dt><dd>{d.declared_by_name ? `par ${d.declared_by_name}` : '—'}{d.declared_at ? ` le ${dateTime(d.declared_at)}` : ' (reprise de l’existant)'}</dd></>}
+            {d.refusal_reason && <><dt>Motif du refus</dt><dd style={{ color: 'var(--danger)' }}>{d.refusal_reason}</dd></>}
+            {d.note && <><dt>Note</dt><dd style={{ whiteSpace: 'pre-wrap' }}>{d.note}</dd></>}
+            <dt>Pièce jointe</dt><dd>{d.file_url ? <a className="link" href={d.file_url} target="_blank" rel="noreferrer"><FileText size={14} /> Ouvrir le PV ou l’attestation</a> : 'aucune'}</dd>
+          </dl>
+
+          <Card title={`Appels de fonds émis (${num(d.calls.length)})`} bodyClass="">
+            {d.status !== 'declaree' ? <p className="small muted card-body" style={{ margin: 0 }}>{d.status === 'signalee' ? `À la déclaration, les appels de fonds des ${num(d.vefa_dossiers.length)} dossier(s) VEFA de la portée seront émis.` : 'Signalement refusé : aucun appel émis.'}</p>
+              : !d.calls.length ? <p className="small muted card-body" style={{ margin: 0 }}>{d.vefa_dossiers.length ? 'Aucun appel : les dossiers VEFA de la portée avaient déjà été appelés pour cette étape.' : 'Aucun appel : aucun dossier de vente en VEFA dans la portée de cette étape.'}</p> : (
+                <div className="table-wrap"><table className="table">
+                  <thead><tr><th>Lot</th><th>Acquéreur</th><th>Appel</th><th className="right">Montant</th><th>À régler avant le</th></tr></thead>
+                  <tbody>{d.calls.map(c => (
+                    <tr key={c.id}><td><b>{c.lot_code}</b></td><td>{c.client_name}{c.client_code && <div className="small muted">{c.client_code}</div>}</td><td className="small">{c.label} ({c.pct} %)</td><td className="right tabular">{fcfa(c.amount_fcfa)}</td><td className="small nowrap">{date(c.due_date)}</td></tr>
+                  ))}</tbody>
+                  <tfoot><tr><th colSpan={3}>Total</th><th className="right tabular">{fcfa(d.calls_amount)}</th><th /></tr></tfoot>
+                </table></div>
+              )}
+          </Card>
+
+          <Card title={`Personnes prévenues (${num(d.informed.length)})`} bodyClass="">
+            {!d.informed.length ? <p className="small muted card-body" style={{ margin: 0 }}>Personne n’a été prévenu par la cloche (étape antérieure au circuit d’information, ou action faite par la seule personne concernée).</p> : (
+              <ul className="list">{d.informed.map((n, i) => (
+                <li key={i} className="list-row">
+                  <span><b>{n.name}</b><div className="small muted">{INFORMED[n.event] || n.event} · {MODULE_LABELS[n.module] || n.module} · {dateTime(n.at)}</div></span>
+                  {n.read ? <Badge tone="ok">Lu</Badge> : <Badge>Non lu</Badge>}
+                </li>
+              ))}</ul>
+            )}
+          </Card>
+        </div>
+      )}
+    </Drawer>
   );
 }
 
@@ -282,11 +340,12 @@ function StageForm({ w, refs, direction, preset, onClose, onSaved }) {
 
 // ─── Livraisons promises et retards ─────────────────────────────────────────
 
-export function Deliveries({ w }) {
+export function Deliveries({ w, refs }) {
   const { can } = useAuth();
   const toast = useToast();
   const res = useResource(`${CH}/${w.id}/livraisons`);
   const [edit, setEdit] = useState(null);
+  const [handover, setHandover] = useState(null);
   const write = can('sales:write');
   const save = async (row, value) => {
     try { res.setData(await api.patch(`${CH}/${w.id}/livraisons/${row.sale_id}`, { promised_delivery_on: value || null })); setEdit(null); } catch (e) { toast(e.message, 'err'); }
@@ -303,7 +362,7 @@ export function Deliveries({ w }) {
           </p>
           {!d.rows.length ? <div className="card-body"><Empty icon={Truck}>Aucun lot vendu dans la zone de ce chantier.</Empty></div> : (
             <div className="table-wrap"><table className="table">
-              <thead><tr><th>Lot</th><th>Acquéreur</th><th>Promise le</th><th>Écart</th><th>Livré le</th></tr></thead>
+              <thead><tr><th>Lot</th><th>Acquéreur</th><th>Promise le</th><th>Écart</th><th>Réception</th></tr></thead>
               <tbody>{d.rows.map(r => (
                 <tr key={r.sale_id}>
                   <td className="tabular"><b>{r.lot_code}</b>{r.vefa && <div className="small muted">VEFA</div>}</td>
@@ -314,13 +373,20 @@ export function Deliveries({ w }) {
                       : <>{r.promised_delivery_on ? date(r.promised_delivery_on) : '—'}{write && <button className="btn btn-ghost btn-icon" onClick={() => setEdit(r.sale_id)} aria-label={`Modifier la date promise du lot ${r.lot_code}`}><Pencil /></button>}</>}
                   </td>
                   <td>{r.delivered_at ? <Badge tone="ok">Livré</Badge> : r.delay_days > 0 ? <Badge tone="danger">{r.delay_days} j de retard prévu</Badge> : r.promised_delivery_on ? <Badge tone="ok">Dans les temps</Badge> : <span className="muted">—</span>}</td>
-                  <td className="small">{r.delivered_at ? date(r.delivered_at) : '—'}</td>
+                  <td className="small nowrap">
+                    {r.handover ? <>
+                      <div>PV du {date(r.handover.handed_on)}{r.handover.file_url && <a className="btn btn-ghost btn-icon" href={r.handover.file_url} target="_blank" rel="noreferrer" aria-label={`Ouvrir le PV du lot ${r.lot_code}`}><FileText /></a>}</div>
+                      <div className="muted">{r.reserves_open ? `${r.reserves_open} réserve(s) ouverte(s)` : 'aucune réserve ouverte'}{r.reserves_lifted ? ` · ${r.reserves_lifted} levée(s)` : ''}</div>
+                    </> : r.delivered_at ? <>Livré le {date(r.delivered_at)}<div className="muted">date saisie au SAV</div></>
+                      : w.can_manage ? <button className="btn btn-sm btn-primary" onClick={() => setHandover(r)}><Check />Réceptionner</button> : '—'}
+                  </td>
                 </tr>
               ))}</tbody>
             </table></div>
           )}
         </>
       )}
+      {handover && <HandoverForm w={w} row={handover} refs={refs} onClose={() => setHandover(null)} onSaved={out => { setHandover(null); res.setData({ forecast: out.forecast, rows: out.rows }); }} />}
     </Card>
   );
 }

@@ -99,7 +99,7 @@ function Planning() {
     <Card title={<span style={{ textTransform: 'capitalize' }}>{monthLong(month)}</span>} actions={<div className="row" style={{ gap: 4 }}><button className="btn btn-sm btn-icon" onClick={() => shift(-1)} aria-label="Mois précédent"><ChevronLeft /></button><button className="btn btn-sm" onClick={() => setMonth(thisMonth())}>Aujourd’hui</button><button className="btn btn-sm btn-icon" onClick={() => shift(1)} aria-label="Mois suivant"><ChevronRight /></button></div>} bodyClass="">
       {!d ? <div className="card-body"><Skeleton h={220} /></div> : (
         <>
-          <div className="planning-wrap">
+          <div className="planning-wrap table-wrap">
             <table className="planning">
               <thead><tr><th className="who">Employé</th>{dayList.map(x => { const wd = new Date(`${x}T00:00:00Z`).getUTCDay(); return <th key={x} className={`${wd === 0 || hol.has(x) ? 'off' : ''} ${x === today ? 'now' : ''}`} title={hol.get(x)}><span>{'DLMMJVS'[wd]}</span>{Number(x.slice(8))}</th>; })}</tr></thead>
               <tbody>

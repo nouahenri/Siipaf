@@ -3,7 +3,7 @@
  * chaque module (aucun chiffre recalculé ici autrement que dans son module) — commercial (commercial.dashboard,
  * achieved, portefeuille), chantiers (journal de chantier : clients.progressIndex, appels de fonds VEFA),
  * finance (compta.dashboard, échéanciers), RH (rh.dashboard, paie, performance par service), SAV (sav.savStats) et
- * Administration générale (courrier, contrats.upcoming, parc.deadlines, documents et demandes internes).
+ * Administration générale (courrier, contrats.upcoming, parc.deadlines, documents et demandes internes), achats et stocks (appro.dashboard).
  */
 const { toDate, isoDay, isoTime } = require('../lib/http');
 const { SITE_STAGE_LABELS } = require('../lib/domain');
@@ -222,7 +222,7 @@ async function worksitesPart(db, now = new Date()) {
   for (const w of list) lateDeliveries += (await suivi.deliveries(db, await chantiers.loadWorksite(db, w.id))).rows.filter(r => r.delay_days > 0).length;
   const over = list.filter(w => w.consumed_pct != null && w.consumed_pct > 100);
   const attention = [
-    ...declarations.map(d => ({ module: 'chantiers', label: `Étape à déclarer : ${d.stage_label}`, detail: `${d.scope_label} · ${d.project_name}${d.reported_by_name ? ` · signalée par ${d.reported_by_name}` : ''}`, date: d.reached_on, link: d.worksite_id ? `/chantiers/${d.worksite_id}?onglet=etapes` : '/commercial/vefa' })),
+    ...declarations.map(d => ({ module: 'chantiers', label: `Étape à déclarer : ${d.stage_label}`, detail: `${d.scope_label} · ${d.project_name}${d.reported_by_name ? ` · signalée par ${d.reported_by_name}` : ''}`, date: d.reached_on, link: d.worksite_id ? `/chantiers/${d.worksite_id}?onglet=etapes&etape=${d.id}` : '/commercial/vefa' })),
     ...situations.map(x => ({ module: 'chantiers', label: `Situation n° ${x.number} à valider : ${x.contract_reference}`, detail: `${x.supplier_name || x.contract_title} · ${x.worksite_reference}`, date: x.period_end, link: `/chantiers/${x.worksite_id}?onglet=sous-traitants` })),
     ...over.map(w => ({ module: 'chantiers', label: `Budget dépassé : ${w.reference} (${w.consumed_pct} %)`, detail: `${w.name} · ${w.project_name}`, date: null, link: `/chantiers/${w.id}?onglet=budget` })),
   ];
@@ -250,10 +250,11 @@ async function overview(db, now = new Date()) {
   const rh = require('./rh');
   const { departmentReport } = require('./performance');
   const { savStats } = require('./sav');
-  const [commercial, projects, collections, finance, staff, payroll, performance, sav, administration, juridique, worksites] = await Promise.all([
+  const [commercial, projects, collections, finance, staff, payroll, performance, sav, administration, juridique, worksites, achats] = await Promise.all([
     commercialPart(db, now), projectsPart(db, now), collectionsPart(db), ct.dashboard(db),
     rh.dashboard(db, isoDay(now)), payrollPart(db, now), departmentReport(db, now.getFullYear(), { now }), savStats(db, now), adminPart(db, now), legalPart(db),
     worksitesPart(db, now),
+    require('./appro').dashboard(db),
   ]);
   // « À traiter en priorité » : les délais dépassés du Juridique et les décisions des chantiers rejoignent ceux de l'Administration générale
   const attention = [...administration.attention, ...juridique.attention, ...worksites.attention].sort((a, b) => String(a.date || '').localeCompare(String(b.date || '')));
@@ -265,6 +266,7 @@ async function overview(db, now = new Date()) {
   return {
     at: isoTime(now),
     commercial,
+    achats,
     chantiers: {
       projects,
       // Avancement moyen des dossiers en cours, toutes opérations confondues (pondéré par le nombre de dossiers)

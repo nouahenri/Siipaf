@@ -108,7 +108,7 @@ async function progressPoints(db, w) {
     id: r.id, stage: r.stage, stage_label: SITE_STAGE_LABELS[r.stage], progress_pct: r.progress_pct, title: r.title, body: r.body,
     scope_label: r.lot_id ? `Lot ${r.lot_code}` : r.ilot ? `Îlot ${r.ilot}` : 'Tout le programme', visible_client: !!r.visible_client,
     published_at: isoTime(r.published_at), created_by_name: r.created_by_name,
-    photos: (json(r.media, []) || []).map(id => media.find(m => m.id === id)).filter(Boolean).map(m => ({ id: m.id, url: `/uploads/${m.filename}` })),
+    photos: (json(r.media, []) || []).map(id => media.find(m => m.id === id)).filter(Boolean).map(m => ({ id: m.id, url: `/uploads/${m.filename}`, kind: String(m.mime || '').startsWith('video/') ? 'video' : 'image' })),
   }));
 }
 
@@ -155,11 +155,40 @@ const declQuery = db => db('stage_declarations as d').join('projects as p', 'p.i
 
 const serializeDecl = d => ({
   id: d.id, project_id: d.project_id, project_name: d.project_name, worksite_id: d.worksite_id, stage: d.stage, stage_label: SITE_STAGE_LABELS[d.stage],
-  scope_label: d.worksite_id ? `${d.worksite_reference} — ${d.worksite_name}` : d.lot_id ? `Lot ${d.lot_code}` : d.building_id ? d.building_code : d.ilot ? `Îlot ${d.ilot}` : 'Tout le programme',
+  // Une étape d'un seul lot (réception du lot, lot 5) peut porter aussi son chantier : le lot prime
+  scope_label: d.lot_id ? `Lot ${d.lot_code}${d.worksite_id ? ` — ${d.worksite_reference}` : ''}` : d.worksite_id ? `${d.worksite_reference} — ${d.worksite_name}` : d.building_id ? d.building_code : d.ilot ? `Îlot ${d.ilot}` : 'Tout le programme',
   reached_on: isoDay(d.reached_on), status: d.status, status_label: DECLARATION_STATUSES[d.status], note: d.note, refusal_reason: d.refusal_reason,
   reported_by_name: d.reported_by_name, reported_at: isoTime(d.reported_at), declared_by_name: d.declared_by_name, declared_at: isoTime(d.declared_at),
   calls_count: d.calls_count, calls_amount: Number(d.calls_amount), file_url: d.file_filename ? `/api/admin/erp/chantiers/etapes/${d.id}/fichier` : null,
 });
+
+/**
+ * Fiche d'une déclaration : l'étape, sa portée, qui l'a signalée et décidée, la pièce, les dossiers VEFA de la portée,
+ * les appels de fonds émis (lot, acquéreur, montant, échéance) et les personnes prévenues (cloche).
+ */
+async function declarationDetail(db, id) {
+  const raw = await declQuery(db).where('d.id', id).first();
+  if (!raw) throw new HttpError(404, 'Étape introuvable.');
+  const d = serializeDecl(raw);
+  const scoped = await declarationSales(db, raw);
+  const callQuery = db('fund_calls as f').join('sales as s', 's.id', 'f.sale_id').join('leads as c', 'c.id', 's.lead_id').join('lots as l', 'l.id', 's.lot_id')
+    .select('f.id', 'f.label', 'f.pct', 'f.amount_fcfa', 'f.called_at', 'f.due_date', 'f.status', 'l.code as lot_code', 'c.name as client_name', 'c.client_code')
+    .orderBy(['l.code', 'f.seq']);
+  // Appels liés à la déclaration ; pour les déclarations plus anciennes, ceux émis le même jour sur les dossiers de la portée
+  let calls = await callQuery.clone().where('f.declaration_id', id);
+  if (!calls.length && raw.status === 'declaree' && scoped.length) {
+    calls = await callQuery.clone().whereNull('f.declaration_id').whereIn('f.sale_id', scoped.map(s => s.id)).where('f.status', 'appele').where('f.called_at', isoDay(raw.reached_on));
+  }
+  const informed = await db('notifications as n').join('users as u', 'u.id', 'n.user_id').where('n.dedupe_key', 'like', `etape:${id}:%`)
+    .orderBy('n.created_at').select('u.name', 'n.module', 'n.event', 'n.created_at', 'n.read_at');
+  const lots = scoped.length ? await db('lots').whereIn('id', scoped.map(s => s.lot_id)).select('id', 'code') : [];
+  return {
+    ...d, ilot: raw.ilot, lot_code: raw.lot_code || null, building_code: raw.building_code || null, worksite_reference: raw.worksite_reference || null, worksite_name: raw.worksite_name || null,
+    vefa_dossiers: scoped.map(s => ({ sale_id: s.id, lot_code: lots.find(l => l.id === s.lot_id)?.code })),
+    calls: calls.map(c => ({ ...c, pct: Number(c.pct), amount_fcfa: Number(c.amount_fcfa), called_at: isoDay(c.called_at), due_date: isoDay(c.due_date) })),
+    informed: informed.map(n => ({ name: n.name, module: n.module, event: n.event, at: isoTime(n.created_at), read: !!n.read_at })),
+  };
+}
 
 async function declarations(db, { worksiteId = null, projectId = null, status = null } = {}) {
   const q = declQuery(db).orderBy([{ column: 'd.reached_on', order: 'desc' }, { column: 'd.id', order: 'desc' }]).limit(300);
@@ -171,6 +200,7 @@ async function declarations(db, { worksiteId = null, projectId = null, status = 
 
 /** Dossiers VEFA actifs de la portée d'une déclaration : zone du chantier, ou îlot / bâtiment / lot / programme. */
 async function declarationSales(trx, d) {
+  if (d.lot_id) return require('./vefa').scopedSales(trx, { projectId: d.project_id, lotId: d.lot_id });
   if (d.worksite_id) {
     const w = await trx('worksites').where({ id: d.worksite_id }).first();
     const zone = { ...w, zone: json(w.zone, []) || [] };
@@ -185,7 +215,7 @@ async function declarationSales(trx, d) {
 async function signal(db, w, data, { file, userId }) {
   if (!SITE_STAGES.includes(data.stage)) throw new HttpError(400, 'Étape de chantier inconnue.');
   if (data.reached_on > today()) throw new HttpError(400, 'Une étape ne se signale pas à l’avance.');
-  if (await db('stage_declarations').where({ worksite_id: w.id, stage: data.stage }).whereIn('status', ['signalee', 'declaree']).first()) {
+  if (await db('stage_declarations').where({ worksite_id: w.id, stage: data.stage }).whereNull('lot_id').whereIn('status', ['signalee', 'declaree']).first()) {
     throw new HttpError(409, 'Cette étape est déjà signalée ou déclarée pour ce chantier.');
   }
   const [r] = await db('stage_declarations').insert({
@@ -197,7 +227,7 @@ async function signal(db, w, data, { file, userId }) {
   await inform(db, 'chantier.etape_signalee', {
     direct: await usersWith(db, 'chantiers:direction'), except: userId,
     title: `Étape à déclarer : ${SITE_STAGE_LABELS[data.stage]} — ${w.reference}`, body: `${w.name} — atteinte le ${fr(data.reached_on)}. Sa déclaration émettra les appels de fonds VEFA.`,
-    link: `/chantiers/${w.id}?onglet=etapes`, key: `etape:${id}:signalee`,
+    link: `/chantiers/${w.id}?onglet=etapes&etape=${id}`, key: `etape:${id}:signalee`,
   });
   return id;
 }
@@ -217,7 +247,7 @@ async function declare(db, { id = null, worksite = null, projectId = null, ilot 
     reached_on = reached_on || isoDay(d.reached_on);
   } else {
     if (!SITE_STAGES.includes(stage)) throw new HttpError(400, 'Étape de chantier inconnue.');
-    if (worksite && await db('stage_declarations').where({ worksite_id: worksite.id, stage }).where('status', 'declaree').first()) throw new HttpError(409, 'Cette étape est déjà déclarée pour ce chantier.');
+    if (worksite && await db('stage_declarations').where({ worksite_id: worksite.id, stage }).whereNull('lot_id').where('status', 'declaree').first()) throw new HttpError(409, 'Cette étape est déjà déclarée pour ce chantier.');
   }
   if (reached_on > today()) throw new HttpError(400, 'Une étape ne se déclare pas à l’avance.');
   const result = await db.transaction(async trx => {
@@ -233,7 +263,7 @@ async function declare(db, { id = null, worksite = null, projectId = null, ilot 
     const sales = await declarationSales(trx, d);
     const calls = [];
     for (const sale of sales) {
-      const emitted = await vefa.emitCalls(trx, sale, s => s !== 'signature' && SITE_STAGES.indexOf(s) <= upTo, { date: reached_on, userId });
+      const emitted = await vefa.emitCalls(trx, sale, s => s !== 'signature' && SITE_STAGES.indexOf(s) <= upTo, { date: reached_on, userId, declarationId: d.id });
       calls.push(...emitted.map(c => ({ ...c, sale_id: sale.id })));
     }
     const amount = calls.reduce((t, c) => t + Number(c.amount_fcfa), 0);
@@ -241,8 +271,8 @@ async function declare(db, { id = null, worksite = null, projectId = null, ilot 
       status: 'declaree', reached_on, declared_by: userId, declared_at: new Date(), calls_count: calls.length, calls_amount: amount, updated_at: new Date(),
       ...(note && id ? { note: [d.note, note].filter(Boolean).join('\n') } : {}),
     });
-    // La phase du chantier correspondant à l'étape est terminée à la date déclarée
-    if (d.worksite_id) {
+    // La phase du chantier correspondant à l'étape est terminée à la date déclarée (pas pour l'étape d'un seul lot)
+    if (d.worksite_id && !d.lot_id) {
       await trx('worksite_phases').where({ worksite_id: d.worksite_id, stage: d.stage }).whereNull('actual_end')
         .update({ actual_end: reached_on, progress_pct: 100, updated_at: new Date() });
       await trx('worksite_phases').where({ worksite_id: d.worksite_id, stage: d.stage }).whereNull('actual_start').update({ actual_start: reached_on });
@@ -251,7 +281,7 @@ async function declare(db, { id = null, worksite = null, projectId = null, ilot 
   });
   // Prévenir : le conducteur (signalement), les commerciaux des acquéreurs appelés, le comptable
   const label = SITE_STAGE_LABELS[d.stage];
-  const link = d.worksite_id ? `/chantiers/${d.worksite_id}?onglet=etapes` : '/commercial/vefa';
+  const link = d.worksite_id ? `/chantiers/${d.worksite_id}?onglet=etapes&etape=${d.id}` : '/commercial/vefa';
   // Le conducteur qui l'a signalée et les services du circuit (Direction générale, exploitation, Comptabilité par défaut)
   const scope = d.worksite_id ? (await db('worksites').where({ id: d.worksite_id }).first('reference', 'name')) : null;
   await resolve(db, `etape:${d.id}:signalee`); // « Étape à déclarer » : suite donnée, lue pour tous
@@ -277,7 +307,7 @@ async function refuse(db, id, reason, userId) {
   {
     await inform(db, 'chantier.etape_refusee', {
       direct: d.reported_by ? [d.reported_by] : [], priority: 'action', except: userId, title: `Étape refusée : ${SITE_STAGE_LABELS[d.stage]}`, body: reason,
-      link: d.worksite_id ? `/chantiers/${d.worksite_id}?onglet=etapes` : '/chantiers/liste', key: `etape:${id}:refusee`,
+      link: d.worksite_id ? `/chantiers/${d.worksite_id}?onglet=etapes&etape=${id}` : '/chantiers/liste', key: `etape:${id}:refusee`,
     });
   }
 }
@@ -287,6 +317,7 @@ async function declaredStageFor(trx, lot) {
   const rows = await trx('stage_declarations as d').leftJoin('worksites as w', 'w.id', 'd.worksite_id').where('d.project_id', lot.project_id).where('d.status', 'declaree')
     .select('d.stage', 'd.worksite_id', 'd.ilot', 'd.building_id', 'd.lot_id', 'w.zone_kind', 'w.zone', 'w.project_id as w_project_id');
   const covers = d => {
+    if (d.lot_id) return d.lot_id === lot.id; // étape d'un seul lot (réception), même portée par un chantier
     if (d.worksite_id) return lotInZone({ project_id: d.w_project_id, zone_kind: d.zone_kind, zone: json(d.zone, []) || [] }, lot);
     if (d.lot_id) return d.lot_id === lot.id;
     if (d.building_id) return Number(d.building_id) === Number(lot.building_id);
@@ -314,6 +345,21 @@ async function deliveries(db, w, phases = null) {
       assigned_to: s.assigned_to, vefa: !!s.vefa, promised_delivery_on: promised, delivered_at: delivered, forecast, delay_days: deliveryDelay(promised, forecast, delivered),
     };
   }).sort((a, b) => String(a.lot_code).localeCompare(String(b.lot_code), 'fr', { numeric: true }));
+  // Réception du lot (lot 5) : PV et réserves ouvertes / levées
+  const ids = rows.map(r => r.sale_id);
+  if (ids.length) {
+    const [handovers, reserves] = await Promise.all([
+      db('lot_handovers').whereIn('sale_id', ids),
+      db('sav_reserves').whereIn('sale_id', ids).groupBy('sale_id', 'status').select('sale_id', 'status').count({ n: '*' }),
+    ]);
+    for (const r of rows) {
+      const h = handovers.find(x => x.sale_id === r.sale_id);
+      r.handover = h ? { id: h.id, handed_on: isoDay(h.handed_on), client_signed: !!h.client_signed, file_url: h.file_filename ? `/api/admin/erp/chantiers/receptions/${h.id}/pv` : null } : null;
+      const count = st => Number(reserves.find(x => x.sale_id === r.sale_id && x.status === st)?.n || 0);
+      r.reserves_open = count('ouverte');
+      r.reserves_lifted = count('levee');
+    }
+  }
   return { forecast, rows };
 }
 
@@ -357,6 +403,6 @@ async function tick(db) {
 }
 
 module.exports = {
-  journalUpload, declarationUpload, progressUpload, filePath, removeFiles, journal, saveJournal, deleteJournalPhoto, progressPoints, publishProgress,
+  declarationDetail, journalUpload, declarationUpload, progressUpload, filePath, removeFiles, journal, saveJournal, deleteJournalPhoto, progressPoints, publishProgress,
   declarations, signal, declare, refuse, declaredStageFor, deliveries, setPromised, tick, serializeDecl, declQuery, addDays,
 };

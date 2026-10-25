@@ -250,6 +250,17 @@ async function syncAutoEntries(db, userId = null) {
     }
   }
 
+  // 2 bis. Travaux modificatifs (TMA) acceptés par l'acquéreur : facture client à la date de l'accord (sauf vente
+  // constatée à l'encaissement : le versement porte alors le produit)
+  for (const t of await db('worksite_changes').whereIn('status', ['acceptee', 'realisee']).whereNotNull('answered_at').select('*')) {
+    const s = saleBy[t.sale_id];
+    if (!s || s.status === 'desiste' || (!s.vefa && settings.revenue_echeancier === 'encaissement')) continue;
+    await make(`tma:${t.id}`, {
+      journal: 'VT', date: day(t.answered_at), label: `Travaux modificatifs ${t.reference} — ${saleLabel(s)}`, ref: s.client_code || null, source: 'tma', project_id: s.project_id,
+      lines: revenueLines(settings, s, Number(t.amount_fcfa), [{ account: settings.accounts.client, amount: Number(t.amount_fcfa) }]),
+    });
+  }
+
   // 3. Versements des clients (saisis par le comptable dans le dashboard ou l'ERP)
   const journals = Object.fromEntries((await db('acc_journals as j').leftJoin('acc_accounts as a', 'a.id', 'j.account_id').select('j.*', 'a.code as account_code')).map(j => [j.code, j]));
   const payments = await db('payments').select('*');
@@ -334,6 +345,8 @@ async function payPurchase(db, invoiceId, { date, amount, journal_id, reference 
         { account: j.account_code, credit: amount, project_id: inv.project_id, place_id: inv.place_id },
       ],
     });
+    // Facture issue de réceptions Achats & stocks : trace sur la commande et information de son émetteur.
+    await require('./appro').informPayment(trx, inv, amount, rest - amount, userId);
     return { paid_fcfa: (Number(paid) || 0) + amount, remaining_fcfa: rest - amount };
   });
 }

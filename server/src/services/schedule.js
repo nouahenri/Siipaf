@@ -49,17 +49,24 @@ async function replaceSchedule(trx, sale, lines) {
   await saveSchedule(trx, sale.id, sorted);
 }
 
+/** Lignes du dossier et échéances des travaux modificatifs acceptés (TMA), dans l'ordre des dates. */
+async function withTma(db, sale, lines) {
+  const tma = await require('./chantiersLivraison').tmaLines(db, sale.id);
+  if (!tma.length) return lines;
+  return [...lines, ...tma].map((l, i) => ({ l, i })).sort((a, b) => String(a.l.due_date || '9999').localeCompare(String(b.l.due_date || '9999')) || a.i - b.i).map(x => x.l);
+}
+
 /** Échéancier avec l'état de chaque ligne, les retards et la prochaine échéance. */
 async function scheduleStatus(db, sale, t) {
   if (sale.vefa) {
     const paidV = t ? t.paid_fcfa : (await totals(db, sale)).paid_fcfa;
     const { lines, calls } = await vefa.vefaLines(db, sale);
-    return { financing_label: 'VEFA — appels de fonds selon l’avancement des travaux', vefa: true, calls, ...allocatePayments(lines, paidV) };
+    return { financing_label: 'VEFA — appels de fonds selon l’avancement des travaux', vefa: true, calls, ...allocatePayments(await withTma(db, sale, lines), paidV) };
   }
   const rows = await db('payment_schedule').where({ sale_id: sale.id }).orderBy('seq');
   const paid = t ? t.paid_fcfa : (await totals(db, sale)).paid_fcfa;
   const lines = rows.map(r => ({ id: r.id, seq: r.seq, kind: r.kind, label: r.label, due_date: isoDay(r.due_date), amount_fcfa: Number(r.amount_fcfa) }));
-  return { financing_label: financingLabel(sale), ...allocatePayments(lines, paid) };
+  return { financing_label: financingLabel(sale), ...allocatePayments(await withTma(db, sale, lines), paid) };
 }
 
 module.exports = { regenerateSchedule, replaceSchedule, scheduleStatus };

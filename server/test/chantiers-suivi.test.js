@@ -92,6 +92,11 @@ test('étapes : le conducteur signale, seule la Direction déclare ; la déclara
   assert.equal(view.declarations.some(x => x.id === declId), false);
   const decided = view.decided.find(x => x.id === declId);
   assert.deepEqual([decided.status, decided.calls_count], ['declaree', 1], 'Vue Direction : déclarée, avec ses appels de fonds');
+  // Fiche de la déclaration : appel émis (lot, acquéreur) et personnes prévenues
+  const fiche = (await admin.get(`${W}/etapes/${declId}`)).body;
+  assert.deepEqual(fiche.calls.map(c => [c.lot_code, c.label.length > 0]), [['A1', true]], JSON.stringify(fiche).slice(0, 300));
+  assert.ok(fiche.informed.some(n => n.event === 'chantier.etape_declaree'), 'personnes prévenues');
+  assert.equal((await db('fund_calls').where({ declaration_id: declId })).length, 1, 'appel relié à sa déclaration');
   const phase = (await conducteur.get(`${W}/${worksite.id}`)).body.phases.find(p => p.stage === 'fondations');
   assert.deepEqual([phase.actual_end, phase.progress_pct], [day(-2), 100]);
 

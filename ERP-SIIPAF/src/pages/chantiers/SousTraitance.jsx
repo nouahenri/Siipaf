@@ -38,6 +38,13 @@ export default function SousTraitance({ w, refs, onChange }) {
   };
   const refuse = s => { const reason = window.prompt('Motif du refus (transmis au conducteur) :'); if (reason) act(s, 'refuser', { reason }, 'Situation refusée'); };
   const validate = s => window.confirm(`Valider la situation n° ${s.number} (${fcfa(s.amount_ttc)} TTC) ? Une facture d’achat en brouillon sera préparée pour la Comptabilité et la retenue de ${fcfa(s.retention_amount)} ajoutée à la retenue de garantie du marché.`) && act(s, 'valider', null, 'Situation validée : facture préparée pour la Comptabilité');
+  // Réception des travaux du sous-traitant : départ du délai de garantie de la retenue (Juridique › Cautions)
+  const [receiving, setReceiving] = useState(null);
+  const receive = async (m, value) => {
+    setReceiving(null);
+    if ((value || null) === (m.works_received_on || null)) return;
+    try { done(await api.patch(`${CH}/${w.id}/marches/${m.id}/reception`, { works_received_on: value || null }), value ? 'Réception enregistrée : libération de la retenue programmée' : 'Date de réception effacée'); } catch (e) { toast(e.message, 'err'); }
+  };
   const remove = async s => {
     if (!window.confirm(`Supprimer le brouillon de la situation n° ${s.number} ?`)) return;
     try { done(await api.del(`${CH}/${w.id}/situations/${s.id}`), 'Brouillon supprimé'); } catch (e) { toast(e.message, 'err'); }
@@ -68,7 +75,14 @@ export default function SousTraitance({ w, refs, onChange }) {
             <div className="ws-figures">
               <div><span className="small muted">Avancement validé</span>{m.progress_pct != null ? <Advance value={Math.min(100, m.progress_pct)} /> : <b className="tabular">{fcfa(m.cumulative_amount)}</b>}</div>
               <div><span className="small muted">Facturé TTC</span><b className="tabular">{fcfa(m.invoiced_ttc)}</b></div>
-              <div><span className="small muted">Retenue de garantie</span><b className="tabular">{fcfa(m.retention_amount)}</b></div>
+              <div><span className="small muted">Retenue de garantie</span><b className="tabular">{fcfa(m.retention_amount)}</b>
+                {m.retention?.release_on && <span className="small muted">libérable le {date(m.retention.release_on)}</span>}</div>
+              <div><span className="small muted">Réception des travaux</span>
+                {receiving === m.id
+                  ? <input className="input" type="date" max={today()} defaultValue={m.works_received_on || ''} autoFocus onBlur={e => receive(m, e.target.value)}
+                      onKeyDown={e => { if (e.key === 'Enter') receive(m, e.currentTarget.value); if (e.key === 'Escape') setReceiving(null); }} aria-label={`Date de réception des travaux du marché ${m.reference}`} />
+                  : <b className="small">{m.works_received_on ? date(m.works_received_on) : 'non réceptionnés'}
+                      {w.can_manage && <button className="btn btn-ghost btn-icon" onClick={() => setReceiving(m.id)} aria-label={`Saisir la date de réception des travaux du marché ${m.reference}`}><Pencil /></button>}</b>}</div>
               <div><span className="small muted">Payé / reste net</span><b className="tabular">{fcfa(m.paid_fcfa)}<span className="small muted"> · reste {fcfa(m.remaining_net)}</span></b></div>
             </div>
           </div>

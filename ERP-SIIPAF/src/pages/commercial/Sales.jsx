@@ -9,6 +9,7 @@ import { date, fcfa } from '@admin/lib/format';
 import { useCommercialMeta, compact } from '../../lib/commercial';
 import LeadDrawer from './LeadDrawer';
 import DeedSteps from '../../components/DeedSteps';
+import { TmaForm, TMA_TONES } from '../chantiers/Livraison';
 
 const STATUS = { en_cours: ['En cours', 'warn'], solde: ['Soldé', 'ok'], desiste: ['Désisté', 'danger'] };
 const METHODS = { virement: 'Virement', mobile_money: 'Mobile Money', especes: 'Espèces', cheque: 'Chèque', autre: 'Autre' };
@@ -91,6 +92,9 @@ export function SaleDrawer({ id, onClose, onChange }) {
   const saved = useSaved();
   const meta = useCommercialMeta();
   const s = useResource(`/admin/erp/commercial/sales/${id}`);
+  // Travaux modificatifs (TMA) du dossier : demandés ici ou par l'acquéreur, chiffrés sur le chantier
+  const tma = useResource(`/admin/erp/chantiers/tma?vente=${id}`);
+  const [tmaForm, setTmaForm] = useState(false);
   const [leadId, setLeadId] = useState(null);
   const [pay, setPay] = useState(null);
   const d = s.data;
@@ -105,6 +109,7 @@ export function SaleDrawer({ id, onClose, onChange }) {
 
   return (
     <Drawer title={d ? `${d.client_name} · lot ${d.lot_code}` : 'Dossier de vente'} onClose={onClose}>
+      {tmaForm && <TmaForm saleId={id} onClose={() => setTmaForm(false)} onSaved={() => { setTmaForm(false); tma.reload(); }} />}
       {!d ? <Skeleton h={400} /> : (
         <div className="stack" style={{ gap: 18 }}>
           <div className="row" style={{ gap: 8 }}>
@@ -116,6 +121,7 @@ export function SaleDrawer({ id, onClose, onChange }) {
             <dl className="dl">
               <dt>Programme</dt><dd>{d.project_name}{d.ilot ? ` · îlot ${d.ilot}` : ''} · lot {d.lot_code}</dd>
               <dt>Prix convenu</dt><dd><b>{fcfa(d.price_fcfa)}</b></dd>
+              {d.extras_fcfa > 0 && <><dt>Travaux modificatifs</dt><dd>+ {fcfa(d.extras_fcfa)} acceptés · total dû {fcfa(d.total_due_fcfa)}</dd></>}
               <dt>Encaissé</dt><dd>{fcfa(d.paid_fcfa)} ({d.percent_paid} %) · reste {fcfa(d.remaining_fcfa)}</dd>
               <dt>Avancement chantier</dt><dd><Advance value={d.progress_pct} /></dd>
               <dt>Réservation</dt><dd>{date(d.reserved_at)}{d.signed_at ? ` · acte signé le ${date(d.signed_at)}` : ''}</dd>
@@ -147,14 +153,37 @@ export function SaleDrawer({ id, onClose, onChange }) {
                   );
                 })}
               </ol>
-            ) : !d.schedule.lines.length ? <p className="small muted">Pas d’échéancier.</p> : (
+            ) : null}
+            {d.vefa && d.schedule.lines.some(l => l.kind === 'tma') && (
+              <div className="table-wrap"><table className="table"><tbody>
+                {d.schedule.lines.filter(l => l.kind === 'tma').map(l => (
+                  <tr key={l.id}><td className="small">{l.label}</td><td className="small">{date(l.due_date)}</td><td className="right tabular small">{fcfa(l.amount_fcfa)}</td><td><Badge tone={INSTALLMENT_STATUS[l.status].tone}>{INSTALLMENT_STATUS[l.status].label}</Badge></td></tr>
+                ))}
+              </tbody></table></div>
+            )}
+            {d.vefa ? null : !d.schedule.lines.length ? <p className="small muted">Pas d’échéancier.</p> : (
               <div className="table-wrap"><table className="table">
                 <tbody>
                   {d.schedule.lines.slice(0, 60).map(l => (
-                    <tr key={l.seq}><td className="small">{l.label}</td><td className="small">{date(l.due_date)}</td><td className="right tabular small">{fcfa(l.amount_fcfa)}</td><td><Badge tone={INSTALLMENT_STATUS[l.status].tone}>{INSTALLMENT_STATUS[l.status].label}</Badge></td></tr>
+                    <tr key={l.id ?? l.seq}><td className="small">{l.label}</td><td className="small">{date(l.due_date)}</td><td className="right tabular small">{fcfa(l.amount_fcfa)}</td><td><Badge tone={INSTALLMENT_STATUS[l.status].tone}>{INSTALLMENT_STATUS[l.status].label}</Badge></td></tr>
                   ))}
                 </tbody>
               </table></div>
+            )}
+          </section>
+
+          <section>
+            <div className="row-between">
+              <h3 className="erp-h3">Travaux modificatifs ({tma.data?.length ?? '…'})</h3>
+              {can('sales:write') && !d.delivered_at && d.status !== 'desiste' && <button className="btn btn-sm" onClick={() => setTmaForm(true)}><Plus />Demande de TMA</button>}
+            </div>
+            {!tma.data ? <Skeleton h={40} /> : !tma.data.length ? <p className="small muted">Aucune demande. Le conducteur du chantier chiffre le devis ; l’acquéreur l’accepte dans son espace client et le montant s’ajoute à l’échéancier.</p> : (
+              <ul className="list">{tma.data.map(t => (
+                <li key={t.id} className="list-row">
+                  <span><b>{t.title}</b><div className="small muted">{t.reference} · {t.source_label}{t.due_date ? ` · à régler avant le ${date(t.due_date)}` : ''}</div></span>
+                  <span className="right"><Badge tone={TMA_TONES[t.status]}>{t.status_label}</Badge>{t.amount_fcfa != null && <div className="small tabular">{fcfa(t.amount_fcfa)}</div>}</span>
+                </li>
+              ))}</ul>
             )}
           </section>
 

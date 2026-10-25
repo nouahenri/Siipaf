@@ -9,6 +9,7 @@ import { useAuth, useResource, useToast } from '../lib/app-context';
 import { Card, Field, Badge, Skeleton, ErrorBox, Empty } from './ui';
 import { MediaPicker } from './MediaLibrary';
 import { INSTALLMENT_STATUS, SITE_STAGES, FINANCING } from '../lib/domain';
+import { MediaThumbs } from './MediaViewer';
 import { fcfa, date, dateTime } from '../lib/format';
 
 /** Adresse de l'espace client vue depuis le dashboard (admin.siipaf.com → client.siipaf.com). */
@@ -84,10 +85,10 @@ export function ScheduleTab({ sale, onChange }) {
 
       <Card title={`Échéances (${s.lines.length})`} bodyClass="">
         {!s.lines.length ? <Empty>{sale.financing ? 'Pas encore d’échéancier pour ce dossier : cliquez sur « Recalculer l’échéancier » pour le créer.' : 'Aucun échéancier : indiquez d’abord le mode de financement du dossier.'}</Empty> : (
-          <div style={{ maxHeight: 420, overflowY: 'auto' }}>
+          <div className="table-wrap">
             <table className="table"><tbody>
               {s.lines.map(l => (
-                <tr key={l.seq}>
+                <tr key={l.id ?? l.seq}>
                   <td className="nowrap">{date(l.due_date)}</td>
                   <td>{l.label}</td>
                   <td className="right tabular nowrap"><strong>{fcfa(l.amount_fcfa)}</strong>{l.status === 'partielle' || (l.status === 'en_retard' && l.paid_fcfa > 0) ? <div className="small muted">reste {fcfa(l.remaining_fcfa)}</div> : null}</td>
@@ -216,11 +217,7 @@ export function SiteTab({ lot }) {
               </div>
               {u.body && <p className="small" style={{ marginTop: 6, whiteSpace: 'pre-line' }}>{u.body}</p>}
               {!!u.media.length && (
-                <div className="row" style={{ gap: 6, marginTop: 8, flexWrap: 'wrap' }}>
-                  {u.media.map(m => m.kind === 'video'
-                    ? <video key={m.id} src={m.url} style={{ width: 96, height: 72, objectFit: 'cover', borderRadius: 6 }} muted />
-                    : <img key={m.id} src={m.url} alt={m.alt || ''} style={{ width: 96, height: 72, objectFit: 'cover', borderRadius: 6 }} loading="lazy" />)}
-                </div>
+                <div style={{ marginTop: 8 }}><MediaThumbs items={u.media} caption={u.title} /></div>
               )}
             </li>
           ))}

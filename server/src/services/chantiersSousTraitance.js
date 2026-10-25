@@ -18,9 +18,11 @@ const FINAL = ['validee', 'refusee'];
 async function markets(db, w) {
   const rows = await db('contracts as c').leftJoin('suppliers as s', 's.id', 'c.supplier_id')
     .where({ 'c.worksite_id': w.id, 'c.kind': 'sous_traitance' }).orderBy('c.reference')
-    .select('c.id', 'c.reference', 'c.title', 'c.status', 'c.supplier_id', 's.name as supplier_name', 'c.counterparty', 'c.contract_amount', 'c.retention_pct', 'c.vat_rate', 'c.start_date', 'c.end_date');
+    .select('c.id', 'c.reference', 'c.title', 'c.status', 'c.supplier_id', 's.name as supplier_name', 'c.counterparty', 'c.contract_amount', 'c.retention_pct', 'c.vat_rate', 'c.start_date', 'c.end_date', 'c.works_received_on');
   if (!rows.length) return [];
   const sits = await db('worksite_situations').whereIn('contract_id', rows.map(r => r.id)).orderBy('number');
+  // Retenue de garantie au Juridique : date de libération (réception des travaux + délai de garantie)
+  const retentions = await db('guarantees').whereIn('contract_id', rows.map(r => r.id)).where({ direction: 'retenue' }).select('id', 'contract_id', 'release_on', 'status');
   const invoiceIds = sits.map(s => s.purchase_invoice_id).filter(Boolean);
   const paid = invoiceIds.length ? await db('purchase_payments').whereIn('invoice_id', invoiceIds).groupBy('invoice_id').select('invoice_id').sum({ t: 'amount' }) : [];
   return rows.map(c => {
@@ -36,6 +38,8 @@ async function markets(db, w) {
       cumulative_amount: cumul, progress_pct: amount ? Math.round((cumul / amount) * 1000) / 10 : null,
       invoiced_ttc: sum('amount_ttc'), retention_amount: sum('retention_amount'), net_payable: sum('net_payable'), paid_fcfa: paidTotal,
       remaining_net: sum('net_payable') - paidTotal, pending: mine.filter(s => !FINAL.includes(s.status)).length,
+      works_received_on: isoDay(c.works_received_on),
+      retention: (g => (g ? { id: g.id, release_on: isoDay(g.release_on), status: g.status } : null))(retentions.find(g => g.contract_id === c.id && g.status === 'active') || retentions.find(g => g.contract_id === c.id)),
       situations: mine.map(serialize),
     };
   });
@@ -202,8 +206,10 @@ async function syncRetention(db, w, c, userId) {
   }
   const kind = await db('guarantee_kinds').where({ direction: 'retenue', active: true }).orderBy(['sort', 'id']).first('id');
   if (!kind) return; // aucune sorte « retenue » active : réglable dans Juridique › Réglages
+  // Travaux déjà réceptionnés : la libération est calculée dès la création de la retenue
+  const received = isoDay((await db('contracts').where({ id: c.id }).first('works_received_on'))?.works_received_on);
   await juridique.createGuarantee(db, {
-    kind_id: kind.id, contract_id: c.id, supplier_id: c.supplier_id, amount_fcfa: total, owner_id: w.manager_id || null,
+    kind_id: kind.id, contract_id: c.id, supplier_id: c.supplier_id, amount_fcfa: total, owner_id: w.manager_id || null, ...(received ? { reception_on: received } : {}),
     notes: `Retenues des situations du chantier ${w.reference} — ${w.name}. Libérée à la fin du délai de garantie compté depuis la réception.`,
   }, { userId });
 }

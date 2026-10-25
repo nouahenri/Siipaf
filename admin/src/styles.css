@@ -142,16 +142,16 @@ img { max-width: 100%; display: block; }
 .search svg { position: absolute; left: 11px; top: 50%; transform: translateY(-50%); width: 16px; color: var(--ink-3); }
 .search .input { padding-left: 34px; }
 
-.table-wrap { overflow-x: auto; }
-/* Tableaux de synthèse (Vue Direction, tableaux de bord, états) : barres de défilement toujours visibles en bas et à
-   droite, en-tête fixe ; pas de colonne fixe (les autres colonnes glisseraient dessous) */
-.table-wrap.table-scroll { max-height: min(460px, 65vh); overflow-x: scroll; overflow-y: scroll; scrollbar-width: thin; scrollbar-color: var(--border-strong) var(--surface-2); border-bottom: 1px solid var(--border); }
-.table-scroll::-webkit-scrollbar { width: 10px; height: 10px; }
-.table-scroll::-webkit-scrollbar-track { background: var(--surface-2); }
-.table-scroll::-webkit-scrollbar-thumb { background: var(--border-strong); border-radius: 99px; border: 2px solid var(--surface-2); }
-.table-scroll .table th { position: sticky; top: 0; z-index: 2; box-shadow: inset 0 -1px 0 var(--border); }
-.table-scroll .table tbody tr:hover td { background: var(--surface-2); }
-@media print { .table-wrap.table-scroll { max-height: none; overflow: visible; } }
+/* Tous les tableaux du dashboard et des modules ERP : défilement à droite, horizontal si nécessaire,
+   en-tête fixe ; pas de colonne fixe (les autres colonnes glisseraient dessous). */
+.table-wrap { max-height: min(460px, 65vh); overflow-x: auto; overflow-y: scroll; scrollbar-width: thin; scrollbar-color: var(--border-strong) var(--surface-2); }
+.table-wrap.table-scroll { overflow-x: scroll; border-bottom: 1px solid var(--border); }
+.table-wrap::-webkit-scrollbar { width: 10px; height: 10px; }
+.table-wrap::-webkit-scrollbar-track { background: var(--surface-2); }
+.table-wrap::-webkit-scrollbar-thumb { background: var(--border-strong); border-radius: 99px; border: 2px solid var(--surface-2); }
+.table-wrap .table th { position: sticky; top: 0; z-index: 2; box-shadow: inset 0 -1px 0 var(--border); }
+.table-wrap .table tbody tr:hover td { background: var(--surface-2); }
+@media print { .table-wrap { max-height: none; overflow: visible; } }
 .table-compact th { padding: 8px 10px; white-space: normal; }
 .table-compact td { padding: 8px 10px; }
 .table-compact .cell-stack { display: flex; flex-direction: column; gap: 2px; }
@@ -749,3 +749,23 @@ fieldset { min-width: 0; }
   .editorial-list-row:has(> .input + .input) > .input + .input { grid-column: 1; }
   .editorial-list-row:has(> .input + .input) > .nowrap { grid-column: 2; grid-row: 1 / span 2; }
 }
+
+/* ─── Vignettes et visionneuse (photos en grand, vidéos lues) — components/MediaViewer.jsx ─── */
+.media-thumb { position: relative; display: inline-block; flex-shrink: 0; }
+.media-thumb > button { display: block; width: 100%; height: 100%; padding: 0; border: 1px solid var(--border); border-radius: var(--radius-sm); overflow: hidden; background: var(--surface-2); cursor: zoom-in; }
+.media-thumb > button:focus-visible { outline: 2px solid var(--brand); outline-offset: 2px; }
+.media-thumb img, .media-thumb video { width: 100%; height: 100%; object-fit: cover; display: block; transition: transform .2s; }
+.media-thumb > button:hover img, .media-thumb > button:hover video { transform: scale(1.05); }
+.media-thumb .media-play { position: absolute; inset: 0; display: grid; place-items: center; color: #fff; pointer-events: none; }
+.media-thumb .media-play svg { width: 28px; height: 28px; padding: 6px; border-radius: 50%; background: rgba(0, 0, 0, .55); }
+.media-thumb .btn-icon { position: absolute; top: 2px; right: 2px; background: var(--surface); }
+.lightbox { position: fixed; inset: 0; z-index: 200; background: rgba(12, 9, 7, .94); display: flex; flex-direction: column; }
+.lightbox-top { display: flex; justify-content: space-between; align-items: center; padding: 10px 12px 10px 18px; color: rgba(255, 255, 255, .8); font-size: 14px; }
+.lightbox-top .btn-icon { color: #fff; }
+.lightbox-top .btn-icon:hover { background: rgba(255, 255, 255, .12); }
+.lightbox-stage { flex: 1; display: grid; place-items: center; padding: 0 12px 12px; min-height: 0; position: relative; }
+.lightbox-stage img, .lightbox-stage video { max-width: 100%; max-height: 100%; object-fit: contain; border-radius: 6px; }
+.lightbox-nav { position: absolute; top: 50%; transform: translateY(-50%); width: 46px; height: 46px; border-radius: 50%; border: 0; display: grid; place-items: center; background: rgba(255, 255, 255, .12); color: #fff; cursor: pointer; }
+.lightbox-nav:hover { background: rgba(255, 255, 255, .22); }
+.lightbox-nav.prev { left: 12px; } .lightbox-nav.next { right: 12px; }
+.lightbox-caption { padding: 12px 18px 18px; color: rgba(255, 255, 255, .86); text-align: center; font-size: 14px; }

@@ -106,6 +106,27 @@ module.exports = function clientRoutes(db) {
     res.json({ property, updates: await Promise.all(updates.map(u => serializeUpdate(db, u))) });
   }));
 
+  // ─── Travaux modificatifs (TMA) et livraison du lot ──────
+  r.post('/dossiers/:id/tma', authed, limiter(10), ah(async (req, res) => {
+    const sale = await ownSale(db, req.client.lead_id, idParam(req));
+    const data = parse(z.object({ title: z.string().trim().min(3, 'Décrivez les travaux en quelques mots.').max(200), description: z.string().trim().max(4000).optional() }), req.body);
+    await require('../services/chantiersLivraison').createChange(db, { sale_id: sale.id, ...data }, { source: 'client' });
+    res.status(201).json(await clientSaleDetail(db, req.client.lead_id, sale.id));
+  }));
+  r.post('/tma/:id/reponse', authed, limiter(20), ah(async (req, res) => {
+    const data = parse(z.object({ accept: z.boolean(), note: z.string().trim().max(500).optional() }), req.body);
+    const t = await require('../services/chantiersLivraison').answerChange(db, { leadId: req.client.lead_id, id: idParam(req), accept: data.accept, note: data.note || null });
+    res.json(await clientSaleDetail(db, req.client.lead_id, t.sale_id));
+  }));
+  r.get('/livraison/:id/pv', authed, ah(async (req, res) => {
+    const sale = await ownSale(db, req.client.lead_id, idParam(req));
+    const h = await db('lot_handovers').where({ sale_id: sale.id }).first();
+    if (!h?.file_filename) throw new HttpError(404, 'Procès-verbal indisponible.');
+    res.set('Cache-Control', 'private, no-store');
+    res.set('Content-Disposition', `inline; filename*=UTF-8''${encodeURIComponent(h.file_name || 'pv-reception')}`);
+    res.sendFile(require('../services/chantiersSuivi').filePath(h), err => err && !res.headersSent && res.sendStatus(404));
+  }));
+
   r.get('/documents/:id/fichier', authed, ah(async (req, res) => {
     const doc = await clientDocumentFile(db, req.client.lead_id, idParam(req));
     const ext = path.extname(doc.original_name || doc.filename);

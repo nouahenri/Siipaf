@@ -79,7 +79,7 @@ export default function Circuit() {
                   const isDefault = same(list, e.defaults);
                   return (
                     <tr key={e.key}>
-                      <td style={{ minWidth: 260 }}>{e.label}{!isDefault && <div className="small muted">modifié (par défaut : {e.defaults.map(a => d.audiences[a]?.label).join(', ') || 'personne'})</div>}</td>
+                      <td style={{ minWidth: 260 }}>{e.label}{e.hint && <div className="small muted">{e.hint}</div>}{!isDefault && <div className="small muted">modifié (par défaut : {e.defaults.map(a => d.audiences[a]?.label).join(', ') || 'personne'})</div>}</td>
                       {audiences.map(([k, a]) => (
                         <td key={k} className="center">
                           <input type="checkbox" checked={list.includes(k)} disabled={!d.can_edit} onChange={() => toggle(e.key, k)} aria-label={`${e.label} : prévenir ${a.label}`} />

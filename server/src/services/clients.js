@@ -257,16 +257,20 @@ const receiptNumber = p => `REC-${(isoDay(p.paid_at) || '').slice(0, 4)}-${Strin
 async function clientSaleDetail(db, leadId, saleId) {
   const sale = await ownSale(db, leadId, saleId);
   const summary = await saleSummary(db, sale);
-  const [payments, documents, schedule] = await Promise.all([
+  const livraison = require('./chantiersLivraison');
+  const [payments, documents, schedule, changes, delivery] = await Promise.all([
     db('payments').where({ sale_id: sale.id }).orderBy([{ column: 'paid_at', order: 'desc' }, { column: 'id', order: 'desc' }]),
     db('sale_documents').where({ sale_id: sale.id, visible_client: true }).orderBy('sort'),
     scheduleStatus(db, sale, summary),
+    livraison.clientChanges(db, sale.id), livraison.clientDelivery(db, sale.id),
   ]);
   return {
     ...summary,
     schedule: schedule.lines,
     // VEFA : appels de fonds encore à venir (émis à chaque étape achevée du chantier)
     vefa_upcoming: schedule.vefa ? schedule.calls.filter(c => c.status === 'a_venir').map(c => ({ seq: c.seq, label: c.label, pct: c.pct, amount_fcfa: c.amount_fcfa })) : null,
+    // Travaux modificatifs (TMA) et livraison du lot : PV, réserves (ERP › Chantiers, lot 5)
+    changes, delivery, can_request_changes: !sale.delivered_at,
     payments: payments.map(p => ({
       id: p.id, receipt_number: receiptNumber(p), amount_fcfa: Number(p.amount_fcfa), paid_at: isoDay(p.paid_at),
       method: PAYMENT_METHODS.includes(p.method) ? p.method : 'autre', reference: p.reference,

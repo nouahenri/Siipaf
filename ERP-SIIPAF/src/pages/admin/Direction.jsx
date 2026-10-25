@@ -5,7 +5,7 @@
  */
 import {
   Banknote, Wallet, Landmark, HardHat, Gauge, Target, Users, UserMinus, LifeBuoy, AlarmClock, Star, Scale, ReceiptText, Briefcase,
-  Building, Mail, FileClock, Truck, Inbox, FileText, ListChecks, Stamp, ShieldHalf, Flag, Handshake, CalendarClock,
+  Building, Mail, FileClock, Truck, Inbox, FileText, ListChecks, Stamp, ShieldHalf, Flag, Handshake, CalendarClock, Boxes,
 } from 'lucide-react';
 import { Link } from 'react-router-dom';
 import { useResource } from '@admin/lib/app-context';
@@ -14,6 +14,7 @@ import { LineChart } from '@admin/components/Charts';
 import { fcfa, num, date, dateTime } from '@admin/lib/format';
 import { compact, monthName } from '../../lib/commercial';
 import { Kpi, Progress, trendOf } from '../commercial/CommercialDashboard';
+import ApproSummary from '../achats/ApproSummary';
 
 const money = v => `${compact(v)} FCFA`;
 const pct = (done, target) => (target ? Math.round((done / target) * 1000) / 10 : null);
@@ -117,27 +118,27 @@ export default function Direction() {
         </div>
         <Card bodyClass="">
           {!withSales.length ? <Empty icon={HardHat}>Aucun programme.</Empty> : (
-            <div className="table-wrap table-scroll"><table className="table table-compact">
+            <div className="table-wrap table-scroll"><table className="table table-compact direction-projects-table">
               <thead><tr><th>Programme</th><th className="right">Lots · dossiers</th><th className="right">CA signé</th><th>Avancement</th><th>Îlots · dernier point</th></tr></thead>
               <tbody>{withSales.map(p => (
                 <tr key={p.id}>
-                  <td style={{ minWidth: 150 }}><strong>{p.name}</strong>{p.stage_label && <div className="small muted">{p.stage_label}</div>}</td>
-                  <td className="right tabular nowrap">
+                  <td style={{ minWidth: 200 }}><strong>{p.name}</strong>{p.stage_label && <div className="small muted">{p.stage_label}</div>}</td>
+                  <td className="right tabular nowrap" style={{ minWidth: 170 }}>
                     <div>{num(p.lots)} lots <span className="small muted">· {num((p.by_status.vendu || 0) + (p.by_status.reserve || 0))} vendus</span></div>
                     <div className="small muted">{num(p.dossiers)} dossier(s){p.vefa ? ` · ${num(p.vefa)} VEFA` : ''}</div>
                   </td>
-                  <td className="right tabular nowrap">
+                  <td className="right tabular nowrap" style={{ minWidth: 130 }}>
                     <div><strong>{compact(p.ca_fcfa)}</strong></div>
                     <div className="small muted">encaissé {compact(p.encaisse_fcfa)}</div>
                     <div className="small muted">reste {compact(p.reste_fcfa)}</div>
                   </td>
-                  <td>
+                  <td style={{ minWidth: 150 }}>
                     <div className="cell-stack">
                       {p.progress_pct == null ? <span className="small muted">aucun point publié</span> : <Advance value={p.progress_pct} />}
                       <span className="small muted">{p.dossiers_progress_pct == null ? 'dossiers : —' : `dossiers : ${p.dossiers_progress_pct} % en moyenne`}</span>
                     </div>
                   </td>
-                  <td className="small" style={{ minWidth: 120, maxWidth: 200 }}>
+                  <td className="small" style={{ minWidth: 260 }}>
                     <div>{p.ilots.length ? p.ilots.map(i => `${i.ilot} : ${i.progress_pct} %`).join(' · ') : '—'}</div>
                     <div className="muted nowrap">{p.last_update_at ? `point du ${date(p.last_update_at)}` : 'aucun point'}{p.stale && p.dossiers ? <> <Badge tone="warn">À relancer</Badge></> : null}</div>
                   </td>
@@ -162,7 +163,7 @@ export default function Direction() {
             <div className="notif-section">À déclarer ({num(w.to_declare)})</div>
             {!w.declarations.length ? <p className="small muted card-body" style={{ margin: 0, paddingTop: 4 }}>Aucune étape signalée en attente.</p> : (
               <ul className="list">{w.declarations.map(x => (
-                <li key={x.id}><Link to={x.worksite_id ? `/chantiers/${x.worksite_id}?onglet=etapes` : '/commercial/vefa'} className="list-row">
+                <li key={x.id}><Link to={x.worksite_id ? `/chantiers/${x.worksite_id}?onglet=etapes&etape=${x.id}` : '/commercial/vefa'} className="list-row">
                   <span style={{ minWidth: 0, flex: 1 }}><strong className="ellipsis">{x.stage_label}</strong><span className="small muted ellipsis">{x.scope_label} · {x.project_name}{x.reported_by_name ? ` · signalée par ${x.reported_by_name}` : ''}</span></span>
                   <span className="small nowrap" style={{ color: 'var(--warn, #b45309)' }}>{x.reached_on ? `atteinte le ${date(x.reached_on)}` : 'à déclarer'}</span>
                 </Link></li>
@@ -171,7 +172,7 @@ export default function Direction() {
             <div className="notif-section">Décidées depuis {num(w.decided_days)} jours ({num(w.decided.length)})</div>
             {!w.decided.length ? <p className="small muted card-body" style={{ margin: 0, paddingTop: 4 }}>Aucune étape déclarée ou refusée sur la période.</p> : (
               <ul className="list">{w.decided.map(x => (
-                <li key={x.id}><Link to={x.worksite_id ? `/chantiers/${x.worksite_id}?onglet=etapes` : '/commercial/vefa'} className="list-row">
+                <li key={x.id}><Link to={x.worksite_id ? `/chantiers/${x.worksite_id}?onglet=etapes&etape=${x.id}` : '/commercial/vefa'} className="list-row">
                   <span style={{ minWidth: 0, flex: 1 }}>
                     <strong className="ellipsis">{x.stage_label} {x.status === 'declaree' ? <Badge tone="ok">Déclarée</Badge> : <Badge tone="warn">Refusée</Badge>}</strong>
                     <span className="small muted ellipsis">{x.scope_label} · {x.project_name}{x.declared_by_name ? ` · par ${x.declared_by_name}` : ''}{x.status === 'declaree' ? ` · ${num(x.calls_count)} appel(s) de fonds${x.calls_amount ? ` (${money(x.calls_amount)})` : ''}` : x.refusal_reason ? ` · ${x.refusal_reason}` : ''}</span>
@@ -194,7 +195,7 @@ export default function Direction() {
         </div>
         {w.worksites.length > 0 && (
           <Card bodyClass="">
-            <div className="table-wrap table-scroll"><table className="table table-compact">
+            <div className="table-wrap table-scroll"><table className="table table-compact direction-worksites-table">
               <thead><tr><th>Chantier</th><th>Programme</th><th>Conducteur</th><th>Statut</th><th>Avancement</th><th className="right">Phases en retard</th><th className="right">Budget</th><th className="right">Consommé</th></tr></thead>
               <tbody>{w.worksites.map(x => (
                 <tr key={x.id}>
@@ -212,6 +213,10 @@ export default function Direction() {
           </Card>
         )}
       </Section>
+
+      {d.achats && <Section icon={Boxes} title="Achats & stocks" to="/achats">
+        <ApproSummary data={d.achats} />
+      </Section>}
 
       <Section icon={Scale} title="Finance" to="/compta">
         {!f.fiscal_year && <div className="alert alert-info">Aucun exercice comptable ouvert : trésorerie, résultat et soldes s’afficheront quand le comptable aura créé l’exercice (Comptabilité › Paramètres). Les échéances en retard, elles, sont déjà suivies.</div>}

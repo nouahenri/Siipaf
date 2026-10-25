@@ -76,6 +76,7 @@ function createApp(db) {
   admin.use('/erp/demandes', require('./routes/erp/requests')(db));
   admin.use('/erp/juridique', require('./routes/erp/juridique')(db));
   admin.use('/erp/chantiers', require('./routes/erp/chantiers')(db));
+  admin.use('/erp/achats', require('./routes/erp/appro')(db));
   admin.use('/erp/lieux', require('./routes/erp/lieux')(db));
   admin.use('/erp/demarrage', require('./routes/erp/onboarding')(db));
   admin.use('/erp/compta', require('./routes/erp/compta')(db));

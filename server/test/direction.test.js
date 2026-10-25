@@ -39,7 +39,7 @@ test('synthèse : ventes et encaissements du programme, avancement du chantier p
 
   res = await resp.get(URL);
   const d = res.body;
-  for (const k of ['commercial', 'chantiers', 'finance', 'rh', 'sav']) assert.ok(d[k], `section ${k}`);
+  for (const k of ['commercial', 'chantiers', 'finance', 'rh', 'sav', 'achats']) assert.ok(d[k], `section ${k}`);
   const p = d.chantiers.projects.find(x => x.id === project.id);
   assert.equal(p.dossiers, 1);
   assert.equal(p.ca_fcfa, 20000000);
@@ -53,4 +53,48 @@ test('synthèse : ventes et encaissements du programme, avancement du chantier p
   assert.equal(typeof d.finance.overdue_fcfa, 'number');
   assert.equal(Array.isArray(d.rh.performance.departments), true);
   assert.equal(typeof d.sav.open, 'number');
+});
+
+test('Vue Direction : mêmes indicateurs Achats & stocks après validation, réception partielle et réapprovisionnement', async () => {
+  const A = '/api/admin/erp/achats';
+  const day = new Date().toISOString().slice(0, 10);
+  const ok = (r, status = 200) => { assert.equal(r.status, status, JSON.stringify(r.body)); return r.body; };
+  async function summary() {
+    const overview = ok(await resp.get(URL));
+    const module = ok(await admin.get(`${A}/dashboard`));
+    assert.deepEqual(overview.achats, module, 'une seule source pour les chiffres et le plafond');
+    return overview.achats;
+  }
+  let s = await summary();
+  assert.equal(s.orders_waiting, 0); assert.equal(s.to_receive, 0); assert.equal(s.committed_fcfa, 0); assert.equal(s.low_stock.length, 0);
+  const [supplierId] = await db('suppliers').insert({ name: 'Matériaux Direction', kind: 'fournisseur' });
+  const place = await db('places').first();
+  const unit = (await db('worksite_ref_items').where({ kind: 'unite', active: true }).first()).code;
+  const loc = ok(await admin.post(`${A}/locations`).send({ place_id: place.id }), 201);
+  const article = ok(await admin.post(`${A}/articles`).send({ code: 'DIR-STOCK', label: 'Matériaux Direction', unit, min_quantity: 10 }), 201);
+  async function entry(quantity) {
+    const movement = ok(await admin.post(`${A}/movements`).send({ kind: 'entree', date: day, to_location_id: loc.id, note: 'Stock Direction test', lines: [{ article_id: article.id, quantity }] }), 201);
+    ok(await admin.post(`${A}/movements/${movement.id}/post`));
+  }
+  await entry(5);
+  async function order(quantity) {
+    const o = ok(await admin.post(`${A}/orders`).send({ supplier_id: supplierId, location_id: loc.id, date: day, vat_rate: 18, lines: [{ article_id: article.id, quantity, unit_price_fcfa: 1000 }] }), 201);
+    // Le compte opérationnel transmet la grosse commande à la Direction.
+    await db('appro_orders').where({ id: o.id }).update({ approver_id: (await db('users').where({ role: 'resp_exploitation' }).first()).id });
+    ok(await comptable.post(`${A}/orders/${o.id}/submit`)); return o;
+  }
+  const o = await order(3), pending = await order(600);
+  s = await summary(); assert.equal(s.orders_waiting, 2, 'commandes soumises, sous le plafond et à partir du plafond');
+  ok(await resp.post(`${A}/orders/${o.id}/approve`));
+  s = await summary();
+  assert.equal(s.orders_waiting, 1); assert.equal(s.to_receive, 1); assert.equal(s.low_stock.length, 1); assert.equal(s.committed_fcfa, 3540);
+  const receive = quantity => admin.post(`${A}/orders/${o.id}/receive`).send({ date: day, lines: [{ order_line_id: o.lines[0].id, quantity }] });
+  ok(await receive(1));
+  s = await summary();
+  assert.equal(s.committed_fcfa, 2360, 'seul le TTC encore à réceptionner reste engagé');
+  assert.equal(s.to_receive, 1); assert.equal(s.orders_waiting, 1);
+  ok(await admin.post(`${A}/orders/${pending.id}/cancel`));
+  ok(await receive(2)); await entry(3);
+  s = await summary();
+  assert.equal(s.orders_waiting, 0); assert.equal(s.to_receive, 0); assert.equal(s.committed_fcfa, 0); assert.equal(s.low_stock.length, 0);
 });

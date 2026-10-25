@@ -142,7 +142,7 @@ function Schedule({ lines, payments }) {
               const y = l.due_date.slice(0, 4);
               const header = y !== year ? (year = y) : null;
               return (
-                <li key={l.seq} style={{ display: 'contents' }}>
+                <li key={l.id ?? l.seq} style={{ display: 'contents' }}>
                   {header && <div className="row-group">{header}</div>}
                   <button type="button" onClick={() => setOpen(l)} aria-label={`${l.label}, ${st.label}, échéance du ${shortDate(l.due_date)} : voir le détail`}
                     className={`row${l.status === 'en_retard' ? ' is-late' : ''}${l.status === 'payee' ? ' is-paid' : ''}`}>

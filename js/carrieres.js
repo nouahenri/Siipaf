@@ -29,10 +29,13 @@
       return '<article class="job-card">'
         + '<h3>' + esc(j.title) + '</h3>'
         + (meta ? '<div class="job-meta">' + meta + '</div>' : '')
-        + (j.description ? '<p>' + esc(j.description).replace(/\n/g, '<br/>') + '</p>' : '')
+        + (j.description ? '<p class="job-description" id="job-description-' + esc(j.id) + '">' + esc(j.description).replace(/\n/g, '<br/>') + '</p>' : '')
         + '<div class="job-foot">'
         + (j.closing_date ? '<small><i class="far fa-calendar" aria-hidden="true"></i> Candidatures jusqu’au ' + frDate(j.closing_date) + '</small>' : '<small></small>')
+        + '<div class="job-actions">'
+        + (j.description ? '<button type="button" class="btn btn-outline btn-sm" data-job-toggle aria-expanded="false" aria-controls="job-description-' + esc(j.id) + '"><span>Lire tout</span><i class="fas fa-chevron-down" aria-hidden="true"></i></button>' : '')
         + '<button type="button" class="btn btn-primary btn-sm" data-job="' + j.id + '"><span>Postuler</span><i class="fas fa-arrow-right"></i></button>'
+        + '</div>'
         + '</div></article>';
     }).join('');
     select.innerHTML = '<option value="">Candidature spontanée</option>' + jobs.map(function (j) { return '<option value="' + j.id + '">' + esc(j.title) + '</option>'; }).join('');
@@ -41,6 +44,18 @@
   }
 
   list.addEventListener('click', function (e) {
+    var toggle = e.target.closest('[data-job-toggle]');
+    if (toggle) {
+      var card = toggle.closest('.job-card');
+      var expanded = toggle.getAttribute('aria-expanded') !== 'true';
+      card.classList.toggle('is-expanded', expanded);
+      toggle.setAttribute('aria-expanded', String(expanded));
+      toggle.querySelector('span').textContent = expanded ? 'Voir toutes les offres' : 'Lire tout';
+      toggle.querySelector('i').className = expanded ? 'fas fa-arrow-left' : 'fas fa-chevron-down';
+      list.querySelectorAll('.job-card').forEach(function (other) { other.hidden = expanded && other !== card; });
+      card.scrollIntoView({ behavior: 'smooth', block: 'start' });
+      return;
+    }
     var b = e.target.closest('[data-job]');
     if (b) choose(b.getAttribute('data-job'));
   });

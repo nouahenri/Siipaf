@@ -358,6 +358,7 @@ function roleKey(label) {
 const SELF_SERVICE = ['self:conges', 'self:pointage', 'self:frais', 'self:vehicule', 'self:demandes'];
 // Actions détaillées des modules de l'ERP (une ligne du catalogue chacune)
 const SAV_ACTIONS = ['sav:create', 'sav:handle', 'sav:assign', 'sav:reserves', 'sav:interventions'];
+const APPRO_ACTIONS = ['appro:read', 'appro:write', 'appro:validate', 'appro:stock', 'appro:settings'];
 const COMPTA_ACTIONS = ['compta:entries', 'compta:validate', 'achats:write', 'achats:pay', 'frais:post', 'compta:close', 'compta:settings', 'compta:export'];
 const PAIE_ACTIONS = ['paie:employees', 'paie:prepare', 'paie:validate', 'paie:pay', 'paie:settings'];
 const COURRIER_ACTIONS = ['courrier:read', 'courrier:write', 'courrier:assign'];
@@ -381,16 +382,19 @@ const PERMISSIONS = {
     'newsletter:read', 'newsletter:write', 'newsletter:send', 'contacts:read', 'testimonials:write', 'settings:write', 'property:write', ...SELF_SERVICE,
   ],
   conducteur_travaux: [
+    ...APPRO_ACTIONS,
     'projects:read', 'lots:read', 'sales:read', 'documents:write', 'site_updates:write', 'client_messages',
     'sav:read', 'sav:create', 'sav:handle', 'sav:reserves', 'sav:interventions', 'vefa:write', 'presence:write', ...CONTRACT_ACTIONS, ...LEGAL_ACTIONS,
     'chantiers:read', 'chantiers:write', ...SELF_SERVICE,
   ],
   comptable: [
+    ...APPRO_ACTIONS,
     'projects:read', 'lots:read', 'leads:read', 'appointments:read', 'sales:read', 'payments:write',
     'schedule:write', 'client_messages', 'commercial:read', 'leads:all', 'compta:read', ...COMPTA_ACTIONS,
     'rh:read', ...RH_ACTIONS, 'presence:write', 'paie:read', ...PAIE_ACTIONS, 'contrats:read', 'parc:read', 'chantiers:read', 'lieux:write', ...SELF_SERVICE,
   ],
   resp_exploitation: [
+    ...APPRO_ACTIONS, 'appro:direction',
     'projects:read', 'projects:write', 'plans:write', 'lots:read', 'lots:status', 'leads:read', 'leads:delete',
     'appointments:read', 'contacts:read', 'users:read', 'newsletter:read',
     'sales:read', 'sales:write', 'documents:write', 'testimonials:write',
@@ -435,6 +439,14 @@ const PERMISSION_CATALOG = [
     ['targets:write', 'Fixer les objectifs commerciaux', 'Objectifs mensuels par commercial'],
     ['property:write', 'Structurer le parc immobilier', 'Bâtiments, étages et caractéristiques des lots'],
     ['vefa:write', 'Gérer les appels de fonds VEFA', 'Plans d’appels de fonds par programme (les étapes atteintes sont déclarées par la Direction)'],
+  ] },
+  { group: 'ERP · Achats & stocks', items: [
+    ['appro:read', 'Consulter les achats et stocks', 'Besoins, demandes de prix, commandes, réceptions et stocks par emplacement'],
+    ['appro:write', 'Préparer les achats', 'Articles, emplacements, demandes de prix et bons de commande'],
+    ['appro:validate', 'Valider les commandes', 'Peut être désigné validateur des commandes sous le plafond (jamais de ses propres commandes)'],
+    ['appro:direction', 'Valider à partir du plafond', 'Validation ou refus des commandes à partir du plafond ; peut se substituer au validateur désigné'],
+    ['appro:stock', 'Gérer les mouvements et réceptions', 'Entrées, sorties, transferts et réceptions ; aucun stock négatif'],
+    ['appro:settings', 'Régler les achats et stocks', 'Plafond de validation par la Direction'],
   ] },
   { group: 'ERP · Comptabilité', items: [
     ['compta:read', 'Consulter la comptabilité', 'Écritures, états, trésorerie, achats, tableau de bord'],
@@ -1305,8 +1317,17 @@ const CHANTIER_SETTINGS = {
     label: 'Assiette de la retenue de garantie', hint: 'Montant de chaque situation sur lequel le taux du marché s’applique ; conservé sur chaque situation au moment de sa saisie',
     default: 'ttc', options: { ttc: 'Montant TTC de la situation', ht: 'Montant HT de la situation' },
   },
+  tma_due_days: { label: 'Paiement d’une TMA acceptée (jours après l’accord de l’acquéreur)', hint: 'Échéance ajoutée à l’échéancier du dossier quand l’acquéreur accepte le devis dans son espace client', default: 15, min: 0, max: 120 },
   chantier_monthly_hours: { label: 'Heures de travail par mois (coût horaire tiré du salaire)', hint: 'Coût mensuel employeur (salaire, charges et taxes de la paie) divisé par ces heures, pour qui n’a pas de coût horaire de chantier sur sa fiche', default: 173, min: 100, max: 260 },
 };
+
+// Lot 5 : travaux modificatifs des acquéreurs (TMA) et besoins en matériaux
+const TMA_STATUSES = {
+  demandee: 'Demandée, à chiffrer', chiffree: 'Devis envoyé à l’acquéreur', acceptee: 'Acceptée par l’acquéreur', refusee: 'Refusée par l’acquéreur',
+  annulee: 'Annulée', realisee: 'Réalisée',
+};
+const TMA_BILLED = ['acceptee', 'realisee']; // statuts dont le montant s'ajoute à l'échéancier du dossier
+const NEED_STATUSES = { demande: 'Demandé', valide: 'Validé', refuse: 'Refusé', commande: 'Commandé', livre: 'Livré', annule: 'Annulé' };
 
 // Étapes déclarées (lot 3) ; la météo du journal et les postes du budget sont des listes réglables (table worksite_ref_items)
 const DECLARATION_STATUSES = { signalee: 'Signalée, à déclarer', declaree: 'Déclarée par la Direction', refusee: 'Refusée' };
@@ -1337,6 +1358,7 @@ function deliveryDelay(promised, forecast, deliveredAt = null) {
  * aussi le super administrateur.
  */
 const INFO_AUDIENCES = {
+  achats: { label: 'Achats & stocks', hint: 'Comptes qui préparent les achats, valident les commandes ou gèrent les stocks', perms: ['appro:write', 'appro:validate', 'appro:direction', 'appro:stock'], module: 'achats' },
   dg: { label: 'Direction générale', hint: 'Super administrateur et comptes qui valident en direction (demandes, chantiers)', perms: ['demandes:dg', 'chantiers:direction'], superAdmin: true },
   exploitation: { label: 'Direction des exploitations', hint: 'Comptes qui ouvrent la Vue Direction', perms: ['direction:read'] },
   compta: { label: 'Comptabilité', hint: 'Comptes qui saisissent les écritures ou les achats', perms: ['compta:entries', 'achats:write'], module: 'compta' },
@@ -1347,6 +1369,19 @@ const INFO_AUDIENCES = {
   services_generaux: { label: 'Services généraux', hint: 'Comptes qui traitent les demandes internes ou gèrent le parc', perms: ['demandes:handle', 'parc:write'], module: 'administration' },
 };
 const INFO_EVENTS = {
+  'devis.recu': { module: 'achats', label: 'Devis fournisseur reçu', audiences: ['achats'], requiredPerms: ['appro:read'], recipient_hint: 'Accès à Achats & stocks requis.' },
+  'commande.soumise': { module: 'achats', label: 'Commande soumise au validateur désigné (sous le plafond)', audiences: [], priority: 'action', requiredPerms: ['appro:read'], recipient_hint: 'Le validateur désigné est toujours prévenu ; services en plus à cocher.' },
+  'commande.a_valider': { module: 'achats', label: 'Commande soumise à la validation Direction (à partir du plafond)',audiences: ['dg', 'exploitation'], priority: 'action', requiredPerms: ['appro:read', 'appro:direction'], recipient_hint: 'Accès à Achats & stocks et droit de validation Direction requis.' },
+  'commande.confirmee': { module: 'achats', label: 'Bon de commande confirmé', audiences: ['achats', 'exploitation', 'chantiers', 'compta'], requiredPerms: ['appro:read'], recipient_hint: 'Accès à Achats & stocks requis.' },
+  'commande.refusee': { module: 'achats', label: 'Bon de commande refusé', audiences: ['achats', 'exploitation'], requiredPerms: ['appro:read'], recipient_hint: 'Accès à Achats & stocks requis.' },
+  'commande.annulee': { module: 'achats', label: 'Bon de commande annulé', audiences: ['achats', 'exploitation'], requiredPerms: ['appro:read'], recipient_hint: 'Accès à Achats & stocks requis.' },
+  'appro.reception': { module: 'achats', label: 'Réception de commande, partielle ou complète', audiences: ['achats', 'chantiers', 'compta', 'exploitation'], requiredPerms: ['appro:read'], recipient_hint: 'Accès à Achats & stocks requis.' },
+  'stock.entree': { module: 'achats', label: 'Entrée ou stock initial validé', audiences: ['achats', 'chantiers'], requiredPerms: ['appro:read'], recipient_hint: 'Accès à Achats & stocks requis.' },
+  'stock.sortie': { module: 'achats', label: 'Sortie de stock validée', audiences: ['achats', 'chantiers'], requiredPerms: ['appro:read'], recipient_hint: 'Accès à Achats & stocks requis.' },
+  'stock.transfert': { module: 'achats', label: 'Transfert de stock validé', audiences: ['achats', 'chantiers'], requiredPerms: ['appro:read'], recipient_hint: 'Accès à Achats & stocks requis.' },
+  'stock.bas': { module: 'achats', label: 'Stock au seuil ou en rupture', audiences: ['achats', 'exploitation'], priority: 'action', requiredPerms: ['appro:read'], recipient_hint: 'Accès à Achats & stocks requis.' },
+  'commande.payee': { module: 'achats', label: 'Règlement fournisseur d’une commande enregistré en Comptabilité', audiences: ['achats'], requiredPerms: ['appro:read'], recipient_hint: 'L’émetteur de la commande est prévenu ; accès à Achats & stocks requis.' },
+  'appro.facture': { module: 'compta', label: 'Facture issue d’une réception préparée en brouillon', audiences: ['compta'], priority: 'action', requiredPerms: ['compta:read'], recipient_hint: 'Accès à la Comptabilité requis ; le brouillon reste à contrôler et à valider.' },
   'chantier.cree': { module: 'chantiers', label: 'Nouveau chantier ouvert', audiences: ['dg', 'exploitation'] },
   'chantier.etape_signalee': { module: 'chantiers', label: 'Étape de chantier signalée, à déclarer', audiences: ['dg', 'exploitation'], priority: 'action' },
   'chantier.etape_declaree': { module: 'chantiers', label: 'Étape déclarée : appels de fonds VEFA émis', audiences: ['dg', 'exploitation', 'compta'] },
@@ -1362,6 +1397,12 @@ const INFO_EVENTS = {
   'reclamation.ouverte': { module: 'sav', label: 'Nouvelle réclamation d’un acquéreur', audiences: ['sav', 'exploitation'] },
   'litige.ouvert': { module: 'juridique', label: 'Litige ouvert', audiences: ['dg', 'juridique'], priority: 'action' },
   'impaye.transmis': { module: 'juridique', label: 'Impayé transmis au Juridique', audiences: ['dg', 'juridique', 'exploitation'], priority: 'action' },
+  'tma.demandee': { module: 'chantiers', label: 'Travaux modificatifs (TMA) demandés par un acquéreur', audiences: ['exploitation'], priority: 'action' },
+  'tma.acceptee': { module: 'chantiers', label: 'TMA acceptée par l’acquéreur (montant ajouté à l’échéancier)', audiences: ['exploitation', 'compta'], priority: 'action' },
+  'tma.refusee': { module: 'chantiers', label: 'TMA refusée par l’acquéreur', audiences: [] },
+  'chantier.besoin': { module: 'chantiers', label: 'Besoin en matériaux à valider', audiences: [], priority: 'action' },
+  'lot.livre': { module: 'chantiers', label: 'Lot réceptionné par l’acquéreur (PV, réserves, garanties)', audiences: ['dg', 'exploitation', 'sav', 'juridique', 'compta'] },
+  'chantier.marche_receptionne': { module: 'chantiers', label: 'Travaux d’un sous-traitant réceptionnés (libération de la retenue programmée)', audiences: ['juridique', 'compta'] },
   'chantier.phase_retard': { module: 'chantiers', label: 'Phase de chantier en retard sur le planning', audiences: ['exploitation'], priority: 'action' },
   'vente.versement': { module: 'commercial', label: 'Versement d’un client enregistré', audiences: ['compta'] },
   'echeance.impayee': { module: 'commercial', label: 'Échéance d’un client impayée', audiences: ['compta'], priority: 'action' },
@@ -1455,7 +1496,78 @@ function phaseRefusal(p, phases = []) {
   return null;
 }
 
+// Achats & stocks : quantités conservées au centième, montants en FCFA entiers.
+const APPRO_ORDER_STATUSES = { brouillon: 'Brouillon', a_valider: 'À valider', attente_direction: 'À valider par la Direction', confirmee: 'Confirmée', partielle: 'Partiellement reçue', recue: 'Reçue', refusee: 'Refusée', annulee: 'Annulée' };
+const APPRO_QUOTE_STATUSES = { brouillon: 'Demande de prix', recue: 'Devis reçu', annulee: 'Annulée' };
+const APPRO_MOVE_KINDS = { entree: 'Entrée', sortie: 'Sortie / consommation', transfert: 'Transfert', reception: 'Réception fournisseur' };
+function stockQuantityUnits(value) {
+  const n = Number(value), units = Math.round(n * 100);
+  return Number.isFinite(n) && n >= 0 && n <= 10000000 && Math.abs(n * 100 - units) < 0.000001 ? units : null;
+}
+function approAmounts(lines, vatRate = 0) {
+  if (!lines?.length) return { error: 'Ajoutez au moins un article.' };
+  let ht = 0;
+  for (const line of lines) {
+    const units = stockQuantityUnits(line.quantity), price = Number(line.unit_price_fcfa);
+    if (!units || !Number.isInteger(price) || price < 0 || price > 1000000000) return { error: 'Quantité positive au centième et prix unitaire HT entier attendus.' };
+    ht += Number((BigInt(units) * BigInt(price) + 50n) / 100n);
+  }
+  if (!Number.isSafeInteger(ht) || ht > 1000000000000 || !Number.isFinite(vatRate) || vatRate < 0 || vatRate > 100) return { error: 'Montant ou taux de TVA invalide.' };
+  const vat = Math.round(ht * vatRate / 100);
+  return { amount_ht: ht, vat_amount: vat, amount_ttc: ht + vat };
+}
+const approRequiresDirection = (amount, threshold) => Number(amount) >= Number(threshold);
+/*
+ * Circuit du bon de commande (demandes du client du 25/10) : l'émetteur (choisi parmi les comptes qui préparent les
+ * achats, le compte connecté par défaut) désigne le validateur. Ni l'émetteur ni la personne qui a saisi le bon ne
+ * valident ou ne refusent la commande — sauf le super administrateur (directeur général, sans supérieur), autorisé à
+ * valider ses propres commandes, par exemple un besoin personnel transmis ensuite à la Comptabilité (choix du client du 25/10).
+ * Sous le plafond, tout compte ayant le droit de valider (ou la Direction) ; à partir du plafond, un compte de la
+ * Direction. La Direction peut se substituer au validateur désigné.
+ */
+const APPRO_PENDING_STATUSES = ['a_valider', 'attente_direction'];
+const approParties = order => [order.issuer_id, order.created_by].filter(Boolean).map(Number);
+/** `approver` : { id, active, super_admin, validate, direction } (droits effectifs) ; `parties` : émetteur et auteur de la saisie. */
+function approApproverRefusal(approver, parties, amount, threshold) {
+  if (!approver) return 'Choisissez le validateur de la commande.';
+  if (!approver.super_admin && [].concat(parties).map(Number).includes(Number(approver.id))) return 'L’émetteur ne peut pas valider sa propre commande : désignez une autre personne.';
+  if (!approver.active) return 'Le validateur choisi n’a plus de compte actif.';
+  if (approRequiresDirection(amount, threshold) && !approver.direction) return `À partir de ${Number(threshold).toLocaleString('fr-FR')} FCFA TTC, la commande est validée par la Direction : choisissez un validateur qui en a le droit.`;
+  if (!approver.validate && !approver.direction) return 'Le validateur choisi n’a pas le droit de valider les commandes.';
+  return null;
+}
+/** Qui peut valider ou refuser une commande soumise : le validateur désigné, ou la Direction qui se substitue. */
+function approDeciderRefusal(order, { userId, superAdmin = false, canValidate, canDirection }) {
+  if (!APPRO_PENDING_STATUSES.includes(order.status)) return 'Cette commande n’est pas en attente de validation.';
+  if (!superAdmin && approParties(order).includes(Number(userId))) return 'L’émetteur ne peut ni valider ni refuser sa propre commande.';
+  if (order.status === 'attente_direction') return canDirection ? null : 'Cette commande attend la validation de la Direction.';
+  if (canDirection) return null;
+  if (order.approver_id && Number(order.approver_id) !== Number(userId)) return 'Cette commande attend la décision du validateur désigné (ou de la Direction).';
+  return canValidate ? null : 'Validation des commandes non autorisée.';
+}
+const stockPostingDateRefusal = (date, currentDay) => date > currentDay ? 'Une réception ou un mouvement de stock physique ne peut pas être validé à une date future.' : null;
+/** Une sortie antidatée doit aussi laisser positifs les soldes historiques déjà enregistrés. */
+function stockHistoryAllows(entries, postingDate, delta) {
+  let balance = 0, inserted = false;
+  for (const e of entries) {
+    if (!inserted && e.date > postingDate) { balance += delta; inserted = true; if (balance < 0) return false; }
+    balance += e.delta;
+    if (inserted && balance < 0) return false;
+  }
+  return inserted || balance + delta >= 0;
+}
+/** Arrondi cumulatif : plusieurs réceptions gardent exactement le HT/TVA/TTC du bon de commande. */
+function approReceiptAmounts(previous, incoming, vatRate) {
+  const total = after => {
+    const input = previous.map(l => ({ quantity: (Number(l.received_units) + (after ? Number(incoming.find(x => x.order_line_id === l.id)?.quantity_units || 0) : 0)) / 100, unit_price_fcfa: Number(l.unit_price_fcfa) })).filter(l => l.quantity > 0);
+    return input.length ? approAmounts(input, vatRate) : { amount_ht: 0, vat_amount: 0, amount_ttc: 0 };
+  };
+  const before = total(false), after = total(true);
+  return Object.fromEntries(['amount_ht', 'vat_amount', 'amount_ttc'].map(k => [k, after[k] - before[k]]));
+}
+
 module.exports = {
+  APPRO_ACTIONS, APPRO_ORDER_STATUSES, APPRO_PENDING_STATUSES, APPRO_QUOTE_STATUSES, APPRO_MOVE_KINDS, stockQuantityUnits, approAmounts, approRequiresDirection, approApproverRefusal, approDeciderRefusal, approParties, stockHistoryAllows, approReceiptAmounts, stockPostingDateRefusal,
   CHANTIER_ACTIONS, WORKSITE_STATUSES, WORKSITE_OPEN, WORKSITE_ZONES, TASK_STATUSES, PHASE_STATES, lotInZone, phaseState, worksiteProgress, phaseRefusal,
   CHANTIER_SETTINGS, budgetAlertLevel, PLACE_KINDS, DECLARATION_STATUSES, deliveryForecast, deliveryDelay, SITUATION_STATUSES, situationAmounts,
   INFO_AUDIENCES, INFO_EVENTS, NOTIF_SOUNDS,
@@ -1467,7 +1579,7 @@ module.exports = {
   assetCode, maintenanceDue, fuelConsumption, reservationsOverlap,
   ASSET_PAYMENT_MODES, COST_ACCOUNTING_STATUSES, costAccountingStatus, depreciationAt, depreciationFor, addDays,
   MAIL_DIRECTIONS, MAIL_SUITES, MAIL_NATURES, MAIL_CHANNELS, MAIL_STATUSES, mailNumber, mailVisibility, mailReminder,
-  MODULE_SETTINGS, CONTRACT_KINDS, CONTRACT_FREQUENCIES, CONTRACT_STATUSES, CONTRACT_DOC_KINDS, CONTRACT_ALERT_STAGES, CONTRACT_INVOICE_LEAD_DAYS, CONTRACT_ACTIONS,
+  MODULE_SETTINGS, TMA_STATUSES, TMA_BILLED, NEED_STATUSES, CONTRACT_KINDS, CONTRACT_FREQUENCIES, CONTRACT_STATUSES, CONTRACT_DOC_KINDS, CONTRACT_ALERT_STAGES, CONTRACT_INVOICE_LEAD_DAYS, CONTRACT_ACTIONS,
   contractDeadlines, contractAlertStage, renewedEnd, contractPaymentsDue, daysBetween,
   PORTFOLIO_EVENTS, PORTFOLIO_REASONS, portfolioState, replayPortfolio, portfolioDiff, portfolioCounts,
   SELF_SERVICE, SAV_ACTIONS, COURRIER_ACTIONS, COMPTA_ACTIONS, PAIE_ACTIONS, RH_ACTIONS,

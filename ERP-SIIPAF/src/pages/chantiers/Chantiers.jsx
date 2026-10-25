@@ -4,7 +4,7 @@
  */
 import { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Plus, Search, HardHat, Check, Flag } from 'lucide-react';
+import { Plus, Search, HardHat, Check, Flag, ShoppingCart } from 'lucide-react';
 import { api, qs } from '@admin/lib/api';
 import { useAuth, useResource, useSaved } from '@admin/lib/app-context';
 import { Card, Empty, Skeleton, ErrorBox, Field, Modal, Badge, Advance } from '@admin/components/ui';
@@ -24,6 +24,8 @@ export default function Chantiers() {
   // Direction : étapes signalées par les conducteurs, à déclarer (elles émettront les appels de fonds)
   const pending = useResource(can('chantiers:direction') ? `${CH}/etapes?status=signalee` : null);
   const situations = useResource(can('chantiers:direction') ? `${CH}/situations` : null);
+  // Direction et acheteurs : besoins en matériaux exprimés par les conducteurs, à valider
+  const needs = useResource(can('chantiers:direction') || can('achats:write') ? `${CH}/besoins?statut=demande` : null);
   useEffect(() => { const t = setTimeout(() => setQ(text.trim()), 300); return () => clearTimeout(t); }, [text]);
 
   return (
@@ -49,7 +51,7 @@ export default function Chantiers() {
           <ul className="list">
             {pending.data.map(d => (
               <li key={d.id}>
-                <button type="button" className="list-row btn-link" style={{ width: '100%' }} onClick={() => navigate(`/chantiers/${d.worksite_id}?onglet=etapes`)}>
+                <button type="button" className="list-row btn-link" style={{ width: '100%' }} onClick={() => navigate(d.worksite_id ? `/chantiers/${d.worksite_id}?onglet=etapes&etape=${d.id}` : '/commercial/vefa')}>
                   <span><Flag className="ico" /><b>{d.stage_label}</b> — {d.scope_label}<div className="small muted">{d.project_name} · atteinte le {date(d.reached_on)}{d.reported_by_name ? ` · signalée par ${d.reported_by_name}` : ''}</div></span>
                   <span className="small">Déclarer ou refuser</span>
                 </button>
@@ -67,6 +69,21 @@ export default function Chantiers() {
                 <button type="button" className="list-row btn-link" style={{ width: '100%' }} onClick={() => navigate(`/chantiers/${s.worksite_id}?onglet=sous-traitants`)}>
                   <span><b>{s.contract_reference} · situation n° {s.number}</b> — {s.supplier_name || s.contract_title}<div className="small muted">{s.worksite_reference} — {s.worksite_name} · arrêtée au {date(s.period_end)}</div></span>
                   <span className="small tabular">{fcfa(s.amount_ttc)} TTC</span>
+                </button>
+              </li>
+            ))}
+          </ul>
+        </Card>
+      )}
+
+      {needs.data?.length > 0 && (
+        <Card title={`Besoins en matériaux à valider (${needs.data.length})`} bodyClass="">
+          <ul className="list">
+            {needs.data.map(n => (
+              <li key={n.id}>
+                <button type="button" className="list-row btn-link" style={{ width: '100%' }} onClick={() => navigate(`/chantiers/${n.worksite_id}?onglet=besoins`)}>
+                  <span><ShoppingCart className="ico" /><b>{n.label}</b> — {n.quantity.toLocaleString('fr-FR')} {n.unit_label}<div className="small muted">{n.worksite_reference} · demandé par {n.requested_by_name || '—'}{n.needed_on ? ` · souhaité le ${date(n.needed_on)}` : ''}</div></span>
+                  <span className="small">Valider ou refuser</span>
                 </button>
               </li>
             ))}

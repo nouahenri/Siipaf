@@ -11,6 +11,7 @@ import { Card, Skeleton, ErrorBox, Badge } from '@admin/components/ui';
 
 // Groupes du catalogue (lib/domain.js) affichés dans chaque module
 const MODULE_GROUPS = {
+  achats: ['ERP · Achats & stocks'],
   commercial: ['ERP · Service commercial', 'Ventes', 'Dossiers d’acquisition'],
   compta: ['ERP · Comptabilité', 'ERP · Paie'],
   rh: ['ERP · Ressources humaines', 'ERP · Espace employé'],

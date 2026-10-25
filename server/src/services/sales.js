@@ -22,11 +22,14 @@ async function nextClientCode(trx) {
 async function totals(db, sale) {
   const [{ paid }] = await db('payments').where({ sale_id: sale.id }).sum({ paid: 'amount_fcfa' });
   const paidN = Number(paid) || 0;
-  const price = Number(sale.price_fcfa);
+  // Dû = prix convenu + travaux modificatifs (TMA) acceptés par l'acquéreur (ERP › Chantiers)
+  const extras = await require('./chantiersLivraison').extrasFor(db, sale.id);
+  const due = Number(sale.price_fcfa) + extras;
   return {
     paid_fcfa: paidN,
-    remaining_fcfa: Math.max(0, price - paidN),
-    percent_paid: price ? Math.min(100, Math.round((paidN / price) * 1000) / 10) : 0,
+    remaining_fcfa: Math.max(0, due - paidN),
+    percent_paid: due ? Math.min(100, Math.round((paidN / due) * 1000) / 10) : 0,
+    extras_fcfa: extras, total_due_fcfa: due,
   };
 }
 
@@ -35,7 +38,7 @@ async function refreshSaleStatus(trx, saleId) {
   const sale = await trx('sales').where({ id: saleId }).first();
   if (!sale || sale.status === 'desiste') return sale;
   const t = await totals(trx, sale);
-  const status = t.paid_fcfa >= Number(sale.price_fcfa) ? 'solde' : 'en_cours';
+  const status = t.paid_fcfa >= t.total_due_fcfa ? 'solde' : 'en_cours';
   if (status !== sale.status) await trx('sales').where({ id: saleId }).update({ status, updated_at: new Date() });
   return { ...sale, status };
 }

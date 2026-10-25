@@ -12,7 +12,7 @@ const { INFO_EVENTS, INFO_AUDIENCES } = require('../lib/domain');
 
 const NOTIF_MODULES = {
   commercial: 'Service commercial', sav: 'Client & SAV', compta: 'Comptabilité', rh: 'Ressources humaines', administration: 'Administration générale',
-  juridique: 'Juridique', chantiers: 'Chantiers',
+  juridique: 'Juridique', chantiers: 'Chantiers', achats: 'Achats & stocks',
 };
 const PRIORITIES = ['info', 'action', 'urgent'];
 
@@ -153,10 +153,21 @@ async function inform(db, event, { title, body = null, link = null, links = {}, 
   if (!def) throw new Error(`Événement inconnu du circuit d'information : ${event}`);
   const dedupe = key || `${event}:${Date.now()}:${Math.random().toString(36).slice(2, 8)}`;
   const base = { module: def.module, event, title, body, key: dedupe, except, priority: priority || def.priority || 'info', email };
-  let n = await notify(db, { ...base, to: direct, link });
+  // Contrôle supplémentaire propre aux événements qui le déclarent : rôle + privilèges individuels.
+  // Les événements existants sans requiredPerms gardent exactement leur diffusion habituelle.
+  let eligible = null;
+  if (def.requiredPerms?.length) {
+    eligible = new Set();
+    for (const u of await db('users').where({ active: true }).select('id', 'role')) {
+      const p = await effectivePermissions(db, u);
+      if (def.requiredPerms.every(perm => hasPermission(p, perm))) eligible.add(u.id);
+    }
+  }
+  const recipients = list => [].concat(list || []).filter(u => u && (!eligible || eligible.has(typeof u === 'object' ? u.id : Number(u))));
+  let n = await notify(db, { ...base, to: recipients(direct), link });
   // Chaque service la reçoit dans son module (badge de sa tuile, réglage de notifications de son module)
   for (const a of (await infoRoutes(db))[event] || []) {
-    n += await notify(db, { ...base, module: INFO_AUDIENCES[a].module || def.module, to: await audienceUsers(db, a), link: links[a] || link });
+    n += await notify(db, { ...base, module: INFO_AUDIENCES[a].module || def.module, to: recipients(await audienceUsers(db, a)), link: links[a] || link });
   }
   return n;
 }

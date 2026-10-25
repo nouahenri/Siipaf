@@ -7,6 +7,8 @@ const { WORKSITE_STATUSES, WORKSITE_ZONES, TASK_STATUSES, SITE_STAGES, CHANTIER_
 const chantiers = require('../../services/chantiers');
 const suivi = require('../../services/chantiersSuivi');
 const sousTraitance = require('../../services/chantiersSousTraitance');
+const livraison = require('../../services/chantiersLivraison');
+const { SAV_CATEGORIES, NEED_STATUSES } = require('../../lib/domain');
 const day = z.string().regex(/^\d{4}-\d{2}-\d{2}$/, 'Date attendue au format AAAA-MM-JJ');
 
 // Formulaires avec pièces jointes (multipart) : vides et nombres convertis ici
@@ -28,6 +30,26 @@ const situationSchema = z.object({
   period_end: day, cumulative_pct: mNum(z.number().min(0).max(100)), cumulative_amount: mNum(z.number().int().min(0)), note: mOpt(z.string().trim().max(2000)),
 });
 const stageSchema = z.object({ stage: z.enum(SITE_STAGES), reached_on: day, note: mOpt(z.string().trim().max(2000)) });
+
+// Lot 5 : TMA, besoins en matériaux, réception des lots et des marchés
+const tmaSchema = z.object({ sale_id: z.number().int().positive(), title: z.string().trim().min(3).max(200), description: z.string().trim().max(4000).nullable().optional() });
+const quoteSchema = z.object({
+  amount_fcfa: z.preprocess(v => Number(v), z.number().int().min(1, 'Montant du devis obligatoire')), delay_days: mNum(z.number().int().min(1).max(730)), quote_note: mOpt(z.string().trim().max(2000)),
+});
+const needSchema = z.object({
+  label: z.string().trim().min(2).max(200), quantity: z.number().positive().max(1e9), unit: z.string().trim().min(1).max(30),
+  needed_on: day.nullable().optional(), phase_id: z.number().int().positive().nullable().optional(), supplier_id: z.number().int().positive().nullable().optional(),
+  estimate_fcfa: z.number().int().min(0).nullable().optional(), note: z.string().trim().max(1000).nullable().optional(),
+});
+const handoverSchema = z.object({
+  handed_on: day, client_signed: z.preprocess(v => !(v === false || v === 'false' || v === '0'), z.boolean()).optional(),
+  attendees: mOpt(z.string().trim().max(255)), note: mOpt(z.string().trim().max(4000)),
+  // Réserves notées au PV (champ JSON du formulaire)
+  reserves: z.preprocess(v => (typeof v === 'string' ? (v ? JSON.parse(v) : []) : v || []), z.array(z.object({
+    label: z.string().trim().min(2).max(255), location: z.string().trim().max(120).nullable().optional(),
+    category: z.enum(Object.keys(SAV_CATEGORIES)).nullable().optional(), deadline: day.nullable().optional(),
+  })).max(100)).optional(),
+});
 
 const optDay = day.nullable().optional();
 const optId = z.number().int().positive().nullable().optional();
@@ -70,6 +92,9 @@ module.exports = function chantiersRoutes(db) {
     if (!Number.isInteger(n) || n <= 0) throw new HttpError(400, 'Identifiant invalide.');
     return n;
   };
+
+  const multipart = upload => (req, res, next) => upload(req, res, err => next(err));
+  const guarded = fn => ah(async (req, res) => { try { await fn(req, res); } catch (e) { await suivi.removeFiles(req.files || (req.file ? [req.file] : [])); throw e; } });
 
   r.get('/badges', ah(async (req, res) => res.json(await chantiers.badges(db, viewer(req)))));
   r.get('/refs', ah(async (req, res) => res.json({ ...(await chantiers.refs(db)), settings: await chantiers.settings(db), setting_fields: CHANTIER_SETTINGS, list_kinds: chantiers.LIST_KINDS, declaration_statuses: DECLARATION_STATUSES })));
@@ -123,6 +148,69 @@ module.exports = function chantiersRoutes(db) {
     else if (!chantiers.seesAll(viewer(req))) throw new HttpError(404, 'Pièce introuvable.');
     sendFile(res, d, 'piece');
   }));
+  // Fiche d'une déclaration : mêmes accès que sa pièce (chantier visible, sinon lecture de tous les chantiers)
+  r.get('/etapes/:declId', ah(async (req, res) => {
+    const d = await db('stage_declarations').where({ id: childId(req, 'declId') }).first();
+    if (!d) throw new HttpError(404, 'Étape introuvable.');
+    if (d.worksite_id) await chantiers.visibleWorksite(db, d.worksite_id, viewer(req));
+    else if (!chantiers.seesAll(viewer(req))) throw new HttpError(404, 'Étape introuvable.');
+    res.json(await suivi.declarationDetail(db, d.id));
+  }));
+  // ─── TMA (travaux modificatifs des acquéreurs) ────────────
+  // Commercial (dossiers de vente) ou chantiers : liste d'un dossier, demande, devis, annulation, réalisation
+  const seesSales = req => req.can('sales:read') || chantiers.seesAll(viewer(req));
+  const canTma = (req, t, action) => {
+    const manage = req.can('chantiers:write') || Number(t.manager_id) === Number(req.user.id);
+    if (action === 'annulee' ? manage || req.can('sales:write') : manage) return;
+    throw new HttpError(403, action === 'devis' ? 'Le devis est établi par le conducteur du chantier ou un gestionnaire des chantiers.' : 'Accès refusé.');
+  };
+  r.get('/tma', ah(async (req, res) => {
+    const { vente, statut } = parse(z.object({ vente: z.coerce.number().int().positive().optional(), statut: z.string().max(12).optional() }), req.query);
+    if (!seesSales(req)) throw new HttpError(403, 'Accès refusé.');
+    res.json(await livraison.changes(db, { saleId: vente || null, status: statut || null }));
+  }));
+  r.post('/tma', ah(async (req, res) => {
+    const data = parse(tmaSchema, req.body);
+    if (!req.can('sales:write') && !req.can('chantiers:write')) {
+      const sale = await db('sales').where({ id: data.sale_id }).first('lot_id');
+      const lot = sale && await db('lots').where({ id: sale.lot_id }).first();
+      const w = lot && await livraison.worksiteForLot(db, lot);
+      if (!w || Number(w.manager_id) !== Number(req.user.id)) throw new HttpError(403, 'Demande réservée au commercial, au conducteur du chantier et aux gestionnaires.');
+    }
+    res.status(201).json(await livraison.createChange(db, data, { userId: req.user.id, source: 'equipe' }));
+  }));
+  r.post('/tma/:tmaId/devis', multipart(suivi.declarationUpload()), guarded(async (req, res) => {
+    const t = await livraison.loadChange(db, childId(req, 'tmaId'));
+    canTma(req, t, 'devis');
+    res.json(await livraison.quoteChange(db, t, parse(quoteSchema, req.body), { file: req.file, userId: req.user.id }));
+  }));
+  r.patch('/tma/:tmaId', ah(async (req, res) => {
+    const t = await livraison.loadChange(db, childId(req, 'tmaId'));
+    const data = parse(z.object({ status: z.enum(['annulee', 'realisee']), done_on: day.nullable().optional() }), req.body);
+    canTma(req, t, data.status);
+    res.json(await livraison.setChangeStatus(db, t, data, { userId: req.user.id }));
+  }));
+  r.get('/tma/:tmaId/devis', ah(async (req, res) => {
+    const t = await livraison.loadChange(db, childId(req, 'tmaId'));
+    if (!seesSales(req) && Number(t.manager_id) !== Number(req.user.id)) throw new HttpError(404, 'Pièce introuvable.');
+    sendFile(res, t, 'devis');
+  }));
+
+  // ─── Besoins en matériaux : à valider par la Direction ou l'acheteur (encart de la liste) ──
+  const validator = req => req.can('chantiers:direction') || req.can('achats:write');
+  r.get('/besoins', ah(async (req, res) => {
+    if (!validator(req) && !chantiers.seesAll(viewer(req))) throw new HttpError(403, 'Accès refusé.');
+    const { statut } = parse(z.object({ statut: z.enum(Object.keys(NEED_STATUSES)).optional() }), req.query);
+    res.json(await livraison.needs(db, { status: statut || null }));
+  }));
+
+  // Pièce du PV de réception d'un lot
+  r.get('/receptions/:hId/pv', ah(async (req, res) => {
+    const h = await livraison.loadHandover(db, childId(req, 'hId'));
+    await chantiers.visibleWorksite(db, h.worksite_id, viewer(req));
+    sendFile(res, h, 'pv-reception');
+  }));
+
   // Situations vérifiées, à valider par la Direction (encart de la liste) ; pièce jointe d'une situation
   r.get('/situations', direction, ah(async (req, res) => res.json(await sousTraitance.toValidate(db))));
   r.get('/situations/:sitId/fichier', ah(async (req, res) => {
@@ -217,8 +305,6 @@ module.exports = function chantiersRoutes(db) {
   }));
 
   // ─── Journal quotidien ────────────────────────────────────
-  const multipart = upload => (req, res, next) => upload(req, res, err => next(err));
-  const guarded = fn => ah(async (req, res) => { try { await fn(req, res); } catch (e) { await suivi.removeFiles(req.files || (req.file ? [req.file] : [])); throw e; } });
   r.get('/:id/journal', ah(async (req, res) => res.json(await suivi.journal(db, await chantiers.visibleWorksite(db, idParam(req), viewer(req))))));
   r.post('/:id/journal', multipart(suivi.journalUpload()), guarded(async (req, res) => {
     const w = await managed(req);
@@ -296,6 +382,54 @@ module.exports = function chantiersRoutes(db) {
     const { reason } = parse(z.object({ reason: z.string().trim().min(3, 'Motif du refus obligatoire').max(500) }), req.body);
     await sousTraitance.refuse(db, w, childId(req, 'sitId'), reason, req.user.id);
     await situationDone(req, res, w);
+  }));
+
+  // ─── Besoins en matériaux d'un chantier ───────────────────
+  r.get('/:id/besoins', ah(async (req, res) => res.json(await livraison.needs(db, { worksiteId: (await chantiers.visibleWorksite(db, idParam(req), viewer(req))).id }))));
+  r.post('/:id/besoins', ah(async (req, res) => {
+    const w = await managed(req);
+    res.status(201).json(await livraison.createNeed(db, w, parse(needSchema, req.body), { userId: req.user.id }));
+  }));
+  r.patch('/:id/besoins/:needId', ah(async (req, res) => {
+    const w = await managed(req);
+    res.json(await livraison.updateNeed(db, w, await livraison.loadNeed(db, w, childId(req, 'needId')), parse(needSchema.partial(), req.body)));
+  }));
+  r.delete('/:id/besoins/:needId', ah(async (req, res) => {
+    const w = await managed(req);
+    await livraison.deleteNeed(db, await livraison.loadNeed(db, w, childId(req, 'needId')));
+    res.json({ ok: true });
+  }));
+  r.post('/:id/besoins/:needId/statut', ah(async (req, res) => {
+    const w = await chantiers.loadWorksite(db, idParam(req));
+    const data = parse(z.object({
+      status: z.enum(['valide', 'refuse', 'commande', 'livre', 'annule']), reason: z.string().trim().max(255).nullable().optional(),
+      supplier_id: z.number().int().positive().nullable().optional(), estimate_fcfa: z.number().int().min(0).nullable().optional(), date: day.nullable().optional(),
+    }), req.body);
+    const manage = chantiers.canManage(w, viewer(req));
+    // Valider, refuser, commander : Direction ou acheteur ; réceptionner ou annuler : aussi le conducteur
+    if (['valide', 'refuse', 'commande'].includes(data.status) ? !validator(req) : !validator(req) && !manage) {
+      throw new HttpError(403, 'Seuls la Direction et les acheteurs valident ou commandent un besoin.');
+    }
+    res.json(await livraison.moveNeed(db, w, await livraison.loadNeed(db, w, childId(req, 'needId')), data, { userId: req.user.id }));
+  }));
+
+  // ─── TMA d'un chantier ────────────────────────────────────
+  r.get('/:id/tma', ah(async (req, res) => res.json(await livraison.changes(db, { worksiteId: (await chantiers.visibleWorksite(db, idParam(req), viewer(req))).id }))));
+
+  // ─── Réception des travaux d'un marché (libération de la retenue) ──
+  r.patch('/:id/marches/:contractId/reception', ah(async (req, res) => {
+    const w = await managed(req);
+    const { works_received_on } = parse(z.object({ works_received_on: day.nullable() }), req.body);
+    await livraison.receiveMarket(db, w, childId(req, 'contractId'), { works_received_on }, { userId: req.user.id });
+    res.json(await sousTraitance.markets(db, w));
+  }));
+
+  // ─── Réception d'un lot (PV, réserves, dernier appel de fonds) ──
+  r.post('/:id/livraisons/:saleId/reception', multipart(suivi.declarationUpload()), guarded(async (req, res) => {
+    const w = await managed(req);
+    const data = parse(handoverSchema, req.body);
+    const out = await livraison.handover(db, w, childId(req, 'saleId'), data, { file: req.file, userId: req.user.id });
+    res.status(201).json({ ...out, ...(await suivi.deliveries(db, w)) });
   }));
 
   // ─── Livraisons promises et retards ───────────────────────
