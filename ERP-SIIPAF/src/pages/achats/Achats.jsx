@@ -4,8 +4,6 @@ import { Boxes, Plus, Search, ShoppingCart, ClipboardList } from 'lucide-react';
 import { api } from '@admin/lib/api';
 import { useAuth, useResource } from '@admin/lib/app-context';
 import { Card, Empty, Skeleton, ErrorBox, Field, Badge, Modal } from '@admin/components/ui';
-import { CH, useChantierRefs } from '../../lib/chantiers';
-import { NeedForm } from '../chantiers/Livraison';
 import { fcfa, date } from '@admin/lib/format';
 import ApproSummary from './ApproSummary';
 import NotificationPrefs from '../../components/NotificationPrefs';
@@ -38,15 +36,13 @@ export function ApproDocuments({ kind }) {
     {open && <DocumentDrawer key={`${kind}:${open}`} kind={kind} id={open} refs={r} onClose={() => setOpen(null)} onChange={res.reload} onOrder={id => navigate(`/achats/commandes?fiche=${id}`)} />}
   </div>;
 }
-/** Saisie d'un besoin depuis les Achats : même formulaire et même circuit que l'onglet Besoins de la fiche chantier. */
-function NewNeed({ worksites, onClose, onSaved }) {
-  const [id, setId] = useState(worksites.length === 1 ? String(worksites[0].id) : ''), [chosen, setChosen] = useState(false);
-  const w = useResource(chosen ? `${CH}/${id}` : null, [chosen, id]), chRefs = useChantierRefs();
-  if (chosen && w.data && chRefs) return <NeedForm w={w.data} refs={chRefs} onClose={onClose} onSaved={onSaved} />;
-  return <Modal title="Nouveau besoin en matériaux" onClose={onClose} footer={<><button className="btn btn-ghost" onClick={onClose}>Retour</button><button className="btn btn-primary" form="need-worksite" disabled={!id || chosen}>Continuer</button></>}>
-    <form id="need-worksite" className="stack" onSubmit={e => { e.preventDefault(); setChosen(true); }}><ErrorBox error={w.error} />
+/** Circuit : les besoins naissent dans le module Chantiers (onglet Besoins de la fiche) ; ce lien y conduit sans dupliquer la saisie. */
+function ToWorksiteNeeds({ worksites, onClose }) {
+  const [id, setId] = useState(worksites.length === 1 ? String(worksites[0].id) : ''), navigate = useNavigate();
+  return <Modal title="Exprimer un besoin en matériaux" onClose={onClose} footer={<><button className="btn btn-ghost" onClick={onClose}>Retour</button><button className="btn btn-primary" form="need-worksite" disabled={!id}>Ouvrir le chantier</button></>}>
+    <form id="need-worksite" className="stack" onSubmit={e => { e.preventDefault(); navigate(`/chantiers/${id}?onglet=besoins`); }}>
       <Field label="Chantier *"><Select label="Chantier" value={id} onChange={setId} rows={worksites.map(x => ({ id: x.id, name: `${x.reference} — ${x.name}` }))} /></Field>
-      <p className="small muted">Le besoin part en validation (Direction ou acheteur) ; une fois validé, préparez son bon de commande ici.</p>
+      <p className="small muted">Le besoin s’exprime dans la fiche du chantier (onglet Besoins), puis il est validé par la Direction ou l’acheteur ; il revient ensuite ici pour être commandé.</p>
     </form></Modal>;
 }
 export function ApproNeeds() {
@@ -56,8 +52,8 @@ export function ApproNeeds() {
   useEffect(() => { const n = toOrder && res.data?.find(x => x.id === toOrder); if (n) { if (n.status === 'valide' && !n.order_id) setNeed(n); setParams({}, { replace: true }); } }, [toOrder, res.data]);
   if (!refs.data) return <Loading res={refs} />;
   const rows = (res.data || []).filter(n => `${n.label} ${n.worksite_reference}`.toLowerCase().includes(q.toLowerCase()));
-  return <div className="stack"><p className="muted">Besoins en matériaux des chantiers : le conducteur les exprime (ici ou dans l’onglet Besoins de la fiche chantier), la Direction ou l’acheteur les valide, puis ils sont commandés par un bon de commande.</p><div className="row-between"><SearchBox value={q} onChange={setQ} placeholder="Matériau, chantier…" />{can('chantiers:write') && <button className="btn btn-primary" disabled={!refs.data.worksites.length} onClick={() => setCreating(true)}><Plus />Nouveau besoin</button>}</div>
-    {creating && <NewNeed worksites={refs.data.worksites} onClose={() => setCreating(false)} onSaved={() => { setCreating(false); res.reload(); }} />}<ErrorBox error={res.error} /><Card bodyClass="">{!res.data ? <Loading res={res} /> : !rows.length ? <div className="card-body"><Empty icon={Boxes}>Aucun besoin en matériaux.</Empty></div> : <div className="table-wrap"><table className="table"><thead><tr><th>Chantier</th><th>Besoin</th><th>Quantité</th><th>Souhaité le</th><th>État</th><th>Suite</th></tr></thead><tbody>{rows.map(n => <tr key={n.id}><td className="small"><Link className="link" to={`/chantiers/${n.worksite_id}?onglet=besoins`}>{n.worksite_reference}</Link></td><td><b>{n.label}</b>{n.note && <div className="small muted">{n.note}</div>}</td><td className="tabular nowrap">{qty(n.quantity)} {n.unit_label}</td><td className="small nowrap">{n.needed_on ? date(n.needed_on) : '—'}</td><td><Badge tone={tone(n.status)}>{n.status_label}</Badge></td><td>{n.order_id ? <Link to={`/achats/commandes?fiche=${n.order_id}`} className="link">{n.order_reference}</Link> : n.status === 'valide' && can('appro:write') ? <button className="btn btn-sm" onClick={() => setNeed(n)}>Préparer la commande</button> : <Link className="link small" to={`/chantiers/${n.worksite_id}?onglet=besoins`}>Voir le besoin</Link>}</td></tr>)}</tbody></table></div>}</Card>
+  return <div className="stack"><p className="muted">Besoins en matériaux des chantiers : le conducteur les exprime dans le module Chantiers (fiche du chantier › Besoins), la Direction ou l’acheteur les valide, puis ils sont commandés ici par un bon de commande, validé, réceptionné et facturé.</p><div className="row-between"><SearchBox value={q} onChange={setQ} placeholder="Matériau, chantier…" />{can('chantiers:write') && <button className="btn btn-primary" disabled={!refs.data.worksites.length} onClick={() => setCreating(true)}><Plus />Exprimer un besoin</button>}</div>
+    {creating && <ToWorksiteNeeds worksites={refs.data.worksites} onClose={() => setCreating(false)} />}<ErrorBox error={res.error} /><Card bodyClass="">{!res.data ? <Loading res={res} /> : !rows.length ? <div className="card-body"><Empty icon={Boxes}>Aucun besoin en matériaux.</Empty></div> : <div className="table-wrap"><table className="table"><thead><tr><th>Chantier</th><th>Besoin</th><th>Quantité</th><th>Souhaité le</th><th>État</th><th>Suite</th></tr></thead><tbody>{rows.map(n => <tr key={n.id}><td className="small"><Link className="link" to={`/chantiers/${n.worksite_id}?onglet=besoins`}>{n.worksite_reference}</Link></td><td><b>{n.label}</b>{n.note && <div className="small muted">{n.note}</div>}</td><td className="tabular nowrap">{qty(n.quantity)} {n.unit_label}</td><td className="small nowrap">{n.needed_on ? date(n.needed_on) : '—'}</td><td><Badge tone={tone(n.status)}>{n.status_label}</Badge></td><td>{n.order_id ? <Link to={`/achats/commandes?fiche=${n.order_id}`} className="link">{n.order_reference}</Link> : n.status === 'valide' && can('appro:write') ? <button className="btn btn-sm" onClick={() => setNeed(n)}>Préparer la commande</button> : <Link className="link small" to={`/chantiers/${n.worksite_id}?onglet=besoins`}>Voir le besoin</Link>}</td></tr>)}</tbody></table></div>}</Card>
     {need && <DocumentForm kind="order" need={need} refs={refs.data} onClose={() => setNeed(null)} onSaved={d => { setNeed(null); navigate(`/achats/commandes?fiche=${d.id}`); }} />}
   </div>;
 }

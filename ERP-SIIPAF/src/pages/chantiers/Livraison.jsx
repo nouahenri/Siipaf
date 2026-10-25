@@ -202,7 +202,7 @@ export function Needs({ w, refs }) {
   );
 }
 
-export function NeedForm({ w, refs, need, onClose, onSaved }) {
+function NeedForm({ w, refs, need, onClose, onSaved }) {
   const saved = useSaved();
   const units = Object.entries(refs.units || {});
   const [f, setF] = useState({
