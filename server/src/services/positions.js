@@ -152,6 +152,8 @@ async function apply(db, changeId) {
     });
     await trx('hr_position_changes').where({ id: c.id }).update({ status: 'applique', applied_at: new Date(), updated_at: new Date() });
   });
+  // Modèles d'objectifs du nouveau poste et du nouveau service (RH › Référentiel KPI) pour l'année en cours
+  await require('./kpi').applyForEmployee(db, e.id, { user: c.created_by ? { id: c.created_by } : null });
   if (e.user_id) {
     await notify(db, {
       to: e.user_id, except: c.created_by, module: 'rh', event: 'poste.change', title: `Nouveau poste : ${c.job_title}`,

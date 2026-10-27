@@ -119,10 +119,12 @@ const pick = (arr, i) => arr[i % arr.length];
     }
   }
 
-  // Objectifs du mois
+  // Objectifs du mois : objectifs mensuels des fiches du personnel (un compte sans fiche n'a pas de cible)
   const month = new Date().toISOString().slice(0, 7);
+  const { setSalesTarget } = require('../src/services/kpi');
   for (const [i, u] of team.entries()) {
-    await db('sales_targets').insert({ user_id: u.id, month, ca_fcfa: [150e6, 120e6, 80e6][i], ventes: [4, 3, 2][i], rdv: [12, 10, 6][i], encaissements_fcfa: [60e6, 50e6, 40e6][i], set_by: admin.id });
+    if (!(await db('employees').where({ user_id: u.id }).first())) { console.log(`Pas de fiche du personnel pour ${u.name} : cibles du mois non fixées.`); continue; }
+    await setSalesTarget(db, { user_id: u.id, month, ca_fcfa: [150e6, 120e6, 80e6][i], ventes: [4, 3, 2][i], rdv: [12, 10, 6][i], encaissements_fcfa: [60e6, 50e6, 40e6][i] }, admin);
   }
   console.log(`Commercial de démonstration : ${leads.length} prospects attribués, ${open.length * 2} activités, résidence en VEFA${angre ? '' : ' (projet Angré absent)'}.`);
   await db.destroy();

@@ -107,6 +107,8 @@ module.exports = function comptaRoutes(db) {
       if (Number(drafts[0].n)) throw new HttpError(409, `${drafts[0].n} écriture(s) en brouillon jusqu’au ${lock_date} : validez-les ou supprimez-les avant de verrouiller.`);
     }
     await db('acc_fiscal_years').where({ id: fy.id }).update({ lock_date, updated_at: new Date() });
+    // Verrouillage daté : « clôture mensuelle à temps » (RH › Performance) se mesure sur cet historique
+    await db('acc_lock_history').insert({ fiscal_year_id: fy.id, lock_date, user_id: req.user.id });
     res.json(await db('acc_fiscal_years').where({ id: fy.id }).first());
   }));
 
@@ -119,6 +121,7 @@ module.exports = function comptaRoutes(db) {
     // Biens du parc immobilisés : les dotations aux amortissements de l'exercice doivent être passées et validées
     await require('../../services/parcCompta').checkClosing(db, fy);
     await db('acc_fiscal_years').where({ id: fy.id }).update({ status: 'cloture', lock_date: fy.end_date, closed_at: new Date(), closed_by: req.user.id, updated_at: new Date() });
+    await db('acc_lock_history').insert({ fiscal_year_id: fy.id, lock_date: fy.end_date, user_id: req.user.id });
     res.json(await db('acc_fiscal_years').where({ id: fy.id }).first());
   }));
 
@@ -403,6 +406,7 @@ module.exports = function comptaRoutes(db) {
     const data = parse(z.object({
       revenue_vefa: z.enum(Object.keys(REVENUE_MODES.vefa)), revenue_echeancier: z.enum(Object.keys(REVENUE_MODES.echeancier)),
       vat_sales_rate: z.number().min(0).max(100), vat_purchases_rate: z.number().min(0).max(100), auto_validate: z.boolean(),
+      close_day: z.number().int().min(1).max(28),
       accounts: z.record(z.string().trim().min(2).max(12)),
       depreciation_years: z.record(z.number().int().min(1).max(50)),
       sage: z.object({ separator: z.enum([';', ',', '\t', '|']), date_format: z.enum(['JJMMAAAA', 'JJMMAA', 'AAAAMMJJ', 'JJ/MM/AAAA']), decimal: z.enum([',', '.']), header: z.boolean() }).partial(),

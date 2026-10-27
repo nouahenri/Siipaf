@@ -391,7 +391,7 @@ const PERMISSIONS = {
     ...APPRO_ACTIONS, 'appro:articles',
     'projects:read', 'lots:read', 'leads:read', 'appointments:read', 'sales:read', 'payments:write',
     'schedule:write', 'client_messages', 'commercial:read', 'leads:all', 'compta:read', ...COMPTA_ACTIONS,
-    'rh:read', ...RH_ACTIONS, 'presence:write', 'paie:read', ...PAIE_ACTIONS, 'contrats:read', 'parc:read', 'chantiers:read', 'lieux:write', ...SELF_SERVICE,
+    'rh:read', ...RH_ACTIONS, 'kpi:write', 'presence:write', 'paie:read', ...PAIE_ACTIONS, 'contrats:read', 'parc:read', 'chantiers:read', 'lieux:write', ...SELF_SERVICE,
   ],
   resp_exploitation: [
     ...APPRO_ACTIONS, 'appro:direction', 'appro:articles',
@@ -400,7 +400,7 @@ const PERMISSIONS = {
     'sales:read', 'sales:write', 'documents:write', 'testimonials:write',
     'client_access:write', 'client_messages', 'site_updates:write', 'schedule:write', 'settings:write',
     'leads:all', 'sav:read', ...SAV_ACTIONS, 'commercial:read', 'targets:write', 'vefa:write', 'property:write', 'compta:read',
-    'rh:read', ...RH_ACTIONS, 'presence:write', 'direction:read', ...COURRIER_ACTIONS, ...CONTRACT_ACTIONS, ...PARC_ACTIONS, ...DOCS_ACTIONS, ...REQUEST_ACTIONS, ...LEGAL_ACTIONS,
+    'rh:read', ...RH_ACTIONS, 'kpi:write', 'presence:write', 'direction:read', ...COURRIER_ACTIONS, ...CONTRACT_ACTIONS, ...PARC_ACTIONS, ...DOCS_ACTIONS, ...REQUEST_ACTIONS, ...LEGAL_ACTIONS,
     'chantiers:read', 'chantiers:write', 'lieux:write', ...SELF_SERVICE,
   ],
 };
@@ -479,6 +479,7 @@ const PERMISSION_CATALOG = [
     ['recrutement:write', 'Gérer le recrutement', 'Postes, publication sur le site, candidatures, entretiens, embauche'],
     ['formation:write', 'Gérer les compétences et formations', 'Référentiel, profils, plan de formation, participants, clôture'],
     ['evaluation:write', 'Évaluer le personnel', 'Objectifs et entretiens de tout le personnel (le responsable direct évalue son équipe)'],
+    ['kpi:write', 'Gérer le référentiel KPI', 'Indicateurs, modèles d’objectifs par service et par poste, objectifs collectifs des services, calcul du score des services'],
     ['rh:settings', 'Régler les RH', 'Règles des congés, heures supplémentaires, catégories de frais, jours fériés'],
   ] },
   { group: 'ERP · Espace employé', items: [

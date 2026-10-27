@@ -8,6 +8,7 @@ const paie = require('../../services/paie');
 const rh = require('../../services/rh');
 const positions = require('../../services/positions');
 const departures = require('../../services/departures');
+const kpi = require('../../services/kpi');
 
 const day = z.string().regex(/^\d{4}-\d{2}-\d{2}$/, 'Date attendue au format AAAA-MM-JJ');
 const optText = max => z.string().trim().max(max).optional().nullable().transform(v => v || null);
@@ -70,6 +71,8 @@ module.exports = function paieRoutes(db) {
       await trx('hr_career_events').insert({ employee_id: newId, date: data.hire_date, kind: 'embauche', label: `Embauche : ${data.job_title}`, details: JSON.stringify({ contract_type: data.contract_type || 'cdi' }), created_by: req.user.id });
       return newId;
     });
+    // Modèles d'objectifs du service et du poste appliqués pour l'année en cours (RH › Référentiel KPI)
+    await kpi.applyForEmployee(db, id, { user: req.user });
     res.status(201).json(paie.serializeEmployee(await db('employees').where({ id }).first(), { withPay: true }));
   }));
 
@@ -90,6 +93,8 @@ module.exports = function paieRoutes(db) {
     const after = await db('employees').where({ id }).first();
     // Sortie : compte, matériel et dossiers à régler sont signalés à ceux qui les reprennent
     if (before.active && data.active === false) await departures.notifyDeparture(db, after, { user: req.user });
+    // Nouveau poste ou nouveau service : leurs modèles d'objectifs s'appliquent (un objectif déjà présent est gardé)
+    if (after.active && (after.position_id !== before.position_id || after.department !== before.department)) await kpi.applyForEmployee(db, id, { user: req.user });
     res.json(paie.serializeEmployee(after, { withPay: true }));
   }));
 
@@ -99,18 +104,21 @@ module.exports = function paieRoutes(db) {
     const ROLE_JOBS = { super_admin: 'Direction', commercial: 'Commercial(e)', editeur: 'Chargé(e) de communication', conducteur_travaux: 'Conducteur de travaux', comptable: 'Comptable', resp_exploitation: 'Responsable des exploitations' };
     const DEPTS = { super_admin: 'direction', commercial: 'commercial', editeur: 'administratif', conducteur_travaux: 'technique', comptable: 'comptabilite', resp_exploitation: 'direction' };
     let created = 0;
+    const ids = [];
     await db.transaction(async trx => {
       for (const uid of user_ids) {
         const u = await trx('users').where({ id: uid }).first();
         if (!u || await trx('employees').where({ user_id: uid }).first()) continue;
         const [first, ...rest] = u.name.trim().split(/\s+/);
-        await trx('employees').insert({
+        const [id] = await trx('employees').insert({
           matricule: await paie.nextMatricule(trx), user_id: u.id, first_name: first, last_name: rest.join(' ') || first, email: u.email, phone: u.phone || null,
           ...(await positions.resolve(trx, { job_title: ROLE_JOBS[u.role] || 'Employé(e)', department: DEPTS[u.role] || 'administratif' })), hire_date, base_salary: 0,
         });
+        ids.push(insertedId(id));
         created++;
       }
     });
+    for (const id of ids) await kpi.applyForEmployee(db, id, { user: req.user });
     res.status(201).json({ created });
   }));
 

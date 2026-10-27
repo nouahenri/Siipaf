@@ -179,14 +179,33 @@ test('VEFA : appels de fonds émis selon l’avancement du chantier', async () =
   assert.equal(res.body.paid_fcfa, 3000000);
 });
 
-test('objectifs du mois : cible et réalisé par commercial', async () => {
+test('objectifs du mois : cible et réalisé par commercial, objectifs mensuels de sa fiche du personnel', async () => {
   const month = new Date().toISOString().slice(0, 7);
-  let res = await admin.put(`${M}/targets`).send({ month, user_id: sellerId, ca_fcfa: 64000000, ventes: 2, rdv: 4 });
+  const [y, m] = month.split('-').map(Number);
+  let res = await admin.put(`${M}/targets`).send({ month, user_id: sellerId, ca_fcfa: 64000000 });
+  assert.equal(res.status, 409, 'compte sans fiche du personnel : pas de cible');
+  assert.equal((await admin.get(`${M}/targets?month=${month}`)).body.rows.find(r => r.user_id === sellerId).employee_id, null);
+  res = await admin.post('/api/admin/erp/paie/employees').send({ last_name: 'Vendeur', first_name: 'Test', gender: 'F', job_title: 'Commerciale', department: 'commercial', hire_date: '2024-01-01', base_salary: 300000, user_id: sellerId });
+  assert.equal(res.status, 201, JSON.stringify(res.body));
+  const employeeId = res.body.id;
+
+  res = await admin.put(`${M}/targets`).send({ month, user_id: sellerId, ca_fcfa: 64000000, ventes: 2, rdv: 4 });
   assert.equal(res.status, 200, JSON.stringify(res.body));
   const mine = res.body.rows.find(r => r.user_id === sellerId);
+  assert.equal(mine.employee_id, employeeId);
   assert.equal(mine.done.ventes, 1);
   assert.equal(mine.done.ca_fcfa, 32000000);
   assert.equal(mine.pct.ca_fcfa, 50);
+  // Source unique : les cibles sont des objectifs mensuels de la fiche, vus et comptés par RH › Performance
+  const objs = await db('hr_objectives').where({ employee_id: employeeId, year: y, period: 'mois', period_index: m });
+  assert.deepEqual(objs.map(o => o.metric).sort(), ['ca_fcfa', 'rdv', 'ventes']);
+  assert.ok(objs.every(o => o.source === 'commercial' && o.adjusted && o.kpi_id));
+  const card = (await admin.get(`/api/admin/erp/rh/employees/${employeeId}/objectives?annee=${y}&periode=mois&n=${m}`)).body;
+  assert.equal(card.lines.find(l => l.metric === 'ca_fcfa').progress, 50, 'même atteinte dans RH › Performance');
+  // Champ absent : inchangé ; vide : cible retirée
+  res = await admin.put(`${M}/targets`).send({ month, user_id: sellerId, ventes: null, encaissements_fcfa: 5000000 });
+  const after = res.body.rows.find(r => r.user_id === sellerId).target;
+  assert.deepEqual(after, { ca_fcfa: 64000000, ventes: null, rdv: 4, encaissements_fcfa: 5000000 });
   res = await commercial.get(`${M}/targets?month=${month}`);
   assert.deepEqual(res.body.rows.map(r => r.user_id), [sellerId], 'un commercial ne voit que ses objectifs');
 

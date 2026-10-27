@@ -11,7 +11,9 @@ const { requirePermission } = require('../../auth');
 const {
   LEAVE_TYPES, PERMISSION_EVENTS, LEAVE_STATUSES, LEAVE_ACTIVE, DOCUMENT_KINDS, CAREER_EVENTS, POSITION_CHANGE_REASONS, OBJECTIVE_STATUSES, OBJECTIVE_METRICS, REVIEW_RATINGS, DEFAULT_RH,
   EXPENSE_STATUSES, ATTENDANCE_SOURCES, RECRUIT_STAGES, RECRUIT_SOURCES, REFUSE_REASONS, JOB_STATUSES, RESUME_KINDS, TRAINING_STATUSES,
+  OBJECTIVE_PERIODS, parsePeriod, periodRange,
 } = require('../../lib/rh');
+const kpiService = require('../../services/kpi');
 const { CONTRACT_TYPES, DEPARTMENTS, MARITAL } = require('../../lib/paie');
 const rh = require('../../services/rh');
 const paie = require('../../services/paie');
@@ -49,7 +51,7 @@ module.exports = function rhRoutes(db) {
     const team = me ? await db('employees').where({ manager_id: me.id, active: true }).count({ n: '*' }).first() : { n: 0 };
     res.json({
       leave_types: LEAVE_TYPES, events: PERMISSION_EVENTS, statuses: LEAVE_STATUSES, document_kinds: DOCUMENT_KINDS, career_events: CAREER_EVENTS,
-      objective_statuses: OBJECTIVE_STATUSES, objective_metrics: OBJECTIVE_METRICS, ratings: REVIEW_RATINGS,
+      objective_statuses: OBJECTIVE_STATUSES, objective_metrics: OBJECTIVE_METRICS, objective_periods: OBJECTIVE_PERIODS, ratings: REVIEW_RATINGS,
       expense_statuses: EXPENSE_STATUSES, attendance_sources: ATTENDANCE_SOURCES, recruit_stages: RECRUIT_STAGES, recruit_sources: RECRUIT_SOURCES,
       refuse_reasons: REFUSE_REASONS, job_statuses: JOB_STATUSES, resume_kinds: RESUME_KINDS, training_statuses: TRAINING_STATUSES,
       contract_types: CONTRACT_TYPES, departments: DEPARTMENTS, marital: MARITAL,
@@ -141,7 +143,8 @@ module.exports = function rhRoutes(db) {
     const year = yearOf(req.query.year);
     const [balance, leaves, objectives, review, manager] = await Promise.all([
       rh.balanceOf(db, me), rh.leaveQuery(db).where('l.employee_id', me.id).orderBy('l.start_date', 'desc'),
-      rh.objectivesOf(db, me, year), db('hr_reviews').where({ employee_id: me.id, year }).first(),
+      // Lignes du score : les objectifs mensuels d'un même indicateur sont regroupés sur l'année
+      performance.scorecard(db, me, year).then(c => c.lines), db('hr_reviews').where({ employee_id: me.id, year }).first(),
       me.manager_id ? db('employees').where({ id: me.manager_id }).first('last_name', 'first_name') : null,
     ]);
     res.json({
@@ -372,51 +375,67 @@ module.exports = function rhRoutes(db) {
   }
   const objectiveSchema = z.object({
     year: z.number().int().min(2000).max(2100), title: z.string().trim().min(3).max(200), description: optText(1000),
-    metric: z.enum(Object.keys(OBJECTIVE_METRICS)).default('manuel'), target_value: z.number().int().min(0).optional().nullable(),
+    kpi_id: z.number().int().positive().optional().nullable(), metric: z.enum(Object.keys(OBJECTIVE_METRICS)).optional(),
+    period: z.enum(Object.keys(OBJECTIVE_PERIODS)).default('annee'), period_index: z.number().int().min(1).max(12).optional().nullable(),
+    target_value: z.number().int().min(0).optional().nullable(),
     weight: z.number().int().min(1).max(10).default(1), progress: z.number().int().min(0).max(100).optional(), status: z.enum(Object.keys(OBJECTIVE_STATUSES)).optional(),
     due_date: day.optional().nullable(),
   });
+  /** Période affichée (?annee=&periode=annee|trimestre|mois&n=, ou ?year= pour une année). */
+  const periodOf = req => {
+    const p = parsePeriod(req.query);
+    if (!p) throw new HttpError(400, 'Période invalide (année, trimestre 1 à 4 ou mois 1 à 12).');
+    return p;
+  };
+  const scoreRow = (e, card) => ({
+    employee_id: e.id, matricule: e.matricule, name: `${e.last_name} ${e.first_name}`, job_title: e.job_title, department: e.department,
+    objectives: card.objectives, lines: card.lines, score: card.score, achieved: card.achieved, late: card.late,
+  });
 
-  /** Campagne de l'année : objectifs et entretien de chaque employé (service RH) ou de l'équipe (responsable). */
+  /** Campagne de la période : objectifs et entretien de chaque employé (service RH) ou de l'équipe (responsable). */
   r.get('/objectives', ah(async (req, res) => {
-    const year = yearOf(req.query.year);
+    const P = periodOf(req);
     const q = db('employees').where({ active: true }).orderBy(['last_name', 'first_name']);
     if (!req.can('rh:read')) {
       const me = await myEmployee(req);
       q.where({ manager_id: me.id });
     }
     const people = (await q).map(rh.normEmployee);
-    const reviews = await db('hr_reviews').where({ year });
+    const reviews = await db('hr_reviews').where({ year: P.year });
     const out = [];
-    for (const e of people) {
-      const card = await performance.scorecard(db, e, year);
-      out.push({
-        employee_id: e.id, matricule: e.matricule, name: `${e.last_name} ${e.first_name}`, job_title: e.job_title, department: e.department,
-        objectives: card.objectives, score: card.score, achieved: card.achieved, late: card.late, review: reviews.find(v => v.employee_id === e.id) || null,
-      });
-    }
-    res.json({ year, rows: out });
+    const ctx = {};
+    for (const e of people) out.push({ ...scoreRow(e, await performance.scorecard(db, e, P, ctx)), review: reviews.find(v => v.employee_id === e.id) || null });
+    res.json({ year: P.year, period: P, rows: out });
   }));
 
   /** Performance par service (service RH : toute l'entreprise ; responsable : son équipe). */
   r.get('/performance', ah(async (req, res) => {
-    const year = yearOf(req.query.year);
+    const P = periodOf(req);
     let ids = null;
     if (!req.can('rh:read')) {
       const me = await myEmployee(req);
       ids = await db('employees').where({ manager_id: me.id }).pluck('id');
       if (!ids.length) throw new HttpError(403, 'Droits insuffisants.');
     }
-    res.json(await performance.departmentReport(db, year, { employeeIds: ids }));
+    res.json(await performance.departmentReport(db, P, { employeeIds: ids }));
   }));
 
-  /** Indicateurs individuels de l'année (dossier, Mon espace), regroupés par famille selon le service. */
+  /** Indicateurs individuels de la période (dossier, Mon espace), regroupés par famille selon le service. */
   r.get('/employees/:id/indicators', ah(async (req, res) => {
     const e = await rh.getEmployee(db, idParam(req));
     await access(req, e);
-    const year = yearOf(req.query.year);
-    const card = await performance.scorecard(db, e, year, { withIndicators: true });
-    res.json({ year, score: card.score, achieved: card.achieved, late: card.late, objectives: card.objectives.length, groups: performance.indicatorGroups(e, card.values) });
+    const P = periodOf(req);
+    const card = await performance.scorecard(db, e, P, { withIndicators: true });
+    res.json({ year: P.year, period: P, score: card.score, achieved: card.achieved, late: card.late, objectives: card.objectives.filter(o => o.status !== 'abandonne').length, groups: performance.indicatorGroups(e, card.values) });
+  }));
+
+  /** Objectifs d'un employé sur une période (lignes du score et objectifs un par un). */
+  r.get('/employees/:id/objectives', ah(async (req, res) => {
+    const e = await rh.getEmployee(db, idParam(req));
+    const level = await access(req, e);
+    const P = periodOf(req);
+    const card = await performance.scorecard(db, e, P);
+    res.json({ ...scoreRow(e, card), period: P, access: level, has_account: !!e.user_id, has_project: !!e.project_id });
   }));
 
   /**
@@ -440,10 +459,16 @@ module.exports = function rhRoutes(db) {
     const e = await rh.getEmployee(db, idParam(req));
     await canCoach(req, e);
     const data = parse(objectiveSchema, req.body);
+    // Indicateur du référentiel (ou, pour un appel qui ne donne que le calcul, l'indicateur de ce calcul)
+    if (!data.kpi_id && data.metric && data.metric !== 'manuel') data.kpi_id = (await db('hr_kpis').where({ metric: data.metric }).first('id'))?.id || null;
+    if (data.kpi_id) data.metric = (await kpiService.kpiFor(db, data.kpi_id, 'individuel')).metric;
+    else data.metric = 'manuel';
+    data.period_index = kpiService.checkPeriod(data.period, data.period_index ?? null);
     const metric = OBJECTIVE_METRICS[data.metric];
     if (metric.needs === 'user' && !e.user_id) throw new HttpError(400, `${metric.label} : reliez d’abord la fiche au compte du dashboard de l’employé.`);
     if (metric.needs === 'project' && !e.project_id) throw new HttpError(400, `${metric.label} : affectez d’abord l’employé à un programme.`);
     if (data.metric !== 'manuel' && data.target_value == null) throw new HttpError(400, 'Indiquez la valeur cible de l’indicateur.');
+    if (!data.due_date) data.due_date = periodRange(data.year, data.period, data.period_index).to;
     const [id] = await db('hr_objectives').insert({ ...data, employee_id: e.id, created_by: req.user.id });
     if (data.metric === 'manuel' && data.progress) await db('hr_objective_checkins').insert({ objective_id: insertedId(id), date: new Date().toISOString().slice(0, 10), progress: data.progress, user_id: req.user.id });
     res.status(201).json(await db('hr_objectives').where({ id: insertedId(id) }).first());
@@ -452,9 +477,12 @@ module.exports = function rhRoutes(db) {
     const o = await db('hr_objectives').where({ id: idParam(req) }).first();
     if (!o) throw new HttpError(404, 'Objectif introuvable.');
     await canCoach(req, await rh.getEmployee(db, o.employee_id));
-    const data = parse(objectiveSchema.partial().omit({ year: true }), req.body);
+    // Indicateur et période fixés à la création ; cible ou poids changés à la main : l'objectif n'est plus repris par le modèle
+    const data = parse(objectiveSchema.partial().omit({ year: true, kpi_id: true, metric: true, period: true, period_index: true }), req.body);
+    const changed = (data.target_value !== undefined && (data.target_value ?? null) !== (o.target_value == null ? null : Number(o.target_value))) || (data.weight !== undefined && data.weight !== o.weight);
+    if (o.metric !== 'manuel' && data.target_value === null) throw new HttpError(400, 'Indiquez la valeur cible de l’indicateur.');
     await db.transaction(async trx => {
-      await trx('hr_objectives').where({ id: o.id }).update({ ...data, updated_at: new Date() });
+      await trx('hr_objectives').where({ id: o.id }).update({ ...data, ...(changed ? { adjusted: true } : {}), updated_at: new Date() });
       // Point d'avancement du jour (un seul par jour) : il trace la courbe des objectifs suivis à la main
       if (data.progress != null && data.progress !== Number(o.progress) && (data.metric || o.metric) === 'manuel') {
         const date = new Date().toISOString().slice(0, 10);

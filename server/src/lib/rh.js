@@ -37,6 +37,8 @@ const DEFAULT_RH = {
     telecom: { label: 'Téléphone, internet', account: '628' }, autre: { label: 'Autre dépense', account: '638' },
   },
   expense_payable_account: '422100',
+  // Score d'un service : part de ses objectifs collectifs, le reste pour la moyenne de ses employés (choix du client du 27/10)
+  service_collective_pct: 50,
 };
 
 const EXPENSE_STATUSES = {
@@ -147,7 +149,58 @@ const OBJECTIVE_METRICS = {
   presence: { label: 'Taux de présence', group: 'Assiduité et formation', unit: 'pct' },
   absences: { label: 'Jours d’absence non planifiée', group: 'Assiduité et formation', unit: 'jours', lower: true, cumul: true },
   formation_heures: { label: 'Heures de formation suivies', group: 'Assiduité et formation', unit: 'heures', cumul: true },
+  // Services support (demande du client du 27/10, docs/cadrage-kpi-referentiels.md). level « service » : mesuré sur le
+  // service entier (pas d'objectif individuel). Les stocks (contentieux, garanties, entretiens) sont lus à la fin de la période.
+  cpt_ecritures: { label: 'Écritures comptables validées', group: 'Comptabilité', unit: 'nombre', needs: 'user', cumul: true },
+  cpt_delai_valid: { label: 'Délai moyen de validation des écritures', group: 'Comptabilité', unit: 'jours', needs: 'user', lower: true },
+  cpt_cloture: { label: 'Clôtures mensuelles faites à temps', group: 'Comptabilité', unit: 'pct', level: 'service' },
+  cpt_fourn_echeance: { label: 'Factures fournisseurs réglées à l’échéance', group: 'Comptabilité', unit: 'pct', level: 'service' },
+  cpt_fourn_retard: { label: 'Retard moyen de règlement des fournisseurs', group: 'Comptabilité', unit: 'jours', level: 'service', lower: true },
+  cpt_paie_a_temps: { label: 'Paies validées avant la fin du mois', group: 'Comptabilité', unit: 'pct', level: 'service' },
+  jur_contentieux_clos: { label: 'Contentieux clos', group: 'Juridique', unit: 'nombre', needs: 'user', cumul: true },
+  jur_sans_echeance: { label: 'Contentieux ouverts sans prochaine échéance', group: 'Juridique', unit: 'nombre', needs: 'user', lower: true },
+  jur_garanties_echues: { label: 'Garanties échues non traitées', group: 'Juridique', unit: 'nombre', needs: 'user', lower: true },
+  jur_delai_acte: { label: 'Délai moyen de la réservation à la remise de l’acte', group: 'Juridique', unit: 'jours', level: 'service', lower: true },
+  jur_actes_remis: { label: 'Actes remis aux acquéreurs', group: 'Juridique', unit: 'nombre', level: 'service', cumul: true },
+  adm_courriers_delai: { label: 'Courriers traités dans le délai', group: 'Administration générale', unit: 'pct', needs: 'user' },
+  adm_courriers_duree: { label: 'Délai moyen de traitement des courriers', group: 'Administration générale', unit: 'jours', needs: 'user', lower: true },
+  adm_demandes_ok: { label: 'Demandes internes traitées', group: 'Administration générale', unit: 'nombre', needs: 'user', cumul: true },
+  adm_demandes_duree: { label: 'Délai moyen de traitement des demandes internes', group: 'Administration générale', unit: 'jours', needs: 'user', lower: true },
+  adm_actions_delai: { label: 'Actions des documents internes faites à temps', group: 'Administration générale', unit: 'pct', needs: 'user' },
+  adm_parc_entretiens: { label: 'Entretiens du parc à jour', group: 'Administration générale', unit: 'pct', level: 'service' },
 };
+
+// ─── Référentiel KPI et périodes des objectifs ──────────────────
+// Niveau d'un indicateur du référentiel : objectif d'un employé, objectif collectif d'un service, ou les deux
+const KPI_LEVELS = { tous: 'Employé et service', individuel: 'Employé seulement', service: 'Service seulement' };
+const OBJECTIVE_PERIODS = { annee: 'Année', trimestre: 'Trimestre', mois: 'Mois' };
+const PERIOD_COUNT = { annee: 1, trimestre: 4, mois: 12 };
+const MONTH_NAMES = ['janvier', 'février', 'mars', 'avril', 'mai', 'juin', 'juillet', 'août', 'septembre', 'octobre', 'novembre', 'décembre'];
+// Cibles mensuelles du Commercial › Objectifs (source unique avec les objectifs RH, choix du client du 27/10)
+const SALES_TARGET_METRICS = ['ca_fcfa', 'ventes', 'rdv', 'encaissements_fcfa'];
+
+/** Bornes d'une période d'objectif (dates AAAA-MM-JJ incluses). */
+function periodRange(year, period = 'annee', index = null) {
+  if (period === 'mois') return { from: ymd(new Date(Date.UTC(year, index - 1, 1))), to: ymd(new Date(Date.UTC(year, index, 0))) };
+  if (period === 'trimestre') return { from: ymd(new Date(Date.UTC(year, (index - 1) * 3, 1))), to: ymd(new Date(Date.UTC(year, index * 3, 0))) };
+  return { from: `${year}-01-01`, to: `${year}-12-31` };
+}
+function periodLabel(year, period = 'annee', index = null) {
+  if (period === 'mois') return `${MONTH_NAMES[index - 1]} ${year}`;
+  if (period === 'trimestre') return `${index}${index === 1 ? 'er' : 'e'} trimestre ${year}`;
+  return `année ${year}`;
+}
+/** Période demandée par un écran (?annee=2026&periode=mois&n=10) ; à défaut l'année en cours. */
+function parsePeriod(q = {}, now = new Date()) {
+  const year = Number(q.annee || q.year) || now.getUTCFullYear();
+  const period = OBJECTIVE_PERIODS[q.periode] ? q.periode : 'annee';
+  const index = period === 'annee' ? null : Number(q.n);
+  if (year < 2000 || year > 2100) return null;
+  if (period !== 'annee' && !(Number.isInteger(index) && index >= 1 && index <= PERIOD_COUNT[period])) return null;
+  return { year, period, index, ...periodRange(year, period, index), label: periodLabel(year, period, index) };
+}
+/** Même période un an plus tôt (comparaison des scores). */
+const previousPeriod = p => ({ ...p, year: p.year - 1, ...periodRange(p.year - 1, p.period, p.index), label: periodLabel(p.year - 1, p.period, p.index) });
 
 /** Atteinte d'un objectif chiffré (0 à 100 %), selon le sens de l'indicateur. */
 function attainment(metric, actual, target) {
@@ -380,6 +433,7 @@ function checkRh(s) {
   if (!(s.hourly_divisor > 0)) errors.push('Diviseur du taux horaire positif.');
   if (!s.overtime_tiers.length || s.overtime_tiers[s.overtime_tiers.length - 1][0] != null) errors.push('La dernière tranche d’heures supplémentaires est sans limite.');
   for (const [, c] of Object.entries(s.expense_categories || {})) if (!c.label || !/^\d{2,12}$/.test(c.account || '')) errors.push('Chaque catégorie de frais a un libellé et un compte.');
+  if (!(s.service_collective_pct >= 0 && s.service_collective_pct <= 100)) errors.push('Part des objectifs collectifs entre 0 et 100 %.');
   return [...new Set(errors)];
 }
 
@@ -387,4 +441,5 @@ module.exports = {
   DEFAULT_RH, LEAVE_TYPES, PERMISSION_EVENTS, LEAVE_STATUSES, LEAVE_ACTIVE, DOCUMENT_KINDS, CAREER_EVENTS, POSITION_CHANGE_REASONS, OBJECTIVE_STATUSES, OBJECTIVE_METRICS, REVIEW_RATINGS,
   EXPENSE_STATUSES, ATTENDANCE_SOURCES, RECRUIT_STAGES, RECRUIT_SOURCES, REFUSE_REASONS, JOB_STATUSES, RESUME_KINDS, TRAINING_STATUSES,
   easter, fixedHolidays, countDays, yearsOfService, annualBonus, leaveBalance, annualEntitlement, checkRh, addDays, chunks, withoutBreak, computeOvertime, attainment,
+  KPI_LEVELS, OBJECTIVE_PERIODS, PERIOD_COUNT, MONTH_NAMES, SALES_TARGET_METRICS, periodRange, periodLabel, parsePeriod, previousPeriod,
 };

@@ -156,18 +156,20 @@ async function sellers(db) {
   return db('users').where({ active: true }).where(q => q.whereIn('role', roles).orWhereIn('role', ['commercial', 'super_admin'])).orderBy('name').select('id', 'name', 'role');
 }
 
-/** Objectifs du mois et réalisé, par commercial. */
+/**
+ * Objectifs du mois et réalisé, par commercial. Les cibles sont les objectifs mensuels de sa fiche du personnel (source
+ * unique avec RH › Performance, choix du client du 27/10) : un compte sans fiche n'a pas de cible (`employee_id` nul).
+ */
 async function targetsReport(db, month) {
   const { from, to } = monthRange(month);
-  const [people, targets] = await Promise.all([sellers(db), db('sales_targets').where({ month })]);
-  const tBy = Object.fromEntries(targets.map(t => [t.user_id, t]));
+  const people = await sellers(db);
+  const targets = await require('./kpi').salesTargets(db, month, people);
   const rows = [];
   for (const u of people) {
-    const t = tBy[u.id] || {};
+    const { target, employee_id } = targets[u.id];
     const done = await achieved(db, { from, to, userId: u.id });
-    const target = { ca_fcfa: t.ca_fcfa == null ? null : Number(t.ca_fcfa), ventes: t.ventes ?? null, rdv: t.rdv ?? null, encaissements_fcfa: t.encaissements_fcfa == null ? null : Number(t.encaissements_fcfa) };
     const pct = k => (target[k] ? Math.round((done[k] / target[k]) * 1000) / 10 : null);
-    rows.push({ user_id: u.id, name: u.name, role: u.role, target, done, pct: { ca_fcfa: pct('ca_fcfa'), ventes: pct('ventes'), rdv: pct('rdv'), encaissements_fcfa: pct('encaissements_fcfa') } });
+    rows.push({ user_id: u.id, name: u.name, role: u.role, employee_id, target, done, pct: { ca_fcfa: pct('ca_fcfa'), ventes: pct('ventes'), rdv: pct('rdv'), encaissements_fcfa: pct('encaissements_fcfa') } });
   }
   return { month, rows };
 }

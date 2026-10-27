@@ -107,6 +107,8 @@ const DEFAULT_SETTINGS = {
   vat_sales_rate: 0,
   vat_purchases_rate: 18,
   auto_validate: false,
+  // Clôture mensuelle : période verrouillée au plus tard ce jour du mois suivant (indicateur RH › Performance, choix du client du 27/10)
+  close_day: 10,
   accounts: {
     client: '4111', client_advance: '4191', supplier: '4011', vat_collected: '4431', vat_deductible: '4452',
     sale_housing: '702110', sale_land: '702120', expense_default: '621100', opening_balance: '471',

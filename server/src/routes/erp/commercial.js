@@ -433,10 +433,8 @@ module.exports = function commercialRoutes(db) {
       rdv: z.number().int().min(0).nullable().optional(), encaissements_fcfa: z.number().int().min(0).nullable().optional(),
     }), req.body);
     if (!(await db('users').where({ id: data.user_id }).first())) throw new HttpError(404, 'Utilisateur introuvable.');
-    const row = { ...data, set_by: req.user.id, updated_at: new Date() };
-    const existing = await db('sales_targets').where({ user_id: data.user_id, month: data.month }).first();
-    if (existing) await db('sales_targets').where({ id: existing.id }).update(row);
-    else await db('sales_targets').insert(row);
+    // Objectifs mensuels de la fiche du personnel du commercial (même source que RH › Performance)
+    await require('../../services/kpi').setSalesTarget(db, data, req.user);
     res.json(await cm.targetsReport(db, data.month));
   }));
 
