@@ -1,6 +1,6 @@
 # KPI — référentiels, objectifs de service et indicateurs des services support
 
-État au 27 octobre 2026 : **proposition à valider par le client, rien n'est développé.** À traiter après la recette d'Achats & stocks (un seul chantier à la fois).
+État au 27 octobre 2026 : **choix du client reçus (voir « Choix du client »), point 5 en attente de son accord ; rien n'est développé.** À traiter après la recette d'Achats & stocks (un seul chantier à la fois).
 
 ## Demande du client (27/10)
 
@@ -73,11 +73,11 @@ Raison : objectifs, entretiens, scores, postes et services sont déjà tous dans
 
 Droit d'accès proposé : un privilège dédié **`kpi:write`** (gérer le référentiel et les modèles), donné par défaut au service RH et à la Direction ; le responsable d'un service ajuste les cibles de son équipe.
 
-## Questions au client
+## Choix du client (27/10)
 
-1. Emplacement : RH (recommandé) ou Administration générale ?
-2. Qui gère le référentiel : RH seul, RH + Direction, ou chaque responsable pour son service ?
-3. Score d'un service : part des objectifs collectifs et part de la moyenne des employés (50 / 50 ?).
-4. Période des cibles : annuelle seulement, ou aussi mensuelle / trimestrielle comme les cibles commerciales ?
-5. Cibles commerciales mensuelles (Commercial › Objectifs) : les garder à part, ou les faire entrer dans les modèles ?
-6. Le jour limite de la clôture mensuelle (ex. le 10) : à régler dans Comptabilité › Réglages ?
+1. **Emplacement : ERP › RH.** Onglet « Référentiel KPI » dans RH › Objectifs ; objectifs de service dans RH › Performance ; aucun menu en plus.
+2. **Gestion : le service RH avec la Direction générale.** Privilège `kpi:write` donné par défaut à ces deux rôles ; il n'est pas donné d'office aux responsables de service.
+3. **Score d'un service : 50 % objectifs collectifs, 50 % moyenne des employés**, réglable dans RH › Réglages. Sans objectif collectif, le score reste la moyenne des employés (comme aujourd'hui).
+4. **Toutes les périodes (mois, trimestre, année), avec filtre** sur les écrans d'objectifs, de performance et la Vue Direction. Règle de cumul (choix technique) : pour un indicateur cumulable (ventes, CA, heures…), la cible et le réalisé d'un trimestre ou d'une année sont la somme des mois ; pour un taux, un délai ou une note, c'est la moyenne sur la période.
+5. **Cibles commerciales mensuelles : proposition en attente de l'accord du client** — une seule source. Les cibles saisies dans Commercial › Objectifs deviennent des objectifs mensuels du même système (indicateurs CA signé, ventes, RDV réalisés, encaissements). L'écran Commercial › Objectifs reste tel quel pour le directeur commercial (saisie du mois, réalisé, portefeuille) et lit / écrit ces mêmes objectifs ; le score RH des commerciaux en découle sans double saisie. Les cibles déjà saisies (table `sales_targets`) sont reprises par migration ; le directeur commercial garde le droit de fixer les cibles mensuelles de son équipe (privilège existant `targets:write`) sans avoir `kpi:write`.
+6. **Jour limite de la clôture mensuelle : Comptabilité › Réglages** (réglage du module qui porte la règle, comme les autres réglages de la Comptabilité), valeur par défaut le 10.
