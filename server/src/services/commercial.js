@@ -223,10 +223,8 @@ async function dashboard(db, user, now = new Date()) {
     const c = cards.filter(x => x.stage === st);
     return { stage: st, label: STAGE_LABELS[st], n: c.length, value_fcfa: c.reduce((s, x) => s + (x.expected_revenue_fcfa || 0), 0), weighted_fcfa: c.reduce((s, x) => s + x.weighted_fcfa, 0) };
   });
-  // Mêmes filtres que la liste « Mes activités » (prospects perdus exclus) : l'équipe visible, et les siennes (pastille du menu)
-  const late = () => scopeLeads(db('lead_activities as a').join('leads as ld', 'ld.id', 'a.lead_id'), user)
-    .whereNull('a.done_at').whereNot('ld.stage', 'perdu').where('a.due_at', '<', new Date(now.getFullYear(), now.getMonth(), now.getDate()));
-  const [lateActs, myLateActs] = await Promise.all([late().count({ n: '*' }), late().where('a.assigned_to', user.id).count({ n: '*' })]);
+  const lateActs = await scopeLeads(db('lead_activities as a').join('leads as ld', 'ld.id', 'a.lead_id'), user)
+    .whereNull('a.done_at').where('a.due_at', '<', new Date(now.getFullYear(), now.getMonth(), now.getDate())).count({ n: '*' });
 
   // Appels de fonds VEFA en retard (échéance dépassée et non couverte par les versements)
   const vefaSales = await scopeLeads(db('sales as s').join('leads as ld', 'ld.id', 's.lead_id'), user).where('s.vefa', true).whereIn('s.status', ['en_cours', 'solde']).select('s.*');
@@ -241,8 +239,6 @@ async function dashboard(db, user, now = new Date()) {
     pipeline_weighted_fcfa: stages.reduce((s, x) => s + x.weighted_fcfa, 0),
     open_leads: cards.length,
     late_activities: Number(lateActs[0].n),
-    my_late_activities: Number(myLateActs[0].n),
-    team_scope: seesAllLeads(user),
     late_fund_calls: { n: lateCalls, amount_fcfa: lateCallsFcfa },
     sources: Object.fromEntries(sources.map(s => [s.source, Number(s.n)])),
     lost_reasons: Object.fromEntries(lost.map(l => [l.lost_reason, Number(l.n)])),

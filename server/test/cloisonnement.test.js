@@ -160,3 +160,23 @@ test('privilèges détaillés : chaque action se coche à part ; un ancien privi
   assert.ok(!perms.includes('leads:write'));
   for (const p of ['leads:create', 'leads:edit', 'leads:transfer']) assert.ok(perms.includes(p), p);
 });
+
+test('la Comptabilité ajuste un versement déclaré avant de le confirmer, ou en saisit un directement ; le commercial est prévenu', async () => {
+  const sale = await db('sales').where({ lead_id: leadB.id }).first();
+  const sellerBId = (await db('users').where({ email: 'vendeur.b@test.ci' }).first()).id;
+  let res = await sellerB.post(`/api/admin/sales/${sale.id}/payments`).send({ amount_fcfa: 2000000, paid_at: '2026-10-22', method: 'especes' });
+  const d = res.body.declarations.find(x => x.status === 'a_confirmer');
+  const before = Number(res.body.paid_fcfa);
+  res = await comptable.post(`/api/admin/payment-declarations/${d.id}/confirm`).send({ amount_fcfa: 1800000, method: 'virement', reference: 'RELEVE-22' });
+  assert.equal(res.status, 200, JSON.stringify(res.body));
+  assert.equal(res.body.paid_fcfa, before + 1800000, 'montant ajusté retenu');
+  const p = res.body.payments.find(x => x.reference === 'RELEVE-22');
+  assert.equal(p.method, 'virement');
+  assert.equal(Number((await db('payment_declarations').where({ id: d.id }).first()).amount_fcfa), 2000000, 'la déclaration reste telle que saisie');
+  const n = await db('notifications').where({ user_id: sellerBId, event: 'vente.versement' }).orderBy('id', 'desc').first();
+  assert.match(n.body, /ajusté : déclaré 2 ?000 ?000|ajusté/);
+  // Saisie directe : le commercial est prévenu
+  res = await comptable.post(`/api/admin/sales/${sale.id}/payments`).send({ amount_fcfa: 100000, paid_at: '2026-10-23', method: 'especes', reference: 'CAISSE-1' });
+  assert.equal(res.status, 201);
+  assert.ok(await db('notifications').where({ user_id: sellerBId, event: 'vente.versement' }).where('title', 'like', '%Versement reçu%').first());
+});

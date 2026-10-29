@@ -215,8 +215,8 @@ module.exports = function salesRoutes(db) {
     await inform(db, 'vente.versement', {
       direct: [info.assigned_to, declaration?.declared_by].filter(Boolean), except: user.id, key: `versement:${pid}`,
       title: `${declaration ? 'Versement confirmé' : 'Versement reçu'} : ${info.client_name} — ${Number(data.amount_fcfa).toLocaleString('fr-FR')} FCFA`,
-      body: `${info.project_name}, lot ${info.lot_code} · le ${paidAt.toLocaleDateString('fr-FR')}${declaration ? ' · réception des fonds confirmée par la Comptabilité' : ''}`,
-      link: '/commercial/ventes', links: { compta: '/compta' },
+      body: `${info.project_name}, lot ${info.lot_code} · le ${paidAt.toLocaleDateString('fr-FR')}${declaration ? ` · réception des fonds confirmée par la Comptabilité${declaration.adjusted ? ` (ajusté${declaration.adjusted_from !== Number(data.amount_fcfa) ? ` : déclaré ${declaration.adjusted_from.toLocaleString('fr-FR')} FCFA` : ''})` : ''}` : ''}`,
+      link: '/commercial/ventes', links: { compta: '/compta/ecritures' },
     });
     return pid;
   };
@@ -236,7 +236,7 @@ module.exports = function salesRoutes(db) {
       except: req.user.id, key: `declaration:${typeof dId === 'object' ? dId.id : dId}`,
       title: `Versement à confirmer : ${info.client_name} — ${data.amount_fcfa.toLocaleString('fr-FR')} FCFA`,
       body: `${info.project_name}, lot ${info.lot_code} · déclaré par ${req.user.name}, payé le ${data.paid_at.toLocaleDateString('fr-FR')} (${data.method})`,
-      link: '/compta',
+      link: '/compta/ecritures',
     });
     res.status(201).json(await saleDetail(sale));
   }));
@@ -263,11 +263,16 @@ module.exports = function salesRoutes(db) {
   // Réception des fonds confirmée : le versement entre dans le dossier (solde, espace client, reçu, comptabilité)
   r.post('/payment-declarations/:id/confirm', requirePermission('payments:write'), ah(async (req, res) => {
     const d = await pendingDeclaration(req);
-    const fix = parse(z.object({ paid_at: day.optional(), reference: z.string().trim().max(120).optional() }), req.body || {});
+    // La Comptabilité ajuste au besoin d'après le relevé ou la caisse ; la déclaration du commercial reste telle quelle
+    const fix = parse(paymentSchema.partial().extend({ reference: z.string().trim().max(120).optional(), note: z.string().trim().max(255).optional() }), req.body || {});
     const sale = await db('sales').where({ id: d.sale_id }).first();
-    await checkRemaining(sale, Number(d.amount_fcfa), d.id);
-    const data = { amount_fcfa: Number(d.amount_fcfa), paid_at: fix.paid_at || d.paid_at, method: d.method, reference: fix.reference ?? d.reference, note: d.note };
-    await recordPayment(sale, data, req.user, d);
+    const data = {
+      amount_fcfa: fix.amount_fcfa ?? Number(d.amount_fcfa), paid_at: fix.paid_at || d.paid_at, method: fix.method || d.method,
+      reference: fix.reference !== undefined ? fix.reference || null : d.reference, note: fix.note !== undefined ? fix.note || null : d.note,
+    };
+    await checkRemaining(sale, data.amount_fcfa, d.id);
+    const adjusted = data.amount_fcfa !== Number(d.amount_fcfa) || isoDay(data.paid_at) !== isoDay(d.paid_at) || data.method !== d.method;
+    await recordPayment(sale, data, req.user, { ...d, adjusted_from: adjusted ? Number(d.amount_fcfa) : null, adjusted });
     res.json(await saleDetail(await db('sales').where({ id: d.sale_id }).first()));
   }));
 

@@ -6,6 +6,7 @@ import { useAuth, useResource, useToast, useSaved } from '@admin/lib/app-context
 import { Card, Empty, Skeleton, ErrorBox, Drawer, Modal, Field, Badge, Pagination } from '@admin/components/ui';
 import { date, dateTime } from '@admin/lib/format';
 import { useComptaMeta, amt, STATUS, SOURCES, AccountInput } from '../../lib/compta';
+import { PendingPayments, ClientPaymentButton } from './ClientPayments';
 
 export default function Entries() {
   const { can } = useAuth();
@@ -66,12 +67,15 @@ export default function Entries() {
           <input className="input" type="date" style={{ width: 'auto' }} value={filters.to} onChange={e => set('to', e.target.value)} aria-label="Au" />
         </div>
         <div className="row">
+          {/* Versement d'un client : enregistré dans son dossier, puis passé en écriture par « Synchroniser » */}
+          <ClientPaymentButton />
           {can('compta:entries') && <button className="btn" onClick={sync}><RefreshCw />Synchroniser</button>}
           {can('compta:validate') && selected.length > 0 && <button className="btn btn-primary" onClick={() => validate(selected)}><CheckCheck />Valider {selected.length}</button>}
           {can('compta:entries') && <button className="btn btn-primary" onClick={() => setCreating(true)}><Plus />Écriture</button>}
         </div>
       </div>
       <ErrorBox error={list.error} />
+      <PendingPayments />
       <Card bodyClass="">
         {!list.data ? <div className="card-body"><Skeleton h={260} /></div> : !rows.length ? <div className="card-body"><Empty icon={BookOpen}>Aucune écriture.</Empty></div> : (
           <>

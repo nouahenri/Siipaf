@@ -43,7 +43,7 @@ export default function CommercialDashboard() {
       </div>
       <div className="grid grid-3">
         <Kpi icon={Percent} label="Taux de conversion" count={c.conversion_pct ?? null} format={v => `${v} %`} foot="prospects du mois passés au paiement ou au-delà" />
-        <Kpi icon={ListTodo} label="Activités en retard" count={d.late_activities} foot={d.team_scope ? 'relances et rappels de l’équipe' : 'relances et rappels à faire'} to={d.team_scope ? '/commercial/activites?portee=equipe' : '/commercial/activites'} tint={d.late_activities ? 'amber' : undefined} />
+        <Kpi icon={ListTodo} label="Activités en retard" count={d.late_activities} foot="relances et rappels à faire" to="/commercial/activites" tint={d.late_activities ? 'amber' : undefined} />
         <Kpi icon={AlarmClock} label="Appels de fonds en retard" count={d.late_fund_calls.n} foot={d.late_fund_calls.n ? `${fcfa(d.late_fund_calls.amount_fcfa)} à recouvrer` : 'aucun impayé VEFA'} to="/commercial/vefa?filter=retard" tint={d.late_fund_calls.n ? 'amber' : undefined} />
       </div>
 
