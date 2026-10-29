@@ -89,7 +89,7 @@ function AdminHome() {
   if (can('direction:read')) return <Direction />;
   const first = [
     [['courrier:read', 'courrier:write', 'courrier:assign'], '/administration/courrier'], [['contrats:read', 'contrats:write'], '/administration/contrats'],
-    [['parc:read', 'parc:write'], '/administration/parc'], [['demandes:handle', 'demandes:dg'], '/administration/demandes'], [['docs:publish'], '/administration/documents'], [['lieux:write'], '/administration/lieux'],
+    [['parc:read', 'parc:write'], '/administration/parc'], [['demandes:handle', 'demandes:dg', 'appro:validate', 'appro:direction'], '/administration/demandes'], [['docs:publish'], '/administration/documents'], [['lieux:write'], '/administration/lieux'],
     [['circuit:write'], '/administration/circuit'],
   ].find(([perms]) => perms.some(can));
   return <Navigate to={first ? first[1] : '/administration/courrier'} replace />;

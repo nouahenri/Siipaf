@@ -8,6 +8,7 @@ import { date, dateTime, fcfa } from '@admin/lib/format';
 import { today } from '../../lib/rh';
 import { REQUEST_TONES } from '../../components/MyRequests';
 import { placeLabel } from '../../components/PlacePicker';
+import OrdersToValidate from '../../components/OrdersToValidate';
 
 const URL = '/admin/erp/demandes';
 
@@ -20,19 +21,20 @@ export default function Demandes() {
   const { can } = useAuth();
   const handle = can('demandes:handle');
   const [params, setParams] = useSearchParams();
+  const deciding = can(['appro:validate', 'appro:direction']); // bons de commande soumis par les Achats
   const [scope, setScope] = useState(handle ? 'handle' : 'approve');
-  const list = useResource(`${URL}${qs({ scope })}`);
+  const list = useResource(scope === 'commandes' ? null : `${URL}${qs({ scope })}`);
   const refs = useResource(`${URL}/refs`);
   const open = Number(params.get('fiche')) || null;
   const setOpen = id => setParams(id ? { fiche: String(id) } : {}, { replace: true });
-  const tabs = [handle && ['handle', 'À traiter'], ['approve', 'À valider par moi'], (handle || can('demandes:dg')) && ['all', 'Toutes']].filter(Boolean);
+  const tabs = [handle && ['handle', 'À traiter'], ['approve', 'À valider par moi'], deciding && ['commandes', 'Commandes à valider (Achats)'], (handle || can('demandes:dg')) && ['all', 'Toutes']].filter(Boolean);
   return (
     <div className="stack">
       <div className="row-between">
         <div className="seg" role="group" aria-label="Affichage">{tabs.map(([k, l]) => <button key={k} className={scope === k ? 'active' : ''} onClick={() => setScope(k)}>{l}</button>)}</div>
         {refs.data && <span className="small muted">Validation de la DG à partir de {fcfa(refs.data.threshold)} (Paramètres › Général du dashboard)</span>}
       </div>
-      <Card bodyClass="">
+      {scope === 'commandes' ? <OrdersToValidate /> : <Card bodyClass="">
         <ErrorBox error={list.error} />
         {!list.data ? <div className="card-body"><Skeleton h={220} /></div> : !list.data.length ? (
           <div className="card-body"><Empty icon={Inbox}>{scope === 'approve' ? 'Aucune demande à valider.' : scope === 'handle' ? 'Aucune demande à traiter.' : 'Aucune demande.'} Les employés demandent depuis RH › Mon espace.</Empty></div>
@@ -51,7 +53,7 @@ export default function Demandes() {
             ))}</tbody>
           </table></div>
         )}
-      </Card>
+      </Card>}
       {open && refs.data && <RequestDrawer id={open} refs={refs.data} onClose={() => setOpen(null)} onChange={list.reload} />}
     </div>
   );

@@ -28,10 +28,12 @@ module.exports = function directionRoutes(db) {
       courrier.badges(db, await courrier.viewer(db, req.user, can)), contracts.badges(db, { userId: req.user.id, can }), parc.badges(db, { userId: req.user.id, can }),
       requests.badges(db, { userId: req.user.id, can, superAdmin: req.user.role === 'super_admin' }), docs.scopeOf(db, req.user, can),
     ]);
+    // Bons de commande soumis par les Achats qui attendent la décision de ce compte (Demandes internes › Commandes à valider)
+    const orders = (await require('../../services/appro').ordersToValidate(db, { userId: req.user.id, can, superAdmin: req.user.role === 'super_admin' })).length;
     res.json({
       ...mail, contracts_due: ctr.due, contracts_late: ctr.late, contracts_owned: ctr.owned,
       parc_count: assets.late + assets.requests, parc_due: assets.due, parc_late: assets.late, parc_requests: assets.requests,
-      requests_count: req2.to_approve + req2.to_handle, requests_to_approve: req2.to_approve, requests_to_handle: req2.to_handle,
+      requests_count: req2.to_approve + req2.to_handle + orders, requests_to_approve: req2.to_approve + orders, requests_to_handle: req2.to_handle, orders_to_validate: orders,
       docs_can_publish: docs.canPublish(scope),
     });
   }));

@@ -44,7 +44,12 @@ test('demande d’achat d’un service : Achats › Besoins, commande, livraison
   // Validation (circuit existant) : la demande passe « Commandée », le demandeur est prévenu
   await db('appro_orders').where({ id: order.id }).update({ approver_id: ids.conducteur_travaux });
   ok(await comptable.post(`${A}/orders/${order.id}/submit`));
-  ok(await conducteur.post(`${A}/orders/${order.id}/approve`));
+  // Le validateur voit la commande dans Administration générale › Demandes internes et la valide depuis là
+  const pending = ok(await conducteur.get('/api/admin/erp/demandes/commandes'));
+  assert.ok(pending.some(o => o.id === order.id));
+  assert.equal((await editeur.get('/api/admin/erp/demandes/commandes')).status, 403, 'sans droit de validation');
+  assert.equal((await comptable.post(`/api/admin/erp/demandes/commandes/${order.id}/valider`)).status, 403, 'l’émetteur ne valide pas sa propre commande');
+  ok(await conducteur.post(`/api/admin/erp/demandes/commandes/${order.id}/valider`));
   r = await db('internal_requests').where({ id: r.id }).first();
   assert.equal(r.status, 'commande');
   assert.equal(r.order_id, order.id);

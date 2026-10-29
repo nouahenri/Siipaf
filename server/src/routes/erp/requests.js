@@ -22,6 +22,17 @@ module.exports = function requestRoutes(db) {
     });
   }));
   r.get('/badges', ah(async (req, res) => res.json(await requests.badges(db, v(req)))));
+
+  // Bons de commande soumis par les Achats : le validateur ou la Direction les voit et décide ici aussi
+  const appro = require('../../services/appro');
+  const deciders = requirePermission('appro:validate', 'appro:direction');
+  r.get('/commandes', deciders, ah(async (req, res) => res.json(await appro.ordersToValidate(db, v(req)))));
+  r.get('/commandes/:id', deciders, ah(async (req, res) => res.json(await appro.detail(db, 'order', idParam(req)))));
+  r.post('/commandes/:id/valider', deciders, ah(async (req, res) => res.json(await appro.approveOrder(db, idParam(req), { userId: req.user.id, superAdmin: req.user.role === 'super_admin', can: req.can }))));
+  r.post('/commandes/:id/refuser', deciders, ah(async (req, res) => {
+    const { reason } = parse(z.object({ reason: z.string().trim().min(3, 'Indiquez le motif du refus.').max(255) }), req.body);
+    res.json(await appro.approveOrder(db, idParam(req), { userId: req.user.id, superAdmin: req.user.role === 'super_admin', can: req.can }, { refuse: true, reason }));
+  }));
   r.get('/', ah(async (req, res) => res.json(await requests.list(db, v(req), { scope: String(req.query.scope || 'mine'), status: req.query.status || null }))));
 
   r.post('/', requirePermission('self:demandes'), ah(async (req, res) => {

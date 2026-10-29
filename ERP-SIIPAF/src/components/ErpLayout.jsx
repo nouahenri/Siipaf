@@ -18,7 +18,7 @@ import NotificationCenter from './NotificationCenter';
 const COURRIER = ['courrier:read', 'courrier:write', 'courrier:assign'];
 const CONTRATS = ['contrats:read', 'contrats:write'];
 const PARC = ['parc:read', 'parc:write'];
-const DEMANDES = ['demandes:handle', 'demandes:dg'];
+const DEMANDES = ['demandes:handle', 'demandes:dg', 'appro:validate', 'appro:direction'];
 export const ADMIN_SHOW = b => b?.mine > 0 || b?.contracts_owned > 0 || !!b?.docs_can_publish || b?.requests_to_approve > 0;
 export const JURIDIQUE = ['juridique:read', 'juridique:write', 'direction:read'];
 export const JURIDIQUE_SHOW = b => b?.litigations_mine > 0;

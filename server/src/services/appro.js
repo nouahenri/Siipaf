@@ -138,6 +138,17 @@ function serializeDocument(d, type) {
   return { ...d, date: isoDay(d.date), needed_on: isoDay(d.needed_on), status_label: (type === 'order' ? APPRO_ORDER_STATUSES : APPRO_QUOTE_STATUSES)[d.status], vat_rate: Number(d.vat_rate),
     ...(type === 'order' ? { amount_ht: Number(d.amount_ht), amount_ttc: Number(d.amount_ttc), vat_amount: Number(d.vat_amount), approval_threshold: d.approval_threshold == null ? null : Number(d.approval_threshold) } : {}) };
 }
+/**
+ * Bons de commande qui attendent la décision de ce compte : validateur désigné (sous le plafond), ou Direction
+ * (à partir du plafond, et substitution au validateur désigné). Même règle que l'écran des Achats.
+ */
+async function ordersToValidate(db, { userId, can, superAdmin }) {
+  const direction = superAdmin || can('appro:direction');
+  if (!direction && !can('appro:validate')) return [];
+  const q = documentQuery(db, 'order').whereIn('d.status', APPRO_PENDING_STATUSES).orderBy('d.id', 'desc').limit(200);
+  if (!direction) q.where('d.status', 'a_valider').where('d.approver_id', userId);
+  return (await q).map(d => serializeDocument(d, 'order'));
+}
 async function listDocuments(db, type, { status = null } = {}) {
   const q = documentQuery(db, type).orderBy('d.id', 'desc').limit(500); if (status) q.whereIn('d.status', String(status).split(','));
   return (await q).map(d => serializeDocument(d, type));
@@ -622,6 +633,6 @@ async function dashboard(db) {
     needs: Number(needsCount.n) + Number(serviceCount.n), quotes_waiting: Number(quotesCount.n), recent_orders: recent.map(o => serializeDocument(o, 'order')), settings: conf };
 }
 module.exports = { settings, saveSettings, refs, articles, saveArticle, locations, createLocation, stock, setStockMinimum, needs, contracts, dashboard,
-  approvers, issuers, prepareNeed, refuseNeed, serviceNeeds, prepareRequest, refuseRequest, importArticles, listDocuments, detail, saveDocument, receiveQuote, quoteToOrder, cancelDocument, submitOrder, approveOrder, reopenOrder, informPayment, movements, movementDetail, saveMovement, postMovement, cancelMovement, receiveOrder, prepareInvoice };
+  approvers, issuers, prepareNeed, refuseNeed, serviceNeeds, ordersToValidate, prepareRequest, refuseRequest, importArticles, listDocuments, detail, saveDocument, receiveQuote, quoteToOrder, cancelDocument, submitOrder, approveOrder, reopenOrder, informPayment, movements, movementDetail, saveMovement, postMovement, cancelMovement, receiveOrder, prepareInvoice };
 
 
