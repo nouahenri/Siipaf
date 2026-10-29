@@ -146,7 +146,7 @@ export function WorksiteForm({ worksite: w, refs, initialProject = '', onClose, 
             <option value="">— Choisir —</option>{refs.projects.map(p => <option key={p.id} value={p.id}>{p.name}</option>)}
           </select>
           {/* Les programmes se créent dans le dashboard (saisie) ; retour ici, programme choisi. */}
-          {!w && can('projects:write') && <a className="link small" href={dashboardWithReturn('projets?nouveau=1', '/chantiers/liste?nouveau=1')}><Plus size={14} aria-hidden="true" /> Nouveau programme</a>}
+          {!w && can('projects:create') && <a className="link small" href={dashboardWithReturn('projets?nouveau=1', '/chantiers/liste?nouveau=1')}><Plus size={14} aria-hidden="true" /> Nouveau programme</a>}
         </Field>
         <Field label="Nom du chantier"><input className="input" required minLength={2} maxLength={160} value={f.name} onChange={set('name')} placeholder="Tranche 1 — îlots A et B, VRD…" /></Field>
         <Field label="Zone couverte" hint="Lots concernés : leurs acquéreurs suivront l’avancement de ce chantier" className="full">

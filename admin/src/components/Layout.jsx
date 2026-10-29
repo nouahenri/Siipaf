@@ -23,7 +23,7 @@ const NAV = [
     { to: '/lots', label: 'Biens & disponibilités', icon: Map, perm: 'lots:read' },
   ] },
   { group: 'Site web', items: [
-    { to: '/contenu', label: 'Contenu du site', icon: PanelsTopLeft, perm: 'content:write' },
+    { to: '/contenu', label: 'Contenu du site', icon: PanelsTopLeft, perm: ['content:home', 'content:texts', 'content:images', 'content:contacts'] },
     { to: '/medias', label: 'Médiathèque', icon: Image, perm: 'projects:read' },
     { to: '/messages', label: 'Messages', icon: Mail, perm: 'contacts:read', badge: 'new_messages' },
     { to: '/temoignages', label: 'Témoignages', icon: MessageSquareQuote, perm: 'testimonials:write', badge: 'pending_testimonials' },

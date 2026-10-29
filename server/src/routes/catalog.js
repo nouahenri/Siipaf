@@ -107,7 +107,7 @@ module.exports = function catalogRoutes(db) {
     res.json({ ...decodeProject(p), lot_count: Number(lotCount.n), refs: await projectRefs(db, id), offers, plans: plans.map(pl => ({ ...pl, published: !!pl.published })) });
   }));
 
-  r.post('/projects', requirePermission('projects:write'), ah(async (req, res) => {
+  r.post('/projects', requirePermission('projects:create'), ah(async (req, res) => {
     const [data, refs, types] = splitRefs(parse(projectSchema, req.body));
     if (await db('projects').where({ slug: data.slug }).first()) throw new HttpError(409, 'Cet identifiant (slug) est déjà utilisé.');
     const id = await db.transaction(async trx => {
@@ -119,9 +119,15 @@ module.exports = function catalogRoutes(db) {
     res.status(201).json(decodeProject(await db('projects').where({ id }).first()));
   }));
 
-  r.patch('/projects/:id', requirePermission('projects:write'), ah(async (req, res) => {
+  r.patch('/projects/:id', requirePermission('projects:edit', 'projects:publish'), ah(async (req, res) => {
     const id = idParam(req);
     const { archived, ...input } = parse(projectSchema.partial().extend({ archived: z.boolean().optional() }), req.body);
+    // Publier, retirer, archiver : projects:publish ; le reste de la fiche : projects:edit
+    const { published: _published, ...ficheFields } = input;
+    const current = await db('projects').where({ id }).first('published');
+    const publishing = archived !== undefined || ('published' in input && !!input.published !== !!current?.published);
+    if (publishing && !req.can('projects:publish')) throw new HttpError(403, 'Publier, retirer ou archiver un projet demande le droit correspondant.');
+    if (Object.keys(ficheFields).length && !req.can('projects:edit')) throw new HttpError(403, 'Modifier la fiche du projet demande le droit correspondant.');
     const [data, refs, types] = splitRefs(input);
     if (data.slug && await db('projects').where({ slug: data.slug }).whereNot({ id }).first()) {
       throw new HttpError(409, 'Cet identifiant (slug) est déjà utilisé.');
@@ -142,7 +148,7 @@ module.exports = function catalogRoutes(db) {
     res.json(decodeProject((await withTypeLabels(db, [await db('projects').where({ id }).first()]))[0]));
   }));
 
-  r.delete('/projects/:id', requirePermission('projects:write'), ah(async (req, res) => {
+  r.delete('/projects/:id', requirePermission('projects:delete'), ah(async (req, res) => {
     const id = idParam(req);
     await db.transaction(async trx => {
       const project = await trx('projects').where({ id }).first();
@@ -174,7 +180,7 @@ module.exports = function catalogRoutes(db) {
   }));
 
   // Remplace toute la grille de prix d'un projet (ordre = ordre du tableau)
-  r.put('/projects/:id/offers', requirePermission('projects:write'), ah(async (req, res) => {
+  r.put('/projects/:id/offers', requirePermission('projects:prices'), ah(async (req, res) => {
     const id = idParam(req);
     const offers = parse(z.array(z.object({
       id: z.number().int().positive().optional(),
@@ -232,18 +238,18 @@ module.exports = function catalogRoutes(db) {
   }));
 
   // Lecture d'un plan AutoCAD (DWG / DXF) : renvoie la géométrie, le dashboard y détecte les parcelles
-  r.post('/cad/parse', requirePermission('plans:write'), cadUpload.single('file'), ah(async (req, res) => {
+  r.post('/cad/parse', requirePermission('plans:edit'), cadUpload.single('file'), ah(async (req, res) => {
     if (!req.file) throw new HttpError(400, 'Aucun fichier reçu.');
     res.json(await parseCad(req.file.buffer, req.file.originalname));
   }));
 
-  r.post('/plans', requirePermission('plans:write'), ah(async (req, res) => {
+  r.post('/plans', requirePermission('plans:edit'), ah(async (req, res) => {
     const data = parse(planSchema, req.body);
     const [id] = await db('site_plans').insert(data);
     res.status(201).json(await db('site_plans').where({ id }).first());
   }));
 
-  r.patch('/plans/:id', requirePermission('plans:write'), ah(async (req, res) => {
+  r.patch('/plans/:id', requirePermission('plans:edit'), ah(async (req, res) => {
     const id = idParam(req);
     const data = parse(planSchema.omit({ project_id: true }).partial().extend({ archived: z.boolean().optional() }), req.body);
     const plan = await db('site_plans').where({ id }).first();
@@ -265,8 +271,9 @@ module.exports = function catalogRoutes(db) {
    * historique de vente ni option) sont supprimés — utile après une conversion ratée.
    * Un plan publié ne se supprime pas : le dépublier ou l'archiver d'abord.
    */
-  r.delete('/plans/:id', requirePermission('plans:write'), ah(async (req, res) => {
+  r.delete('/plans/:id', requirePermission('plans:edit'), ah(async (req, res) => {
     const id = idParam(req);
+    if ((req.query.delete_lots === '1' || req.query.delete_lots === 'true') && !req.can('plans:lots_delete')) throw new HttpError(403, 'Supprimer les lots du plan demande le droit correspondant.');
     const plan = await db('site_plans').where({ id }).first();
     if (!plan) throw new HttpError(404, 'Plan introuvable.');
     if (plan.published) throw new HttpError(409, 'Ce plan est publié sur le site : dépubliez-le avant de le supprimer.');
@@ -340,7 +347,7 @@ module.exports = function catalogRoutes(db) {
    * un lot est identifié par son code dans le projet. Le statut n'est pas modifiable ici
    * (il passe par /lots/:id/status pour garder l'historique), sauf pour un nouveau lot.
    */
-  r.put('/projects/:id/lots', requirePermission('plans:write'), ah(async (req, res) => {
+  r.put('/projects/:id/lots', requirePermission('plans:lots'), ah(async (req, res) => {
     const projectId = idParam(req);
     const lots = parse(z.array(z.object({ ...lotFields, status: z.enum(LOT_STATUSES).optional() })).max(5000), req.body);
     const codes = new Set();
@@ -386,7 +393,7 @@ module.exports = function catalogRoutes(db) {
   }));
 
   // Création d'un lot à l'unité (bouton « Nouveau lot ») : refusée si le numéro existe déjà dans le projet
-  r.post('/projects/:id/lots', requirePermission('plans:write'), ah(async (req, res) => {
+  r.post('/projects/:id/lots', requirePermission('plans:lots'), ah(async (req, res) => {
     const projectId = idParam(req);
     const { status, ...fields } = parse(z.object({ ...lotFields, status: z.enum(NEW_LOT_STATUSES).optional() }), req.body);
     if (!(await db('projects').where({ id: projectId }).first())) throw new HttpError(404, 'Projet introuvable.');
@@ -404,7 +411,7 @@ module.exports = function catalogRoutes(db) {
     res.status(201).json(decodeLot(lot));
   }));
 
-  r.patch('/lots/:id', requirePermission('plans:write'), ah(async (req, res) => {
+  r.patch('/lots/:id', requirePermission('plans:lots'), ah(async (req, res) => {
     const id = idParam(req);
     const data = parse(z.object(lotFields).partial(), req.body);
     const lot = await db('lots').where({ id }).first();
@@ -422,7 +429,7 @@ module.exports = function catalogRoutes(db) {
     res.json(decodeLot(await db('lots').where({ id }).first()));
   }));
 
-  r.delete('/lots/:id', requirePermission('plans:write'), ah(async (req, res) => {
+  r.delete('/lots/:id', requirePermission('plans:lots_delete'), ah(async (req, res) => {
     const id = idParam(req);
     const lot = await db('lots').where({ id }).first();
     if (!lot) throw new HttpError(404, 'Lot introuvable.');

@@ -1,17 +1,18 @@
 import { useEffect, useState } from 'react';
 import { Plus, Trash2, ArrowUp, ArrowDown, ImagePlus } from 'lucide-react';
 import { api } from '../lib/api';
-import { useResource, useToast, useSaved } from '../lib/app-context';
+import { useAuth, useResource, useToast, useSaved } from '../lib/app-context';
 import { Card, Field, ErrorBox, Skeleton } from '../components/ui';
 import { MediaPicker } from '../components/MediaLibrary';
 import EditorialEditor from '../components/EditorialEditor';
 
+// Chaque onglet relève de son action (Rôles & privilèges › Site web › Contenu du site)
 const TABS = [
-  { id: 'editorial', label: 'Éditorial' },
-  { id: 'hero', label: 'Diaporama d’accueil' },
-  { id: 'ticker', label: 'Bandeau défilant' },
-  { id: 'stats', label: 'Chiffres clés' },
-  { id: 'site', label: 'Coordonnées' },
+  { id: 'editorial', label: 'Éditorial', perm: 'content:texts' },
+  { id: 'hero', label: 'Diaporama d’accueil', perm: 'content:home' },
+  { id: 'ticker', label: 'Bandeau défilant', perm: 'content:home' },
+  { id: 'stats', label: 'Chiffres clés', perm: 'content:home' },
+  { id: 'site', label: 'Coordonnées', perm: 'content:contacts' },
 ];
 
 const DEFAULTS = {
@@ -27,7 +28,9 @@ export default function SiteContent() {
   const toast = useToast();
   const saved = useSaved();
   const content = useResource('/admin/content');
-  const [tab, setTab] = useState('editorial');
+  const { can } = useAuth();
+  const tabs = TABS.filter(t => can(t.perm));
+  const [tab, setTab] = useState(() => tabs[0]?.id || 'editorial');
   const [value, setValue] = useState(null);
   const [valueTab, setValueTab] = useState(null);
   const [error, setError] = useState(null);
@@ -55,7 +58,7 @@ export default function SiteContent() {
   return (
     <div className="stack">
       <div className="tabs" role="tablist">
-        {TABS.map(t => <button key={t.id} role="tab" aria-selected={tab === t.id} className={`tab ${tab === t.id ? 'active' : ''}`} onClick={() => setTab(t.id)}>{t.label}</button>)}
+        {tabs.map(t => <button key={t.id} role="tab" aria-selected={tab === t.id} className={`tab ${tab === t.id ? 'active' : ''}`} onClick={() => setTab(t.id)}>{t.label}</button>)}
       </div>
       {/* Éditorial : son propre enregistrement (textes de toutes les pages et images des sections) */}
       {tab === 'editorial' ? (content.data ? <EditorialEditor content={content} onOpenTab={setTab} /> : content.error ? <ErrorBox error={content.error} /> : <Skeleton h={300} />) : <>

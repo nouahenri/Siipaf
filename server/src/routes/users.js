@@ -4,6 +4,7 @@ const { z } = require('zod');
 const { ah, parse, idParam, HttpError } = require('../lib/http');
 const { hashPassword, requirePermission, publicUser } = require('../auth');
 const { listRoles, requireRole } = require('../services/roles');
+const { effectivePermissions, rolePermissions, hasPermission } = require('../services/permissions');
 
 const insertedId = r => (typeof r === 'object' ? r.id : r);
 // Mot de passe provisoire lisible (sans 0/O, 1/l/I), montré une seule fois à la personne qui crée le compte
@@ -13,8 +14,20 @@ const temporaryPassword = () => Array.from(crypto.randomBytes(12), b => ALPHABET
 module.exports = function userRoutes(db) {
   const r = express.Router();
 
+  /**
+   * Personne ne donne plus de privilèges qu'il n'en a (audit du 29/10) : rôle attribué, ou compte plus privilégié dont
+   * on changerait le mot de passe, l'e-mail ou l'état. Le super administrateur n'est pas limité.
+   */
+  const notAbove = async (req, { role = null, user = null }) => {
+    if (req.user.role === 'super_admin') return;
+    const mine = req.user.permissions;
+    const theirs = role ? await rolePermissions(db, role) : await effectivePermissions(db, user);
+    const beyond = theirs.filter(p => !hasPermission(mine, p));
+    if (beyond.length) throw new HttpError(403, role ? 'Ce rôle a des privilèges que vous n’avez pas : seul le super administrateur peut l’attribuer.' : 'Ce compte a des privilèges que vous n’avez pas : seul le super administrateur peut le modifier.');
+  };
+
   // Rôles proposés dans les sélecteurs : ceux d'origine et ceux créés dans « Rôles & privilèges »
-  r.get('/roles', ah(async (req, res) => {
+  r.get('/roles', requirePermission('users:read', 'users:create', 'users:role', 'roles:write'), ah(async (req, res) => {
     res.json((await listRoles(db)).map(role => ({ id: role.id, label: role.label, system: !!role.system })));
   }));
 
@@ -26,7 +39,7 @@ module.exports = function userRoutes(db) {
   }));
 
   // Fiches employés sans compte, que l'on peut relier à un compte (ERP › Comptes utilisateurs)
-  r.get('/unlinked-employees', requirePermission('users:write'), ah(async (req, res) => {
+  r.get('/unlinked-employees', requirePermission('users:create', 'users:edit'), ah(async (req, res) => {
     if (!(await db.schema.hasTable('employees'))) return res.json([]);
     res.json(await db('employees').whereNull('user_id').where({ active: true }).orderBy(['last_name', 'first_name']).select('id', 'matricule', 'last_name', 'first_name', 'job_title', 'email'));
   }));
@@ -54,7 +67,7 @@ module.exports = function userRoutes(db) {
    * une seule fois ; la personne devra en choisir un à sa première connexion. Le compte peut être relié à une fiche
    * employé existante (employee_id) ou en créer une (employee), ce qui demande un droit sur les fiches du personnel.
    */
-  r.post('/', requirePermission('users:write'), ah(async (req, res) => {
+  r.post('/', requirePermission('users:create'), ah(async (req, res) => {
     const day = z.string().regex(/^\d{4}-\d{2}-\d{2}$/, 'Date attendue au format AAAA-MM-JJ');
     const data = parse(z.object({
       ...base, password: z.string().min(10, 'Mot de passe : 10 caractères minimum.').optional(),
@@ -67,6 +80,7 @@ module.exports = function userRoutes(db) {
     await requireRole(db, data.role);
     if (await db('users').where({ email: data.email }).first()) throw new HttpError(409, 'Un compte existe déjà avec cet e-mail.');
     if (data.role === 'super_admin' && req.user.role !== 'super_admin') throw new HttpError(403, 'Seul un super administrateur peut créer un super administrateur.');
+    await notAbove(req, { role: data.role });
     if ((data.employee_id || data.employee) && !(req.can('rh:files') || req.can('paie:employees'))) throw new HttpError(403, 'Relier ou créer une fiche employé demande un droit sur les fiches du personnel.');
     const { password, employee_id, employee, ...rest } = data;
     const temporary = password ? null : temporaryPassword();
@@ -97,9 +111,10 @@ module.exports = function userRoutes(db) {
   }));
 
   // Nouveau mot de passe provisoire (oubli) : renvoyé une seule fois, à changer à la connexion suivante
-  r.post('/:id/reset-password', requirePermission('users:write'), ah(async (req, res) => {
+  r.post('/:id/reset-password', requirePermission('users:password'), ah(async (req, res) => {
     const target = await db('users').where({ id: idParam(req) }).first();
     if (!target) throw new HttpError(404, 'Utilisateur introuvable.');
+    await notAbove(req, { user: target });
     if (target.id === req.user.id) throw new HttpError(400, 'Changez votre propre mot de passe depuis votre compte.');
     if (target.role === 'super_admin' && req.user.role !== 'super_admin') throw new HttpError(403, 'Seul un super administrateur peut modifier un super administrateur.');
     const temporary = temporaryPassword();
@@ -108,7 +123,7 @@ module.exports = function userRoutes(db) {
   }));
 
   // Relier un compte à une fiche employé (ou le détacher)
-  r.put('/:id/employee', requirePermission('users:write'), ah(async (req, res) => {
+  r.put('/:id/employee', requirePermission('users:edit'), ah(async (req, res) => {
     if (!(req.can('rh:files') || req.can('paie:employees'))) throw new HttpError(403, 'Relier une fiche employé demande un droit sur les fiches du personnel.');
     const userId = idParam(req);
     const { employee_id } = parse(z.object({ employee_id: z.number().int().positive().nullable() }), req.body);
@@ -125,9 +140,22 @@ module.exports = function userRoutes(db) {
     res.json({ ok: true });
   }));
 
-  r.patch('/:id', requirePermission('users:write'), ah(async (req, res) => {
+  r.patch('/:id', requirePermission('users:edit', 'users:role', 'users:password', 'users:disable'), ah(async (req, res) => {
     const id = idParam(req);
     const data = parse(z.object({ ...base, password: z.string().min(10).optional() }).partial(), req.body);
+    // Chaque champ relève de son action : rôle, mot de passe, activation, le reste (nom, e-mail, téléphone)
+    const before = await db('users').where({ id }).first();
+    if (!before) throw new HttpError(404, 'Utilisateur introuvable.');
+    const changed = k => k in data && data[k] !== undefined && String(data[k]) !== String(k === 'active' ? !!before[k] : before[k] ?? '');
+    const need = [];
+    if (changed('role')) need.push('users:role');
+    if (data.password) need.push('users:password');
+    if (changed('active')) need.push('users:disable');
+    if (['name', 'email', 'phone'].some(changed)) need.push('users:edit');
+    const missing = need.find(p => !req.can(p));
+    if (missing) throw new HttpError(403, 'Cette modification du compte demande un droit que vous n’avez pas.');
+    if (id !== req.user.id) await notAbove(req, { user: before });
+    if (changed('role')) await notAbove(req, { role: data.role });
     if (data.role) await requireRole(db, data.role);
     if (id === req.user.id && (data.active === false || (data.role && data.role !== req.user.role))) {
       throw new HttpError(400, 'Vous ne pouvez pas désactiver votre propre compte ni changer votre rôle.');

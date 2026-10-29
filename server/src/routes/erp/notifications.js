@@ -41,7 +41,7 @@ module.exports = function notificationRoutes(db) {
   }));
 
   // ─── Circuit d'information : quels services sont prévenus de chaque événement ──
-  const canRoute = req => req.can('users:write') || req.can('demandes:dg');
+  const canRoute = req => req.can('circuit:write');
   r.get('/circuit', ah(async (req, res) => {
     if (!canRoute(req) && !req.can('direction:read')) throw new HttpError(403, 'Accès réservé à la Direction et à l’administrateur.');
     const routes = await notifications.infoRoutes(db);

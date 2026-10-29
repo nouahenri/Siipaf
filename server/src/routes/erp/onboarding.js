@@ -72,7 +72,7 @@ module.exports = function onboardingRoutes(db) {
 
   /** Coche manuelle d'une étape non mesurable. */
   r.post('/:key', ah(async (req, res) => {
-    if (!req.can('users:write')) throw new HttpError(403, 'Droits insuffisants.');
+    if (!req.can('users:edit')) throw new HttpError(403, 'Droits insuffisants.');
     const { done } = parse(z.object({ done: z.boolean() }), req.body);
     if (req.params.key !== 'roles') throw new HttpError(400, 'Cette étape se coche d’après la base.');
     const m = await manual();

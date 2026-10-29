@@ -91,7 +91,7 @@ const MODULES = {
   // Administration générale : vue Direction, courrier, contrats, parc, documents internes, demandes internes.
   // Le destinataire d'un courrier, le responsable d'un contrat, un chef de service ou un valideur y accède pour les siens.
   administration: {
-    label: 'Administration générale', icon: Building, perm: ['direction:read', ...COURRIER, ...CONTRATS, ...PARC, ...DEMANDES, 'lieux:write', 'users:write'], show: ADMIN_SHOW,
+    label: 'Administration générale', icon: Building, perm: ['direction:read', ...COURRIER, ...CONTRATS, ...PARC, ...DEMANDES, 'lieux:write', 'users:edit', 'circuit:write'], show: ADMIN_SHOW,
     items: [
       { to: '/administration', label: 'Vue Direction', icon: LayoutDashboard, end: true, perm: 'direction:read' },
       { to: '/administration/courrier', label: 'Courrier', icon: Mail, badge: 'count', perm: COURRIER, show: b => b?.mine > 0 },
@@ -100,7 +100,7 @@ const MODULES = {
       { to: '/administration/documents', label: 'Documents internes', icon: BookOpenCheck, perm: 'docs:publish', show: b => b?.docs_can_publish },
       { to: '/administration/demandes', label: 'Demandes internes', icon: Inbox, badge: 'requests_count', perm: DEMANDES, show: b => b?.requests_to_approve > 0 },
       { to: '/administration/lieux', label: 'Lieux (siège, bureaux, dépôts)', icon: MapPinned, perm: ['lieux:write', 'direction:read'] },
-      { to: '/administration/circuit', label: 'Circuit d’information', icon: Share2, perm: ['users:write', 'demandes:dg', 'direction:read'] },
+      { to: '/administration/circuit', label: 'Circuit d’information', icon: Share2, perm: ['circuit:write', 'direction:read'] },
       { to: '/administration/reglages', label: 'Réglages', icon: Settings2 },
       { to: '/administration/acces', label: 'Rôles et privilèges', icon: ShieldCheck, perm: 'users:read' },
     ],

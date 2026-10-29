@@ -48,7 +48,11 @@ export default function ProjectEdit() {
   const [error, setError] = useState(null);
   const [busy, setBusy] = useState(false);
   const [showArchived, setShowArchived] = useState(false);
-  const editable = can('projects:write');
+  // Actions détaillées : fiche (projects:edit), grille de prix (projects:prices), publication (projects:publish)
+  const editable = can('projects:edit');
+  const pricing = can('projects:prices');
+  const publishing = can('projects:publish');
+  const saving = editable || pricing || publishing;
 
   useEffect(() => {
     if (!project.data) return;
@@ -147,8 +151,9 @@ export default function ProjectEdit() {
       delete body.property_type_id; // suit le premier type coché
       delete body.gps;
       for (const k of ['location_detail', 'tagline', 'description', 'delivery']) body[k] = body[k] || null;
-      await api.patch(`/admin/projects/${id}`, body);
-      await api.put(`/admin/projects/${id}/offers`, offers.filter(o => o.label?.trim()).map(o => ({
+      if (editable) await api.patch(`/admin/projects/${id}`, publishing ? body : (({ published, ...rest }) => rest)(body));
+      else if (publishing) await api.patch(`/admin/projects/${id}`, { published: body.published });
+      if (pricing) await api.put(`/admin/projects/${id}/offers`, offers.filter(o => o.label?.trim()).map(o => ({
         id: o.id, label: o.label, designation: o.designation?.trim() || null, surface: o.surface || null, price_fcfa: intOrNull(o.price_fcfa), diaspora_price_fcfa: intOrNull(o.diaspora_price_fcfa),
         badge: o.badge?.trim() || null, highlights: o.highlights?.trim() || null,
       })));
@@ -165,7 +170,7 @@ export default function ProjectEdit() {
     <div className="stack">
       <div className="row-between">
         <Link to="/projets" className="btn btn-ghost"><ArrowLeft />Projets</Link>
-        {editable && <div className="row">
+        {saving && <div className="row">
           <ProjectActions project={project.data} disabled={busy} onBusyChange={setBusy} onChanged={project.reload} onDeleted={() => navigate('/projets')} />
           <button className="btn btn-primary" disabled={busy} onClick={save}>{busy ? 'Enregistrement…' : 'Enregistrer'}</button>
         </div>}
@@ -367,7 +372,7 @@ export default function ProjectEdit() {
         </Card>
       </fieldset>
 
-      <Card title="Plans de masse" actions={can('plans:write') && <button className="btn btn-sm" onClick={() => setPicker('plan')}><Plus />Ajouter un plan</button>} bodyClass="">
+      <Card title="Plans de masse" actions={can('plans:edit') && <button className="btn btn-sm" onClick={() => setPicker('plan')}><Plus />Ajouter un plan</button>} bodyClass="">
         {(() => {
           const plans = project.data.plans;
           const active = plans.filter(pl => !pl.archived_at);
@@ -383,9 +388,9 @@ export default function ProjectEdit() {
                     <td><strong>{pl.name}</strong><div className="small muted">{pl.width ? `${pl.width} × ${pl.height} px` : 'Sans image'}</div></td>
                     <td>{pl.archived_at ? <Badge>Archivé</Badge> : pl.published ? <Badge tone="ok">Publié</Badge> : <Badge>Brouillon</Badge>}</td>
                     <td className="right nowrap">
-                      {can('plans:write') && !pl.archived_at && <button className="btn btn-sm btn-ghost" onClick={() => togglePlan(pl)}>{pl.published ? 'Dépublier' : 'Publier'}</button>}{' '}
-                      <Link className="btn btn-sm" to={`/plans/${pl.id}`}><PenTool />{can('plans:write') ? 'Dessiner les lots' : 'Voir'}</Link>{' '}
-                      {can('plans:write') && <PlanManage plan={pl} projectId={Number(id)} onChanged={project.reload} onDeleted={project.reload} />}
+                      {can('plans:edit') && !pl.archived_at && <button className="btn btn-sm btn-ghost" onClick={() => togglePlan(pl)}>{pl.published ? 'Dépublier' : 'Publier'}</button>}{' '}
+                      <Link className="btn btn-sm" to={`/plans/${pl.id}`}><PenTool />{can('plans:lots') ? 'Dessiner les lots' : 'Voir'}</Link>{' '}
+                      {can('plans:edit') && <PlanManage plan={pl} projectId={Number(id)} onChanged={project.reload} onDeleted={project.reload} />}
                     </td>
                   </tr>
                 ))}

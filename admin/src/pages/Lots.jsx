@@ -57,7 +57,7 @@ export default function Lots() {
             <input className="input" placeholder="N° de lot, îlot…" value={q} onChange={e => setQ(e.target.value)} aria-label="Rechercher un lot" />
           </div>
         </div>
-        {can('plans:write') && project && (
+        {can('plans:lots') && project && (
           <div className="row" style={{ gap: 8 }}>
             <button className="btn" onClick={() => setImporting(true)}><Upload />Importer des lots</button>
             <button className="btn btn-primary" onClick={() => setCreating(true)}><Plus />{bienButton((project.property_types || []).map(t => t.label))}</button>

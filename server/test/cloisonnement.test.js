@@ -180,3 +180,15 @@ test('la Comptabilité ajuste un versement déclaré avant de le confirmer, ou e
   assert.equal(res.status, 201);
   assert.ok(await db('notifications').where({ user_id: sellerBId, event: 'vente.versement' }).where('title', 'like', '%Versement reçu%').first());
 });
+
+test('rendez-vous avec un client : le commercial avec le sien, le responsable avec n’importe lequel (au nom du commercial)', async () => {
+  const client = await db('leads').where({ id: leadB.id }).first();
+  assert.ok(client.client_code, 'B est client (dossier ouvert)');
+  let res = await sellerB.post('/api/admin/appointments').send({ lead_id: leadB.id, kind: 'bureau', starts_at: '2026-12-05T09:00:00Z' });
+  assert.equal(res.status, 201);
+  assert.equal(res.body.assigned_to, (await db('users').where({ email: 'vendeur.b@test.ci' }).first()).id);
+  res = await resp.post('/api/admin/appointments').send({ lead_id: leadB.id, kind: 'visite', starts_at: '2026-12-06T09:00:00Z' });
+  assert.equal(res.status, 201);
+  assert.equal(res.body.assigned_to, client.assigned_to, 'par défaut, le commercial du client');
+  assert.equal((await sellerA.post('/api/admin/appointments').send({ lead_id: leadB.id, starts_at: '2026-12-07T09:00:00Z' })).status, 404);
+});

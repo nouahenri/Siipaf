@@ -17,7 +17,7 @@ const fields = {
 module.exports = function newsletterRoutes(db) {
   const r = express.Router();
   const read = requirePermission('newsletter:read');
-  const write = requirePermission('newsletter:write');
+  const write = requirePermission('newsletter:campaigns');
   const send = requirePermission('newsletter:send');
 
   r.get('/newsletter/campaigns', read, ah(async (req, res) => {

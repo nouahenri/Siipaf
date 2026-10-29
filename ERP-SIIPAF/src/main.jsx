@@ -90,7 +90,7 @@ function AdminHome() {
   const first = [
     [['courrier:read', 'courrier:write', 'courrier:assign'], '/administration/courrier'], [['contrats:read', 'contrats:write'], '/administration/contrats'],
     [['parc:read', 'parc:write'], '/administration/parc'], [['demandes:handle', 'demandes:dg'], '/administration/demandes'], [['docs:publish'], '/administration/documents'], [['lieux:write'], '/administration/lieux'],
-    [['users:write', 'demandes:dg'], '/administration/circuit'],
+    [['circuit:write'], '/administration/circuit'],
   ].find(([perms]) => perms.some(can));
   return <Navigate to={first ? first[1] : '/administration/courrier'} replace />;
 }
@@ -165,7 +165,7 @@ function App() {
         <Route path="administration/demandes" element={<Demandes />} />
         <Route path="administration/lieux" element={<Guard perm={['lieux:write', 'direction:read']}><Lieux /></Guard>} />
         <Route path="administration/reglages" element={<ModuleSettings module="administration" />} />
-        <Route path="administration/circuit" element={<Guard perm={['users:write', 'demandes:dg', 'direction:read']}><Circuit /></Guard>} />
+        <Route path="administration/circuit" element={<Guard perm={['circuit:write', 'direction:read']}><Circuit /></Guard>} />
         <Route path="administration/acces" element={<Guard perm="users:read"><ModuleAccess module="administration" label="Administration générale" /></Guard>} />
         <Route path="juridique" element={<JuridiqueHome />} />
         <Route path="juridique/actes" element={<Guard perm={JURIDIQUE}><Actes /></Guard>} />

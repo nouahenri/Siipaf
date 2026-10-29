@@ -51,14 +51,18 @@ test('seul le super administrateur modifie les privilèges et crée des super ad
   const resp = await login(app, await createUser(db, 'resp_exploitation'), 'motdepasse-test-123');
   assert.equal((await resp.get('/api/admin/permissions')).status, 200, 'consultation possible');
   assert.equal((await resp.put('/api/admin/permissions/roles/commercial').send({ permissions: [] })).status, 403);
-  assert.equal((await resp.put(`/api/admin/users/${commercialId}/permissions`).send({ overrides: { 'users:write': true } })).status, 403);
-  // Même avec le droit « Gérer les utilisateurs » accordé, pas de création de super administrateur
+  assert.equal((await resp.put(`/api/admin/users/${commercialId}/permissions`).send({ overrides: { 'users:create': true } })).status, 403);
+  // Même avec le droit « Créer un compte » accordé, pas de création de super administrateur
   const respId = (await db('users').where({ role: 'resp_exploitation' }).first()).id;
-  await admin.put(`/api/admin/users/${respId}/permissions`).send({ overrides: { 'users:write': true } });
+  await admin.put(`/api/admin/users/${respId}/permissions`).send({ overrides: { 'users:create': true } });
   const create = await resp.post('/api/admin/users').send({ name: 'Pirate', email: 'pirate@test.ci', role: 'super_admin', password: 'motdepasse-long-123' });
   assert.equal(create.status, 403);
-  const ok = await resp.post('/api/admin/users').send({ name: 'Nouveau commercial', email: 'nc@test.ci', role: 'commercial', password: 'motdepasse-long-123' });
-  assert.equal(ok.status, 201);
+  // Ni d'un rôle qui a des privilèges qu'il n'a pas lui-même (le commercial crée des prospects, pas lui)
+  const beyond = await resp.post('/api/admin/users').send({ name: 'Nouveau commercial', email: 'nc@test.ci', role: 'commercial', password: 'motdepasse-long-123' });
+  assert.equal(beyond.status, 403);
+  await admin.post('/api/admin/permissions/roles').send({ label: 'Assistant consultation', permissions: ['leads:read', 'lots:read'] });
+  const ok = await resp.post('/api/admin/users').send({ name: 'Nouvel assistant', email: 'na@test.ci', role: 'assistant_consultation', password: 'motdepasse-long-123' });
+  assert.equal(ok.status, 201, JSON.stringify(ok.body));
 });
 
 test('un privilège inconnu est refusé', async () => {

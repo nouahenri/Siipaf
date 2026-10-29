@@ -86,12 +86,17 @@ async function changePosition(db, e, data, { user, can }) {
   if (!DEPARTMENTS[department]) throw new HttpError(400, 'Service inconnu.');
   if (data.base_salary != null && !can('paie:employees')) throw new HttpError(403, 'Le salaire se modifie avec le droit « Gérer les fiches salariés ».');
   if (data.role) {
-    if (!can('users:write')) throw new HttpError(403, 'Changer le rôle du compte demande le droit « Gérer les utilisateurs ».');
+    if (!can('users:role')) throw new HttpError(403, 'Changer le rôle du compte demande le droit « Changer le rôle d’un compte ».');
     if (!e.user_id) throw new HttpError(400, 'Cet employé n’a pas de compte : aucun rôle à changer.');
     await requireRole(db, data.role);
     const u = await db('users').where({ id: e.user_id }).first('role');
     if ((u.role === 'super_admin' || data.role === 'super_admin') && user.role !== 'super_admin') throw new HttpError(403, 'Seul un super administrateur modifie un super administrateur.');
     if (e.user_id === user.id) throw new HttpError(400, 'Vous ne pouvez pas changer votre propre rôle.');
+    // Jamais vers un rôle qui a plus de privilèges que soi (audit du 29/10)
+    if (user.role !== 'super_admin') {
+      const { rolePermissions, hasPermission } = require('./permissions');
+      if ((await rolePermissions(db, data.role)).some(p => !hasPermission(user.permissions || [], p))) throw new HttpError(403, 'Ce rôle a des privilèges que vous n’avez pas : seul le super administrateur peut l’attribuer.');
+    }
   }
   const team = [...new Set((data.team_ids || []).map(Number))].filter(id => id !== e.id);
   if (data.change_manager && data.manager_id) {

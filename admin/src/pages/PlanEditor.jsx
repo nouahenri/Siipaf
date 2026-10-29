@@ -48,7 +48,7 @@ export default function PlanEditor() {
   const toast = useToast();
   const saved = useSaved();
   const plan = useResource(`/admin/plans/${id}`);
-  const editable = can('plans:write');
+  const editable = can('plans:lots'); // dessiner les lots sur le plan
   const navigate = useNavigate();
 
   const [lots, setLots] = useState([]);

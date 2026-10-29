@@ -70,7 +70,7 @@ async function notifyDeparture(db, e, { user }) {
   });
   if (r.account?.active) {
     await notify(db, {
-      to: await usersWith(db, 'users:write'), except: user.id, module: 'rh', event: 'depart.compte', priority: 'action',
+      to: await usersWith(db, 'users:disable'), except: user.id, module: 'rh', event: 'depart.compte', priority: 'action',
       title: `Départ de ${who} : compte encore actif`, body: `${r.account.email} — à désactiver dans Comptes utilisateurs une fois ses dossiers repris`, link, key: `${key}:compte`,
     });
   }

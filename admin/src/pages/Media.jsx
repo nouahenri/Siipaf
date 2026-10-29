@@ -11,11 +11,11 @@ export default function Media() {
   const [candidate, setCandidate] = useState(null);
   return (
     <div className="stack">
-      {can('content:write') && <div className="tabs" role="tablist" aria-label="Médiathèque">
+      {can('content:images') && <div className="tabs" role="tablist" aria-label="Médiathèque">
         <button className={`tab ${section === 'files' ? 'active' : ''}`} role="tab" aria-selected={section === 'files'} onClick={() => { setSection('files'); setCandidate(null); }}>Fichiers</button>
         <button className={`tab ${section === 'placements' ? 'active' : ''}`} role="tab" aria-selected={section === 'placements'} onClick={() => setSection('placements')}>Images du site</button>
       </div>}
-      {section === 'placements' && can('content:write') ? <SiteImageAssignments candidate={candidate} onConsumed={() => setCandidate(null)} /> : (
+      {section === 'placements' && can('content:images') ? <SiteImageAssignments candidate={candidate} onConsumed={() => setCandidate(null)} /> : (
     <Card
       title="Images, plans et vidéos"
       actions={
@@ -26,7 +26,7 @@ export default function Media() {
         </div>
       }
     >
-      <MediaGrid key={type} type={type} onAssign={can('content:write') ? m => { setCandidate(m); setSection('placements'); } : undefined} />
+      <MediaGrid key={type} type={type} onAssign={can('content:images') ? m => { setCandidate(m); setSection('placements'); } : undefined} />
     </Card>
       )}
     </div>

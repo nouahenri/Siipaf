@@ -68,7 +68,7 @@ module.exports = function rhRoutes(db) {
   // ─── Postes (RH › Réglages) ────────────────────────────────
   /** Liste des postes : pour les formulaires (fiche, compte, paie) et les réglages ; rôles proposables joints. */
   r.get('/positions', ah(async (req, res) => {
-    if (!['rh:read', 'rh:files', 'paie:read', 'paie:employees', 'users:read', 'users:write'].some(p => req.can(p))) throw new HttpError(403, 'Droits insuffisants.');
+    if (!['rh:read', 'rh:files', 'paie:read', 'paie:employees', 'users:read', 'users:edit'].some(p => req.can(p))) throw new HttpError(403, 'Droits insuffisants.');
     // Super administrateur : droits fixes, proposable pour un poste par un super administrateur seulement (choix du client du 25/10)
     const roles = (await listRoles(db)).map(x => ({ id: x.id, label: x.label, reserved: x.id === 'super_admin' }));
     res.json({ positions: await positions.list(db, { all: req.query.all === '1' }), roles, reasons: POSITION_CHANGE_REASONS });

@@ -55,11 +55,14 @@ module.exports = function contentRoutes(db) {
   }));
 
   // Éditorial : pages, sections, champs et textes d'origine du site public
-  r.get('/content/editorial-catalog', requirePermission('content:write'), ah(async (req, res) => {
+  r.get('/content/editorial-catalog', requirePermission('content:texts'), ah(async (req, res) => {
     res.json(editorialCatalog);
   }));
 
-  r.put('/content/:key', requirePermission('content:write'), ah(async (req, res) => {
+  // Chaque bloc relève de son action : accueil (diaporama, bandeau, chiffres), coordonnées, textes éditoriaux
+  const CONTENT_PERMS = { hero: 'content:home', ticker: 'content:home', stats: 'content:home', site: 'content:contacts', editorial: 'content:texts' };
+  r.put('/content/:key', requirePermission('content:home', 'content:texts', 'content:contacts'), ah(async (req, res) => {
+    if (!req.can(CONTENT_PERMS[req.params.key] || 'content:texts')) throw new HttpError(403, 'Modifier ce contenu du site demande le droit correspondant.');
     const schema = CONTENT_SCHEMAS[req.params.key];
     if (!schema && req.params.key !== 'editorial') throw new HttpError(404, 'Clé de contenu inconnue.');
     const value = schema ? parse(schema, req.body) : cleanEditorial(req.body);
@@ -69,18 +72,18 @@ module.exports = function contentRoutes(db) {
   }));
 
   // ─── Médiathèque ──────────────────────────────────────────
-  r.get('/media-placements', requirePermission('content:write'), ah(async (req, res) => {
+  r.get('/media-placements', requirePermission('content:images'), ah(async (req, res) => {
     res.json(await imagePlacements(db));
   }));
 
-  r.get('/media-placements/default/:slot', requirePermission('content:write'), ah(async (req, res) => {
+  r.get('/media-placements/default/:slot', requirePermission('content:images'), ah(async (req, res) => {
     const slot = slotById(req.params.slot);
     if (!slot) throw new HttpError(404, 'Emplacement inconnu.');
     res.set('Cache-Control', 'private, no-store');
     res.sendFile(path.resolve(__dirname, '../../..', slot.fallback));
   }));
 
-  r.put('/media-placements/:slot', requirePermission('content:write'), ah(async (req, res) => {
+  r.put('/media-placements/:slot', requirePermission('content:images'), ah(async (req, res) => {
     const data = parse(z.object({ media_id: z.number().int().positive().nullable(), alt: z.string().trim().max(255).optional() }), req.body);
     res.json(await assignImage(db, req.params.slot, data, req.user.id));
   }));
@@ -103,7 +106,7 @@ module.exports = function contentRoutes(db) {
     res.json((await q).map(m => ({ ...m, url: `/uploads/${m.filename}` })));
   }));
 
-  r.post('/media', requirePermission('media:write'), upload.array('files', 10), ah(async (req, res) => {
+  r.post('/media', requirePermission('media:upload'), upload.array('files', 10), ah(async (req, res) => {
     const meta = req.body.meta ? JSON.parse(req.body.meta) : [];
     const out = [];
     for (const [i, f] of (req.files || []).entries()) {
@@ -120,14 +123,14 @@ module.exports = function contentRoutes(db) {
     res.status(201).json(out);
   }));
 
-  r.patch('/media/:id', requirePermission('media:write'), ah(async (req, res) => {
+  r.patch('/media/:id', requirePermission('media:upload'), ah(async (req, res) => {
     const data = parse(z.object({ alt: z.string().max(255).nullable() }), req.body);
     const n = await db('media').where({ id: idParam(req) }).update(data);
     if (!n) throw new HttpError(404, 'Fichier introuvable.');
     res.json({ ok: true });
   }));
 
-  r.delete('/media/:id', requirePermission('media:write'), ah(async (req, res) => {
+  r.delete('/media/:id', requirePermission('media:delete'), ah(async (req, res) => {
     const id = idParam(req);
     const m = await db('media').where({ id }).first();
     if (!m) throw new HttpError(404, 'Fichier introuvable.');

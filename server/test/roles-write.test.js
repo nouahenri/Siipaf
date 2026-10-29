@@ -48,9 +48,9 @@ test('supprimer un rôle dans le dashboard : postes nettoyés, refus s’il est 
 
 test('garde-fous : pas sans le droit, pas un privilège qu’on n’a pas, pas de réglage des rôles existants', async () => {
   assert.equal((await resp.post('/api/admin/permissions/roles').send({ label: 'Essai', permissions: [] })).status, 403, 'sans roles:write');
-  let res = await drh.post('/api/admin/permissions/roles').send({ label: 'Tout puissant', permissions: ['users:write'] });
-  assert.equal(res.status, 403, 'le comptable n’a pas users:write');
-  assert.match(res.body.error, /users:write/);
+  let res = await drh.post('/api/admin/permissions/roles').send({ label: 'Tout puissant', permissions: ['users:create'] });
+  assert.equal(res.status, 403, 'le comptable n’a pas users:create');
+  assert.match(res.body.error, /users:create/);
   // Créer seulement : régler un rôle existant reste au super administrateur (choix du client du 23/10)
   assert.equal((await drh.put('/api/admin/permissions/roles/commercial').send({ permissions: ['leads:read'] })).status, 403);
   assert.equal((await drh.patch('/api/admin/permissions/roles/commercial').send({ label: 'Vendeur' })).status, 403);

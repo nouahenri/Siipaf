@@ -55,7 +55,7 @@ export default function Onboarding() {
                   )}
                 </div>
                 <div className="row" style={{ gap: 6 }}>
-                  {s.manual && can('users:write') && <button className="btn btn-sm" onClick={() => toggle(s.key, !s.done)}>{s.done ? 'Décocher' : 'Marquer vérifié'}</button>}
+                  {s.manual && can('users:edit') && <button className="btn btn-sm" onClick={() => toggle(s.key, !s.done)}>{s.done ? 'Décocher' : 'Marquer vérifié'}</button>}
                   {s.link ? <Link className="btn btn-ghost btn-sm" to={s.link}>Ouvrir <ArrowRight /></Link>
                     : <a className="btn btn-ghost btn-sm" href={dashboardUrl(s.key === 'roles' ? '/roles' : '/utilisateurs')}>Dashboard <ArrowRight /></a>}
                 </div>

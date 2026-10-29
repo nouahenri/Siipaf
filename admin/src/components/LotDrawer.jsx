@@ -88,7 +88,7 @@ function Overview({ d, sale, onOpened, onSaleChange, onLotChanged, onDeleted }) 
 
   return (
     <div className="stack">
-      <Card title="Le bien" actions={can('plans:write') && <div className="row" style={{ gap: 4 }}>
+      <Card title="Le bien" actions={can(['plans:lots', 'plans:lots_delete']) && <div className="row" style={{ gap: 4 }}>
         <button className="btn btn-sm" onClick={() => setEditLot(true)}><Pencil />Modifier</button>
         {deletable && <button className="btn btn-sm btn-ghost btn-icon btn-danger" onClick={removeLot} title="Supprimer le lot" aria-label="Supprimer le lot"><Trash2 /></button>}
       </div>}>

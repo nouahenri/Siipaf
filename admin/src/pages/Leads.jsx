@@ -5,11 +5,12 @@ import ImportModal from '../components/ImportModal';
 import PortfolioHistory from '../components/PortfolioHistory';
 import PipelineBoard from '../components/PipelineBoard';
 import { TransferModal, TransferRequests } from '../components/Transfers';
+import ApptModal from '../components/ApptModal';
 import { api, qs } from '../lib/api';
 import { useAuth, useResource, useToast, useSaved } from '../lib/app-context';
 import { Card, Drawer, Field, Badge, Empty, ErrorBox, Skeleton, Pagination } from '../components/ui';
 import { LEAD_STAGES, PROSPECT_STAGES, CLIENT_STAGES, FINANCING, SOURCES, APPT_KINDS, APPT_STATUS, stageLabel } from '../lib/domain';
-import { date, dateTime, relative, toLocalInput } from '../lib/format';
+import { date, dateTime, relative } from '../lib/format';
 
 
 export default function Leads() {
@@ -277,15 +278,6 @@ function LeadDrawer({ id, onClose, onSaved, projects }) {
     } catch (e) { setError(e); } finally { setBusy(false); }
   };
 
-  const createAppt = async () => {
-    try {
-      await api.post('/admin/appointments', { lead_id: id, kind: appt.kind, starts_at: new Date(appt.starts_at).toISOString(), project_id: form.project_id ? Number(form.project_id) : null, notes: appt.notes || null });
-      toast('Rendez-vous planifié');
-      setAppt(null);
-      detail.reload();
-    } catch (e) { toast(e.message, 'err'); }
-  };
-
   const d = detail.data;
   return (
     <Drawer
@@ -300,22 +292,10 @@ function LeadDrawer({ id, onClose, onSaved, projects }) {
               {d.phone && <a className="btn btn-sm" href={`tel:${d.phone}`}><Phone />Appeler</a>}
               {d.phone && <a className="btn btn-sm" href={`https://wa.me/${d.phone.replace(/\D/g, '')}`} target="_blank" rel="noreferrer">WhatsApp</a>}
               {d.email && <a className="btn btn-sm" href={`mailto:${d.email}`}><MailIcon />E-mail</a>}
-              {can('appointments:create') && <button className="btn btn-sm" onClick={() => setAppt({ kind: 'visite', starts_at: toLocalInput(Date.now() + 86400000), notes: '' })}><CalendarPlus />Planifier un RDV</button>}
+              {can('appointments:create') && <button className="btn btn-sm" onClick={() => setAppt(true)}><CalendarPlus />Planifier un RDV</button>}
             </div>
           )}
-          {appt && (
-            <Card title="Nouveau rendez-vous">
-              <div className="form-grid">
-                <Field label="Type"><select className="select" value={appt.kind} onChange={e => setAppt({ ...appt, kind: e.target.value })}>{Object.entries(APPT_KINDS).map(([k, v]) => <option key={k} value={k}>{v}</option>)}</select></Field>
-                <Field label="Date et heure"><input className="input" type="datetime-local" value={appt.starts_at} onChange={e => setAppt({ ...appt, starts_at: e.target.value })} /></Field>
-                <Field label="Notes" className="full"><input className="input" value={appt.notes} onChange={e => setAppt({ ...appt, notes: e.target.value })} /></Field>
-              </div>
-              <div className="row" style={{ marginTop: 14, justifyContent: 'flex-end' }}>
-                <button className="btn btn-sm" onClick={() => setAppt(null)}>Annuler</button>
-                <button className="btn btn-sm btn-primary" onClick={createAppt}>Planifier</button>
-              </div>
-            </Card>
-          )}
+          {appt && d && <ApptModal lead={d} projectId={form.project_id ? Number(form.project_id) : null} onClose={() => setAppt(null)} onDone={() => detail.reload()} />}
           <ErrorBox error={error} />
           <fieldset disabled={!editable} style={{ border: 'none' }}>
             <div className="form-grid">

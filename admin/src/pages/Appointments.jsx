@@ -1,9 +1,10 @@
 import { useMemo, useState } from 'react';
-import { CalendarDays, Phone } from 'lucide-react';
+import { CalendarDays, Phone, Plus } from 'lucide-react';
 import { api, qs } from '../lib/api';
 import { useAuth, useResource, useToast } from '../lib/app-context';
 import { Card, Badge, Empty, ErrorBox, Skeleton } from '../components/ui';
 import { APPT_KINDS, APPT_STATUS } from '../lib/domain';
+import ApptModal from '../components/ApptModal';
 
 const DAY = 86400000;
 const startOfDay = d => { const x = new Date(d); x.setHours(0, 0, 0, 0); return x; };
@@ -17,6 +18,7 @@ const RANGES = {
 
 export default function Appointments() {
   const { can } = useAuth();
+  const [creating, setCreating] = useState(false);
   const toast = useToast();
   const [range, setRange] = useState('avenir');
   const [status, setStatus] = useState('');
@@ -44,12 +46,16 @@ export default function Appointments() {
         <div className="seg">
           {Object.entries(RANGES).map(([k, v]) => <button key={k} className={range === k ? 'active' : ''} onClick={() => setRange(k)}>{v.label}</button>)}
         </div>
-        <select className="select" style={{ width: 'auto' }} value={status} onChange={e => setStatus(e.target.value)} aria-label="Statut">
-          <option value="">Tous les statuts</option>
-          {Object.entries(APPT_STATUS).map(([k, v]) => <option key={k} value={k}>{v.label}</option>)}
-        </select>
+        <div className="row">
+          <select className="select" style={{ width: 'auto' }} value={status} onChange={e => setStatus(e.target.value)} aria-label="Statut">
+            <option value="">Tous les statuts</option>
+            {Object.entries(APPT_STATUS).map(([k, v]) => <option key={k} value={k}>{v.label}</option>)}
+          </select>
+          {can('appointments:create') && <button className="btn btn-primary" onClick={() => setCreating(true)}><Plus />Nouveau rendez-vous</button>}
+        </div>
       </div>
-      <p className="small muted">Les rendez-vous se planifient depuis la fiche d’un prospect. Les demandes faites sur le site arrivent ici avec le statut « Demandé ».</p>
+      <p className="small muted">Planifiez un rendez-vous avec un prospect ou un client (ici, ou depuis sa fiche). Les demandes faites sur le site arrivent ici avec le statut « Demandé ».</p>
+      {creating && <ApptModal onClose={() => setCreating(false)} onDone={() => appts.reload()} />}
       <ErrorBox error={appts.error} />
       {appts.loading && !appts.data ? <Card><Skeleton h={200} /></Card>
         : !appts.data?.length ? <Card><Empty icon={CalendarDays}>Aucun rendez-vous sur cette période.</Empty></Card>

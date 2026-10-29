@@ -52,7 +52,7 @@ export default function CampaignEditor({ id, statuses, onBack, onChanged }) {
   if (!c || !form) return <Skeleton h={400} />;
 
   const draft = c.status === 'brouillon';
-  const editable = draft && can('newsletter:write');
+  const editable = draft && can('newsletter:campaigns');
   const dirty = FIELDS.some(k => (form[k] ?? '') !== (saved[k] ?? ''));
   const set = (k, v) => setForm(f => ({ ...f, [k]: v }));
 
@@ -102,8 +102,8 @@ export default function CampaignEditor({ id, statuses, onBack, onChanged }) {
           <Badge tone={CAMPAIGN_TONES[c.status]}>{statuses?.[c.status] || c.status}</Badge>
         </div>
         <div className="row">
-          {can('newsletter:write') && <button className="btn btn-ghost" onClick={duplicate} disabled={!!busy}><Copy />Dupliquer</button>}
-          {can('newsletter:write') && ['brouillon', 'annulee'].includes(c.status) && <button className="btn btn-ghost" onClick={remove} disabled={!!busy}><Trash2 />Supprimer</button>}
+          {can('newsletter:campaigns') && <button className="btn btn-ghost" onClick={duplicate} disabled={!!busy}><Copy />Dupliquer</button>}
+          {can('newsletter:campaigns') && ['brouillon', 'annulee'].includes(c.status) && <button className="btn btn-ghost" onClick={remove} disabled={!!busy}><Trash2 />Supprimer</button>}
           {editable && <button className="btn" onClick={save} disabled={!dirty || !!busy}><Save />{busy === 'save' ? 'Enregistrement…' : dirty ? 'Enregistrer' : 'Enregistré'}</button>}
         </div>
       </div>

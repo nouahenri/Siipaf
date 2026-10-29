@@ -13,7 +13,7 @@ export default function Projects() {
   // Lien « Nouveau programme » de l'ERP (Nouveau chantier) : ouvre la création, puis y ramène
   const [params] = useSearchParams();
   const back = erpReturn(params.get('retour'));
-  const [creating, setCreating] = useState(params.get('nouveau') === '1' && can('projects:write'));
+  const [creating, setCreating] = useState(params.get('nouveau') === '1' && can('projects:create'));
   const [showArchived, setShowArchived] = useState(false);
   const archivedCount = projects.data?.filter(p => p.archived_at).length || 0;
   const visible = (projects.data || []).filter(p => showArchived ? p.archived_at : !p.archived_at);
@@ -22,7 +22,7 @@ export default function Projects() {
     <div className="stack">
       <div className="row-between">
         <p className="muted">Les projets publiés apparaissent sur le site, avec leur grille de prix et leur plan de masse.</p>
-        {can('projects:write') && <button className="btn btn-primary" onClick={() => setCreating(true)}><Plus />Nouveau projet</button>}
+        {can('projects:create') && <button className="btn btn-primary" onClick={() => setCreating(true)}><Plus />Nouveau projet</button>}
       </div>
       {archivedCount > 0 && <div className="row">
         <button className="btn btn-sm" aria-pressed={showArchived} onClick={() => setShowArchived(v => !v)}>

@@ -27,7 +27,7 @@ export default function Accounts() {
       <div className="callout-erp"><ShieldCheck /><span className="small">Un compte par personne, valable pour le dashboard et l’ERP. Son <b>rôle</b> décide des modules et des actions permises (page « Rôles et privilèges » de chaque module). Les ouvriers sans compte pointent sur la borne avec leur matricule.</span></div>
       <div className="row-between">
         <label className="search"><Search aria-hidden="true" /><input className="input" type="search" placeholder="Nom, e-mail, rôle…" value={q} onChange={e => setQ(e.target.value)} aria-label="Rechercher un compte" /></label>
-        {can('users:write') && <button className="btn btn-primary" onClick={() => setCreating(true)}><Plus />Nouveau compte</button>}
+        {can('users:create') && <button className="btn btn-primary" onClick={() => setCreating(true)}><Plus />Nouveau compte</button>}
       </div>
       <ErrorBox error={users.error} />
       <Card bodyClass="">
@@ -35,7 +35,7 @@ export default function Accounts() {
           <div className="table-wrap"><table className="table">
             <thead><tr><th>Compte</th><th>Rôle</th><th>Fiche employé</th><th>Dernière connexion</th><th>Statut</th></tr></thead>
             <tbody>{rows.map(u => (
-              <tr key={u.id} className={can('users:write') ? 'clickable' : ''} onClick={() => can('users:write') && setEdit(u)}>
+              <tr key={u.id} className={can(USER_ACTIONS) ? 'clickable' : ''} onClick={() => can(USER_ACTIONS) && setEdit(u)}>
                 <td><span className="row" style={{ gap: 10 }}><span className="avatar xs">{initials(u.name)}</span><span><b>{u.name}</b><div className="small muted">{u.email}</div></span></span></td>
                 <td className="small">{roleLabel(u.role)}</td>
                 <td className="small">{u.employee ? <Link className="link" to={`/rh/personnel/${u.employee.id}`} onClick={e => e.stopPropagation()}>{u.employee.matricule} · {u.employee.job_title}</Link> : <span className="muted">—</span>}</td>
@@ -53,6 +53,8 @@ export default function Accounts() {
   );
 }
 
+// Actions sur un compte existant (Rôles & privilèges › Comptes utilisateurs)
+const USER_ACTIONS = ['users:edit', 'users:role', 'users:password', 'users:disable'];
 const assignable = (roles, me) => roles.filter(r => r.id !== 'super_admin' || me.role === 'super_admin');
 
 function NewAccount({ roles, onClose, onCreated }) {
@@ -143,12 +145,15 @@ function EditAccount({ user: u, roles, onClose, onSaved, onReset }) {
   const [employee, setEmployee] = useState(u.employee?.id ? String(u.employee.id) : '');
   const [error, setError] = useState(null);
   const self = u.id === me.id;
+  const [canEdit, canRole, canPassword, canDisable] = USER_ACTIONS.map(p => can(p));
   const set = k => e => setF(x => ({ ...x, [k]: e.target.type === 'checkbox' ? e.target.checked : e.target.value }));
   const save = async () => {
     setError(null);
     try {
-      await api.patch(`/admin/users/${u.id}`, { ...f, phone: f.phone || null });
-      if (files && employee !== (u.employee?.id ? String(u.employee.id) : '')) await api.put(`/admin/users/${u.id}/employee`, { employee_id: employee ? Number(employee) : null });
+      // Seuls les champs que l'on a le droit de changer sont envoyés
+      const body = { ...(canEdit ? { name: f.name, phone: f.phone || null } : {}), ...(canRole ? { role: f.role } : {}), ...(canDisable ? { active: f.active } : {}) };
+      if (Object.keys(body).length) await api.patch(`/admin/users/${u.id}`, body);
+      if (files && canEdit && employee !== (u.employee?.id ? String(u.employee.id) : '')) await api.put(`/admin/users/${u.id}/employee`, { employee_id: employee ? Number(employee) : null });
       saved('Compte mis à jour'); onSaved();
     } catch (e) { setError(e); }
   };
@@ -161,9 +166,9 @@ function EditAccount({ user: u, roles, onClose, onSaved, onReset }) {
       <div className="stack" style={{ gap: 14 }}>
         <ErrorBox error={error} />
         <p className="small muted">{u.email}</p>
-        <Field label="Nom"><input className="input" value={f.name} onChange={set('name')} /></Field>
-        <Field label="Téléphone"><input className="input" value={f.phone} onChange={set('phone')} /></Field>
-        <Field label="Rôle"><select className="select" value={f.role} disabled={self} onChange={set('role')}>{assignable(roles, me).concat(roles.filter(r => r.id === u.role && !assignable(roles, me).includes(r))).map(r => <option key={r.id} value={r.id}>{r.label}</option>)}</select></Field>
+        <Field label="Nom"><input className="input" value={f.name} disabled={!canEdit} onChange={set('name')} /></Field>
+        <Field label="Téléphone"><input className="input" value={f.phone} disabled={!canEdit} onChange={set('phone')} /></Field>
+        <Field label="Rôle"><select className="select" value={f.role} disabled={self || !canRole} onChange={set('role')}>{assignable(roles, me).concat(roles.filter(r => r.id === u.role && !assignable(roles, me).includes(r))).map(r => <option key={r.id} value={r.id}>{r.label}</option>)}</select></Field>
         {files && (
           <Field label="Fiche employé">
             <select className="select" value={employee} onChange={e => setEmployee(e.target.value)}>
@@ -173,8 +178,8 @@ function EditAccount({ user: u, roles, onClose, onSaved, onReset }) {
             </select>
           </Field>
         )}
-        <label className="checkbox"><input type="checkbox" checked={f.active} disabled={self} onChange={set('active')} />Compte actif</label>
-        {!self && <button className="btn" style={{ alignSelf: 'start' }} onClick={reset}><KeyRound />Nouveau mot de passe provisoire</button>}
+        <label className="checkbox"><input type="checkbox" checked={f.active} disabled={self || !canDisable} onChange={set('active')} />Compte actif</label>
+        {!self && canPassword && <button className="btn" style={{ alignSelf: 'start' }} onClick={reset}><KeyRound />Nouveau mot de passe provisoire</button>}
         <a className="link small" href={`${window.location.protocol}//${window.location.host.replace(/^erp\./, 'admin.')}/utilisateurs`}>Gérer aussi dans le dashboard <ExternalLink className="ico" /></a>
       </div>
     </Drawer>

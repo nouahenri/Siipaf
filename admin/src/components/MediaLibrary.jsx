@@ -79,7 +79,7 @@ export function MediaGrid({ type, onPick, selectedId, onAssign }) {
 
   return (
     <div className="stack">
-      {can('media:write') && <Dropzone onFiles={upload} busy={busy} accept={type === 'image' ? 'image/jpeg,image/png,image/webp' : type === 'video' ? 'video/mp4,video/quicktime,video/webm' : undefined} />}
+      {can('media:upload') && <Dropzone onFiles={upload} busy={busy} accept={type === 'image' ? 'image/jpeg,image/png,image/webp' : type === 'video' ? 'video/mp4,video/quicktime,video/webm' : undefined} />}
       {media.loading && !media.data ? <Skeleton h={160} />
         : !media.data?.length ? <Empty>Aucun fichier pour l’instant.</Empty>
         : (
@@ -87,7 +87,7 @@ export function MediaGrid({ type, onPick, selectedId, onAssign }) {
             {media.data.map(m => (
               <MediaThumb key={m.id} m={m} selected={selectedId === m.id} onClick={onPick ? () => onPick(m) : () => window.open(m.url, '_blank')}>
                 {onAssign && m.mime.startsWith('image/') && <button className="btn btn-ghost btn-sm media-assign" onClick={() => onAssign(m)} aria-label={`Affecter ${m.original_name} au site`}>Affecter au site</button>}
-                {!onPick && can('media:write') && (
+                {!onPick && can(['media:upload', 'media:delete']) && (
                   <button className="btn btn-sm btn-ghost btn-danger" style={{ position: 'absolute', top: 6, right: 6, background: 'rgba(255,255,255,.9)' }} onClick={() => remove(m)} aria-label={`Supprimer ${m.original_name}`}><Trash2 /></button>
                 )}
               </MediaThumb>

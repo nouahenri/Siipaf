@@ -47,7 +47,7 @@ function App() {
         <Route path="projets" element={<Guard perm="projects:read"><Projects /></Guard>} />
         <Route path="projets/:id" element={<Guard perm="projects:read"><ProjectEdit /></Guard>} />
         <Route path="plans/:id" element={<Guard perm="lots:read"><PlanEditor /></Guard>} />
-        <Route path="contenu" element={<Guard perm="content:write"><SiteContent /></Guard>} />
+        <Route path="contenu" element={<Guard perm={['content:home', 'content:texts', 'content:contacts']}><SiteContent /></Guard>} />
         <Route path="medias" element={<Guard perm="projects:read"><Media /></Guard>} />
         <Route path="messages" element={<Guard perm="contacts:read"><Messages /></Guard>} />
         <Route path="messagerie-clients" element={<Guard perm="client_messages"><ClientMessages /></Guard>} />

@@ -1,12 +1,13 @@
 import { useMemo, useState } from 'react';
 import { useOutletContext } from 'react-router-dom';
-import { Search, UserCheck, Phone, Mail as MailIcon, ExternalLink, Upload, Plus, Download } from 'lucide-react';
+import { Search, UserCheck, Phone, Mail as MailIcon, ExternalLink, Upload, Plus, Download, CalendarPlus } from 'lucide-react';
 import { useAuth, useResource, useToast } from '../lib/app-context';
 import { api } from '../lib/api';
 import { Card, Drawer, Badge, Empty, ErrorBox, Skeleton, Pagination, Modal, Field, Advance } from '../components/ui';
 import { AccessTab, MessageThread } from '../components/ClientSpace';
 import LotDrawer from '../components/LotDrawer';
 import ImportModal from '../components/ImportModal';
+import ApptModal from '../components/ApptModal';
 import { FINANCING } from '../lib/domain';
 import { fcfa, dateTime, relative } from '../lib/format';
 
@@ -128,7 +129,9 @@ export default function Clients() {
 }
 
 function ClientDrawer({ client, initialTab = 'dossiers', onClose, onOpenLot, canMessages }) {
+  const { can } = useAuth();
   const [tab, setTab] = useState(initialTab);
+  const [appt, setAppt] = useState(false);
   const live = client.sales.find(s => s.status !== 'desiste') || client.sales[0];
   // AccessTab attend un dossier avec son acquéreur
   const saleForAccess = { ...live, lead: { id: client.lead_id, name: client.name, client_code: client.client_code, phone: client.phone } };
@@ -141,7 +144,9 @@ function ClientDrawer({ client, initialTab = 'dossiers', onClose, onOpenLot, can
         {client.email && <a className="btn btn-sm" href={`mailto:${client.email}`}><MailIcon />{client.email}</a>}
         {client.country && <Badge>{client.country}</Badge>}
         {client.legacy_number && <Badge>N° {client.legacy_number} (ancienne plateforme)</Badge>}
+        {can('appointments:create') && <button className="btn btn-sm" onClick={() => setAppt(true)}><CalendarPlus />Planifier un rendez-vous</button>}
       </div>
+      {appt && <ApptModal lead={{ id: client.lead_id, name: client.name }} projectId={live?.project_id ?? null} onClose={() => setAppt(false)} />}
       <div className="tabs" role="tablist" style={{ marginBottom: 0 }}>
         {tabs.map(([id, label]) => <button key={id} role="tab" aria-selected={tab === id} className={`tab ${tab === id ? 'active' : ''}`} onClick={() => setTab(id)}>{label}</button>)}
       </div>

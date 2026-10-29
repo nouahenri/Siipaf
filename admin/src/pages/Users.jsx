@@ -7,6 +7,8 @@ import { initials, relative } from '../lib/format';
 import { permRows } from '../lib/permissions';
 
 // L'ERP est sur erp.siipaf.com quand le dashboard est sur admin.siipaf.com (erp.localhost en local)
+// Actions sur un compte existant (Rôles & privilèges › Comptes utilisateurs)
+const USER_ACTIONS = ['users:edit', 'users:role', 'users:password', 'users:disable'];
 const erpUrl = path => `${window.location.protocol}//${window.location.host.replace(/^admin\./, 'erp.')}${path}`;
 
 export default function UsersPage() {
@@ -21,7 +23,7 @@ export default function UsersPage() {
     <div className="stack">
       <div className="row-between">
         <p className="muted">Chaque rôle donne accès aux rubriques utiles à son métier.</p>
-        {can('users:write') && <button className="btn btn-primary" onClick={() => setEdit({})}><Plus />Nouvel utilisateur</button>}
+        {can('users:create') && <button className="btn btn-primary" onClick={() => setEdit({})}><Plus />Nouvel utilisateur</button>}
       </div>
       <ErrorBox error={users.error} />
       <Card bodyClass="">
@@ -31,7 +33,7 @@ export default function UsersPage() {
             <div className="table-wrap"><table className="table">
               <thead><tr><th>Utilisateur</th><th>Rôle</th><th>Dernière connexion</th><th>Statut</th></tr></thead>
               <tbody>{users.data.map(u => (
-                <tr key={u.id} className={can('users:write') ? 'clickable' : ''} onClick={() => can('users:write') && setEdit(u)}>
+                <tr key={u.id} className={can(USER_ACTIONS) ? 'clickable' : ''} onClick={() => can(USER_ACTIONS) && setEdit(u)}>
                   <td><div className="row"><span className="avatar" aria-hidden="true">{initials(u.name)}</span><div><strong>{u.name}</strong><div className="small muted">{u.email}</div></div></div></td>
                   <td>{roleLabel(u.role)}</td>
                   <td className="small muted">{u.last_login_at ? relative(u.last_login_at) : 'Jamais'}</td>
@@ -47,6 +49,7 @@ export default function UsersPage() {
 }
 
 function UserDrawer({ user, roles, roleLabel, onClose, onSaved }) {
+  const { can } = useAuth();
   const toast = useToast();
   const saved = useSaved();
   const isNew = !user.id;
@@ -58,6 +61,13 @@ function UserDrawer({ user, roles, roleLabel, onClose, onSaved }) {
     setError(null);
     const body = { ...form, phone: form.phone || null };
     if (!body.password) delete body.password;
+    // Compte existant : seuls les champs que l'on a le droit de changer sont envoyés
+    if (!isNew) {
+      if (!can('users:edit')) { delete body.name; delete body.email; delete body.phone; }
+      if (!can('users:role')) delete body.role;
+      if (!can('users:disable')) delete body.active;
+      if (!can('users:password')) delete body.password;
+    }
     try {
       if (isNew) {
         const created = await api.post('/admin/users', body);
@@ -80,11 +90,11 @@ function UserDrawer({ user, roles, roleLabel, onClose, onSaved }) {
         </div>
       )}
       <div className="form-grid">
-        <Field label="Nom complet" className="full"><input className="input" value={form.name} onChange={set('name')} /></Field>
-        <Field label="E-mail"><input className="input" type="email" value={form.email} onChange={set('email')} /></Field>
-        <Field label="Téléphone"><input className="input" value={form.phone} onChange={set('phone')} /></Field>
+        <Field label="Nom complet" className="full"><input className="input" value={form.name} disabled={!isNew && !can('users:edit')} onChange={set('name')} /></Field>
+        <Field label="E-mail"><input className="input" type="email" value={form.email} disabled={!isNew && !can('users:edit')} onChange={set('email')} /></Field>
+        <Field label="Téléphone"><input className="input" value={form.phone} disabled={!isNew && !can('users:edit')} onChange={set('phone')} /></Field>
         <Field label="Rôle" className="full">
-          <select className="select" value={form.role} onChange={set('role')}>
+          <select className="select" value={form.role} disabled={!isNew && !can('users:role')} onChange={set('role')}>
             {roles.filter(r => r.system).map(r => <option key={r.id} value={r.id}>{r.label}</option>)}
             {roles.some(r => !r.system) && (
               <optgroup label="Rôles créés (Rôles & privilèges ou ERP › RH › Postes)">
@@ -94,9 +104,9 @@ function UserDrawer({ user, roles, roleLabel, onClose, onSaved }) {
           </select>
         </Field>
         <Field label={isNew ? 'Mot de passe' : 'Nouveau mot de passe'} hint={isNew ? 'Laisser vide pour générer un mot de passe provisoire. La personne choisira le sien à sa première connexion.' : 'Laisser vide pour ne pas le changer. Un mot de passe fixé ici est provisoire : la personne devra le changer.'} className="full">
-          <input className="input" type="password" autoComplete="new-password" value={form.password} onChange={set('password')} />
+          <input className="input" type="password" autoComplete="new-password" value={form.password} disabled={!isNew && !can('users:password')} onChange={set('password')} />
         </Field>
-        {!isNew && <label className="checkbox"><input type="checkbox" checked={form.active} onChange={set('active')} />Compte actif</label>}
+        {!isNew && <label className="checkbox"><input type="checkbox" checked={form.active} disabled={!can('users:disable')} onChange={set('active')} />Compte actif</label>}
       </div>
       {!isNew && user.role !== 'super_admin' && <UserPrivileges user={user} roleLabel={roleLabel} />}
     </Drawer>

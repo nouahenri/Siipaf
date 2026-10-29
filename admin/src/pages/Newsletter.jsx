@@ -56,7 +56,7 @@ function Campaigns({ open, onOpen }) {
     <>
       <div className="row-between">
         <p className="small muted">Rédigez une campagne, vérifiez l’aperçu et envoyez-vous un test avant de l’adresser à tous les abonnés actifs.</p>
-        {can('newsletter:write') && <button className="btn btn-primary" onClick={() => setCreating(true)}><Plus />Nouvelle campagne</button>}
+        {can('newsletter:campaigns') && <button className="btn btn-primary" onClick={() => setCreating(true)}><Plus />Nouvelle campagne</button>}
       </div>
       <ErrorBox error={list.error} />
       <Card bodyClass="">
@@ -129,7 +129,7 @@ function Subscribers() {
                   <td>{s.email}</td>
                   <td className="small muted">{date(s.created_at)}</td>
                   <td><Badge tone={s.status === 'actif' ? 'ok' : ''}>{s.status === 'actif' ? 'Actif' : 'Désinscrit'}</Badge></td>
-                  <td className="right">{can('newsletter:write') && <button className="btn btn-sm btn-ghost" onClick={() => toggle(s)}>{s.status === 'actif' ? 'Désinscrire' : 'Réactiver'}</button>}</td>
+                  <td className="right">{can('newsletter:subscribers') && <button className="btn btn-sm btn-ghost" onClick={() => toggle(s)}>{s.status === 'actif' ? 'Désinscrire' : 'Réactiver'}</button>}</td>
                 </tr>
               ))}</tbody>
             </table></div>

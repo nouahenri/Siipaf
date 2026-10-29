@@ -19,7 +19,9 @@ Précision du client (29/10) : « Gérer les prospects » doit devenir des cases
 - ☑ **Ventes** : Gérer ses prospects (créer, modifier, faire avancer, activités, importer, demander un transfert) ; Gérer les rendez-vous (planifier, confirmer/déplacer, annuler) ; Statut des lots (option, réserver/vendre, désistement).
 - ☑ **Dossiers** : ouvrir, modifier, créer/importer des clients ; Versements (déclarer, enregistrer et confirmer, supprimer) ; Documents juridiques (faire avancer, joindre, rendre visible au client).
 - ☑ **Clients et espace client** : fiches clients (voir, créer sans dossier, modifier la fiche, importer, exporter) ; accès (ouvrir, désactiver) ; messagerie (lire et répondre, écrire à plusieurs clients) ; avancement et échéanciers. Migration `20261129300000_privileges_clients.js`.
-- ☐ Catalogue (projets : créer, modifier, grilles de prix, supprimer ; plans), Site web (médiathèque, newsletter), Administration (comptes : créer, modifier, mot de passe, désactiver).
+- ☑ **Catalogue** : projets (créer, modifier la fiche, publier/archiver, grille de prix, supprimer) ; plans de masse et lots (dessiner et importer, créer et modifier les lots, supprimer un lot).
+- ☑ **Site web** : contenu (accueil, textes éditoriaux, images des emplacements, coordonnées) ; médiathèque (ajouter, supprimer) ; newsletter (abonnés, campagnes, envoi).
+- ☑ **Administration** : comptes (créer, modifier, changer le rôle, mot de passe, désactiver) avec garde contre l'élévation (`notAbove`) ; `circuit:write` (circuit d'information). Migration `20261129400000_privileges_site_comptes.js`.
 - ☐ ERP : Service commercial, Achats, Comptabilité (dont `achats:validate`), Paie, RH, Administration générale, Juridique, Chantiers, SAV (dont `sav:all`).
 
 ## A. Dashboard admin (prospects, clients, ventes, lots, comptes)
@@ -34,11 +36,11 @@ Précision du client (29/10) : « Gérer les prospects » doit devenir des cases
 - ☑ catalog.js:451 GET /lots/:id/history — masquer `lead_name` sans `sales:read`.
 - ☑ catalog.js:421/432 statut et option d'un lot avec `lead_id` — `leadInScope`.
 - ☑ portfolio.js GET /leads/:id/portefeuille — périmètre ; POST /leads/assign → `leads:assign`.
-- ☐ users.js:17/36 GET /roles, /commerciaux — exiger un droit.
-- ☐ users.js:57/128 création/modification de compte : rôle cible limité aux privilèges du demandeur (`checkGrant`), pas de changement de mot de passe/e-mail d'un compte plus privilégié.
+- ☑ users.js:17 GET /roles — exiger un droit (/commerciaux reste ouvert : liste de noms utilisée par les sélecteurs).
+- ☑ users.js:57/128 création/modification de compte : rôle cible limité aux privilèges du demandeur (`checkGrant`), pas de changement de mot de passe/e-mail d'un compte plus privilégié.
 - ☑ imports.js:29 import de clients : versements → `payments:write`, création de lots → `plans:write`.
 - ☑ sales.js:318 PATCH /sales/:id : `signed_at` → `juridique:write` ; champs qui régénèrent l'échéancier → `schedule:write`.
-- ☐ Libellés : `lots:status` (désistement), `sales:write`, `payments:write` (suppression), `plans:write` (prix), `projects:write` (suppression), newsletter.
+- ☑ Libellés : `lots:status` (désistement), `sales:write`, `payments:write` (suppression), `plans:write` (prix), `projects:write` (suppression), newsletter — tous découpés en actions.
 - ☑ Front admin : Layout `/parametres` → `projects:read` ; date de signature masquée sans `juridique:write` ; bouton Importer clients aligné.
 
 ## B. ERP — Commercial, Chantiers, Compta, Paie, Juridique

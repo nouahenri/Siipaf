@@ -57,7 +57,7 @@ export function ChangePositionModal({ d, onClose, onSaved }) {
     setF(x => ({ ...x, position_id: ev.target.value, department: p?.department || x.department, category: p?.category || x.category, role: p?.default_role && d.user && p.default_role !== d.user.role && roles.some(r => r.id === p.default_role) ? p.default_role : '' }));
   };
   const toggleTeam = id => setF(x => ({ ...x, team_ids: x.team_ids.includes(id) ? x.team_ids.filter(y => y !== id) : [...x.team_ids, id] }));
-  const canRole = can('users:write') && d.user && d.user.id !== user.id && (d.user.role !== 'super_admin' || user.role === 'super_admin');
+  const canRole = can('users:role') && d.user && d.user.id !== user.id && (d.user.role !== 'super_admin' || user.role === 'super_admin');
   // Privilèges accordés ou retirés à la personne elle-même (Dashboard › Utilisateurs) : signalés, retirés au choix
   const userPerms = useResource(canRole && can('users:read') ? `/admin/users/${d.user.id}/permissions` : null);
   const catalog = useResource(canRole && can('users:read') ? '/admin/permissions' : null);

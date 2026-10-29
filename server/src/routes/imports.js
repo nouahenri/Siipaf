@@ -34,7 +34,7 @@ module.exports = function importRoutes(db) {
       throw new HttpError(403, 'La colonne des montants versés est réservée à la Comptabilité : retirez-la ou faites l’import avec un compte qui enregistre les versements.');
     }
     // Création des lots absents du plan : droit des plans de masse
-    if (data.mode === 'clients' && data.create_lots && !req.can('plans:write')) data.create_lots = false;
+    if (data.mode === 'clients' && data.create_lots && !req.can('plans:lots')) data.create_lots = false;
     res.json(await runImport(db, {
       mode: data.mode, rows: data.rows, dryRun: data.dry_run, createLots: data.create_lots, openAccess: data.open_access, user: req.user, list: data.list,
     }));

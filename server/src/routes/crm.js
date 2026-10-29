@@ -250,7 +250,7 @@ module.exports = function crmRoutes(db) {
     res.type('text/csv').attachment('newsletter.csv').send(toCsv(rows, ['email', 'created_at']));
   }));
 
-  r.patch('/newsletter/:id', requirePermission('newsletter:write'), ah(async (req, res) => {
+  r.patch('/newsletter/:id', requirePermission('newsletter:subscribers'), ah(async (req, res) => {
     const { status } = parse(z.object({ status: z.enum(['actif', 'desinscrit']) }), req.body);
     const n = await db('newsletter_subscribers').where({ id: idParam(req) }).update({ status, updated_at: new Date() });
     if (!n) throw new HttpError(404, 'Abonné introuvable.');
