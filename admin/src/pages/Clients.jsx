@@ -6,6 +6,8 @@ import { api } from '../lib/api';
 import { Card, Drawer, Badge, Empty, ErrorBox, Skeleton, Pagination, Modal, Field, Advance } from '../components/ui';
 import { AccessTab, MessageThread } from '../components/ClientSpace';
 import LotDrawer from '../components/LotDrawer';
+import ClientStageBar from '../components/ClientStageBar';
+import ConvertedBy from '../components/ConvertedBy';
 import { LotStatusModal } from '../components/LotForms';
 import ImportModal from '../components/ImportModal';
 import ApptModal from '../components/ApptModal';
@@ -124,7 +126,7 @@ export default function Clients() {
       </Card>
 
       {current && !lotId && (
-        <ClientDrawer key={current.lead_id} client={current} initialTab={drawerTab} onClose={() => { setOpen(null); clients.reload(); stats.reload(); }} onOpenLot={setLotId} canMessages={can('client_messages')} />
+        <ClientDrawer key={current.lead_id} client={current} initialTab={drawerTab} onClose={() => { setOpen(null); clients.reload(); stats.reload(); }} onOpenLot={setLotId} onChanged={() => clients.reload()} canMessages={can('client_messages')} />
       )}
       {creating && (
         <NewClientModal clients={clients.data || []} onClose={() => setCreating(false)}
@@ -137,7 +139,7 @@ export default function Clients() {
   );
 }
 
-function ClientDrawer({ client, initialTab = 'dossiers', onClose, onOpenLot, canMessages }) {
+function ClientDrawer({ client, initialTab = 'dossiers', onClose, onOpenLot, onChanged, canMessages }) {
   const { can } = useAuth();
   const [tab, setTab] = useState(initialTab);
   const [appt, setAppt] = useState(false);
@@ -153,8 +155,10 @@ function ClientDrawer({ client, initialTab = 'dossiers', onClose, onOpenLot, can
         {client.email && <a className="btn btn-sm" href={`mailto:${client.email}`}><MailIcon />{client.email}</a>}
         {client.country && <Badge>{client.country}</Badge>}
         {client.legacy_number && <Badge>N° {client.legacy_number} (ancienne plateforme)</Badge>}
+        <ConvertedBy name={client.converted_by_name} />
         {can('appointments:create') && <button className="btn btn-sm" onClick={() => setAppt(true)}><CalendarPlus />Planifier un rendez-vous</button>}
       </div>
+      <ClientStageBar leadId={client.lead_id} stage={client.stage} onChanged={onChanged} />
       {appt && <ApptModal lead={{ id: client.lead_id, name: client.name }} projectId={live?.project_id ?? null} onClose={() => setAppt(false)} />}
       <div className="tabs" role="tablist" style={{ marginBottom: 0 }}>
         {tabs.map(([id, label]) => <button key={id} role="tab" aria-selected={tab === id} className={`tab ${tab === id ? 'active' : ''}`} onClick={() => setTab(id)}>{label}</button>)}

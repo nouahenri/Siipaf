@@ -9,6 +9,7 @@ import { date, fcfa } from '@admin/lib/format';
 import { useCommercialMeta, compact } from '../../lib/commercial';
 import LeadDrawer from './LeadDrawer';
 import ClientStageBar from '@admin/components/ClientStageBar';
+import ConvertedBy from '@admin/components/ConvertedBy';
 import DeedSteps from '../../components/DeedSteps';
 import { TmaForm, TMA_TONES } from '../chantiers/Livraison';
 
@@ -130,6 +131,7 @@ export function SaleDrawer({ id, onClose, onChange }) {
             <Badge tone={STATUS[d.status][1]}>{STATUS[d.status][0]}</Badge>
             {d.vefa ? <Badge tone="brand">VEFA — appels de fonds</Badge> : <Badge>{meta?.financings[d.financing] || 'Financement à préciser'}</Badge>}
             <button className="btn btn-sm btn-ghost" onClick={() => setLeadId(d.lead_id)}>Fiche client</button>
+            <ConvertedBy name={d.converted_by_name} />
           </div>
           <ClientStageBar leadId={d.lead_id} stage={d.lead_stage} onChanged={s.reload} />
           <section className="erp-panel">
@@ -252,7 +254,7 @@ export function SaleDrawer({ id, onClose, onChange }) {
           </section>
         </div>
       )}
-      {leadId && <LeadDrawer id={leadId} onClose={() => setLeadId(null)} />}
+      {leadId && <LeadDrawer id={leadId} onClose={() => setLeadId(null)} onChange={s.reload} />}
     </Drawer>
   );
 }

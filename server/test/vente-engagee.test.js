@@ -60,3 +60,11 @@ test('étapes du client sur la fiche du bien : dossier de vente (ERP) et même r
   // Paiement : la personne devient client, même sans dossier
   assert.ok((await seller.patch(`/api/admin/leads/${prospect.id}`).send({ stage: 'paiement' })).body.client_code);
 });
+
+test('commercial qui a converti le client : fiche client et fiche du bien (ERP et dashboard)', async () => {
+  const name = (await db('users').where({ email: 'vendeur.v@test.ci' }).first('name')).name;
+  assert.equal((await seller.get(`/api/admin/erp/commercial/leads/${lead.id}`)).body.converted_by_name, name);
+  assert.equal((await seller.get(`/api/admin/erp/commercial/sales/${sale.id}`)).body.converted_by_name, name);
+  assert.equal((await admin.get(`/api/admin/lots/${sale.lot_id}/detail`)).body.sale.lead.converted_by_name, name);
+  assert.equal((await admin.get('/api/admin/clients')).body.find(c => c.lead_id === lead.id).converted_by_name, name);
+});

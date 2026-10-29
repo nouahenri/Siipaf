@@ -79,6 +79,7 @@ module.exports = function commercialRoutes(db) {
       ...lead, is_diaspora: !!lead.is_diaspora, created_at: isoTime(lead.created_at), lost_at: isoTime(lead.lost_at),
       expected_revenue_fcfa: lead.expected_revenue_fcfa == null ? null : Number(lead.expected_revenue_fcfa),
       probability: STAGE_PROBABILITY[lead.stage], project, lot, assigned_name: assigned?.name || null,
+      converted_by_name: lead.client_code ? (await require('../../services/portfolio').convertedBy(db, [lead.id]))[lead.id] || null : null,
       activities: planned.map(cm.serializeActivity), history, sales: salesOut,
       // Avancement du chantier pour un client (code client), comme sur l'ancienne plateforme
       client_progress: lead.client_code ? progress.client(sales, lead.project_id) : null,
@@ -373,7 +374,8 @@ module.exports = function commercialRoutes(db) {
         .select('pd.*', 'u.name as declared_by_name').orderBy('pd.id', 'desc'),
     ]);
     res.json({
-      ...(await saleRow(s, await progressIndex(db))), notes: s.notes, promised_delivery_on: isoDay(s.promised_delivery_on), delivered_at: isoDay(s.delivered_at), schedule,
+      ...(await saleRow(s, await progressIndex(db))), notes: s.notes,
+      converted_by_name: (await require('../../services/portfolio').convertedBy(db, [s.lead_id]))[s.lead_id] || null, promised_delivery_on: isoDay(s.promised_delivery_on), delivered_at: isoDay(s.delivered_at), schedule,
       payments: payments.map(p => ({ ...p, paid_at: isoDay(p.paid_at), amount_fcfa: Number(p.amount_fcfa) })),
       declarations: declarations.map(x => ({ ...x, paid_at: isoDay(x.paid_at), amount_fcfa: Number(x.amount_fcfa) })),
     });

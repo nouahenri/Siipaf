@@ -9,6 +9,7 @@ import { ScheduleTab, AccessTab, SiteTab, MessageThread } from './ClientSpace';
 import { LotFormModal, SaleEditModal } from './LotForms';
 import LeadAutocomplete from './LeadAutocomplete';
 import ClientStageBar from './ClientStageBar';
+import ConvertedBy from './ConvertedBy';
 import { FINANCING, lotStatus, stageLabel } from '../lib/domain';
 import { fcfa, num, date, dateTime, relative } from '../lib/format';
 
@@ -123,6 +124,7 @@ function Overview({ d, sale, onOpenClient, onOpened, onSaleChange, onLotChanged,
                 <strong style={{ fontSize: 15 }}>{sale.lead.name}</strong>
                 {sale.lead.is_diaspora && <> <Badge tone="warn">Diaspora</Badge></>}
                 <div className="small muted">{sale.lead.client_code} · {stageLabel(sale.lead.stage)}{sale.lead.country ? ` · ${sale.lead.country}` : ''}</div>
+                {sale.lead.converted_by_name && <div style={{ marginTop: 8 }}><ConvertedBy name={sale.lead.converted_by_name} /></div>}
               </div>
               <div className="row">
                 {can('sales:read') && <button className="btn btn-sm" onClick={openClient}><UserRound />Fiche client</button>}

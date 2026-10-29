@@ -781,3 +781,8 @@ fieldset { min-width: 0; }
 .stagebar button:hover:not(:disabled) { border-color: var(--border-strong); color: var(--ink); }
 .stagebar button.on { color: #fff; font-weight: 600; cursor: default; }
 .stagebar button:disabled:not(.on) { cursor: default; }
+/* « Converti par » : le commercial qui a fait du prospect un client (fiche client, fiche du bien) */
+.converted-by { display: inline-flex; align-items: center; gap: 6px; padding: 5px 12px; border-radius: 999px; background: #e7f5ec; color: var(--ok); font-size: 14px; font-weight: 500; line-height: 1.3; }
+.converted-by svg { width: 16px; height: 16px; flex: none; }
+.converted-by b { font-weight: 700; color: var(--ink); }
+:root[data-theme="sombre"] .converted-by { background: rgba(76, 194, 127, .16); }

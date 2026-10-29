@@ -43,6 +43,7 @@ module.exports = function clientAdminRoutes(db) {
     }
     const accessBy = Object.fromEntries(accounts.map(a => [a.lead_id, { active: !!a.active, must_change_password: !!a.must_change_password, last_login_at: isoTime(a.last_login_at) }]));
     const unreadBy = Object.fromEntries(unread.map(u => [u.lead_id, Number(u.n)]));
+    const converted = await require('../services/portfolio').convertedBy(db, leads.map(l => l.id));
     res.json(leads.map(l => {
       const ds = salesByLead[l.id] || [];
       const live = ds.filter(d => d.status !== 'desiste');
@@ -53,7 +54,7 @@ module.exports = function clientAdminRoutes(db) {
         overdue_fcfa: live.reduce((n, d) => n + d.overdue_fcfa, 0), overdue_count: live.reduce((n, d) => n + d.overdue_count, 0),
         // « sans dossier » : client repris de l'ancienne plateforme, lot et prix pas encore saisis
         status: !ds.length ? 'sans_dossier' : !live.length ? 'desiste' : live.every(d => d.status === 'solde') ? 'solde' : 'en_cours',
-        access: accessBy[l.id] || null, unread_messages: unreadBy[l.id] || 0,
+        access: accessBy[l.id] || null, unread_messages: unreadBy[l.id] || 0, converted_by_name: converted[l.id] || null,
         progress: progress.client(ds, l.project_id), // avancement du chantier, comme sur l'ancienne plateforme
       };
     }));

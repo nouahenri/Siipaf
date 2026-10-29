@@ -6,6 +6,7 @@ import { Drawer, Modal, Field, Skeleton, ErrorBox, Badge, Empty, Advance } from 
 import { dateTime, fcfa, relative, toLocalInput } from '@admin/lib/format';
 import { useCommercialMeta, ACTIVITY_STATE, STAGE_COLORS, compact } from '../../lib/commercial';
 import { TransferModal, TransferRequests } from '@admin/components/Transfers';
+import ConvertedBy from '@admin/components/ConvertedBy';
 
 const HISTORY_ICONS = { etape: '◆', note: '✎', activite: '✓', rdv: '◷', option: '◇', vente: '€', paiement: '₣', message: '✉', espace_client: '✉', sav: '⚑' };
 const waLink = phone => `https://wa.me/${String(phone || '').replace(/\D/g, '').replace(/^0/, '225')}`;
@@ -70,6 +71,7 @@ export default function LeadDrawer({ id, onClose, onChange }) {
               : <button className="btn btn-sm btn-ghost btn-danger" onClick={() => setLost(true)}><XCircle />Marquer perdu</button>)}
           </div>
 
+          {l.converted_by_name && <div><ConvertedBy name={l.converted_by_name} /></div>}
           <LeadInfo lead={l} meta={meta} write={write} onSaved={refresh} />
 
           {l.client_progress && (

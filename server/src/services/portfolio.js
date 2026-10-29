@@ -230,4 +230,19 @@ async function importReports(db, user, id = null) {
   });
 }
 
-module.exports = { syncLead, recordDeletion, reconcile, stats, leadHistory, assign, createImport, importReports, seesAllLeads };
+/**
+ * Commercial qui a converti chaque client (dernier passage « Devenu client » de l'historique du portefeuille, celui que comptent
+ * les objectifs) ; à défaut, l'auteur de son premier dossier de vente. Renvoie { leadId: nom }.
+ */
+async function convertedBy(db, leadIds) {
+  const ids = [...new Set(leadIds.filter(Boolean))];
+  if (!ids.length) return {};
+  const out = {};
+  const sales = await db('sales as s').join('users as u', 'u.id', 's.created_by').whereIn('s.lead_id', ids).orderBy('s.id').select('s.lead_id', 'u.name');
+  for (const s of sales) out[s.lead_id] ||= s.name;
+  const events = await db('lead_portfolio_events as e').join('users as u', 'u.id', 'e.user_id').whereIn('e.lead_id', ids).where('e.kind', 'client').select('e.lead_id', 'e.at', 'e.id', 'u.name');
+  for (const e of events.sort(byTime)) out[e.lead_id] = e.name;
+  return out;
+}
+
+module.exports = { convertedBy, syncLead, recordDeletion, reconcile, stats, leadHistory, assign, createImport, importReports, seesAllLeads };

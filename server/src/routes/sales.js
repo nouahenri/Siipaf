@@ -38,6 +38,7 @@ module.exports = function salesRoutes(db) {
       lead: lead && {
         id: lead.id, name: lead.name, email: lead.email, phone: lead.phone, country: lead.country,
         is_diaspora: !!lead.is_diaspora, client_code: lead.client_code, stage: lead.stage,
+        converted_by_name: (await require('../services/portfolio').convertedBy(db, [lead.id]))[lead.id] || null,
       },
       payments,
       declarations: declarations.map(d => ({ ...d, amount_fcfa: Number(d.amount_fcfa), paid_at: isoDay(d.paid_at) })),
