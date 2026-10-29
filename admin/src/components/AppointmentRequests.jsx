@@ -45,7 +45,7 @@ export default function AppointmentRequests({ onClose }) {
               <div className="row appt-request-actions">
                 {a.lead_phone && <a className="btn btn-sm" href={`tel:${a.lead_phone}`}><Phone />Appeler</a>}
                 {a.lead_phone && <a className="btn btn-sm" href={`https://wa.me/${a.lead_phone.replace(/\D/g, '')}`} target="_blank" rel="noreferrer"><MessageCircle />WhatsApp</a>}
-                {can('appointments:write') && <>
+                {can(['appointments:edit', 'appointments:cancel']) && <>
                   <button className="btn btn-sm btn-primary" onClick={() => decide(a, 'confirme')}><CalendarCheck />Confirmer</button>
                   <button className="btn btn-sm btn-ghost" onClick={() => decide(a, 'annule')}><CalendarX />Annuler</button>
                 </>}

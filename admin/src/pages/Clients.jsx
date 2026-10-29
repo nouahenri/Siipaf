@@ -71,8 +71,8 @@ export default function Clients() {
             <Search aria-hidden="true" />
             <input className="input" placeholder="Nom, code, téléphone, lot…" value={q} onChange={e => { setQ(e.target.value); setPage(1); }} aria-label="Rechercher un client" />
           </div>
-          {can('sales:write') && <button className="btn" onClick={() => setImporting(true)}><Upload />Importer</button>}
-          {can('sales:write') && <button className="btn btn-primary" onClick={() => setCreating(true)}><Plus />Nouveau client</button>}
+          {can('sales:clients') && <button className="btn" onClick={() => setImporting(true)}><Upload />Importer</button>}
+          {can('sales:clients') && <button className="btn btn-primary" onClick={() => setCreating(true)}><Plus />Nouveau client</button>}
         </div>
       </div>
       <ErrorBox error={clients.error} />
@@ -120,7 +120,7 @@ export default function Clients() {
         <NewClientModal clients={clients.data || []} onClose={() => setCreating(false)}
           onCreated={c => { setCreating(false); setDrawerTab('acces'); setOpen(c.lead_id); clients.reload(); stats.reload(); }} />
       )}
-      {importing && <ImportModal mode="clients" allowModes={can('leads:write') ? ['clients', 'prospects'] : ['clients']} onClose={() => setImporting(false)} onDone={() => clients.reload()} />}
+      {importing && <ImportModal mode="clients" allowModes={can('leads:import') ? ['clients', 'prospects'] : ['clients']} onClose={() => setImporting(false)} onDone={() => clients.reload()} />}
       {lotId && <LotDrawer lotId={lotId} onClose={() => { setLotId(null); clients.reload(); }} onChanged={() => clients.reload()} onChangeStatus={() => {}} />}
     </div>
   );

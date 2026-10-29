@@ -101,7 +101,7 @@ async function reconcile(db, now = new Date()) {
 
 /** Commerciaux à afficher : comptes ayant le droit de gérer des prospects, plus ceux qui ont un historique. */
 async function people(db, ids = []) {
-  const roles = db('role_permissions').where({ permission: 'leads:write' }).select('role');
+  const roles = db('role_permissions').whereIn('permission', ['leads:create', 'leads:edit']).select('role');
   const users = await db('users').where(q => q.where({ active: true }).where(b => b.whereIn('role', roles).orWhereIn('role', ['commercial', 'super_admin', 'resp_exploitation'])))
     .orWhereIn('id', ids).orderBy('name').select('id', 'name', 'role', 'active');
   return users;

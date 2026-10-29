@@ -163,7 +163,7 @@ module.exports = function chantiersRoutes(db) {
   const seesSales = req => req.can('sales:read') || chantiers.seesAll(viewer(req));
   const canTma = (req, t, action) => {
     const manage = req.can('chantiers:write') || Number(t.manager_id) === Number(req.user.id);
-    if (action === 'annulee' ? manage || req.can('sales:write') : manage) return;
+    if (action === 'annulee' ? manage || req.can('sales:edit') : manage) return;
     throw new HttpError(403, action === 'devis' ? 'Le devis est établi par le conducteur du chantier ou un gestionnaire des chantiers.' : 'Accès refusé.');
   };
   r.get('/tma', ah(async (req, res) => {
@@ -173,7 +173,7 @@ module.exports = function chantiersRoutes(db) {
   }));
   r.post('/tma', ah(async (req, res) => {
     const data = parse(tmaSchema, req.body);
-    if (!req.can('sales:write') && !req.can('chantiers:write')) {
+    if (!req.can('sales:edit') && !req.can('chantiers:write')) {
       const sale = await db('sales').where({ id: data.sale_id }).first('lot_id');
       const lot = sale && await db('lots').where({ id: sale.lot_id }).first();
       const w = lot && await livraison.worksiteForLot(db, lot);
@@ -425,7 +425,7 @@ module.exports = function chantiersRoutes(db) {
   // ─── Livraisons promises et retards ───────────────────────
   r.get('/:id/livraisons', ah(async (req, res) => res.json(await suivi.deliveries(db, await chantiers.visibleWorksite(db, idParam(req), viewer(req))))));
   // Date promise : relève du dossier de vente (droit sales:write, comme dans le dashboard), même hors des chantiers du compte
-  r.patch('/:id/livraisons/:saleId', requirePermission('sales:write'), ah(async (req, res) => {
+  r.patch('/:id/livraisons/:saleId', requirePermission('sales:edit'), ah(async (req, res) => {
     const w = await chantiers.loadWorksite(db, idParam(req));
     const { promised_delivery_on } = parse(z.object({ promised_delivery_on: day.nullable() }), req.body);
     await suivi.setPromised(db, w, childId(req, 'saleId'), promised_delivery_on);

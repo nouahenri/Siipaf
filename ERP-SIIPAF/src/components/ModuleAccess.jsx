@@ -7,6 +7,7 @@ import { useMemo, useState } from 'react';
 import { Check, ShieldCheck, ExternalLink, Info } from 'lucide-react';
 import { api } from '@admin/lib/api';
 import { useResource, useToast } from '@admin/lib/app-context';
+import { permRows } from '@admin/lib/permissions';
 import { Card, Skeleton, ErrorBox, Badge } from '@admin/components/ui';
 
 // Groupes du catalogue (lib/domain.js) affichés dans chaque module
@@ -50,8 +51,10 @@ export default function ModuleAccess({ module, label }) {
         <Card key={g.group} title={g.group.replace(/^ERP · /, '')} bodyClass="">
           <div className="table-wrap"><table className="table perm-table">
             <thead><tr><th>Action</th>{roles.map(r => <th key={r.id} className="center perm-col" title={r.description || undefined}>{r.label}<div className="muted" style={{ fontWeight: 400 }}>{r.users} compte(s)</div></th>)}</tr></thead>
-            <tbody>{g.items.map(i => (
-              <tr key={i.id}>
+            <tbody>{permRows(g.items).map(i => (i.heading ? (
+              <tr key={`h:${i.heading}`} className="perm-parent"><td colSpan={roles.length + 1}><b className="small">{i.heading}</b></td></tr>
+            ) : (
+              <tr key={i.id} className={i.parent ? 'perm-sub' : undefined}>
                 <td><b className="small">{i.label}</b>{i.hint && <div className="small muted">{i.hint}</div>}</td>
                 {roles.map(r => {
                   const on = r.locked || r.permissions.includes(i.id);
@@ -63,7 +66,7 @@ export default function ModuleAccess({ module, label }) {
                   );
                 })}
               </tr>
-            ))}</tbody>
+            )))}</tbody>
           </table></div>
         </Card>
       ))}

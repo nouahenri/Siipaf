@@ -57,7 +57,8 @@ export function AppProvider({ children }) {
     await api.post('/auth/logout').catch(() => {});
     setSession({ loading: false, user: null, permissions: [] });
   };
-  const can = perm => session.permissions.includes('*') || session.permissions.includes(perm);
+  // Une action, ou une liste d'actions (l'une d'elles suffit)
+  const can = perm => session.permissions.includes('*') || [].concat(perm).some(p => session.permissions.includes(p));
   // Mot de passe provisoire remplacé (écran ForcePassword) : accès ouvert sans recharger la session
   const markPasswordChanged = () => setSession(s => ({ ...s, user: s.user && { ...s.user, must_change_password: false } }));
 

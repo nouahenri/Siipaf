@@ -60,7 +60,7 @@ module.exports = function clientAdminRoutes(db) {
   }));
 
   // Nouveau client sans dossier : lot, prix et programme se rattachent ensuite
-  r.post('/clients', requirePermission('sales:write'), ah(async (req, res) => {
+  r.post('/clients', requirePermission('sales:clients'), ah(async (req, res) => {
     const data = parse(z.object({
       name: z.string().trim().min(2, 'Nom requis.').max(120),
       first_name: z.string().trim().max(120).optional(),
@@ -84,14 +84,14 @@ module.exports = function clientAdminRoutes(db) {
   }));
 
   // Ouvre l'accès ou génère un nouveau mot de passe provisoire (affiché une seule fois)
-  r.post('/leads/:id/client-access', requirePermission('client_access:write'), ah(async (req, res) => {
+  r.post('/leads/:id/client-access', requirePermission('client_access:open'), ah(async (req, res) => {
     const { notify } = parse(z.object({ notify: z.boolean().default(true) }), req.body || {});
     await leadInScope(db, idParam(req), req.user, 'Client introuvable.');
     const out = await grantAccess(db, { leadId: idParam(req), user: req.user, notify });
     res.status(201).json({ access: out.account, temporary_password: out.password, emailed: out.emailed });
   }));
 
-  r.patch('/leads/:id/client-access', requirePermission('client_access:write'), ah(async (req, res) => {
+  r.patch('/leads/:id/client-access', requirePermission('client_access:disable'), ah(async (req, res) => {
     const { active } = parse(z.object({ active: z.boolean() }), req.body);
     await leadInScope(db, idParam(req), req.user, 'Client introuvable.');
     const n = await db('client_accounts').where({ lead_id: idParam(req) }).update({ active, updated_at: new Date() });
@@ -213,7 +213,7 @@ module.exports = function clientAdminRoutes(db) {
   };
 
   // Même message à plusieurs clients (chacun le reçoit dans sa propre conversation) : ses clients seulement
-  r.post('/client-messages/groupe', requirePermission('client_messages'), ah(async (req, res) => {
+  r.post('/client-messages/groupe', requirePermission('client_messages:group'), ah(async (req, res) => {
     const data = parse(z.object({
       lead_ids: z.array(z.number().int().positive()).min(1, 'Choisissez au moins un client.').max(500),
       body: z.string().trim().min(1, 'Message vide.').max(4000),

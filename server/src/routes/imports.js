@@ -26,9 +26,15 @@ module.exports = function importRoutes(db) {
         filename: z.string().trim().max(200).optional(), assigned_to: z.number().int().positive().nullable().optional(),
       }).optional(),
     }), req.body);
-    const perm = data.mode === 'clients' ? 'sales:write' : 'leads:write';
+    const perm = data.mode === 'clients' ? 'sales:clients' : 'leads:import';
     if (!req.can(perm)) throw new HttpError(403, 'Droits insuffisants pour cet import.');
-    if (data.open_access && !req.can('client_access:write')) throw new HttpError(403, 'Droits insuffisants pour ouvrir les espaces clients.');
+    if (data.open_access && !req.can('client_access:open')) throw new HttpError(403, 'Droits insuffisants pour ouvrir les espaces clients.');
+    // Reprise des versements : enregistrés directement, donc réservée à la Comptabilité (payments:write)
+    if (data.mode === 'clients' && !req.can('payments:write') && data.rows.some(r => r.paid != null && String(r.paid).trim() !== '' && Number(String(r.paid).replace(/[^d]/g, '')) > 0)) {
+      throw new HttpError(403, 'La colonne des montants versés est réservée à la Comptabilité : retirez-la ou faites l’import avec un compte qui enregistre les versements.');
+    }
+    // Création des lots absents du plan : droit des plans de masse
+    if (data.mode === 'clients' && data.create_lots && !req.can('plans:write')) data.create_lots = false;
     res.json(await runImport(db, {
       mode: data.mode, rows: data.rows, dryRun: data.dry_run, createLots: data.create_lots, openAccess: data.open_access, user: req.user, list: data.list,
     }));

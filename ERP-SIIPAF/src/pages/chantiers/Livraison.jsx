@@ -35,7 +35,7 @@ export function Tma({ w }) {
   const [form, setForm] = useState(false);
   const [quote, setQuote] = useState(null);
   const manage = w.can_manage;
-  const canRequest = manage || can('sales:write');
+  const canRequest = manage || can('sales:edit');
   const act = async (t, body, msg) => {
     try { await api.patch(`${CH}/tma/${t.id}`, body); saved(msg); res.reload(); } catch (e) { toast(e.message, 'err'); }
   };

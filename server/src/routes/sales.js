@@ -84,7 +84,7 @@ module.exports = function salesRoutes(db) {
   }));
 
   // ─── Ouverture du dossier d'acquisition ───────────────────
-  r.post('/lots/:id/sale', requirePermission('sales:write'), ah(async (req, res) => {
+  r.post('/lots/:id/sale', requirePermission('sales:open'), ah(async (req, res) => {
     const data = parse(z.object({
       lead_id: z.number().int().positive().optional(),
       name: z.string().trim().min(2).max(160).optional(),
@@ -116,7 +116,7 @@ module.exports = function salesRoutes(db) {
     res.status(201).json(await saleDetail(sale));
   }));
 
-  r.patch('/sales/:id', requirePermission('sales:write'), ah(async (req, res) => {
+  r.patch('/sales/:id', requirePermission('sales:edit', 'juridique:write'), ah(async (req, res) => {
     const id = idParam(req);
     const data = parse(z.object({
       price_fcfa: z.number().int().positive(),
@@ -129,6 +129,8 @@ module.exports = function salesRoutes(db) {
       notes: z.string().max(2000).nullable(),
     }).partial(), req.body);
     const before = await saleInScope(db, id, req.user);
+    const { signed_at: _signed, ...saleFields } = data;
+    if (Object.keys(saleFields).length && !req.can('sales:edit')) throw new HttpError(403, 'Modifier le dossier demande le droit correspondant.');
     if ('signed_at' in data && (isoDay(data.signed_at) || null) !== (isoDay(before.signed_at) || null) && !req.can('juridique:write')) {
       throw new HttpError(403, 'La date de signature de l’acte se saisit dans ERP › Juridique.');
     }
@@ -313,7 +315,7 @@ module.exports = function salesRoutes(db) {
     });
   }));
 
-  r.delete('/payments/:id', requirePermission('payments:write'), ah(async (req, res) => {
+  r.delete('/payments/:id', requirePermission('payments:delete'), ah(async (req, res) => {
     const p = await db('payments').where({ id: idParam(req) }).first();
     if (!p) throw new HttpError(404, 'Versement introuvable.');
     await db.transaction(async trx => {
@@ -332,7 +334,7 @@ module.exports = function salesRoutes(db) {
     note: z.string().trim().max(255).nullable(),
   };
 
-  r.post('/sales/:id/documents', requirePermission('documents:write'), ah(async (req, res) => {
+  r.post('/sales/:id/documents', requirePermission('documents:files'), ah(async (req, res) => {
     const id = idParam(req);
     const data = parse(z.object({ type: z.enum(DOCUMENT_TYPES), ...docFields }).partial({ status: true, media_id: true, visible_client: true, note: true }), req.body);
     await saleInScope(db, id, req.user);
@@ -341,9 +343,13 @@ module.exports = function salesRoutes(db) {
     res.status(201).json(await saleDetail(await db('sales').where({ id }).first()));
   }));
 
-  r.patch('/documents/:id', requirePermission('documents:write'), ah(async (req, res) => {
+  r.patch('/documents/:id', requirePermission('documents:status', 'documents:files', 'documents:visibility'), ah(async (req, res) => {
     const id = idParam(req);
     const data = parse(z.object(docFields).partial(), req.body);
+    // Chaque champ relève de son action : statut et note, fichier et intitulé, visibilité client
+    const need = { status: 'documents:status', note: 'documents:status', media_id: 'documents:files', label: 'documents:files', visible_client: 'documents:visibility' };
+    const missing = Object.keys(data).find(k => need[k] && !req.can(need[k]));
+    if (missing) throw new HttpError(403, 'Cette modification de la pièce demande un droit que vous n’avez pas.');
     const doc = await db('sale_documents').where({ id }).first();
     if (!doc) throw new HttpError(404, 'Document introuvable.');
     await saleInScope(db, doc.sale_id, req.user);

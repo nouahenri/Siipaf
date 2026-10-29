@@ -543,6 +543,11 @@ fieldset { min-width: 0; }
 .perm-group-title { font-size: 11px; font-weight: 600; letter-spacing: .06em; text-transform: uppercase; color: var(--ink-3); margin-bottom: 6px; }
 .perm-line { display: flex; align-items: center; gap: 10px; padding: 5px 0; border-bottom: 1px solid var(--border); font-size: 13px; }
 .perm-line:last-child { border-bottom: none; }
+/* Actions détaillées d'un privilège : intitulé puis actions en retrait */
+.perm-table .perm-parent td { background: var(--surface-2); }
+.perm-table .perm-sub td:first-child { padding-left: 32px; }
+.perm-line-parent { font-weight: 600; padding-top: 10px; }
+.perm-line-sub { padding-left: 18px; }
 .perm-dot { width: 8px; height: 8px; border-radius: 50%; background: var(--border-strong); flex-shrink: 0; }
 .perm-dot.on { background: var(--ok); }
 .alert-info { background: #eef4fd; color: #1f5fae; display: flex; align-items: center; gap: 8px; }

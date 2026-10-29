@@ -111,7 +111,7 @@ export function AccessTab({ sale }) {
   const access = useResource(`/admin/leads/${lead.id}/client-access`);
   const [issued, setIssued] = useState(null);
   const [busy, setBusy] = useState(false);
-  const editable = can('client_access:write');
+  const editable = can(['client_access:open', 'client_access:disable']);
   const a = access.data?.access;
   const url = clientSpaceUrl();
 

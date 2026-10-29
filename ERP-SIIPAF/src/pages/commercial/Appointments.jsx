@@ -50,7 +50,7 @@ export default function Appointments() {
                     <span className="stack" style={{ gap: 2, minWidth: 0 }}>
                       <button className="link" style={{ border: 'none', background: 'none', padding: 0, cursor: 'pointer', fontWeight: 600, textAlign: 'left' }} onClick={() => setLeadId(a.lead_id)}>{APPT_KINDS[a.kind]} · {a.lead_name}</button>
                       <span className="small muted"><MapPin className="ico" aria-hidden="true" />{a.project_name || '—'} · <User className="ico" aria-hidden="true" />{a.assigned_name || 'à attribuer'}{a.lead_phone && <> · <Phone className="ico" aria-hidden="true" />{a.lead_phone}</>}</span>
-                      {can('appointments:write') && ['demande', 'confirme'].includes(a.status) && (
+                      {can(['appointments:edit', 'appointments:cancel']) && ['demande', 'confirme'].includes(a.status) && (
                         <span className="row" style={{ gap: 6, marginTop: 4 }}>
                           {a.status === 'demande' && <button className="btn btn-sm" onClick={() => setStatus(a, 'confirme')}>Confirmer</button>}
                           <button className="btn btn-sm" onClick={() => setStatus(a, 'effectue')}>Effectué</button>

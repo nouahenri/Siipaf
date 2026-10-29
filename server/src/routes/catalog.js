@@ -436,12 +436,16 @@ module.exports = function catalogRoutes(db) {
     res.json({ ok: true });
   }));
 
-  r.post('/lots/:id/status', requirePermission('lots:status'), ah(async (req, res) => {
+  r.post('/lots/:id/status', requirePermission('lots:reserve', 'lots:desist', 'lots:option'), ah(async (req, res) => {
     const data = parse(z.object({
       status: z.enum(LOT_STATUSES),
       lead_id: z.number().int().positive().nullable().optional(),
       reason: z.string().trim().max(255).optional(),
     }), req.body);
+    // Désistement (lots:desist) ; lever une option (lots:option) ; réserver, vendre, remettre en vente (lots:reserve)
+    const current = await db('lots').where({ id: idParam(req) }).first('status');
+    const needed = data.status === 'desistement' ? 'lots:desist' : current?.status === 'option' && data.status === 'disponible' ? ['lots:option', 'lots:reserve'] : 'lots:reserve';
+    if (![].concat(needed).some(p => req.can(p))) throw new HttpError(403, 'Ce changement de statut demande un droit que vous n’avez pas.');
     if (data.lead_id) await leadInScope(db, data.lead_id, req.user);
     await lotOfMyClient(idParam(req), req.user);
     const lot = await changeLotStatus(db, { lotId: idParam(req), to: data.status, user: req.user, leadId: data.lead_id, reason: data.reason });
@@ -449,7 +453,7 @@ module.exports = function catalogRoutes(db) {
   }));
 
   // Option posée par un commercial pour un prospect existant ou nouveau
-  r.post('/lots/:id/option', requirePermission('lots:status'), ah(async (req, res) => {
+  r.post('/lots/:id/option', requirePermission('lots:option'), ah(async (req, res) => {
     const data = parse(z.object({
       lead_id: z.number().int().positive().optional(),
       name: z.string().trim().min(2).max(160).optional(),

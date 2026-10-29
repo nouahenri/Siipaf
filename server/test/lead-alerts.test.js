@@ -20,7 +20,7 @@ test('formulaire du site : prospect nouveau (compteur), type de bien consulté, 
   assert.equal((await db('contact_messages').where({ lead_id: lead.id }).first()).property_type, 'Appartement Social 2 pièces');
 
   assert.equal((await admin.get('/api/admin/stats')).body.new_leads, 1);
-  assert.equal((await commercial.get('/api/admin/stats')).body.new_leads, 1, 'prospect libre : visible du commercial');
+  assert.equal((await commercial.get('/api/admin/stats')).body.new_leads, 0, 'prospect non attribué : vu du responsable seulement (choix du client du 29/10)');
   assert.equal((await admin.get(`/api/admin/leads/${lead.id}`)).status, 200);
   assert.equal((await admin.get('/api/admin/stats')).body.new_leads, 0, 'fiche ouverte : plus nouveau pour personne');
   assert.equal((await commercial.get('/api/admin/stats')).body.new_leads, 0);
@@ -42,10 +42,14 @@ test('cloche : chaque nouveau prospect, sauf ceux qu\'on a saisis soi-même ; «
   assert.equal(forAdmin.unread, 2, 'admin : le prospect du site et celui du commercial');
   assert.ok(forAdmin.items.some(i => i.name === 'Koffi Yao' && i.created_by_name === 'commercial' && i.unread));
   const forCommercial = (await commercial.get('/api/admin/notifications')).body;
-  assert.equal(forCommercial.unread, 1, 'le commercial n\'est pas notifié de sa propre saisie');
+  assert.equal(forCommercial.unread, 0, 'ni sa propre saisie, ni le prospect du site non attribué');
 
   await admin.post('/api/admin/notifications/seen');
   assert.equal((await admin.get('/api/admin/notifications')).body.unread, 0);
+  // Le responsable lui attribue le prospect du site : il entre dans sa cloche
+  const marie = await db('leads').where({ email: 'marie@example.com' }).first();
+  const sellerId = (await db('users').where({ role: 'commercial' }).first()).id;
+  await admin.post('/api/admin/leads/assign').send({ ids: [marie.id], user_id: sellerId });
   assert.equal((await commercial.get('/api/admin/notifications')).body.unread, 1, 'chacun sa cloche');
   // Un prospect saisi par l'équipe n'entre pas dans le compteur « nouveaux » du menu
   assert.equal((await db('leads').where({ name: 'Koffi Yao' }).first()).seen_at !== null, true);

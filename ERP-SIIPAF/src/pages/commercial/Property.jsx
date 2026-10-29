@@ -217,7 +217,7 @@ function LotEditor({ lot, buildings, types, write, onClose, onSaved }) {
       footer={write && <button className="btn btn-primary" form="lot-edit">Enregistrer</button>}>
       <div className="stack" style={{ gap: 14 }}>
         <div className="row" style={{ gap: 8 }}><StatusBadge status={lot.status} />{lot.buyer_name && <span className="small">Acquéreur : <b>{lot.buyer_name}</b>{lot.vefa ? ' (VEFA)' : ''}</span>}</div>
-        {free && can('sales:write') && <LeadPicker onPick={lead => setSelling(lead)} />}
+        {free && can('sales:open') && <LeadPicker onPick={lead => setSelling(lead)} />}
         <ErrorBox error={error} />
         <form id="lot-edit" onSubmit={save}>
           <fieldset disabled={!write} className="form-grid">

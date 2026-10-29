@@ -54,7 +54,7 @@ module.exports = function portfolioRoutes(db) {
     res.json(await q);
   }));
 
-  r.post('/leads/:id/transfert', requirePermission('leads:write'), ah(async (req, res) => {
+  r.post('/leads/:id/transfert', requirePermission('leads:transfer'), ah(async (req, res) => {
     const leadId = idParam(req);
     const data = parse(z.object({
       to_user_id: z.number().int().positive().nullable().optional(),

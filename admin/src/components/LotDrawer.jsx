@@ -48,7 +48,7 @@ export default function LotDrawer({ lotId, onClose, onChanged, onChangeStatus })
     <Drawer
       title={d ? <>Lot {d.code} <span className="muted" style={{ fontWeight: 400 }}>· {d.project.name}</span></> : 'Lot'}
       onClose={onClose}
-      footer={d && can('lots:status') && <button className="btn" onClick={() => onChangeStatus(d)}>Changer le statut</button>}
+      footer={d && can(['lots:reserve', 'lots:desist', 'lots:option']) && <button className="btn" onClick={() => onChangeStatus(d)}>Changer le statut</button>}
     >
       {!d ? <Skeleton h={300} /> : (
         <>
@@ -110,7 +110,7 @@ function Overview({ d, sale, onOpened, onSaleChange, onLotChanged, onDeleted }) 
 
       {sale ? (
         <>
-          <Card title="Acquéreur" actions={can('sales:write') && sale.status !== 'desiste' && <button className="btn btn-sm" onClick={() => setEditSale(true)}><Pencil />Modifier le dossier</button>}>
+          <Card title="Acquéreur" actions={can(['sales:edit', 'juridique:write']) && sale.status !== 'desiste' && <button className="btn btn-sm" onClick={() => setEditSale(true)}><Pencil />Modifier le dossier</button>}>
             <div className="row-between" style={{ alignItems: 'flex-start' }}>
               <div>
                 <strong style={{ fontSize: 15 }}>{sale.lead.name}</strong>
@@ -158,7 +158,7 @@ function Overview({ d, sale, onOpened, onSaleChange, onLotChanged, onDeleted }) 
         <Card title="Acquéreur">
           {d.past_sales > 0 && <p className="small muted" style={{ marginBottom: 8 }}>{d.past_sales} dossier(s) précédent(s) clos par désistement.</p>}
           {['vendu', 'reserve'].includes(d.status) && <p className="small" style={{ marginBottom: 10 }}>Ce lot est {lotStatus(d.status).label.toLowerCase()} mais aucun dossier d’acquisition n’est ouvert.</p>}
-          {can('sales:write') && d.status !== 'bloque'
+          {can('sales:open') && d.status !== 'bloque'
             ? (opening ? <OpenSaleForm d={d} onDone={() => { setOpening(false); onOpened(); }} onCancel={() => setOpening(false)} />
               : <button className="btn btn-primary" onClick={() => setOpening(true)}><Plus />Ouvrir le dossier d’acquisition</button>)
             : <p className="muted">Aucun acquéreur.</p>}
@@ -309,7 +309,7 @@ function Payments({ sale, onChange }) {
                 <td className="nowrap">{date(p.paid_at)}</td>
                 <td>{PAYMENT_METHODS[p.method]}{p.reference && <div className="small muted">{p.reference}</div>}</td>
                 <td className="right tabular nowrap"><strong>{fcfa(p.amount_fcfa)}</strong><div className="small muted">{p.declared_by_name ? `déclaré par ${p.declared_by_name}, confirmé par ${p.recorded_by_name || '—'}` : p.recorded_by_name || ''}</div></td>
-                {can('payments:write') && <td style={{ width: 40 }}><button className="btn btn-sm btn-ghost btn-icon btn-danger" onClick={() => remove(p)} aria-label="Supprimer le versement"><Trash2 /></button></td>}
+                {can('payments:delete') && <td style={{ width: 40 }}><button className="btn btn-sm btn-ghost btn-icon btn-danger" onClick={() => remove(p)} aria-label="Supprimer le versement"><Trash2 /></button></td>}
               </tr>
             ))}
           </tbody></table></div>
@@ -324,7 +324,7 @@ function Documents({ sale, onChange }) {
   const toast = useToast();
   const saved = useSaved();
   const [picker, setPicker] = useState(null);
-  const editable = can('documents:write');
+  const editable = can(['documents:status', 'documents:files', 'documents:visibility']);
 
   const patch = async (doc, body) => {
     try { onChange(await api.patch(`/admin/documents/${doc.id}`, body)); saved('Document mis à jour'); } catch (e) { toast(e.message, 'err'); }

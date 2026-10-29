@@ -63,7 +63,7 @@ export default function Pipeline() {
           )}
           <label className="checkbox small"><input type="checkbox" checked={showLost} onChange={e => set('perdus', e.target.checked ? '1' : '')} />Afficher les perdus</label>
         </div>
-        {can('leads:write') && <button className="btn btn-primary" onClick={() => setCreating(true)}><Plus />Nouveau prospect</button>}
+        {can('leads:create') && <button className="btn btn-primary" onClick={() => setCreating(true)}><Plus />Nouveau prospect</button>}
       </div>
       <ErrorBox error={list.error} />
       <TransferRequests onChange={list.reload} />
@@ -87,7 +87,7 @@ export default function Pipeline() {
                 {col.map(r => {
                   const act = r.next_activity && ACTIVITY_STATE[r.next_activity.state];
                   return (
-                    <div key={r.id} className="pipe-card" draggable={can('leads:write')} onDragStart={e => e.dataTransfer.setData('text/plain', String(r.id))}
+                    <div key={r.id} className="pipe-card" draggable={can('leads:stage')} onDragStart={e => e.dataTransfer.setData('text/plain', String(r.id))}
                       onClick={() => open(r.id)} role="button" tabIndex={0} onKeyDown={e => e.key === 'Enter' && open(r.id)}>
                       <div className="row-between" style={{ gap: 6 }}>
                         <b className="ellipsis">{r.name}</b>

@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import { useSearchParams } from 'react-router-dom';
 import { Clock, ListTodo } from 'lucide-react';
 import { useAuth, useResource } from '@admin/lib/app-context';
 import { Card, Empty, Skeleton, ErrorBox } from '@admin/components/ui';
@@ -12,7 +13,8 @@ const GROUPS = [['retard', 'En retard'], ['aujourdhui', 'Aujourd’hui'], ['a_ve
 export default function Activities() {
   const { can } = useAuth();
   const meta = useCommercialMeta();
-  const [scope, setScope] = useState('mine');
+  const [params] = useSearchParams();
+  const [scope, setScope] = useState(params.get('portee') === 'equipe' ? 'team' : 'mine');
   const [assigned, setAssigned] = useState('');
   const [leadId, setLeadId] = useState(null);
   const list = useResource(`/admin/erp/commercial/activities?mine=${scope === 'mine' ? '1' : '0'}${scope === 'team' && assigned ? `&assigned_to=${assigned}` : ''}`);

@@ -457,7 +457,7 @@ export default function PlanEditor() {
 
         <aside className="plan-side">
           {selectedLot ? (
-            <LotPanel lot={selectedLot} offers={plan.data.offers} editable={editable} canStatus={can('lots:status')} onStatus={() => setStatusLot(selectedLot)}
+            <LotPanel lot={selectedLot} offers={plan.data.offers} editable={editable} canStatus={can(['lots:reserve', 'lots:desist', 'lots:option'])} onStatus={() => setStatusLot(selectedLot)}
               onChange={patch => updateLot(selectedLot.key, patch)} onRemove={removeFromPlan} onDelete={deleteLot} onClose={() => setSelected(null)} />
           ) : (
             <div className="card card-body small muted">

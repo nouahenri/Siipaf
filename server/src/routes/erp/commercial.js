@@ -85,7 +85,7 @@ module.exports = function commercialRoutes(db) {
     });
   }));
 
-  r.patch('/leads/:id', read, requirePermission('leads:write'), ah(async (req, res) => {
+  r.patch('/leads/:id', read, requirePermission('leads:edit', 'leads:assign'), ah(async (req, res) => {
     const lead = await ownLead(req);
     const data = parse(z.object({
       name: z.string().trim().min(2).max(160), email: z.string().trim().toLowerCase().email().nullable(), phone: optText(40),
@@ -95,6 +95,8 @@ module.exports = function commercialRoutes(db) {
       project_id: z.number().int().positive().nullable(), lot_id: z.number().int().positive().nullable(),
       assigned_to: z.number().int().positive().nullable(),
     }).partial(), req.body);
+    const { assigned_to: _assigned, ...fields } = data;
+    if (Object.keys(fields).length && !req.can('leads:edit')) throw new HttpError(403, 'Modifier la fiche d’un prospect demande le droit correspondant.');
     // Changer de commercial : responsable seulement (leads:assign), sinon demande de transfert
     if ('assigned_to' in data && (data.assigned_to || null) !== (lead.assigned_to || null) && !cm.canAssignLeads(req.user)) {
       throw new HttpError(403, 'Seul le responsable change le commercial d’un prospect ou d’un client : faites une demande de transfert.');
@@ -110,7 +112,7 @@ module.exports = function commercialRoutes(db) {
     res.json(await db('leads').where({ id: lead.id }).first());
   }));
 
-  r.post('/leads/:id/stage', read, requirePermission('leads:write'), ah(async (req, res) => {
+  r.post('/leads/:id/stage', read, requirePermission('leads:stage'), ah(async (req, res) => {
     const lead = await ownLead(req);
     const data = parse(z.object({
       stage: z.enum(LEAD_STAGES), lost_reason: z.enum(Object.keys(LOST_REASONS)).optional(), lost_note: optText(255),
@@ -137,7 +139,7 @@ module.exports = function commercialRoutes(db) {
     res.json(rows.map(cm.serializeActivity));
   }));
 
-  r.post('/leads/:id/activities', read, requirePermission('leads:write'), ah(async (req, res) => {
+  r.post('/leads/:id/activities', read, requirePermission('leads:activities'), ah(async (req, res) => {
     const lead = await ownLead(req);
     const data = parse(z.object(activityFields), req.body);
     checkAssignee(req, data.assigned_to);
@@ -162,7 +164,7 @@ module.exports = function commercialRoutes(db) {
   }
 
   // « Fait » (avec compte rendu), et éventuellement « planifier la suivante »
-  r.post('/activities/:id/done', read, requirePermission('leads:write'), ah(async (req, res) => {
+  r.post('/activities/:id/done', read, requirePermission('leads:activities'), ah(async (req, res) => {
     const a = await ownActivity(req);
     if (a.done_at) throw new HttpError(409, 'Activité déjà réalisée.');
     const data = parse(z.object({
@@ -184,7 +186,7 @@ module.exports = function commercialRoutes(db) {
     res.json({ ok: true });
   }));
 
-  r.patch('/activities/:id', read, requirePermission('leads:write'), ah(async (req, res) => {
+  r.patch('/activities/:id', read, requirePermission('leads:activities'), ah(async (req, res) => {
     const a = await ownActivity(req);
     const data = parse(z.object(activityFields).partial(), req.body);
     checkAssignee(req, data.assigned_to);
@@ -194,7 +196,7 @@ module.exports = function commercialRoutes(db) {
     res.json(cm.serializeActivity(await db('lead_activities').where({ id: a.id }).first()));
   }));
 
-  r.delete('/activities/:id', read, requirePermission('leads:write'), ah(async (req, res) => {
+  r.delete('/activities/:id', read, requirePermission('leads:activities'), ah(async (req, res) => {
     const a = await ownActivity(req);
     if (a.done_at) throw new HttpError(409, 'Une activité réalisée reste dans l’historique.');
     await db('lead_activities').where({ id: a.id }).del();

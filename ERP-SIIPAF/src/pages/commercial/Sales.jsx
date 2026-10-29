@@ -188,7 +188,7 @@ export function SaleDrawer({ id, onClose, onChange }) {
           <section>
             <div className="row-between">
               <h3 className="erp-h3">Travaux modificatifs ({tma.data?.length ?? '…'})</h3>
-              {can('sales:write') && !d.delivered_at && d.status !== 'desiste' && <button className="btn btn-sm" onClick={() => setTmaForm(true)}><Plus />Demande de TMA</button>}
+              {can('sales:edit') && !d.delivered_at && d.status !== 'desiste' && <button className="btn btn-sm" onClick={() => setTmaForm(true)}><Plus />Demande de TMA</button>}
             </div>
             {!tma.data ? <Skeleton h={40} /> : !tma.data.length ? <p className="small muted">Aucune demande. Le conducteur du chantier chiffre le devis ; l’acquéreur l’accepte dans son espace client et le montant s’ajoute à l’échéancier.</p> : (
               <ul className="list">{tma.data.map(t => (

@@ -26,7 +26,7 @@ exports.up = async knex => {
   });
   await knex.schema.alterTable('payments', t => { t.integer('declared_by').unsigned(); }); // commercial qui l'a saisi, s'il y a lieu
 
-  const roles = await knex('role_permissions').where({ permission: 'sales:write' }).pluck('role');
+  const roles = await knex('role_permissions').whereIn('permission', ['sales:write', 'sales:open']).distinct().pluck('role');
   for (const role of roles) {
     const has = await knex('role_permissions').where({ role }).whereIn('permission', ['payments:write', 'payments:record']).first();
     if (!has) await knex('role_permissions').insert({ role, permission: 'payments:record' });

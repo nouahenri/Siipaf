@@ -12,42 +12,52 @@ Demande du client du 29/10 : « les privilèges doivent être encore plus détai
 
 Légende : ☐ à faire · ☑ fait
 
+## Privilèges détaillés (cases à cocher par action)
+
+Précision du client (29/10) : « Gérer les prospects » doit devenir des cases « créer », « modifier », « faire avancer »… Mécanisme : `PERMISSION_SPLITS` (lib/domain.js), 4ᵉ colonne `parent` du catalogue (intitulé commun), migration `20261129200000_privileges_detailles.js` (un rôle qui avait l'ancien privilège reçoit toutes ses actions), grilles Rôles & privilèges, privilèges d'un compte et Accès des modules ERP (ligne d'intitulé « tout cocher », état partiel).
+
+- ☑ **Ventes** : Gérer ses prospects (créer, modifier, faire avancer, activités, importer, demander un transfert) ; Gérer les rendez-vous (planifier, confirmer/déplacer, annuler) ; Statut des lots (option, réserver/vendre, désistement).
+- ☑ **Dossiers** : ouvrir, modifier, créer/importer des clients ; Versements (déclarer, enregistrer et confirmer, supprimer) ; Documents juridiques (faire avancer, joindre, rendre visible au client).
+- ☑ **Espace client** : accès (ouvrir, désactiver) ; messagerie (lire et répondre, écrire à plusieurs clients).
+- ☐ Catalogue (projets : créer, modifier, grilles de prix, supprimer ; plans), Site web (médiathèque, newsletter), Administration (comptes : créer, modifier, mot de passe, désactiver).
+- ☐ ERP : Service commercial, Achats, Comptabilité (dont `achats:validate`), Paie, RH, Administration générale, Juridique, Chantiers, SAV (dont `sav:all`).
+
 ## A. Dashboard admin (prospects, clients, ventes, lots, comptes)
 - ☑ crm.js — prospects : non attribués réservés à la portée équipe ; fiche, modification, suppression dans le périmètre ; changer de commercial = `leads:assign` (sinon demande de transfert) ; création d'un doublon suivi par un collègue → 409 sans divulguer la fiche.
 - ☑ crm.js — rendez-vous : liste, création, modification limités aux prospects du commercial ; pas de RDV confié à un collègue.
 - ☑ crm.js — `/stats`, `/stats/timeline` : chiffres et derniers versements limités au périmètre.
-- ☐ clientAdmin.js:21 GET /clients — filtrer par périmètre.
-- ☐ clientAdmin.js:172 GET /client-messages, :184/:195 GET/POST /leads/:id/messages — périmètre.
-- ☐ clientAdmin.js:79/84/90 accès espace client — périmètre.
-- ☐ sales.js:263 GET /lots/:id/detail — dossier seulement dans le périmètre ; masquer téléphone/e-mail/nom du prospect sans `sales:read`.
-- ☐ sales.js:289-442 écritures sur dossiers, échéanciers, versements, documents — `saleInScope` ; ouverture d'un dossier avec un `lead_id` hors périmètre refusée.
-- ☐ catalog.js:451 GET /lots/:id/history — masquer `lead_name` sans `sales:read`.
-- ☐ catalog.js:421/432 statut et option d'un lot avec `lead_id` — `leadInScope`.
-- ☐ portfolio.js GET /leads/:id/portefeuille — périmètre ; POST /leads/assign → `leads:assign`.
+- ☑ clientAdmin.js:21 GET /clients — filtrer par périmètre.
+- ☑ clientAdmin.js:172 GET /client-messages, :184/:195 GET/POST /leads/:id/messages — périmètre.
+- ☑ clientAdmin.js:79/84/90 accès espace client — périmètre.
+- ☑ sales.js:263 GET /lots/:id/detail — dossier seulement dans le périmètre ; masquer téléphone/e-mail/nom du prospect sans `sales:read`.
+- ☑ sales.js:289-442 écritures sur dossiers, échéanciers, versements, documents — `saleInScope` ; ouverture d'un dossier avec un `lead_id` hors périmètre refusée.
+- ☑ catalog.js:451 GET /lots/:id/history — masquer `lead_name` sans `sales:read`.
+- ☑ catalog.js:421/432 statut et option d'un lot avec `lead_id` — `leadInScope`.
+- ☑ portfolio.js GET /leads/:id/portefeuille — périmètre ; POST /leads/assign → `leads:assign`.
 - ☐ users.js:17/36 GET /roles, /commerciaux — exiger un droit.
 - ☐ users.js:57/128 création/modification de compte : rôle cible limité aux privilèges du demandeur (`checkGrant`), pas de changement de mot de passe/e-mail d'un compte plus privilégié.
-- ☐ imports.js:29 import de clients : versements → `payments:write`, création de lots → `plans:write`.
-- ☐ sales.js:318 PATCH /sales/:id : `signed_at` → `juridique:write` ; champs qui régénèrent l'échéancier → `schedule:write`.
+- ☑ imports.js:29 import de clients : versements → `payments:write`, création de lots → `plans:write`.
+- ☑ sales.js:318 PATCH /sales/:id : `signed_at` → `juridique:write` ; champs qui régénèrent l'échéancier → `schedule:write`.
 - ☐ Libellés : `lots:status` (désistement), `sales:write`, `payments:write` (suppression), `plans:write` (prix), `projects:write` (suppression), newsletter.
-- ☐ Front admin : Layout `/parametres` → `projects:read` ; date de signature masquée sans `juridique:write` ; bouton Importer clients aligné.
+- ☑ Front admin : Layout `/parametres` → `projects:read` ; date de signature masquée sans `juridique:write` ; bouton Importer clients aligné.
 
 ## B. ERP — Commercial, Chantiers, Compta, Paie, Juridique
-- ☐ services/commercial.js `dashboard` : `team`, `series`, `late_fund_calls` limités au périmètre.
-- ☐ erp/commercial.js:376 GET /vefa/calls — `scopeLeads` ; sans `sales:read` masquer client et payé.
+- ☑ services/commercial.js `dashboard` : `team`, `series`, `late_fund_calls` limités au périmètre.
+- ☑ erp/commercial.js:376 GET /vefa/calls — `scopeLeads` ; sans `sales:read` masquer client et payé.
 - ☐ services/chantiers.js:427 `laborRows` — taux horaire et montant par personne réservés à `paie:read`.
 - ☐ Front Payroll.jsx:111/112/252/268/300 — `paie:validate`, `paie:pay`, `paie:settings`.
-- ☐ erp/commercial.js:201 GET /property — acquéreur, prix, payé seulement avec `sales:read` et dans le périmètre.
+- ☑ erp/commercial.js:201 GET /property — acquéreur, prix, payé seulement avec `sales:read` et dans le périmètre.
 - ☐ compta : écritures de paie nominatives visibles avec `compta:read` — masquer libellés salariés sans `paie:read`.
 - ☐ erp/commercial.js:276/288 PATCH /lots — `price_fcfa` exige `projects:write`.
 - ☐ compta.js:316-360 — nouveau `achats:validate` (validation des factures d'achat et des dépenses du Parc).
 - ☐ chantiers.js:169 TMA, juridique.js:113 actes — périmètre si l'accès ne vient que de `sales:read`.
-- ☐ chantiers.js:428 PATCH livraisons — périmètre, réponse filtrée.
+- ☑ chantiers.js:428 PATCH livraisons — périmètre, réponse filtrée.
 - ☐ paie.js:79 PATCH /employees — `user_id` → `users:write`, `manager_id`/`active` → `rh:files`.
 - ☐ chantiers.js:410 réception d'un marché (libère la retenue) — prévenir le Juridique.
 - ☐ juridique.js:229/269 litiges visant un collègue — exclure de la vue « service ».
 - ☐ chantiers.js:102/124/129 `/refs`, `/lieux`, `/programmes/:id` — limiter aux comptes concernés.
 - ☐ juridique.js:129 GET /courrier — exiger un droit.
-- ☐ erp/commercial.js:139/184 activités : pas d'activité confiée à un collègue sans `leads:assign`.
+- ☑ erp/commercial.js:139/184 activités : pas d'activité confiée à un collègue sans `leads:assign`.
 
 ## C. ERP — RH, présences, frais, recrutement, demandes, SAV
 - ☐ services/rh.js:238 décision de congé en mode « RH seulement » : responsable direct ne peut pas approuver définitivement.

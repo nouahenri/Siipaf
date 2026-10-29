@@ -2,7 +2,7 @@ import { useMemo, useState } from 'react';
 import { useOutletContext } from 'react-router-dom';
 import { MessagesSquare, Send, Search } from 'lucide-react';
 import { api } from '../lib/api';
-import { useResource, useSaved } from '../lib/app-context';
+import { useAuth, useResource, useSaved } from '../lib/app-context';
 import { Card, Drawer, Modal, Field, Badge, Empty, ErrorBox, Skeleton } from '../components/ui';
 import { MessageThread } from '../components/ClientSpace';
 import { relative } from '../lib/format';
@@ -10,6 +10,7 @@ import { relative } from '../lib/format';
 /** Fils de discussion avec les acquéreurs (espace client), du plus récent au plus ancien. */
 export default function ClientMessages() {
   const { stats } = useOutletContext(); // pastille du menu
+  const { can } = useAuth();
   const threads = useResource('/admin/client-messages');
   const [open, setOpen] = useState(null);
 
@@ -20,7 +21,7 @@ export default function ClientMessages() {
     <div className="stack">
       <div className="row-between">
         <p className="small muted">Les messages envoyés par les acquéreurs depuis leur espace client. Ouvrez un fil pour le lire et répondre.</p>
-        <button className="btn btn-primary" onClick={() => setGroup(true)}><Send />Message à plusieurs clients</button>
+        {can('client_messages:group') && <button className="btn btn-primary" onClick={() => setGroup(true)}><Send />Message à plusieurs clients</button>}
       </div>
       <ErrorBox error={threads.error} />
       <Card bodyClass="">

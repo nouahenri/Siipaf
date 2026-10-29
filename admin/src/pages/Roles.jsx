@@ -4,6 +4,7 @@ import { ShieldCheck, Lock, RotateCcw, Save, Info, Plus, Pencil, Trash2 } from '
 import { api } from '../lib/api';
 import { useResource, useToast, useSaved } from '../lib/app-context';
 import { Card, ErrorBox, Skeleton, Badge, Drawer, Field } from '../components/ui';
+import { permRows } from '../lib/permissions';
 
 /** Grille des privilèges : une colonne par rôle, une ligne par privilège, regroupés par domaine. */
 export default function Roles() {
@@ -29,6 +30,12 @@ export default function Roles() {
   const toggle = (role, perm) => setDraft(x => {
     const s = new Set(x[role]);
     s.has(perm) ? s.delete(perm) : s.add(perm);
+    return { ...x, [role]: s };
+  });
+  // Ligne d'intitulé : coche ou décoche toutes les actions détaillées du privilège
+  const toggleAll = (role, ids, on) => setDraft(x => {
+    const s = new Set(x[role]);
+    ids.forEach(id => (on ? s.add(id) : s.delete(id)));
     return { ...x, [role]: s };
   });
 
@@ -96,8 +103,23 @@ export default function Roles() {
             <tbody>
               {d.catalog.map(g => [
                 <tr key={g.group} className="perm-group"><td colSpan={roles.length + 1}>{g.group}</td></tr>,
-                ...g.items.map(p => (
-                  <tr key={p.id}>
+                ...permRows(g.items).map(p => (p.heading ? (
+                  <tr key={`h:${p.heading}`} className="perm-parent">
+                    <td><strong>{p.heading}</strong><div className="small muted">Cochez le tout ou action par action</div></td>
+                    {roles.map(r => {
+                      const n = r.locked ? p.ids.length : p.ids.filter(id => draft[r.id]?.has(id)).length;
+                      return (
+                        <td key={r.id} className="perm-col">
+                          <label className="perm-check" title={r.locked ? 'Le super administrateur a tous les droits' : n === p.ids.length ? 'Tout retirer' : 'Tout cocher'}>
+                            <input type="checkbox" checked={n === p.ids.length} ref={el => { if (el) el.indeterminate = n > 0 && n < p.ids.length; }} disabled={!editable || r.locked}
+                              onChange={() => toggleAll(r.id, p.ids, n !== p.ids.length)} aria-label={`${p.heading} (toutes les actions) — ${r.label}`} />
+                          </label>
+                        </td>
+                      );
+                    })}
+                  </tr>
+                ) : (
+                  <tr key={p.id} className={p.parent ? 'perm-sub' : undefined}>
                     <td>
                       <strong style={{ fontWeight: 500 }}>{p.label}</strong>
                       {p.hint && <div className="small muted">{p.hint}</div>}
@@ -114,7 +136,7 @@ export default function Roles() {
                       );
                     })}
                   </tr>
-                )),
+                ))),
               ])}
             </tbody>
             {editable && (
@@ -198,15 +220,15 @@ function RoleDrawer({ role, catalog, roles, onClose, onSaved }) {
           {catalog.map(g => (
             <div key={g.group}>
               <div className="perm-group-title">{g.group}</div>
-              {g.items.map(p => (
-                <label key={p.id} className="perm-line checkbox" style={{ display: 'flex' }}>
+              {permRows(g.items).map(p => (p.heading ? <div key={`h:${p.heading}`} className="perm-line perm-line-parent">{p.heading}</div> : (
+                <label key={p.id} className={`perm-line checkbox ${p.parent ? 'perm-line-sub' : ''}`} style={{ display: 'flex' }}>
                   <input type="checkbox" checked={perms.has(p.id)} onChange={() => toggle(p.id)} aria-label={p.label} />
                   <span style={{ flex: 1, minWidth: 0 }}>
                     {p.label}
                     {p.hint && <span className="small muted" style={{ display: 'block' }}>{p.hint}</span>}
                   </span>
                 </label>
-              ))}
+              )))}
             </div>
           ))}
           <p className="small muted">{perms.size} privilège(s) coché(s). Vous pourrez les modifier ensuite dans la grille.</p>

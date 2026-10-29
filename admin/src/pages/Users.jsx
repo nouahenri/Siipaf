@@ -4,6 +4,7 @@ import { api } from '../lib/api';
 import { useAuth, useResource, useToast, useSaved } from '../lib/app-context';
 import { Card, Drawer, Field, Badge, Empty, ErrorBox, Skeleton } from '../components/ui';
 import { initials, relative } from '../lib/format';
+import { permRows } from '../lib/permissions';
 
 // L'ERP est sur erp.siipaf.com quand le dashboard est sur admin.siipaf.com (erp.localhost en local)
 const erpUrl = path => `${window.location.protocol}//${window.location.host.replace(/^admin\./, 'erp.')}${path}`;
@@ -136,11 +137,12 @@ function UserPrivileges({ user, roleLabel }) {
         {catalog.data.catalog.map(g => (
           <div key={g.group}>
             <div className="perm-group-title">{g.group}</div>
-            {g.items.map(p => {
+            {permRows(g.items).map(p => {
+              if (p.heading) return <div key={`h:${p.heading}`} className="perm-line perm-line-parent">{p.heading}</div>;
               const state = p.id in overrides ? (overrides[p.id] ? 'grant' : 'deny') : 'role';
               const effective = state === 'role' ? fromRole.has(p.id) : state === 'grant';
               return (
-                <div key={p.id} className="perm-line">
+                <div key={p.id} className={`perm-line ${p.parent ? 'perm-line-sub' : ''}`}>
                   <span className={`perm-dot ${effective ? 'on' : ''}`} aria-hidden="true" />
                   <span style={{ flex: 1, minWidth: 0 }}>{p.label}</span>
                   <select className="select" style={{ width: 'auto', height: 32 }} value={state} disabled={!editable} onChange={e => set(p.id, e.target.value)} aria-label={p.label}>

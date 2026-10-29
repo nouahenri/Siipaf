@@ -139,3 +139,24 @@ test('versement déclaré par un commercial : à confirmer, ne compte qu’aprè
   assert.ok(await db('notifications').where({ user_id: sellerBId, event: 'versement.refuse' }).first());
   assert.equal(Number((await db('payments').where({ sale_id: sale.id }).sum({ v: 'amount_fcfa' }).first()).v), 5000000);
 });
+
+test('privilèges détaillés : chaque action se coche à part ; un ancien privilège est découpé sans rien perdre', async () => {
+  // Rôle qui ne fait qu'avancer les prospects dans le circuit
+  await admin.post('/api/admin/permissions/roles').send({ label: 'Suivi du circuit', permissions: ['leads:read', 'leads:stage', 'leads:all'] });
+  await admin.post('/api/admin/users').send({ name: 'Suivi', email: 'suivi@test.ci', role: 'suivi_du_circuit', password: 'motdepasse-long-123' });
+  await db('users').where({ email: 'suivi@test.ci' }).update({ must_change_password: false });
+  const suivi = await login(app, 'suivi@test.ci', 'motdepasse-long-123');
+  assert.equal((await suivi.patch(`/api/admin/leads/${leadB.id}`).send({ stage: 'visite' })).status, 200);
+  assert.equal((await suivi.patch(`/api/admin/leads/${leadB.id}`).send({ name: 'Autre nom' })).status, 403, 'modifier la fiche : autre action');
+  assert.equal((await suivi.post('/api/admin/leads').send({ name: 'Nouveau', phone: '0744444444' })).status, 403, 'créer : autre action');
+  // La grille présente les actions sous leur intitulé
+  const cat = (await admin.get('/api/admin/permissions')).body.catalog.find(g => g.group === 'Ventes');
+  assert.deepEqual(cat.items.filter(i => i.parent === 'Gérer ses prospects').map(i => i.id),
+    ['leads:create', 'leads:edit', 'leads:stage', 'leads:activities', 'leads:import', 'leads:transfer']);
+  // Migration : un rôle qui avait encore « leads:write » reçoit toutes ses actions
+  await db('role_permissions').insert({ role: 'suivi_du_circuit', permission: 'leads:write' });
+  await require('../migrations/20261129200000_privileges_detailles').up(db);
+  const perms = await db('role_permissions').where({ role: 'suivi_du_circuit' }).pluck('permission');
+  assert.ok(!perms.includes('leads:write'));
+  for (const p of ['leads:create', 'leads:edit', 'leads:transfer']) assert.ok(perms.includes(p), p);
+});

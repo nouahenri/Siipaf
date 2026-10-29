@@ -89,7 +89,7 @@ export default function ImportModal({ mode: initialMode = 'prospects', onClose, 
   const [sheet, setSheet] = useState(null); // { headers, rows }
   const [mapping, setMapping] = useState({});
   const [createLots, setCreateLots] = useState(true);
-  const [openAccess, setOpenAccess] = useState(can('client_access:write'));
+  const [openAccess, setOpenAccess] = useState(can('client_access:open'));
   const [progress, setProgress] = useState(null);
   const [result, setResult] = useState(null);
   const [error, setError] = useState(null);
@@ -213,7 +213,7 @@ export default function ImportModal({ mode: initialMode = 'prospects', onClose, 
             <>
               <p className="small muted" style={{ marginTop: 8 }}>Sans n° de lot, le client est repris « sans dossier » : il reçoit son code client et son type de bien ; le lot et le prix s’ajoutent ensuite depuis sa fiche.</p>
               <label className="checkbox small" style={{ marginTop: 10 }}><input type="checkbox" checked={createLots} onChange={e => setCreateLots(e.target.checked)} />Créer les lots qui n’existent pas encore dans le projet</label>
-              {can('client_access:write') && (
+              {can('client_access:open') && (
                 <label className="checkbox small" style={{ marginTop: 6 }}><input type="checkbox" checked={openAccess} onChange={e => setOpenAccess(e.target.checked)} />Ouvrir l’espace client de chaque client importé (mot de passe provisoire, à transmettre)</label>
               )}
             </>

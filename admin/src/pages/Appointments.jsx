@@ -63,7 +63,7 @@ export default function Appointments() {
                   <td className="small">{a.assigned_name || <span className="muted">Non assigné</span>}</td>
                   <td>{a.lead_phone && <a className="btn btn-sm btn-ghost" href={`tel:${a.lead_phone}`} aria-label={`Appeler ${a.lead_name}`}><Phone /></a>}</td>
                   <td className="right nowrap">
-                    {can('appointments:write') ? (
+                    {can(['appointments:edit', 'appointments:cancel']) ? (
                       <select className="select" style={{ width: 'auto', height: 32 }} value={a.status} onChange={e => setApptStatus(a, e.target.value)} aria-label="Statut du rendez-vous">
                         {Object.entries(APPT_STATUS).map(([k, v]) => <option key={k} value={k}>{v.label}</option>)}
                       </select>

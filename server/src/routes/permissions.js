@@ -67,7 +67,8 @@ module.exports = function permissionRoutes(db) {
     const totals = await db('users').select('role').count({ n: '*' }).groupBy('role');
     const overrides = await db('user_permissions').count({ n: '*' });
     res.json({
-      catalog: PERMISSION_CATALOG.map(g => ({ group: g.group, items: g.items.map(([id, label, hint]) => ({ id, label, hint })) })),
+      // parent : titre qui regroupe les actions détaillées d'un même privilège (cases à cocher sous un même intitulé)
+      catalog: PERMISSION_CATALOG.map(g => ({ group: g.group, items: g.items.map(([id, label, hint, parent]) => ({ id, label, hint, parent: parent || null })) })),
       roles: list.map(r => ({
         ...r,
         users: Number(counts.find(c => c.role === r.id)?.n || 0),

@@ -1,9 +1,9 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { Landmark, TrendingUp, TrendingDown, Minus, Scale, Users, Truck, Receipt, FileClock, RefreshCw, CheckCheck, CalendarPlus, Wallet, Smartphone, Banknote, ArrowRight } from 'lucide-react';
-import { api } from '@admin/lib/api';
+import { api, qs } from '@admin/lib/api';
 import { useAuth, useResource, useToast, useSaved } from '@admin/lib/app-context';
-import { Card, Skeleton, Empty, Badge } from '@admin/components/ui';
+import { Card, Skeleton, Empty, Badge, Modal, Field, ErrorBox } from '@admin/components/ui';
 import { LineChart, useCountUp, monthLabel } from '@admin/components/Charts';
 import { SmoothAreaChart, GroupedBars, HighlightBars, Donut } from '@admin/components/ChartsPlus';
 import { fcfa, date } from '@admin/lib/format';
@@ -189,8 +189,12 @@ function PendingPayments() {
   const toast = useToast();
   const saved = useSaved();
   const list = useResource(can('payments:write') ? '/admin/payment-declarations?status=a_confirmer' : null);
+  const [entering, setEntering] = useState(false);
   const rows = list.data || [];
-  if (!rows.length) return null;
+  const entry = entering && <ClientPaymentModal onClose={() => setEntering(false)} />;
+  // Saisie directe par la Comptabilité, sans passer par le commercial (qui est prévenu)
+  const enterButton = can('payments:write') && <button className="btn btn-sm" onClick={() => setEntering(true)}><Banknote />Saisir un versement client</button>;
+  if (!rows.length) return can('payments:write') ? <div className="row" style={{ justifyContent: 'flex-end' }}>{enterButton}{entry}</div> : null;
   const decide = async (x, ok) => {
     const reason = ok ? null : window.prompt('Motif du refus (transmis au commercial)');
     if (!ok && !reason) return;
@@ -200,7 +204,8 @@ function PendingPayments() {
     } catch (e) { toast(e.message, 'err'); }
   };
   return (
-    <Card title={<span className="row" style={{ gap: 8 }}>Versements à confirmer <Badge tone="warn">{rows.length}</Badge></span>} bodyClass="">
+    <Card title={<span className="row" style={{ gap: 8 }}>Versements à confirmer <Badge tone="warn">{rows.length}</Badge></span>} actions={enterButton} bodyClass="">
+      {entry}
       <div className="table-wrap"><table className="table table-compact">
         <thead><tr><th>Client</th><th>Bien</th><th>Versement</th><th>Déclaré par</th><th className="right">Montant</th><th /></tr></thead>
         <tbody>{rows.map(x => (
@@ -215,5 +220,67 @@ function PendingPayments() {
         ))}</tbody>
       </table></div>
     </Card>
+  );
+}
+
+/**
+ * Versement d'un client saisi directement par la Comptabilité (choix du client du 29/10) : il compte aussitôt dans le
+ * dossier ; le commercial du client et les responsables commerciaux sont prévenus (circuit d'information « vente.versement »).
+ */
+function ClientPaymentModal({ onClose }) {
+  const saved = useSaved();
+  const [q, setQ] = useState('');
+  const [debounced, setDebounced] = useState('');
+  const [sale, setSale] = useState(null);
+  const today = new Date().toISOString().slice(0, 10);
+  const [f, setF] = useState({ amount_fcfa: '', paid_at: today, method: 'virement', reference: '', note: '' });
+  const [error, setError] = useState(null);
+  const [busy, setBusy] = useState(false);
+  useEffect(() => { const h = setTimeout(() => setDebounced(q.trim()), 300); return () => clearTimeout(h); }, [q]);
+  const found = useResource(debounced.length >= 2 ? `/admin/erp/commercial/sales${qs({ q: debounced, status: 'en_cours' })}` : null);
+  const set = k => e => setF(x => ({ ...x, [k]: e.target.value }));
+  const pick = s => { setSale(s); setF(x => ({ ...x, amount_fcfa: '' })); };
+  const save = async e => {
+    e.preventDefault(); setBusy(true); setError(null);
+    try {
+      await api.post(`/admin/sales/${sale.id}/payments`, { amount_fcfa: Number(f.amount_fcfa), paid_at: f.paid_at, method: f.method, reference: f.reference || undefined, note: f.note || undefined });
+      saved(`Versement enregistré pour ${sale.client_name} : le commercial est prévenu`);
+      onClose();
+    } catch (err) { setError(err); } finally { setBusy(false); }
+  };
+  return (
+    <Modal title="Saisir un versement client" onClose={onClose}
+      footer={<><button className="btn" onClick={onClose}>Annuler</button><button className="btn btn-primary" form="client-payment" disabled={!sale || busy || !f.amount_fcfa}>Enregistrer</button></>}>
+      <ErrorBox error={error} />
+      {!sale ? (
+        <div className="stack">
+          <Field label="Client ou dossier" hint="Nom, code client ou lot (dossiers en cours)"><input className="input" autoFocus value={q} onChange={e => setQ(e.target.value)} placeholder="Ex. : Koné, SIIPAF-2026-0040, A9" /></Field>
+          {found.data && (!found.data.length ? <p className="small muted">Aucun dossier en cours ne correspond.</p> : (
+            <div className="table-wrap" style={{ maxHeight: 280, overflow: 'auto' }}><table className="table table-compact"><tbody>
+              {found.data.slice(0, 30).map(s => (
+                <tr key={s.id} className="clickable" tabIndex={0} onClick={() => pick(s)} onKeyDown={e => e.key === 'Enter' && pick(s)}>
+                  <td><b>{s.client_name}</b><div className="small muted">{s.client_code} · {s.assigned_name || 'sans commercial'}</div></td>
+                  <td className="small">{s.project_name} · lot {s.lot_code}</td>
+                  <td className="right small tabular">reste {fcfa(s.remaining_fcfa)}</td>
+                </tr>
+              ))}
+            </tbody></table></div>
+          ))}
+        </div>
+      ) : (
+        <form id="client-payment" className="form-grid" onSubmit={save}>
+          <div className="full row-between erp-panel">
+            <span><b>{sale.client_name}</b> <span className="small muted">· {sale.project_name}, lot {sale.lot_code} · commercial : {sale.assigned_name || '—'}</span><br /><span className="small">Reste à payer : <b className="tabular">{fcfa(sale.remaining_fcfa)}</b></span></span>
+            <button type="button" className="btn btn-sm btn-ghost" onClick={() => setSale(null)}>Changer</button>
+          </div>
+          <Field label="Montant (FCFA)"><input className="input tabular" type="number" min="1" max={sale.remaining_fcfa} required value={f.amount_fcfa} onChange={set('amount_fcfa')} placeholder={String(sale.next_due?.remaining_fcfa || sale.remaining_fcfa)} /></Field>
+          <Field label="Date du paiement"><input className="input" type="date" max={today} required value={f.paid_at} onChange={set('paid_at')} /></Field>
+          <Field label="Moyen de paiement"><select className="select" value={f.method} onChange={set('method')}>{Object.entries(METHODS).map(([k, v]) => <option key={k} value={k}>{v}</option>)}</select></Field>
+          <Field label="Référence"><input className="input" value={f.reference} onChange={set('reference')} placeholder="N° de transaction, de chèque…" /></Field>
+          <Field label="Note" className="full"><input className="input" value={f.note} onChange={set('note')} maxLength={255} /></Field>
+          <p className="full small muted">Le versement compte aussitôt dans le dossier (solde, espace client, reçu). Le commercial du client et les responsables commerciaux sont prévenus.</p>
+        </form>
+      )}
+    </Modal>
   );
 }

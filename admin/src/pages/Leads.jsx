@@ -79,8 +79,8 @@ export default function Leads() {
             <button className={view === 'pipeline' ? 'active' : ''} onClick={() => setView('pipeline')}><Columns3 />Pipeline</button>
           </div>
           <a className="btn" href="/api/admin/leads.csv?type=prospects"><Download />Exporter</a>
-          {can('leads:write') && <button className="btn" onClick={() => setImporting(true)}><Upload />Importer</button>}
-          {can('leads:write') && <button className="btn btn-primary" onClick={() => setCreating(true)}><Plus />Nouveau prospect</button>}
+          {can('leads:import') && <button className="btn" onClick={() => setImporting(true)}><Upload />Importer</button>}
+          {can('leads:create') && <button className="btn btn-primary" onClick={() => setCreating(true)}><Plus />Nouveau prospect</button>}
         </div>
       </div>
 
@@ -88,10 +88,10 @@ export default function Leads() {
       <TransferRequests onChange={leads.reload} />
       {view === 'liste'
         ? <LeadTable leads={leads} page={page} setPage={setPage} pageSize={pageSize} setPageSize={changePageSize} onOpen={setSelected} sellers={sellers.data} />
-        : <Pipeline leads={leads} onOpen={setSelected} canWrite={can('leads:write')} />}
+        : <Pipeline leads={leads} onOpen={setSelected} canWrite={can('leads:stage')} />}
 
       {selected && <LeadDrawer id={selected} onClose={() => setSelected(null)} onSaved={leads.reload} projects={projects.data || []} />}
-      {importing && <ImportModal mode="prospects" allowModes={can('sales:write') ? ['prospects', 'clients'] : ['prospects']} onClose={() => setImporting(false)} onDone={() => leads.reload()} />}
+      {importing && <ImportModal mode="prospects" allowModes={can('sales:clients') ? ['prospects', 'clients'] : ['prospects']} onClose={() => setImporting(false)} onDone={() => leads.reload()} />}
       {creating && <LeadDrawer onClose={() => setCreating(false)} onSaved={() => { setCreating(false); leads.reload(); }} projects={projects.data || []} />}
     </div>
   );
@@ -249,7 +249,8 @@ function LeadDrawer({ id, onClose, onSaved, projects }) {
   }, [detail.data]);
 
   const set = k => e => setForm(f => ({ ...f, [k]: e.target.type === 'checkbox' ? e.target.checked : e.target.value }));
-  const editable = can('leads:write');
+  // Nouveau prospect : leads:create ; fiche existante : modifier (leads:edit) ou faire avancer (leads:stage)
+  const editable = id ? can(['leads:edit', 'leads:stage']) : can('leads:create');
 
   const save = async () => {
     setBusy(true);
@@ -299,7 +300,7 @@ function LeadDrawer({ id, onClose, onSaved, projects }) {
               {d.phone && <a className="btn btn-sm" href={`tel:${d.phone}`}><Phone />Appeler</a>}
               {d.phone && <a className="btn btn-sm" href={`https://wa.me/${d.phone.replace(/\D/g, '')}`} target="_blank" rel="noreferrer">WhatsApp</a>}
               {d.email && <a className="btn btn-sm" href={`mailto:${d.email}`}><MailIcon />E-mail</a>}
-              {can('appointments:write') && <button className="btn btn-sm" onClick={() => setAppt({ kind: 'visite', starts_at: toLocalInput(Date.now() + 86400000), notes: '' })}><CalendarPlus />Planifier un RDV</button>}
+              {can('appointments:create') && <button className="btn btn-sm" onClick={() => setAppt({ kind: 'visite', starts_at: toLocalInput(Date.now() + 86400000), notes: '' })}><CalendarPlus />Planifier un RDV</button>}
             </div>
           )}
           {appt && (
@@ -349,7 +350,7 @@ function LeadDrawer({ id, onClose, onSaved, projects }) {
                 ) : (
                   <div className="row" style={{ gap: 8 }}>
                     <span className="input" style={{ display: 'flex', alignItems: 'center', flex: 1 }}>{id ? (sellers.data?.find(u => u.id === Number(form.assigned_to))?.name || d?.assigned_name || 'Vous') : 'Vous'}</span>
-                    {id && editable && <button type="button" className="btn btn-sm" onClick={() => setTransfer({ lead: { id, name: d?.name }, mine: true })}>Demander un transfert</button>}
+                    {id && can('leads:transfer') && <button type="button" className="btn btn-sm" onClick={() => setTransfer({ lead: { id, name: d?.name }, mine: true })}>Demander un transfert</button>}
                   </div>
                 )}
               </Field>

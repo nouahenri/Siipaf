@@ -108,7 +108,7 @@ function createApp(db) {
       const legal = await db('media as m').join('sale_documents as d', 'd.media_id', 'm.id').where('m.filename', name).first('m.filename');
       if (!legal) return next();
       requireAuth(db)(req, res, err => {
-        if (err || !(req.can('sales:read') || req.can('documents:write'))) return res.sendStatus(404);
+        if (err || !(req.can('sales:read') || req.can('documents:files'))) return res.sendStatus(404);
         res.set('Cache-Control', 'private, no-store');
         res.sendFile(path.join(uploadsDir, legal.filename), e => e && !res.headersSent && res.sendStatus(404));
       });

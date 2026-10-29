@@ -36,8 +36,10 @@ exports.up = async knex => {
   for (const p of perms) (byRole[p.role] = byRole[p.role] || new Set()).add(p.permission);
   for (const [role, set] of Object.entries(byRole)) {
     // Comptes qui consultent des clients sans portefeuille (comptabilité, conducteur…) : portée équipe, comme avant
-    if (!set.has('leads:write') && !set.has('leads:all') && CLIENT_VIEW.some(p => set.has(p))) await grant(knex, role, 'leads:all');
-    if (set.has('leads:all') && set.has('leads:write')) await grant(knex, role, 'leads:assign');
+    // Base neuve : les droits d'origine sont déjà découpés (leads:create au lieu de leads:write)
+    const seller = set.has('leads:write') || set.has('leads:create');
+    if (!seller && !set.has('leads:all') && CLIENT_VIEW.some(p => set.has(p))) await grant(knex, role, 'leads:all');
+    if (set.has('leads:all') && seller) await grant(knex, role, 'leads:assign');
   }
   await grant(knex, 'resp_exploitation', 'leads:assign');
 };

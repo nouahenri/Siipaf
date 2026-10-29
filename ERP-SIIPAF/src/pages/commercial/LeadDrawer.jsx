@@ -19,7 +19,10 @@ export default function LeadDrawer({ id, onClose, onChange }) {
   const [selling, setSelling] = useState(false);
   const [appt, setAppt] = useState(false);
   const [error, setError] = useState(null);
-  const write = can('leads:write');
+  // Actions détaillées : fiche (leads:edit), étapes et perte (leads:stage), activités et notes (leads:activities)
+  const write = can('leads:edit');
+  const staging = can('leads:stage');
+  const acting = can('leads:activities');
   const refresh = () => { lead.reload(); onChange?.(); };
 
   const stage = async to => {
@@ -41,7 +44,7 @@ export default function LeadDrawer({ id, onClose, onChange }) {
               const on = l.stage === s;
               return (
                 <button key={s} className={on ? 'on' : ''} style={on ? { background: STAGE_COLORS[s], borderColor: STAGE_COLORS[s] } : undefined}
-                  disabled={!write || on} onClick={() => stage(s)} aria-pressed={on}>{info.label}</button>
+                  disabled={!staging || on} onClick={() => stage(s)} aria-pressed={on}>{info.label}</button>
               );
             })}
           </div>
@@ -54,9 +57,9 @@ export default function LeadDrawer({ id, onClose, onChange }) {
             {l.phone && <a className="btn btn-sm" href={`tel:${l.phone}`}><Phone />Appeler</a>}
             {l.phone && <a className="btn btn-sm" href={waLink(l.phone)} target="_blank" rel="noreferrer"><MessageCircle />WhatsApp</a>}
             {l.email && <a className="btn btn-sm" href={`mailto:${l.email}`}><Mail />E-mail</a>}
-            {can('appointments:write') && l.stage !== 'perdu' && <button className="btn btn-sm" onClick={() => setAppt(true)}><CalendarPlus />Rendez-vous</button>}
-            {can('sales:write') && l.stage !== 'perdu' && <button className="btn btn-sm btn-primary" onClick={() => setSelling(true)}><FileSignature />Ouvrir une vente</button>}
-            {write && (l.stage === 'perdu'
+            {can('appointments:create') && l.stage !== 'perdu' && <button className="btn btn-sm" onClick={() => setAppt(true)}><CalendarPlus />Rendez-vous</button>}
+            {can('sales:open') && l.stage !== 'perdu' && <button className="btn btn-sm btn-primary" onClick={() => setSelling(true)}><FileSignature />Ouvrir une vente</button>}
+            {staging && (l.stage === 'perdu'
               ? <button className="btn btn-sm" onClick={() => stage('prospection')}><RotateCcw />Relancer</button>
               : <button className="btn btn-sm btn-ghost btn-danger" onClick={() => setLost(true)}><XCircle />Marquer perdu</button>)}
           </div>
@@ -87,8 +90,8 @@ export default function LeadDrawer({ id, onClose, onChange }) {
             </section>
           )}
 
-          <Activities lead={l} meta={meta} write={write} onChange={refresh} />
-          <History lead={l} write={write} onChange={refresh} />
+          <Activities lead={l} meta={meta} write={acting} onChange={refresh} />
+          <History lead={l} write={acting} onChange={refresh} />
         </div>
       )}
       {lost && l && <LostModal lead={l} onClose={() => setLost(false)} onDone={() => { setLost(false); refresh(); }} />}
@@ -174,7 +177,7 @@ function LeadInfo({ lead, meta, write, onSaved }) {
         <Field label="Pays de résidence"><input className="input" value={form.country} onChange={set('country')} /></Field>
         <label className="checkbox" style={{ alignSelf: 'end', paddingBottom: 10 }}><input type="checkbox" checked={form.is_diaspora} onChange={set('is_diaspora')} />Diaspora</label>
       </fieldset>
-      {write && <div className="row" style={{ gap: 8 }}><button className="btn btn-sm btn-primary">Enregistrer la fiche</button>{!assigner && <button type="button" className="btn btn-sm" onClick={() => setTransfer(true)}>Demander un transfert</button>}</div>}
+      {write && <div className="row" style={{ gap: 8 }}><button className="btn btn-sm btn-primary">Enregistrer la fiche</button>{!assigner && can('leads:transfer') && <button type="button" className="btn btn-sm" onClick={() => setTransfer(true)}>Demander un transfert</button>}</div>}
       <TransferRequests leadId={lead.id} onChange={onSaved} />
       {transfer && <TransferModal lead={lead} onClose={() => setTransfer(false)} onDone={onSaved} />}
     </form>

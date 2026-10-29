@@ -346,7 +346,7 @@ export function Deliveries({ w, refs }) {
   const res = useResource(`${CH}/${w.id}/livraisons`);
   const [edit, setEdit] = useState(null);
   const [handover, setHandover] = useState(null);
-  const write = can('sales:write');
+  const write = can('sales:edit');
   const save = async (row, value) => {
     try { res.setData(await api.patch(`${CH}/${w.id}/livraisons/${row.sale_id}`, { promised_delivery_on: value || null })); setEdit(null); } catch (e) { toast(e.message, 'err'); }
   };

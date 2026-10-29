@@ -86,7 +86,7 @@ module.exports = function crmRoutes(db) {
     property_type: z.string().trim().max(160).nullable().optional(),
   });
 
-  r.post('/leads', requirePermission('leads:write'), ah(async (req, res) => {
+  r.post('/leads', requirePermission('leads:create'), ah(async (req, res) => {
     const data = parse(leadSchema, req.body);
     if (!canAssignLeads(req.user) && data.assigned_to && data.assigned_to !== req.user.id) {
       throw new HttpError(403, 'Seul le responsable attribue un prospect à un autre commercial.');
@@ -105,9 +105,13 @@ module.exports = function crmRoutes(db) {
     res.status(201).json(await db('leads').where({ id: lead.id }).first());
   }));
 
-  r.patch('/leads/:id', requirePermission('leads:write'), ah(async (req, res) => {
+  r.patch('/leads/:id', requirePermission('leads:edit', 'leads:stage', 'leads:assign'), ah(async (req, res) => {
     const id = idParam(req);
     const data = parse(leadSchema.partial(), req.body);
+    // Chaque partie de la fiche relève de son action : étape (leads:stage), le reste (leads:edit)
+    const { stage: _stage, assigned_to: _assigned, ...fields } = data;
+    if ('stage' in data && !req.can('leads:stage')) throw new HttpError(403, 'Faire avancer un prospect dans le circuit demande le droit correspondant.');
+    if (Object.keys(fields).length && !req.can('leads:edit')) throw new HttpError(403, 'Modifier la fiche d’un prospect demande le droit correspondant.');
     const lead = await leadInScope(db, id, req.user);
     // Changer de commercial (ou retirer un prospect de son portefeuille) : responsable seulement, sinon demande de transfert
     if ('assigned_to' in data && (data.assigned_to || null) !== (lead.assigned_to || null) && !canAssignLeads(req.user)) {
@@ -182,7 +186,7 @@ module.exports = function crmRoutes(db) {
     notes: z.string().max(4000).nullable().optional(),
   });
 
-  r.post('/appointments', requirePermission('appointments:write'), ah(async (req, res) => {
+  r.post('/appointments', requirePermission('appointments:create'), ah(async (req, res) => {
     const data = parse(apptSchema, req.body);
     const lead = await leadInScope(db, data.lead_id, req.user);
     const assignedTo = data.assigned_to ?? (seesAllLeads(req.user) ? lead.assigned_to || req.user.id : req.user.id);
@@ -191,9 +195,13 @@ module.exports = function crmRoutes(db) {
     res.status(201).json(await db('appointments').where({ id }).first());
   }));
 
-  r.patch('/appointments/:id', requirePermission('appointments:write'), ah(async (req, res) => {
+  r.patch('/appointments/:id', requirePermission('appointments:edit', 'appointments:cancel'), ah(async (req, res) => {
     const id = idParam(req);
     const data = parse(apptSchema.partial(), req.body);
+    // Annuler (appointments:cancel) ; confirmer, déplacer, marquer effectué ou absent (appointments:edit)
+    const { status: _status, ...apptFields } = data;
+    if (data.status === 'annule' && !req.can('appointments:cancel')) throw new HttpError(403, 'Annuler un rendez-vous demande le droit correspondant.');
+    if (((data.status && data.status !== 'annule') || Object.keys(apptFields).length) && !req.can('appointments:edit')) throw new HttpError(403, 'Modifier un rendez-vous demande le droit correspondant.');
     const current = await scopeLeads(db('appointments as a').join('leads as ld', 'ld.id', 'a.lead_id'), req.user).where('a.id', id).first('a.id', 'a.lead_id');
     if (!current) throw new HttpError(404, 'Rendez-vous introuvable.');
     if (!seesAllLeads(req.user)) {

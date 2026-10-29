@@ -50,7 +50,7 @@ test('créer un rôle avec ses droits, puis lui attribuer un compte qui obtient 
   assert.equal((await agent.get('/api/admin/users')).status, 403);
 
   // Les droits du rôle se règlent ensuite comme ceux des rôles d'origine
-  await admin.put('/api/admin/permissions/roles/assistant_e_commercial').send({ permissions: ['leads:read', 'leads:write'] });
+  await admin.put('/api/admin/permissions/roles/assistant_e_commercial').send({ permissions: ['leads:read', 'leads:create', 'leads:edit'] });
   assert.equal((await agent.get('/api/admin/appointments')).status, 403);
   const sellers = await admin.get('/api/admin/users/commerciaux');
   assert.ok(sellers.body.some(u => u.role === 'assistant_e_commercial'), 'proposé pour l’assignation des prospects');
