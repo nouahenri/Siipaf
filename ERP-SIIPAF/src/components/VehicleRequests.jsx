@@ -25,7 +25,7 @@ export default function VehicleRequests() {
   };
   const now = `${today()}T00:00`;
   return (
-    <Card title="Mes demandes de véhicule" actions={<button className="btn btn-sm" onClick={() => setForm(true)}><Plus />Demander un véhicule</button>} bodyClass="">
+    <Card title="Mes demandes de véhicule" actions={<button className="btn btn-primary btn-sm" onClick={() => setForm(true)}><Plus />Demander un véhicule</button>} bodyClass="">
       {!list.data ? <div className="card-body"><Skeleton h={60} /></div> : !list.data.length ? (
         <div className="card-body"><Empty icon={Car}>Besoin d’un véhicule de service (visite client, banque, chantier) ? Faites la demande : les services généraux vous attribuent un véhicule.</Empty></div>
       ) : (

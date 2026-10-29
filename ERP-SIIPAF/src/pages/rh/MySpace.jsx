@@ -79,7 +79,7 @@ export default function MySpace() {
         )}
       </Card>
 
-      <Card title="Mes notes de frais" actions={can('self:frais') && <button className="btn btn-sm" onClick={() => setExpense({})}><Plus />Note de frais</button>} bodyClass="">
+      <Card title="Mes notes de frais" actions={can('self:frais') && <button className="btn btn-primary btn-sm" onClick={() => setExpense({})}><Plus />Note de frais</button>} bodyClass="">
         {!expenses.data ? <div className="card-body"><Skeleton h={80} /></div> : !expenses.data.length ? <div className="card-body"><Empty icon={Receipt}>Photographiez vos reçus (carburant, missions, petit matériel…) : ils sont approuvés par votre responsable puis remboursés.</Empty></div> : (
           <div className="table-wrap"><table className="table">
             <thead><tr><th>Référence</th><th>Date</th><th>Dépense</th><th className="right">Montant</th><th>Statut</th></tr></thead>

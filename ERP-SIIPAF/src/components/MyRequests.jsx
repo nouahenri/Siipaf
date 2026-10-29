@@ -20,7 +20,7 @@ export default function MyRequests() {
     try { await api.post(`${URL}/${r.id}/annuler`); toast('Demande annulée'); list.reload(); } catch (e) { toast(e.message, 'err'); }
   };
   return (
-    <Card title="Mes demandes internes" actions={<button className="btn btn-sm" onClick={() => setForm(true)}><Plus />Nouvelle demande</button>} bodyClass="">
+    <Card title="Mes demandes internes" actions={<button className="btn btn-primary btn-sm" onClick={() => setForm(true)}><Plus />Nouvelle demande</button>} bodyClass="">
       {!list.data ? <div className="card-body"><Skeleton h={60} /></div> : !list.data.length ? (
         <div className="card-body"><Empty icon={Inbox}>Fournitures, équipement pour le bureau ou le chantier, dépannage, prêt de matériel : votre responsable valide, les services généraux traitent.</Empty></div>
       ) : (
