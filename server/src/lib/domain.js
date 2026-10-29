@@ -728,6 +728,8 @@ const STAGE_PROBABILITY = {
 };
 // Colonnes du pipeline : de la prospection à la signature chez le notaire
 const PIPELINE_STAGES = ['prospection', 'visite', 'decision', 'choix_bien', 'paiement', 'contrat', 'notaire'];
+// Colonnes du pipeline : les étapes de vente, puis le SAV (clients livrés, suivis dans « Client & SAV »)
+const BOARD_STAGES = [...PIPELINE_STAGES, 'sav'];
 // Étapes où la vente est acquise (contrat signé et au-delà)
 const WON_STAGES = ['contrat', 'notaire', 'livraison', 'sav'];
 
@@ -1708,6 +1710,6 @@ module.exports = {
   offerSurface, gridOfferFor, GRID_PRICED_STATUSES,
   SAV_CATEGORIES, SAV_PRIORITIES, SAV_STATUSES, SAV_STATUS_LABELS, SAV_OPEN_STATUSES, SAV_TRANSITIONS, SAV_SOURCES,
   WARRANTIES, warrantyFor, warrantyDates, SAV_LAND_CATEGORIES, SAV_RESERVE_STATUSES, SAV_INTERVENTION_STATUSES,
-  STAGE_PROBABILITY, PIPELINE_STAGES, WON_STAGES, LOST_REASONS, ACTIVITY_KINDS, LEAD_KINDS, isLandType, BUILDING_KINDS,
+  STAGE_PROBABILITY, PIPELINE_STAGES, BOARD_STAGES, WON_STAGES, LOST_REASONS, ACTIVITY_KINDS, LEAD_KINDS, isLandType, BUILDING_KINDS,
   TARGET_METRICS, VEFA_LEGAL_CAPS, DEFAULT_VEFA_PLAN, VEFA_DUE_DAYS, checkVefaPlan, splitVefaAmounts, milestoneReached, activityState,
 };

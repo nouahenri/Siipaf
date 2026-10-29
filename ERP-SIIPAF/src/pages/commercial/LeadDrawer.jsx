@@ -32,6 +32,8 @@ export default function LeadDrawer({ id, onClose, onChange }) {
   };
 
   const l = lead.data;
+  // Vente engagée : un dossier non désisté ; un nouveau dossier est alors l'acquisition d'un autre bien
+  const engaged = !!l?.sales.some(s => s.status !== 'desiste');
   return (
     <Drawer title={l ? l.name : 'Prospect'} onClose={onClose}>
       {!l ? <Skeleton h={420} /> : (
@@ -39,12 +41,13 @@ export default function LeadDrawer({ id, onClose, onChange }) {
           <ErrorBox error={error || lead.error} />
           {/* Barre d'étapes cliquable (comme la barre de statut Odoo) */}
           <div className="stagebar" role="group" aria-label="Étape du circuit">
-            {meta?.pipeline_stages.map(s => {
+            {meta?.board_stages.map(s => {
               const info = meta.stages.find(x => x.id === s);
               const on = l.stage === s;
               return (
                 <button key={s} className={on ? 'on' : ''} style={on ? { background: STAGE_COLORS[s], borderColor: STAGE_COLORS[s] } : undefined}
-                  disabled={!staging || on} onClick={() => stage(s)} aria-pressed={on}>{info.label}</button>
+                  disabled={!staging || on || (s === 'sav' && !engaged)} title={s === 'sav' && !engaged ? 'Réservé aux clients qui ont un dossier de vente' : undefined}
+                  onClick={() => stage(s)} aria-pressed={on}>{info.label}</button>
               );
             })}
           </div>
@@ -52,13 +55,16 @@ export default function LeadDrawer({ id, onClose, onChange }) {
             <div className="alert" role="status">Perdu{l.lost_reason ? ` — ${meta?.lost_reasons[l.lost_reason]}` : ''}{l.lost_note ? ` : ${l.lost_note}` : ''}</div>
           )}
           {['livraison', 'sav'].includes(l.stage) && <Badge tone="ok">Client livré — suivi dans « Client & SAV »</Badge>}
+          {['paiement', 'contrat', 'notaire'].includes(l.stage) && !engaged && (
+            <div className="alert" role="status">Étape « {meta?.stages.find(x => x.id === l.stage)?.label} » sans dossier de vente : ouvrez le dossier pour réserver le lot, fixer le prix et suivre les versements.</div>
+          )}
 
           <div className="row" style={{ gap: 8 }}>
             {l.phone && <a className="btn btn-sm" href={`tel:${l.phone}`}><Phone />Appeler</a>}
             {l.phone && <a className="btn btn-sm" href={waLink(l.phone)} target="_blank" rel="noreferrer"><MessageCircle />WhatsApp</a>}
             {l.email && <a className="btn btn-sm" href={`mailto:${l.email}`}><Mail />E-mail</a>}
             {can('appointments:create') && l.stage !== 'perdu' && <button className="btn btn-sm" onClick={() => setAppt(true)}><CalendarPlus />Rendez-vous</button>}
-            {can('sales:open') && l.stage !== 'perdu' && <button className="btn btn-sm btn-primary" onClick={() => setSelling(true)}><FileSignature />Ouvrir une vente</button>}
+            {can('sales:open') && l.stage !== 'perdu' && <button className="btn btn-sm btn-primary" onClick={() => setSelling(true)}><FileSignature />{engaged ? 'Acquérir un autre bien' : 'Ouvrir le dossier de vente'}</button>}
             {staging && (l.stage === 'perdu'
               ? <button className="btn btn-sm" onClick={() => stage('prospection')}><RotateCcw />Relancer</button>
               : <button className="btn btn-sm btn-ghost btn-danger" onClick={() => setLost(true)}><XCircle />Marquer perdu</button>)}
@@ -96,7 +102,7 @@ export default function LeadDrawer({ id, onClose, onChange }) {
       )}
       {lost && l && <LostModal lead={l} onClose={() => setLost(false)} onDone={() => { setLost(false); refresh(); }} />}
       {appt && l && <ApptModal lead={l} onClose={() => setAppt(false)} onDone={() => { setAppt(false); refresh(); toast('Rendez-vous planifié'); }} />}
-      {selling && l && <NewSale lead={l} onClose={() => setSelling(false)} onDone={() => { setSelling(false); refresh(); toast('Dossier de vente ouvert'); }} />}
+      {selling && l && <NewSale lead={l} another={engaged} onClose={() => setSelling(false)} onDone={() => { setSelling(false); refresh(); toast('Dossier de vente ouvert'); }} />}
     </Drawer>
   );
 }
@@ -334,7 +340,7 @@ export function LostModal({ lead, onClose, onDone }) {
 }
 
 /** Ouvre un dossier de vente sur un lot disponible du programme (échéancier classique ou appels de fonds VEFA). */
-export function NewSale({ lead, onClose, onDone, lot: fixedLot }) {
+export function NewSale({ lead, onClose, onDone, lot: fixedLot, another = false }) {
   const meta = useCommercialMeta();
   const [projectId, setProjectId] = useState(fixedLot?.project_id || lead?.project_id || '');
   const property = useResource(projectId && !fixedLot ? `/admin/erp/commercial/property?project_id=${projectId}` : null);
@@ -358,9 +364,10 @@ export function NewSale({ lead, onClose, onDone, lot: fixedLot }) {
     } catch (err) { setError(err); setBusy(false); }
   };
   return (
-    <Modal title={`Ouvrir une vente — ${lead.name}`} onClose={onClose} footer={<><button className="btn btn-ghost" onClick={onClose}>Annuler</button><button className="btn btn-primary" form="new-sale" disabled={busy || !lot}>Ouvrir le dossier</button></>}>
+    <Modal title={`${another ? 'Acquisition d’un autre bien' : 'Dossier de vente'} — ${lead.name}`} onClose={onClose} footer={<><button className="btn btn-ghost" onClick={onClose}>Annuler</button><button className="btn btn-primary" form="new-sale" disabled={busy || !lot}>Ouvrir le dossier</button></>}>
       <form id="new-sale" className="stack" style={{ gap: 12 }} onSubmit={submit}>
         <ErrorBox error={error} />
+        {another && <p className="small muted">Ce client a déjà un dossier de vente en cours : ce nouveau dossier concerne un bien supplémentaire (autre lot), avec son propre prix et ses versements.</p>}
         {!fixedLot && (
           <div className="form-grid">
             <Field label="Programme">

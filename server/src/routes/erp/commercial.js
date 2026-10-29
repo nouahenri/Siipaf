@@ -7,7 +7,7 @@ const { z } = require('zod');
 const { ah, parse, idParam, HttpError, isoDay, isoTime } = require('../../lib/http');
 const { requirePermission } = require('../../auth');
 const {
-  LEAD_STAGES, PIPELINE_STAGES, STAGE_PROBABILITY, LOST_REASONS, ACTIVITY_KINDS, LEAD_KINDS, BUILDING_KINDS,
+  LEAD_STAGES, PIPELINE_STAGES, BOARD_STAGES, STAGE_PROBABILITY, LOST_REASONS, ACTIVITY_KINDS, LEAD_KINDS, BUILDING_KINDS,
   TARGET_METRICS, LOT_STATUSES, LOT_STATUS_LABELS, SITE_STAGES, SITE_STAGE_LABELS, VEFA_LEGAL_CAPS, DEFAULT_VEFA_PLAN, FINANCING_PLANS,
 } = require('../../lib/domain');
 const cm = require('../../services/commercial');
@@ -27,7 +27,7 @@ module.exports = function commercialRoutes(db) {
   const r = express.Router();
   const read = requirePermission('commercial:read');
   // Les appels de fonds se consultent avec le module ou avec le droit de les gérer (conducteur de travaux)
-  const vefaRead = (req, res, next) => (req.can('commercial:read') || req.can('vefa:write') ? next() : next(new HttpError(403, 'Droits insuffisants.')));
+  const vefaRead = (req, res, next) => (req.can('commercial:read') || req.can('vefa:write') || req.can('sales:read') ? next() : next(new HttpError(403, 'Droits insuffisants.')));
 
   const ownLead = (req, id = idParam(req)) => cm.leadInScope(db, id, req.user);
   // Une activité ne se confie à un collègue qu'avec la portée « toute l'équipe »
@@ -39,7 +39,7 @@ module.exports = function commercialRoutes(db) {
   r.get('/meta', vefaRead, ah(async (req, res) => {
     res.json({
       stages: LEAD_STAGES.map(s => ({ id: s, label: cm.STAGE_LABELS[s], probability: STAGE_PROBABILITY[s] })),
-      pipeline_stages: PIPELINE_STAGES, lost_reasons: LOST_REASONS, activity_kinds: ACTIVITY_KINDS, lead_kinds: LEAD_KINDS,
+      pipeline_stages: PIPELINE_STAGES, board_stages: BOARD_STAGES, lost_reasons: LOST_REASONS, activity_kinds: ACTIVITY_KINDS, lead_kinds: LEAD_KINDS,
       building_kinds: BUILDING_KINDS, target_metrics: TARGET_METRICS,
       lot_statuses: LOT_STATUSES.map(s => ({ id: s, label: LOT_STATUS_LABELS[s] })),
       site_stages: SITE_STAGES.map(s => ({ id: s, label: SITE_STAGE_LABELS[s] })),
@@ -119,6 +119,10 @@ module.exports = function commercialRoutes(db) {
     }), req.body);
     if (data.stage === lead.stage) throw new HttpError(409, 'Le prospect est déjà à cette étape.');
     if (data.stage === 'perdu' && !data.lost_reason) throw new HttpError(400, 'Indiquez le motif de la perte.');
+    // SAV : un client qui a un dossier de vente (le bien acquis est suivi dans « Client & SAV »)
+    if (['livraison', 'sav'].includes(data.stage) && !(await db('sales').where({ lead_id: lead.id }).whereNot('status', 'desiste').first('id'))) {
+      throw new HttpError(409, 'Étape SAV : réservée aux clients qui ont un dossier de vente.');
+    }
     res.json(await cm.changeStage(db, lead, data, req.user.id));
   }));
 
@@ -340,7 +344,7 @@ module.exports = function commercialRoutes(db) {
     .join('leads as ld', 'ld.id', 's.lead_id').leftJoin('users as u', 'u.id', 'ld.assigned_to')
     .select('s.*', 'l.code as lot_code', 'l.ilot', 'l.project_id', 'p.name as project_name', 'ld.name as client_name', 'ld.client_code', 'ld.assigned_to', 'u.name as assigned_name');
 
-  r.get('/sales', read, requirePermission('sales:read'), ah(async (req, res) => {
+  r.get('/sales', requirePermission('sales:read'), ah(async (req, res) => {
     const q = cm.scopeLeads(salesQuery(), req.user);
     if (req.query.project_id) q.where('l.project_id', Number(req.query.project_id));
     if (req.query.status) q.where('s.status', String(req.query.status));
@@ -356,7 +360,7 @@ module.exports = function commercialRoutes(db) {
     res.json(req.query.overdue === '1' ? out.filter(s => s.overdue_count > 0) : out);
   }));
 
-  r.get('/sales/:id', read, requirePermission('sales:read'), ah(async (req, res) => {
+  r.get('/sales/:id', requirePermission('sales:read'), ah(async (req, res) => {
     const s = await cm.scopeLeads(salesQuery(), req.user).where('s.id', idParam(req)).first();
     if (!s) throw new HttpError(404, 'Dossier introuvable.');
     const t = await totals(db, s);

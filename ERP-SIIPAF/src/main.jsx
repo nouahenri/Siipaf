@@ -132,6 +132,7 @@ function App() {
         <Route path="commercial/rendez-vous" element={<Guard perm="appointments:read"><Appointments /></Guard>} />
         <Route path="commercial/parc" element={<Guard perm="commercial:read"><Guard perm="lots:read"><Property /></Guard></Guard>} />
         <Route path="commercial/ventes" element={<Guard perm="commercial:read"><Guard perm="sales:read"><Sales /></Guard></Guard>} />
+        {['compta', 'sav', 'administration'].map(m => <Route key={`${m}-ventes`} path={`${m}/ventes`} element={<Guard perm="sales:read"><Sales /></Guard>} />)}
         <Route path="commercial/vefa" element={<Guard perm={['commercial:read', 'vefa:write']}><Vefa /></Guard>} />
         <Route path="commercial/objectifs" element={<Guard perm="commercial:read"><Targets /></Guard>} />
         <Route path="commercial/reglages" element={<ModuleSettings module="commercial" />} />

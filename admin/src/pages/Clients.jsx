@@ -1,11 +1,12 @@
-import { useMemo, useState } from 'react';
-import { useOutletContext } from 'react-router-dom';
+import { useEffect, useMemo, useState } from 'react';
+import { useOutletContext, useSearchParams } from 'react-router-dom';
 import { Search, UserCheck, Phone, Mail as MailIcon, ExternalLink, Upload, Plus, Download, CalendarPlus } from 'lucide-react';
 import { useAuth, useResource, useToast } from '../lib/app-context';
 import { api } from '../lib/api';
 import { Card, Drawer, Badge, Empty, ErrorBox, Skeleton, Pagination, Modal, Field, Advance } from '../components/ui';
 import { AccessTab, MessageThread } from '../components/ClientSpace';
 import LotDrawer from '../components/LotDrawer';
+import { LotStatusModal } from '../components/LotForms';
 import ImportModal from '../components/ImportModal';
 import ApptModal from '../components/ApptModal';
 import { FINANCING } from '../lib/domain';
@@ -38,6 +39,13 @@ export default function Clients() {
   const [importing, setImporting] = useState(false);
   const [creating, setCreating] = useState(false);
   const [drawerTab, setDrawerTab] = useState('dossiers');
+  const [statusLot, setStatusLot] = useState(null);
+  // Bouton « Fiche client » d'une fiche de lot (Biens & disponibilités) : /clients?client=<id>
+  const [params, setParams] = useSearchParams();
+  useEffect(() => {
+    const id = Number(params.get('client'));
+    if (id) { setDrawerTab('dossiers'); setOpen(id); setParams({}, { replace: true }); }
+  }, [params, setParams]);
 
   const rows = useMemo(() => {
     const term = q.trim().toLowerCase();
@@ -123,7 +131,8 @@ export default function Clients() {
           onCreated={c => { setCreating(false); setDrawerTab('acces'); setOpen(c.lead_id); clients.reload(); stats.reload(); }} />
       )}
       {importing && <ImportModal mode="clients" allowModes={can('leads:import') ? ['clients', 'prospects'] : ['clients']} onClose={() => setImporting(false)} onDone={() => clients.reload()} />}
-      {lotId && <LotDrawer lotId={lotId} onClose={() => { setLotId(null); clients.reload(); }} onChanged={() => clients.reload()} onChangeStatus={() => {}} />}
+      {lotId && <LotDrawer lotId={lotId} onClose={() => { setLotId(null); clients.reload(); }} onChanged={() => clients.reload()} onChangeStatus={lot => setStatusLot(lot)} onOpenClient={() => setLotId(null)} />}
+      {statusLot && <LotStatusModal lot={statusLot} onClose={() => setStatusLot(null)} onDone={() => { setStatusLot(null); setLotId(null); clients.reload(); stats.reload(); }} />}
     </div>
   );
 }

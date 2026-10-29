@@ -1,5 +1,6 @@
 import { useState } from 'react';
-import { Phone, Mail as MailIcon, FileText, Plus, Trash2, Paperclip, ExternalLink, Pencil } from 'lucide-react';
+import { useNavigate } from 'react-router-dom';
+import { Phone, Mail as MailIcon, FileText, Plus, Trash2, Paperclip, ExternalLink, Pencil, UserRound } from 'lucide-react';
 import { api } from '../lib/api';
 import { useAuth, useResource, useToast, useSaved } from '../lib/app-context';
 import { Drawer, Card, Field, Badge, StatusBadge, Skeleton, ErrorBox, Empty } from './ui';
@@ -20,7 +21,7 @@ export const DOC_STATUS = {
 const SALE_STATUS = { en_cours: { label: 'Paiement en cours', tone: 'warn' }, solde: { label: 'Soldé', tone: 'ok' }, desiste: { label: 'Désisté', tone: 'danger' } };
 
 /** Fiche complète d'un lot : bien, acquéreur, paiements, documents, historique. */
-export default function LotDrawer({ lotId, onClose, onChanged, onChangeStatus }) {
+export default function LotDrawer({ lotId, onClose, onChanged, onChangeStatus, onOpenClient }) {
   const { can } = useAuth();
   const detail = useResource(`/admin/lots/${lotId}/detail`);
   const [tab, setTab] = useState('apercu');
@@ -53,13 +54,14 @@ export default function LotDrawer({ lotId, onClose, onChanged, onChangeStatus })
       {!d ? <Skeleton h={300} /> : (
         <>
           <div className="row-between">
-            <StatusBadge status={d.status} />
-            {sale && <Badge tone={SALE_STATUS[sale.status].tone}>{SALE_STATUS[sale.status].label}</Badge>}
+            {/* Statut du lot (réservé par un dossier, vendu à l'acte notarié) et statut du dossier de vente (paiements) */}
+            <span className="row small muted" style={{ gap: 6 }} title="Statut du lot : réservé dès l'ouverture du dossier, vendu à la signature de l'acte notarié">Lot <StatusBadge status={d.status} /></span>
+            {sale && <span className="row small muted" style={{ gap: 6 }} title="Statut du dossier de vente : suit les paiements">Dossier <Badge tone={SALE_STATUS[sale.status].tone}>{SALE_STATUS[sale.status].label}</Badge></span>}
           </div>
           <div className="tabs" role="tablist" style={{ marginBottom: 0 }}>
             {tabs.map(t => <button key={t.id} role="tab" aria-selected={tab === t.id} className={`tab ${tab === t.id ? 'active' : ''}`} onClick={() => setTab(t.id)}>{t.label}</button>)}
           </div>
-          {tab === 'apercu' && <Overview d={d} sale={sale} onOpened={() => detail.reload().then(onChanged)} onSaleChange={refresh} onLotChanged={() => detail.reload().then(onChanged)} onDeleted={() => { onChanged?.(); onClose(); }} />}
+          {tab === 'apercu' && <Overview d={d} sale={sale} onOpenClient={onOpenClient} onOpened={() => detail.reload().then(onChanged)} onSaleChange={refresh} onLotChanged={() => detail.reload().then(onChanged)} onDeleted={() => { onChanged?.(); onClose(); }} />}
           {tab === 'paiements' && sale && <Payments sale={sale} onChange={refresh} />}
           {tab === 'echeancier' && sale && <ScheduleTab sale={sale} onChange={refresh} />}
           {tab === 'documents' && sale && <Documents sale={sale} onChange={refresh} />}
@@ -73,8 +75,11 @@ export default function LotDrawer({ lotId, onClose, onChanged, onChangeStatus })
   );
 }
 
-function Overview({ d, sale, onOpened, onSaleChange, onLotChanged, onDeleted }) {
+function Overview({ d, sale, onOpenClient, onOpened, onSaleChange, onLotChanged, onDeleted }) {
   const { can } = useAuth();
+  const navigate = useNavigate();
+  // Fiche du client : dans la page Clients (sans la quitter si on y est déjà)
+  const openClient = () => (onOpenClient ? onOpenClient(sale.lead.id) : navigate(`/clients?client=${sale.lead.id}`));
   const toast = useToast();
   const [opening, setOpening] = useState(false);
   const [editLot, setEditLot] = useState(false);
@@ -118,6 +123,7 @@ function Overview({ d, sale, onOpened, onSaleChange, onLotChanged, onDeleted }) 
                 <div className="small muted">{sale.lead.client_code} · {stageLabel(sale.lead.stage)}{sale.lead.country ? ` · ${sale.lead.country}` : ''}</div>
               </div>
               <div className="row">
+                {can('sales:read') && <button className="btn btn-sm" onClick={openClient}><UserRound />Fiche client</button>}
                 {sale.lead.phone && <a className="btn btn-sm btn-icon" href={`tel:${sale.lead.phone}`} aria-label="Appeler"><Phone /></a>}
                 {sale.lead.email && <a className="btn btn-sm btn-icon" href={`mailto:${sale.lead.email}`} aria-label="E-mail"><MailIcon /></a>}
               </div>

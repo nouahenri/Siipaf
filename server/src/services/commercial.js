@@ -3,7 +3,7 @@
  * objectifs des commerciaux et indicateurs. Regroupements par mois faits en JavaScript (MySQL = SQLite).
  */
 const { isoDay, isoTime, toDate: parseDate, HttpError } = require('../lib/http');
-const { STAGE_PROBABILITY, PIPELINE_STAGES, WON_STAGES, ACTIVITY_KINDS, LOST_REASONS, activityState, portfolioCounts, conversionRate } = require('../lib/domain');
+const { STAGE_PROBABILITY, PIPELINE_STAGES, BOARD_STAGES, WON_STAGES, ACTIVITY_KINDS, LOST_REASONS, activityState, portfolioCounts, conversionRate } = require('../lib/domain');
 const { totals } = require('./sales');
 const { scheduleStatus } = require('./schedule');
 
@@ -114,7 +114,7 @@ async function leadHistory(db, leadId) {
 
 /** Cartes du pipeline : étape, montant attendu, prochaine activité, commercial. */
 async function pipeline(db, user, { project_id, assigned_to, q, include_lost } = {}) {
-  const stages = include_lost ? [...PIPELINE_STAGES, 'perdu'] : PIPELINE_STAGES;
+  const stages = include_lost ? [...BOARD_STAGES, 'perdu'] : BOARD_STAGES;
   const query = scopeLeads(db('leads as ld'), user)
     .leftJoin('projects as p', 'p.id', 'ld.project_id').leftJoin('lots as l', 'l.id', 'ld.lot_id').leftJoin('users as u', 'u.id', 'ld.assigned_to')
     .whereIn('ld.stage', stages);
@@ -243,7 +243,7 @@ async function dashboard(db, user, now = new Date()) {
     month, current: cur, previous: before, series, stages,
     pipeline_value_fcfa: stages.reduce((s, x) => s + x.value_fcfa, 0),
     pipeline_weighted_fcfa: stages.reduce((s, x) => s + x.weighted_fcfa, 0),
-    open_leads: cards.length,
+    open_leads: cards.filter(c => PIPELINE_STAGES.includes(c.stage)).length,
     late_activities: Number(lateActs[0].n),
     late_fund_calls: { n: lateCalls, amount_fcfa: lateCallsFcfa },
     sources: Object.fromEntries(sources.map(s => [s.source, Number(s.n)])),

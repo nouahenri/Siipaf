@@ -39,7 +39,7 @@ export default function Pipeline() {
     list.reload();
   };
 
-  const columns = [...(meta?.pipeline_stages || []), ...(showLost ? ['perdu'] : [])];
+  const columns = [...(meta?.board_stages || meta?.pipeline_stages || []), ...(showLost ? ['perdu'] : [])];
   const stageInfo = id => meta?.stages.find(s => s.id === id);
   const rows = list.data || [];
 

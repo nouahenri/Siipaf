@@ -164,6 +164,8 @@ function LeadTable({ leads, page, setPage, pageSize, setPageSize, onOpen, seller
 function Pipeline({ leads, onOpen, canWrite }) {
   const toast = useToast();
   const [over, setOver] = useState(null);
+  // Clients au SAV : hors de la liste des prospects, affichés en dernière colonne
+  const sav = useResource(`/admin/leads${qs({ stage: 'sav', limit: 200 })}`);
   if (leads.loading && !leads.data) return <Skeleton h={300} />;
   const rows = leads.data?.rows || [];
 
@@ -187,13 +189,13 @@ function Pipeline({ leads, onOpen, canWrite }) {
   return (
     <PipelineBoard>
       {/* Étapes du prospect, puis « Paiement » : y déposer une fiche en fait un client (elle passe dans Clients) */}
-      {[...PROSPECT_STAGES.filter(s => s.id !== 'perdu'), { id: 'paiement', label: 'Paiement → client' }, PROSPECT_STAGES.find(s => s.id === 'perdu')].map(st => {
-        const items = rows.filter(r => r.stage === st.id);
+      {[...PROSPECT_STAGES.filter(s => s.id !== 'perdu'), { id: 'paiement', label: 'Paiement → client' }, { id: 'sav', label: 'SAV', readOnly: true }, PROSPECT_STAGES.find(s => s.id === 'perdu')].map(st => {
+        const items = st.id === 'sav' ? sav.data?.rows || [] : rows.filter(r => r.stage === st.id);
         return (
           <div
             key={st.id}
             className={`pipe-col ${over === st.id ? 'drop' : ''}`}
-            onDragOver={e => { if (canWrite) { e.preventDefault(); setOver(st.id); } }}
+            onDragOver={e => { if (canWrite && !st.readOnly) { e.preventDefault(); setOver(st.id); } }}
             onDragLeave={() => setOver(null)}
             onDrop={e => { setOver(null); move(Number(e.dataTransfer.getData('text/plain')), st.id); }}
           >
@@ -201,7 +203,7 @@ function Pipeline({ leads, onOpen, canWrite }) {
             <div className="pipe-list">
               {items.map(l => (
                 <div
-                  key={l.id} className="pipe-card" draggable={canWrite} tabIndex={0}
+                  key={l.id} className="pipe-card" draggable={canWrite && !st.readOnly} tabIndex={0}
                   onDragStart={e => e.dataTransfer.setData('text/plain', String(l.id))}
                   onClick={() => onOpen(l.id)} onKeyDown={e => e.key === 'Enter' && onOpen(l.id)}
                 >
