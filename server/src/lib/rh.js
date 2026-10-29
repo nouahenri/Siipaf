@@ -131,6 +131,8 @@ const OBJECTIVE_STATUSES = { en_cours: 'En cours', atteint: 'Atteint', partiel: 
  */
 const OBJECTIVE_METRICS = {
   manuel: { label: 'Suivi manuel', group: 'Tous services', unit: null },
+  // Objectif principal du Service commercial (29/10) : définition dans lib/domain.js (conversionRate)
+  taux_conversion: { label: 'Taux de conversion (prospects devenus clients)', group: 'Commercial', unit: 'pct', needs: 'user' },
   ventes: { label: 'Ventes (dossiers ouverts)', group: 'Commercial', unit: 'nombre', needs: 'user', cumul: true },
   ca_fcfa: { label: 'Chiffre d’affaires signé', group: 'Commercial', unit: 'fcfa', needs: 'user', cumul: true },
   encaissements_fcfa: { label: 'Encaissements', group: 'Commercial', unit: 'fcfa', needs: 'user', cumul: true },

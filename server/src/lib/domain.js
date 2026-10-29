@@ -926,6 +926,16 @@ function portfolioCounts(events) {
   };
 }
 
+/**
+ * Taux de conversion (objectif principal du Service commercial, demande du client du 29/10) : nouveaux clients nets
+ * (gagnés − désistés) ÷ prospects reçus sur la période (attribués − transférés à un collègue), en %. Les prospects
+ * perdus restent au dénominateur (conversion manquée). Null sans prospect reçu.
+ */
+function conversionRate(counts) {
+  const received = counts.prospects.brut - counts.prospects.transferes;
+  return received > 0 ? Math.round((counts.clients.net / received) * 1000) / 10 : null;
+}
+
 /* ─── ERP · Administration générale › Courrier ─────────────────────────────── */
 
 // N° d'ordre par sens et par an (choix du client du 22/10) : A-2026-0001 à l'arrivée, D-2026-0001 au départ
@@ -1669,7 +1679,7 @@ module.exports = {
   MAIL_DIRECTIONS, MAIL_SUITES, MAIL_NATURES, MAIL_CHANNELS, MAIL_STATUSES, mailNumber, mailVisibility, mailReminder,
   MODULE_SETTINGS, TMA_STATUSES, TMA_BILLED, NEED_STATUSES, CONTRACT_KINDS, CONTRACT_FREQUENCIES, CONTRACT_STATUSES, CONTRACT_DOC_KINDS, CONTRACT_ALERT_STAGES, CONTRACT_INVOICE_LEAD_DAYS, CONTRACT_ACTIONS,
   contractDeadlines, contractAlertStage, renewedEnd, contractPaymentsDue, daysBetween,
-  PORTFOLIO_EVENTS, PORTFOLIO_REASONS, portfolioState, replayPortfolio, portfolioDiff, portfolioCounts,
+  PORTFOLIO_EVENTS, PORTFOLIO_REASONS, portfolioState, replayPortfolio, portfolioDiff, portfolioCounts, conversionRate,
   SELF_SERVICE, SAV_ACTIONS, COURRIER_ACTIONS, COMPTA_ACTIONS, PAIE_ACTIONS, RH_ACTIONS,
   LOT_STATUSES, LOT_STATUS_LABELS, SELLABLE_STATUSES, LOT_TRANSITIONS,
   LEAD_STAGES, CLIENT_STAGES, PUBLIC_LEAD_SOURCES, leadAlert, ROLES, ROLE_LABELS, PERMISSIONS, roleKey, can, checkLotTransition,

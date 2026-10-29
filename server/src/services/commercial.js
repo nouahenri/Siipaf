@@ -3,7 +3,7 @@
  * objectifs des commerciaux et indicateurs. Regroupements par mois faits en JavaScript (MySQL = SQLite).
  */
 const { isoDay, isoTime, toDate: parseDate, HttpError } = require('../lib/http');
-const { STAGE_PROBABILITY, PIPELINE_STAGES, WON_STAGES, ACTIVITY_KINDS, LOST_REASONS, activityState, portfolioCounts } = require('../lib/domain');
+const { STAGE_PROBABILITY, PIPELINE_STAGES, WON_STAGES, ACTIVITY_KINDS, LOST_REASONS, activityState, portfolioCounts, conversionRate } = require('../lib/domain');
 const { totals } = require('./sales');
 const { scheduleStatus } = require('./schedule');
 
@@ -157,14 +157,13 @@ async function achieved(db, { from, to, userId = null }) {
   ]);
   const sold = sales.filter(r => inRange(r.d));
   const fresh = leads.filter(r => inRange(r.d));
-  const won = fresh.filter(r => [...WON_STAGES, 'paiement'].includes(r.stage)).length;
   return {
     ca_fcfa: sold.reduce((s, r) => s + Number(r.price_fcfa), 0),
     ventes: sold.length,
     rdv: appts.filter(r => inRange(r.d)).length,
     encaissements_fcfa: pays.filter(r => inRange(r.d)).reduce((s, r) => s + Number(r.amount_fcfa), 0),
     nouveaux_prospects: fresh.length,
-    conversion_pct: fresh.length ? Math.round((won / fresh.length) * 1000) / 10 : null,
+    conversion_pct: conversionRate(pf), // même définition que l'indicateur RH « Taux de conversion »
     prospects: pf.prospects, clients: pf.clients,
   };
 }

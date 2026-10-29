@@ -36,13 +36,13 @@ export default function CommercialDashboard() {
     <div className="stack">
       <p className="muted">Activité de {monthName(d.month)}.</p>
       <div className="grid grid-4">
+        <Kpi icon={Percent} label="Taux de conversion" count={c.conversion_pct ?? null} format={v => `${String(v).replace('.', ',')} %`} trend={c.conversion_pct != null && p.conversion_pct != null ? Math.round((c.conversion_pct - p.conversion_pct) * 10) / 10 : null} foot={`${c.clients.net} nouveau(x) client(s) pour ${c.prospects.brut - c.prospects.transferes} prospect(s) reçu(s) ce mois`} tint="green" />
         <Kpi icon={Banknote} label="Chiffre d’affaires signé" count={c.ca_fcfa} format={v => `${compact(v)} FCFA`} trend={trendOf(c.ca_fcfa, p.ca_fcfa)} foot="dossiers ouverts ce mois" tint="blue" to="/commercial/ventes" />
         <Kpi icon={FileSignature} label="Ventes du mois" count={c.ventes} trend={trendOf(c.ventes, p.ventes)} foot={`${c.nouveaux_prospects} nouveaux prospects`} tint="violet" />
-        <Kpi icon={Gauge} label="Pipeline pondéré" count={d.pipeline_weighted_fcfa} format={v => `${compact(v)} FCFA`} foot={`${d.open_leads} opportunités · ${compact(d.pipeline_value_fcfa)} brut`} tint="green" to="/commercial/pipeline" />
         <Kpi icon={Wallet} label="Encaissements du mois" count={c.encaissements_fcfa} format={v => `${compact(v)} FCFA`} trend={trendOf(c.encaissements_fcfa, p.encaissements_fcfa)} foot="tous modes de paiement" tint="amber" />
       </div>
       <div className="grid grid-3">
-        <Kpi icon={Percent} label="Taux de conversion" count={c.conversion_pct ?? null} format={v => `${v} %`} foot="prospects du mois passés au paiement ou au-delà" />
+        <Kpi icon={Gauge} label="Pipeline pondéré" count={d.pipeline_weighted_fcfa} format={v => `${compact(v)} FCFA`} foot={`${d.open_leads} opportunités · ${compact(d.pipeline_value_fcfa)} brut`} tint="green" to="/commercial/pipeline" />
         <Kpi icon={ListTodo} label="Activités en retard" count={d.late_activities} foot="relances et rappels à faire" to="/commercial/activites" tint={d.late_activities ? 'amber' : undefined} />
         <Kpi icon={AlarmClock} label="Appels de fonds en retard" count={d.late_fund_calls.n} foot={d.late_fund_calls.n ? `${fcfa(d.late_fund_calls.amount_fcfa)} à recouvrer` : 'aucun impayé VEFA'} to="/commercial/vefa?filter=retard" tint={d.late_fund_calls.n ? 'amber' : undefined} />
       </div>

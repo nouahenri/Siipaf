@@ -13,7 +13,7 @@
  */
 const { toDate, isoDay } = require('../lib/http');
 const { OBJECTIVE_METRICS, countDays, attainment, LEAVE_TYPES, periodRange, periodLabel, previousPeriod } = require('../lib/rh');
-const { portfolioCounts } = require('../lib/domain');
+const { portfolioCounts, conversionRate } = require('../lib/domain');
 const { DEPARTMENTS } = require('../lib/paie');
 
 const UNPLANNED = ['maladie', 'accident_travail', 'sans_solde', 'absence_injustifiee'];
@@ -109,6 +109,7 @@ function compute(raw, from, to, now = new Date()) {
     const pf = portfolioCounts(raw.portfolio.filter(inRange));
     out.prospects_nets = pf.prospects.net;
     out.clients_nets = pf.clients.net;
+    out.taux_conversion = conversionRate(pf);
     out.chantier_publications = raw.updates.filter(inRange).length;
     out.reserves_levees = raw.reserves.filter(inRange).length;
     out.interventions_realisees = raw.interventions.filter(inRange).length;

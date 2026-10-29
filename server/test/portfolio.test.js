@@ -132,6 +132,11 @@ test('indicateurs de performance : prospects et clients nets du commercial', asy
   const out = compute(raw, `${year}-01-01`, `${year}-12-31`);
   assert.equal(out.prospects_nets, 4); // 3 + « Imp Trois »
   assert.equal(out.clients_nets, 0);
+  assert.equal(out.taux_conversion, 0, 'aucun client sur des prospects reçus : 0 %');
+  // Définition unique (tableau de bord commercial et KPI RH) : clients nets ÷ (reçus − transférés)
+  const { conversionRate } = require('../src/lib/domain');
+  assert.equal(conversionRate({ prospects: { brut: 10, transferes: 2 }, clients: { net: 2 } }), 25);
+  assert.equal(conversionRate({ prospects: { brut: 1, transferes: 1 }, clients: { net: 0 } }), null, 'aucun prospect reçu : non mesurable');
   const res = await admin.get(`${M}/dashboard`);
   assert.equal(res.status, 200);
 });
