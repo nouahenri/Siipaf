@@ -146,7 +146,7 @@ function Reservations({ write, onChange }) {
         <button className={scope === 'all' ? 'active' : ''} onClick={() => setScope('all')}>Toutes</button>
       </div>}>
       <ErrorBox error={list.error} />
-      {!list.data ? <div className="card-body"><Skeleton h={160} /></div> : !list.data.length ? <div className="card-body"><Empty icon={Truck}>Aucune demande. Les employés demandent un véhicule depuis RH › Mon espace.</Empty></div> : (
+      {!list.data ? <div className="card-body"><Skeleton h={160} /></div> : !list.data.length ? <div className="card-body"><Empty icon={Truck}>Aucune demande. Les employés demandent un véhicule depuis Mon espace (menu de chaque module).</Empty></div> : (
         <div className="table-wrap"><table className="table">
           <thead><tr><th>Créneau</th><th>Demandeur</th><th>Motif</th><th>Véhicule</th><th>Statut</th><th /></tr></thead>
           <tbody>{list.data.map(r => (

@@ -1,5 +1,4 @@
 import { useState } from 'react';
-import DepartmentRequests from '../../components/DepartmentRequests';
 import { useSearchParams } from 'react-router-dom';
 import { Inbox, Check, X, Hand, CheckCheck, Receipt } from 'lucide-react';
 import { api, qs } from '@admin/lib/api';
@@ -16,7 +15,7 @@ const URL = '/admin/erp/demandes';
 /**
  * Demandes internes (choix du client du 22/10) : le responsable direct valide, la direction générale valide les
  * achats au-delà du plafond, les services généraux prennent en charge et clôturent ; un achat traité devient une
- * facture d'achat en brouillon pour le comptable. Les employés demandent depuis RH › Mon espace.
+ * facture d'achat en brouillon pour le comptable. Les employés demandent depuis Mon espace (menu de chaque module).
  */
 export default function Demandes() {
   const { can } = useAuth();
@@ -31,7 +30,6 @@ export default function Demandes() {
   const tabs = [handle && ['handle', 'À traiter'], ['approve', 'À valider par moi'], deciding && ['commandes', 'Commandes à valider (Achats)'], (handle || can('demandes:dg')) && ['all', 'Toutes']].filter(Boolean);
   return (
     <div className="stack">
-      <DepartmentRequests department="administratif" />
       <div className="row-between">
         <div className="seg" role="group" aria-label="Affichage">{tabs.map(([k, l]) => <button key={k} className={scope === k ? 'active' : ''} onClick={() => setScope(k)}>{l}</button>)}</div>
         {refs.data && <span className="small muted">Validation de la DG à partir de {fcfa(refs.data.threshold)} (Paramètres › Général du dashboard)</span>}
@@ -39,7 +37,7 @@ export default function Demandes() {
       {scope === 'commandes' ? <OrdersToValidate /> : <Card bodyClass="">
         <ErrorBox error={list.error} />
         {!list.data ? <div className="card-body"><Skeleton h={220} /></div> : !list.data.length ? (
-          <div className="card-body"><Empty icon={Inbox}>{scope === 'approve' ? 'Aucune demande à valider.' : scope === 'handle' ? 'Aucune demande à traiter.' : 'Aucune demande.'} Les employés demandent depuis RH › Mon espace.</Empty></div>
+          <div className="card-body"><Empty icon={Inbox}>{scope === 'approve' ? 'Aucune demande à valider.' : scope === 'handle' ? 'Aucune demande à traiter.' : 'Aucune demande.'} Les employés demandent depuis Mon espace (menu de chaque module).</Empty></div>
         ) : (
           <div className="table-wrap"><table className="table">
             <thead><tr><th>Référence</th><th>Demande</th><th>Demandeur</th><th className="right">Montant</th><th>Pour le</th><th>Avancement</th></tr></thead>

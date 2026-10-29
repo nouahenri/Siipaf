@@ -45,7 +45,9 @@ import Employees from './pages/compta/Employees';
 import Payroll, { PayrollRun } from './pages/compta/Payroll';
 import Receipt from './pages/compta/Receipt';
 import ServiceRequests from './components/ServiceRequests';
-import DepartmentRequests from './components/DepartmentRequests';
+import { DepartmentPage } from './components/DepartmentRequests';
+import { MODULE_DEPARTMENT } from './lib/departments';
+import { MODULES } from './components/ErpLayout';
 import RhDashboard from './pages/rh/RhDashboard';
 import MySpace from './pages/rh/MySpace';
 import Staff from './pages/rh/Staff';
@@ -82,7 +84,7 @@ function Settings({ module, perm, who, children }) {
 /** Entrée du module RH : le tableau de bord pour le service RH, « Mon espace » pour les autres. */
 function RhHome() {
   const { can } = useAuth();
-  return can('rh:read') ? <div className="stack"><DepartmentRequests department="rh" /><ServiceRequests service="rh" /><RhDashboard /></div> : <Navigate to="/rh/moi" replace />;
+  return can('rh:read') ? <div className="stack"><ServiceRequests service="rh" /><RhDashboard /></div> : <Navigate to="/rh/moi" replace />;
 }
 
 /** Entrée de l'Administration générale : la vue Direction, sinon la première partie ouverte au compte. */
@@ -100,7 +102,7 @@ function AdminHome() {
 /** Entrée du Juridique : le tableau de bord, sinon les litiges du juriste en charge ou du service concerné. */
 function JuridiqueHome() {
   const { can } = useAuth();
-  if (JURIDIQUE.some(can)) return <div className="stack"><DepartmentRequests department="juridique" /><ServiceRequests service="juridique" /><JuridiqueDashboard /></div>;
+  if (JURIDIQUE.some(can)) return <div className="stack"><ServiceRequests service="juridique" /><JuridiqueDashboard /></div>;
   return <Navigate to={can('compta:read') ? '/juridique/cautions' : '/juridique/litiges'} replace />;
 }
 
@@ -145,7 +147,10 @@ function App() {
         <Route path="compta/employes" element={<Guard perm={['paie:read', 'rh:read']}><Employees /></Guard>} />
         <Route path="compta/parametres" element={<Settings module="compta" perm="compta:read" who="la Comptabilité"><ComptaSettings /></Settings>} />
         <Route path="rh" element={<RhHome />} />
-        <Route path="rh/moi" element={<MySpace />} />
+        {/* Mon espace et Demandes du service dans chaque module : on reste dans le module ouvert */}
+        {Object.keys(MODULES).map(m => <Route key={`${m}-moi`} path={`${m}/moi`} element={<MySpace />} />)}
+        {Object.keys(MODULES).map(m => <Route key={`${m}-dossier`} path={`${m}/moi/dossier/:id`} element={<EmployeeFile />} />)}
+        {Object.entries(MODULE_DEPARTMENT).map(([m, d]) => <Route key={`${m}-service`} path={`${m}/service`} element={<DepartmentPage department={d} />} />)}
         <Route path="rh/personnel" element={<Guard perm="rh:read"><Staff /></Guard>} />
         <Route path="rh/personnel/:id" element={<EmployeeFile />} />
         <Route path="rh/conges" element={<Leaves />} />

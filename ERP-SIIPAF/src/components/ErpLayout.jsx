@@ -13,6 +13,7 @@ import { useRevealOnScroll } from '@admin/lib/reveal';
 import { ROLE_LABELS } from '@admin/lib/domain';
 import { initials } from '@admin/lib/format';
 import { dashboardUrl } from '../lib/links';
+import { MODULE_DEPARTMENT } from '../lib/departments';
 import NotificationCenter from './NotificationCenter';
 
 const COURRIER = ['courrier:read', 'courrier:write', 'courrier:assign'];
@@ -76,7 +77,6 @@ const MODULES = {
     label: 'Ressources humaines', icon: Users, perm: null,
     items: [
       { to: '/rh', label: 'Tableau de bord', icon: LayoutDashboard, end: true, perm: 'rh:read' },
-      { to: '/rh/moi', label: 'Mon espace', icon: UserRound, show: b => b?.has_employee },
       { to: '/rh/personnel', label: 'Personnel', icon: Contact, perm: 'rh:read' },
       { to: '/rh/conges', label: 'Congés et absences', icon: Palmtree, badge: 'approvals', perm: 'rh:read', show: b => b?.team_size > 0 || b?.approvals > 0 },
       { to: '/rh/presences', label: 'Présences', icon: Fingerprint, perm: ['rh:read', 'presence:write'] },
@@ -162,11 +162,18 @@ export default function ErpLayout() {
   const mod = MODULES[moduleId];
   const statsUrl = moduleId === 'achats' && can('appro:read') ? '/admin/erp/achats/dashboard' : moduleId === 'sav' && can('sav:read') ? '/admin/erp/sav/stats' : moduleId === 'commercial' && can('commercial:read') ? '/admin/erp/commercial/dashboard' : moduleId === 'compta' && can('compta:read') ? '/admin/erp/compta/dashboard' : moduleId === 'rh' ? '/admin/erp/rh/badges' : moduleId === 'administration' ? '/admin/erp/direction/badges' : moduleId === 'juridique' ? '/admin/erp/juridique/badges' : moduleId === 'chantiers' ? '/admin/erp/chantiers/badges' : null;
   const stats = useResource(statsUrl, [pathname]);
+  // Mon espace et Demandes du service : dans chaque module, sans passer par Ressources humaines
+  const espace = useResource(mod ? '/admin/erp/demandes/espace' : null, [pathname]);
+  const dept = MODULE_DEPARTMENT[moduleId];
+  const mine = espace.data?.departments;
+  const serviceNav = !!dept && !!espace.data && (user.role === 'super_admin' || mine?.member === dept || !!mine?.heads.includes(dept));
+  const waiting = serviceNav ? espace.data.waiting?.[dept] || 0 : 0;
+  const navCls = ({ isActive }) => `nav-item ${isActive ? 'active' : ''}`;
   const contentRef = useRef(null);
   useRevealOnScroll(contentRef, [pathname]);
 
   useEffect(() => setOpen(false), [pathname]);
-  const title = TITLES[pathname] || (mod ? mod.label : 'ERP');
+  const title = TITLES[pathname] || (mod && pathname.startsWith(`/${moduleId}/moi`) ? 'Mon espace' : mod && pathname === `/${moduleId}/service` ? 'Demandes du service' : mod ? mod.label : 'ERP');
   useEffect(() => { document.title = `${title} — SIIPAF ERP`; }, [title]);
 
   return (
@@ -181,6 +188,18 @@ export default function ErpLayout() {
         <div className="nav-group">
           <NavLink to="/" end className={({ isActive }) => `nav-item ${isActive ? 'active' : ''}`}><LayoutGrid aria-hidden="true" />Tous les modules</NavLink>
         </div>
+        {mod && (espace.data?.has_employee || serviceNav) && (
+          <div className="nav-group">
+            <div className="nav-group-title">Mon espace</div>
+            {espace.data.has_employee && <NavLink to={`/${moduleId}/moi`} className={navCls}><UserRound aria-hidden="true" />Mon espace</NavLink>}
+            {serviceNav && (
+              <NavLink to={`/${moduleId}/service`} className={navCls}>
+                <Users aria-hidden="true" />Demandes du service
+                {waiting > 0 && <span className="count" aria-label={`${waiting} en cours`}>{waiting}</span>}
+              </NavLink>
+            )}
+          </div>
+        )}
         {mod && (can(mod.perm) || can('users:read') || mod.show?.(stats.data)) && (
           <div className="nav-group">
             <div className="nav-group-title">{mod.label}</div>
@@ -220,7 +239,7 @@ export default function ErpLayout() {
           </div>
         </header>
         <main className="content" ref={contentRef}>
-          <Outlet context={{ stats }} />
+          <Outlet context={{ stats, espace }} />
         </main>
       </div>
     </div>

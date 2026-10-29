@@ -5,6 +5,7 @@ const { ah, parse, idParam, HttpError, isoDay } = require('../../lib/http');
 const { requirePermission } = require('../../auth');
 const { CONTRACT_TYPES, DEPARTMENTS, MARITAL, PAY_METHODS, DEFAULT_PAYROLL } = require('../../lib/paie');
 const paie = require('../../services/paie');
+const employees = require('../../services/employees');
 const rh = require('../../services/rh');
 const positions = require('../../services/positions');
 const departures = require('../../services/departures');
@@ -38,29 +39,8 @@ module.exports = function paieRoutes(db) {
     res.json((await q).map(e => paie.serializeEmployee(e, { withPay })));
   }));
 
-  const employeeSchema = z.object({
-    last_name: z.string().trim().min(1).max(80), first_name: z.string().trim().min(1).max(80), gender: z.enum(['F', 'M']).optional().nullable(),
-    birth_date: day.optional().nullable(), nationality: optText(60), expatriate: z.boolean().optional(), phone: optText(40),
-    email: z.string().trim().toLowerCase().email().optional().nullable().or(z.literal('').transform(() => null)), address: optText(255),
-    id_number: optText(60), cnps_number: optText(40), marital_status: z.enum(Object.keys(MARITAL)).optional(), children: z.number().int().min(0).max(20).optional(),
-    tax_parts: z.number().min(1).max(5).multipleOf(0.5).optional().nullable(), job_title: z.string().trim().min(2).max(120),
-    position_id: z.number().int().positive().optional().nullable(),
-    department: z.enum(Object.keys(DEPARTMENTS)).optional(), category: optText(40), contract_type: z.enum(Object.keys(CONTRACT_TYPES)).optional(),
-    hire_date: day, end_date: day.optional().nullable(), base_salary: money, housing_allowance: money.optional(), transport_allowance: money.optional(),
-    other_allowance: money.optional(), site_hourly_rate: z.number().int().min(0).max(1000000).optional().nullable(), accident_rate: z.number().min(0).max(10).optional().nullable(), pay_method: z.enum(Object.keys(PAY_METHODS)).optional(),
-    bank_account: optText(80), project_id: z.number().int().positive().optional().nullable(), user_id: z.number().int().positive().optional().nullable(),
-    active: z.boolean().optional(), notes: optText(500),
-    // Dossier RH (aussi modifiables depuis le module RH, sans les éléments de salaire)
-    manager_id: z.number().int().positive().optional().nullable(), trial_end_date: day.optional().nullable(), birth_place: optText(80),
-    emergency_contact: optText(160), leave_opening_days: z.number().min(-60).max(200).optional().nullable(), leave_opening_date: day.optional().nullable(),
-  });
-
-  async function checkUser(userId, selfId = null) {
-    if (!userId) return;
-    if (!(await db('users').where({ id: userId }).first())) throw new HttpError(404, 'Compte du dashboard introuvable.');
-    const taken = await db('employees').where({ user_id: userId }).whereNot('id', selfId || 0).first();
-    if (taken) throw new HttpError(409, `Ce compte est déjà relié à ${taken.first_name} ${taken.last_name}.`);
-  }
+  const { employeeSchema } = employees;
+  const checkUser = (userId, selfId) => employees.checkUser(db, userId, selfId);
 
   r.post('/employees', requirePermission('paie:employees'), ah(async (req, res) => {
     const data = parse(employeeSchema, req.body);
@@ -76,29 +56,12 @@ module.exports = function paieRoutes(db) {
     res.status(201).json(paie.serializeEmployee(await db('employees').where({ id }).first(), { withPay: true }));
   }));
 
+  // Même formulaire et même règle que Ressources humaines › Personnel (services/employees)
   r.patch('/employees/:id', requirePermission('paie:employees'), ah(async (req, res) => {
-    const id = idParam(req);
-    const data = parse(employeeSchema.partial(), req.body);
-    if (data.user_id !== undefined) await checkUser(data.user_id, id);
-    if (data.manager_id === id) throw new HttpError(400, 'Un employé ne peut pas être son propre responsable.');
-    const before = await db('employees').where({ id }).first();
-    if (!before) throw new HttpError(404, 'Employé introuvable.');
-    await db.transaction(async trx => {
-      if (data.position_id || (data.job_title && data.job_title !== before.job_title)) {
-        Object.assign(data, await positions.resolve(trx, { position_id: data.position_id, job_title: data.job_title, department: data.department || before.department }));
-      }
-      await trx('employees').where({ id }).update({ ...data, updated_at: new Date() });
-      await rh.logChanges(trx, rh.normEmployee(before), data, req.user.id);
-    });
-    const after = await db('employees').where({ id }).first();
-    // Sortie : compte, matériel et dossiers à régler sont signalés à ceux qui les reprennent
-    if (before.active && data.active === false) await departures.notifyDeparture(db, after, { user: req.user });
-    // Nouveau poste ou nouveau service : leurs modèles d'objectifs s'appliquent (un objectif déjà présent est gardé)
-    if (after.active && (after.position_id !== before.position_id || after.department !== before.department)) await kpi.applyForEmployee(db, id, { user: req.user });
+    const { after } = await employees.update(db, idParam(req), parse(employeeSchema.partial(), req.body), { user: req.user, can: p => req.can(p) });
     res.json(paie.serializeEmployee(after, { withPay: true }));
   }));
 
-  // Fiches créées à partir des comptes du dashboard (même personne, aucune ressaisie du nom ni de l'e-mail)
   r.post('/employees/from-users', requirePermission('paie:employees'), ah(async (req, res) => {
     const { user_ids, hire_date } = parse(z.object({ user_ids: z.array(z.number().int().positive()).min(1).max(200), hire_date: day }), req.body);
     const ROLE_JOBS = { super_admin: 'Direction', commercial: 'Commercial(e)', editeur: 'Chargé(e) de communication', conducteur_travaux: 'Conducteur de travaux', comptable: 'Comptable', resp_exploitation: 'Responsable des exploitations' };

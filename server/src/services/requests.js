@@ -237,10 +237,22 @@ async function list(db, v, { scope = 'mine', status = null, service = null, depa
   return (await q).map(r => ({ ...serialize(r), rights: rights(r, v) }));
 }
 
+/** Demandes du service en attente, par service dont le compte est membre ou chef (pastille du menu, même calcul que la page). */
+async function departmentWaiting(db, v) {
+  const out = {};
+  const now = new Date().toISOString().slice(0, 16);
+  for (const d of new Set([v.depts?.member, ...(v.depts?.heads || [])].filter(Boolean))) {
+    const open = (await list(db, v, { scope: 'department', department: d })).filter(r => r.open).length;
+    const trips = Number((await db('asset_reservations').where({ department: d, status: 'demandee' }).where('end_at', '>=', now).count({ n: '*' }).first())?.n || 0);
+    out[d] = open + trips;
+  }
+  return out;
+}
+
 async function badges(db, v) {
   const approve = (await list(db, v, { scope: 'approve' })).length;
   const handle = v.can('demandes:handle') ? (await list(db, v, { scope: 'handle' })).filter(r => r.status === 'attente_sg').length : 0;
   return { to_approve: approve, to_handle: handle };
 }
 
-module.exports = { query, serialize, load, rights, canSee, create, decide, take, close, cancel, list, badges, requestNeedsDg, notifyRequester };
+module.exports = { query, serialize, load, rights, canSee, create, decide, take, close, cancel, list, badges, departmentWaiting, requestNeedsDg, notifyRequester };

@@ -1,11 +1,11 @@
 import { useState } from 'react';
 import { Plus, Search, UserPlus, Users, Link2 } from 'lucide-react';
 import { api } from '@admin/lib/api';
-import { useAuth, useResource, useToast, useSaved } from '@admin/lib/app-context';
+import { useAuth, useResource, useToast } from '@admin/lib/app-context';
 import { Card, Empty, Skeleton, ErrorBox, Modal, Field, Badge } from '@admin/components/ui';
 import { date, fcfa } from '@admin/lib/format';
 import { usePaieMeta } from '../../lib/paie';
-import { PositionSelect, usePositions } from '../../components/Positions';
+import EmployeeForm from '../../components/EmployeeForm';
 
 /** Registre des employés : bureau, commerciaux, chantier ; relié aux comptes du dashboard quand l'employé en a un. */
 export default function Employees() {
@@ -88,91 +88,3 @@ function FromUsers({ onClose, onDone }) {
   );
 }
 
-function EmployeeForm({ employee, onClose, onSaved }) {
-  const saved = useSaved();
-  const { meta, reload } = usePaieMeta();
-  const blank = { last_name: '', first_name: '', gender: '', birth_date: '', nationality: 'Ivoirienne', expatriate: false, phone: '', email: '', address: '', id_number: '', cnps_number: '',
-    marital_status: 'celibataire', children: 0, tax_parts: '', job_title: '', department: 'administratif', category: '', contract_type: 'cdi', hire_date: new Date().toISOString().slice(0, 10), end_date: '',
-    base_salary: '', housing_allowance: 0, transport_allowance: 0, other_allowance: 0, site_hourly_rate: '', accident_rate: '', pay_method: 'virement', bank_account: '', project_id: '', user_id: '', active: true, notes: '' };
-  const [f, setF] = useState(() => {
-    const init = { ...blank };
-    for (const k of Object.keys(blank)) if (employee[k] != null) init[k] = employee[k];
-    return init;
-  });
-  const [error, setError] = useState(null);
-  const set = k => e => setF(x => ({ ...x, [k]: e.target.type === 'checkbox' ? e.target.checked : e.target.value }));
-  const n = v => (v === '' || v == null ? null : Number(v));
-  const suggested = Math.min(5, 1 + (f.marital_status === 'marie' ? 1 : 0) + 0.5 * (Number(f.children) || 0));
-  const save = async e => {
-    e.preventDefault(); setError(null);
-    const body = {
-      ...f, gender: f.gender || null, birth_date: f.birth_date || null, end_date: f.end_date || null, email: f.email || null,
-      children: Number(f.children) || 0, tax_parts: n(f.tax_parts), base_salary: Number(f.base_salary) || 0, housing_allowance: Number(f.housing_allowance) || 0,
-      transport_allowance: Number(f.transport_allowance) || 0, other_allowance: Number(f.other_allowance) || 0, site_hourly_rate: n(f.site_hourly_rate), accident_rate: n(f.accident_rate),
-      project_id: n(f.project_id), user_id: n(f.user_id), position_id: n(f.position_id),
-    };
-    if (!body.position_id) delete body.position_id;
-    if (!employee.id) delete body.active;
-    try {
-      await (employee.id ? api.patch(`/admin/erp/paie/employees/${employee.id}`, body) : api.post('/admin/erp/paie/employees', body));
-      // Sortie : le bilan de départ (compte, matériel, dossiers) est dans la fiche RH, les responsables sont prévenus
-      const leaving = employee.id && employee.active && !f.active;
-      reload(); saved(leaving ? 'Sortie enregistrée : le bilan de départ est dans la fiche RH (Ressources humaines › Personnel)' : 'Fiche employé enregistrée'); onSaved();
-    } catch (err) { setError(err); }
-  };
-  const users = (meta?.users || []).filter(u => !u.employee_id || u.employee_id === employee.id);
-  const positions = usePositions();
-  return (
-    <Modal title={employee.id ? `${employee.last_name} ${employee.first_name} · ${employee.matricule}` : 'Nouvel employé'} onClose={onClose} footer={<><button className="btn btn-ghost" onClick={onClose}>Annuler</button><button className="btn btn-primary" form="emp-form">Enregistrer</button></>}>
-      <form id="emp-form" className="stack wide-form" style={{ gap: 14 }} onSubmit={save}>
-        <ErrorBox error={error} />
-        <h3 className="erp-h3">Identité</h3>
-        <div className="form-grid">
-          <Field label="Nom"><input className="input" required value={f.last_name} onChange={set('last_name')} autoFocus={!employee.id} /></Field>
-          <Field label="Prénoms"><input className="input" required value={f.first_name} onChange={set('first_name')} /></Field>
-          <Field label="Sexe"><select className="select" value={f.gender} onChange={set('gender')}><option value="">—</option><option value="F">Femme</option><option value="M">Homme</option></select></Field>
-          <Field label="Date de naissance"><input className="input" type="date" value={f.birth_date} onChange={set('birth_date')} /></Field>
-          <Field label="Nationalité"><input className="input" value={f.nationality} onChange={set('nationality')} /></Field>
-          <label className="checkbox" style={{ alignSelf: 'end', paddingBottom: 10 }}><input type="checkbox" checked={f.expatriate} onChange={set('expatriate')} />Personnel expatrié (contribution employeur majorée)</label>
-          <Field label="Téléphone"><input className="input" value={f.phone} onChange={set('phone')} /></Field>
-          <Field label="E-mail"><input className="input" type="email" value={f.email} onChange={set('email')} /></Field>
-          <Field label="N° CNI / passeport"><input className="input" value={f.id_number} onChange={set('id_number')} /></Field>
-          <Field label="N° CNPS"><input className="input" value={f.cnps_number} onChange={set('cnps_number')} /></Field>
-          <Field label="Compte du dashboard" hint="Relie la fiche au compte de connexion de la même personne">
-            <select className="select" value={f.user_id || ''} onChange={set('user_id')}><option value="">— Aucun —</option>{users.map(u => <option key={u.id} value={u.id}>{u.name} ({u.email})</option>)}</select>
-          </Field>
-        </div>
-        <h3 className="erp-h3">Poste et contrat</h3>
-        <div className="form-grid">
-          <Field label="Poste"><PositionSelect value={f.job_title} positions={positions.data?.positions} onPick={p => setF(x => ({ ...x, job_title: p.title, position_id: p.id, department: p.department, category: x.category || p.category || '' }))} /></Field>
-          <Field label="Service"><select className="select" value={f.department} onChange={set('department')}>{meta && Object.entries(meta.departments).map(([k, v]) => <option key={k} value={k}>{v}</option>)}</select></Field>
-          <Field label="Contrat"><select className="select" value={f.contract_type} onChange={set('contract_type')}>{meta && Object.entries(meta.contract_types).map(([k, v]) => <option key={k} value={k}>{v}</option>)}</select></Field>
-          <Field label="Catégorie professionnelle"><input className="input" value={f.category} onChange={set('category')} /></Field>
-          <Field label="Date d’entrée"><input className="input" type="date" required value={f.hire_date} onChange={set('hire_date')} /></Field>
-          <Field label="Date de sortie / fin de contrat"><input className="input" type="date" value={f.end_date} onChange={set('end_date')} /></Field>
-          <Field label="Affectation (programme)" hint="Ventile le coût salarial sur le chantier (analytique)">
-            <select className="select" value={f.project_id || ''} onChange={set('project_id')}><option value="">Frais généraux (siège)</option>{meta?.projects.map(p => <option key={p.id} value={p.id}>{p.name}</option>)}</select>
-          </Field>
-          {employee.id && <label className="checkbox" style={{ alignSelf: 'end', paddingBottom: 10 }}><input type="checkbox" checked={f.active} onChange={set('active')} />En poste</label>}
-        </div>
-        <h3 className="erp-h3">Rémunération mensuelle</h3>
-        <div className="form-grid">
-          <Field label="Salaire de base (FCFA)" hint={meta?.settings ? `SMIG : ${fcfa(meta.settings.smig)}` : undefined}><input className="input" type="number" min="0" required value={f.base_salary} onChange={set('base_salary')} /></Field>
-          <Field label="Indemnité de logement"><input className="input" type="number" min="0" value={f.housing_allowance} onChange={set('housing_allowance')} /></Field>
-          <Field label="Indemnité de transport" hint={meta?.settings ? `Non imposable jusqu’à ${fcfa(meta.settings.transport_exempt_ceiling)}` : undefined}><input className="input" type="number" min="0" value={f.transport_allowance} onChange={set('transport_allowance')} /></Field>
-          <Field label="Autres primes fixes"><input className="input" type="number" min="0" value={f.other_allowance} onChange={set('other_allowance')} /></Field>
-          <Field label="Coût horaire de chantier (FCFA)" hint="Journaliers, intérim : coût d’une heure pointée sur un chantier. Vide : tiré du salaire et des charges de la paie (ERP › Chantiers › Réglages)"><input className="input" type="number" min="0" value={f.site_hourly_rate ?? ''} onChange={set('site_hourly_rate')} placeholder="Tiré du salaire" /></Field>
-          <Field label="Paiement"><select className="select" value={f.pay_method} onChange={set('pay_method')}>{meta && Object.entries(meta.pay_methods).map(([k, v]) => <option key={k} value={k}>{v}</option>)}</select></Field>
-          <Field label="RIB / n° Mobile Money"><input className="input" value={f.bank_account} onChange={set('bank_account')} /></Field>
-          <Field label="Taux accident du travail (%)" hint={meta?.settings ? `Barème : ${meta.settings.accident_rate} % (chantier : souvent plus élevé)` : undefined}><input className="input" type="number" min="0" max="10" step="0.5" value={f.accident_rate ?? ''} onChange={set('accident_rate')} placeholder="Barème" /></Field>
-        </div>
-        <h3 className="erp-h3">Famille (ITS et CMU)</h3>
-        <div className="form-grid">
-          <Field label="Situation"><select className="select" value={f.marital_status} onChange={set('marital_status')}>{meta && Object.entries(meta.marital).map(([k, v]) => <option key={k} value={k}>{v}</option>)}</select></Field>
-          <Field label="Enfants à charge"><input className="input" type="number" min="0" max="20" value={f.children} onChange={set('children')} /></Field>
-          <Field label="Parts fiscales" hint={`Proposé : ${suggested} (à confirmer par le comptable)`}><input className="input" type="number" min="1" max="5" step="0.5" value={f.tax_parts ?? ''} onChange={set('tax_parts')} placeholder={String(suggested)} /></Field>
-        </div>
-      </form>
-    </Modal>
-  );
-}

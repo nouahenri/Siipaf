@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { useParams, useSearchParams, Link } from 'react-router-dom';
+import { useParams, useSearchParams, useLocation, Link } from 'react-router-dom';
 import { ArrowLeft, Pencil, Upload, Trash2, FileText, Plus, CalendarPlus, Star, Briefcase, KeyRound, ExternalLink, UserX, Truck } from 'lucide-react';
 import { api } from '@admin/lib/api';
 import { useAuth, useResource, useToast, useSaved } from '@admin/lib/app-context';
@@ -10,12 +10,14 @@ import { LeaveForm, LeaveBadge, TypeDot } from '../../components/RhForms';
 import { ObjectivesPanel, Indicators } from './Reviews';
 import PerformanceCurves from './PerformanceCurves';
 import { ChangePositionModal, ChangePositionButton, PositionChanges } from '../../components/Positions';
+import EmployeeForm from '../../components/EmployeeForm';
 
 const TABS = [['dossier', 'Dossier'], ['conges', 'Congés'], ['documents', 'Documents'], ['carriere', 'Carrière'], ['competences', 'Compétences et CV'], ['objectifs', 'Objectifs et performance'], ['presences', 'Présences']];
 
 /** Dossier d'un employé : RH (tout), l'employé lui-même (lecture, compétences et CV), son responsable (congés, objectifs). */
 export default function EmployeeFile() {
   const { id } = useParams();
+  const base = useLocation().pathname.split('/')[1];
   const [params, setParams] = useSearchParams();
   const { can } = useAuth();
   const { meta } = useRhMeta();
@@ -32,7 +34,7 @@ export default function EmployeeFile() {
     <div className="stack">
       <div className="row-between">
         <div className="row" style={{ gap: 14 }}>
-          <Link className="btn btn-ghost btn-icon" to={d.access === 'rh' ? '/rh/personnel' : '/rh/moi'} aria-label="Retour"><ArrowLeft /></Link>
+          <Link className="btn btn-ghost btn-icon" to={d.access === 'rh' && base === 'rh' ? '/rh/personnel' : `/${base}/moi`} aria-label="Retour"><ArrowLeft /></Link>
           <span className="avatar">{initials(`${e.first_name} ${e.last_name}`)}</span>
           <div>
             <h2 className="erp-hello" style={{ fontSize: 20 }}>{e.last_name} {e.first_name} {!e.active && <Badge>Sorti(e)</Badge>}</h2>
@@ -83,6 +85,7 @@ function Departure({ employeeId }) {
 }
 
 function Identity({ d, hr, onSaved }) {
+  const { can } = useAuth();
   const { meta } = useRhMeta();
   const [edit, setEdit] = useState(false);
   const [pin, setPin] = useState(false);
@@ -90,7 +93,7 @@ function Identity({ d, hr, onSaved }) {
   const e = d.employee;
   return (
     <div className="grid grid-2" style={{ alignItems: 'start' }}>
-      <Card title="Identité" actions={hr && <button className="btn btn-sm" onClick={() => setEdit(true)}><Pencil />Modifier</button>}>
+      <Card title="Identité" actions={(hr || can('paie:employees')) && <button className="btn btn-sm" onClick={() => setEdit(true)}><Pencil />Modifier</button>}>
         <Row label="Sexe">{e.gender === 'F' ? 'Femme' : e.gender === 'M' ? 'Homme' : null}</Row>
         <Row label="Naissance">{e.birth_date && `${date(e.birth_date)}${e.birth_place ? ` à ${e.birth_place}` : ''}`}</Row>
         <Row label="Nationalité">{e.nationality}{e.expatriate ? ' (expatrié)' : ''}</Row>
@@ -116,62 +119,10 @@ function Identity({ d, hr, onSaved }) {
         <Row label="Code de pointage">{e.has_pin ? 'défini' : 'non défini'}</Row>
         {e.base_salary != null && <Row label="Salaire de base">{fcfa(e.base_salary)}</Row>}
       </Card>
-      {edit && <IdentityForm d={d} onClose={() => setEdit(false)} onSaved={() => { setEdit(false); onSaved(); }} />}
+      {edit && <EmployeeForm employee={{ ...e, active: !!e.active }} onClose={() => setEdit(false)} onSaved={() => { setEdit(false); onSaved(); }} />}
       {pin && <HrPin employee={e} onClose={() => setPin(false)} onSaved={() => { setPin(false); onSaved(); }} />}
       {change && <ChangePositionModal d={d} onClose={() => setChange(false)} onSaved={() => { setChange(false); onSaved(); }} />}
     </div>
-  );
-}
-
-function IdentityForm({ d, onClose, onSaved }) {
-  const saved = useSaved();
-  const { meta } = useRhMeta();
-  const e = d.employee;
-  // Poste et service : par « Changer de poste » (date d'effet, motif, historique), plus dans ce formulaire
-  const keys = ['phone', 'email', 'address', 'birth_date', 'birth_place', 'gender', 'nationality', 'id_number', 'cnps_number', 'marital_status', 'children', 'emergency_contact', 'category', 'contract_type', 'end_date', 'trial_end_date', 'manager_id', 'leave_opening_days', 'leave_opening_date', 'notes'];
-  const [f, setF] = useState(Object.fromEntries(keys.map(k => [k, e[k] ?? ''])));
-  const [error, setError] = useState(null);
-  const set = k => ev => setF(x => ({ ...x, [k]: ev.target.value }));
-  const save = async ev => {
-    ev.preventDefault(); setError(null);
-    const body = Object.fromEntries(keys.map(k => [k, f[k] === '' ? null : f[k]]));
-    for (const k of ['children', 'manager_id', 'leave_opening_days']) body[k] = body[k] == null ? null : Number(body[k]);
-    body.children = body.children ?? 0;
-    try { await api.patch(`${RH}/employees/${e.id}`, body); saved("Dossier enregistré"); onSaved(); } catch (err) { setError(err); }
-  };
-  return (
-    <Modal title={`Dossier — ${e.last_name} ${e.first_name}`} onClose={onClose} footer={<><button className="btn btn-ghost" onClick={onClose}>Annuler</button><button className="btn btn-primary" form="id-form">Enregistrer</button></>}>
-      <form id="id-form" className="stack wide-form" style={{ gap: 14 }} onSubmit={save}>
-        <ErrorBox error={error} />
-        <div className="form-grid">
-          <Field label="Téléphone"><input className="input" value={f.phone} onChange={set('phone')} /></Field>
-          <Field label="E-mail"><input className="input" type="email" value={f.email} onChange={set('email')} /></Field>
-          <Field label="Adresse" className="full"><input className="input" value={f.address} onChange={set('address')} /></Field>
-          <Field label="Date de naissance"><input className="input" type="date" value={f.birth_date} onChange={set('birth_date')} /></Field>
-          <Field label="Lieu de naissance"><input className="input" value={f.birth_place} onChange={set('birth_place')} /></Field>
-          <Field label="Sexe"><select className="select" value={f.gender} onChange={set('gender')}><option value="">—</option><option value="F">Femme</option><option value="M">Homme</option></select></Field>
-          <Field label="Nationalité"><input className="input" value={f.nationality} onChange={set('nationality')} /></Field>
-          <Field label="CNI / passeport"><input className="input" value={f.id_number} onChange={set('id_number')} /></Field>
-          <Field label="N° CNPS"><input className="input" value={f.cnps_number} onChange={set('cnps_number')} /></Field>
-          <Field label="Situation de famille"><select className="select" value={f.marital_status} onChange={set('marital_status')}>{meta && Object.entries(meta.marital).map(([k, v]) => <option key={k} value={k}>{v}</option>)}</select></Field>
-          <Field label="Enfants à charge" hint="Compte pour les jours de congé supplémentaires et la paie"><input className="input" type="number" min="0" max="20" value={f.children} onChange={set('children')} /></Field>
-          <Field label="Contact en cas d’urgence" className="full"><input className="input" value={f.emergency_contact} onChange={set('emergency_contact')} placeholder="Nom, lien, téléphone" /></Field>
-          <Field label="Poste et service" className="full" hint="Pour un nouveau poste ou un autre service : bouton « Changer de poste » de la carte Contrat (date d’effet, motif, historique)">
-            <input className="input" disabled value={`${e.job_title} · ${meta?.departments[e.department] || e.department}`} />
-          </Field>
-          <Field label="Catégorie professionnelle"><input className="input" value={f.category} onChange={set('category')} /></Field>
-          <Field label="Contrat"><select className="select" value={f.contract_type} onChange={set('contract_type')}>{meta && Object.entries(meta.contract_types).map(([k, v]) => <option key={k} value={k}>{v}</option>)}</select></Field>
-          <Field label="Fin de la période d’essai"><input className="input" type="date" value={f.trial_end_date} onChange={set('trial_end_date')} /></Field>
-          <Field label="Fin de contrat / sortie"><input className="input" type="date" value={f.end_date} onChange={set('end_date')} /></Field>
-          <Field label="Responsable direct" hint="Premier niveau d’accord des congés et des notes de frais" className="full">
-            <select className="select" value={f.manager_id ?? ''} onChange={set('manager_id')}><option value="">— Aucun —</option>{meta?.employees.filter(x => x.id !== e.id).map(x => <option key={x.id} value={x.id}>{x.last_name} {x.first_name}</option>)}</select>
-          </Field>
-          <Field label="Solde de congés repris (jours)" hint="Solde de l’ancienne gestion, à la date ci-contre"><input className="input" type="number" step="0.5" value={f.leave_opening_days} onChange={set('leave_opening_days')} /></Field>
-          <Field label="Date de reprise du solde" hint="L’acquisition de 2,2 j / mois repart de cette date"><input className="input" type="date" value={f.leave_opening_date} onChange={set('leave_opening_date')} /></Field>
-          <Field label="Notes internes" className="full"><textarea className="textarea" rows={2} value={f.notes} onChange={set('notes')} /></Field>
-        </div>
-      </form>
-    </Modal>
   );
 }
 

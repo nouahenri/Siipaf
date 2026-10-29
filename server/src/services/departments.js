@@ -43,9 +43,9 @@ async function setHead(db, department, employeeId, { userId }) {
   if (before?.employee_id !== e.id) {
     const where = DEPARTMENT_MODULES[department];
     await notify(db, {
-      to: e.user_id, except: userId, module: where?.module || 'rh', event: 'rh.chef_service', link: where?.link || '/rh/moi', key: `chef:${department}:${e.id}`,
+      to: e.user_id, except: userId, module: where?.module || 'rh', event: 'rh.chef_service', link: where ? `${where.link}/service` : '/rh/moi', key: `chef:${department}:${e.id}`,
       title: `Vous êtes chef du service ${DEPARTMENTS[department]}`,
-      body: where ? 'Vous faites les demandes au nom du service (achat, équipement, véhicule…) depuis le tableau de bord de son module.' : 'Vous faites les demandes au nom du service.',
+      body: where ? 'Vous faites les demandes au nom du service (achat, équipement, véhicule…) depuis « Demandes du service », dans le menu de son module.' : 'Vous faites les demandes au nom du service.',
     });
   }
   return heads(db);

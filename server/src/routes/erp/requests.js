@@ -27,6 +27,11 @@ module.exports = function requestRoutes(db) {
     });
   }));
   r.get('/badges', ah(async (req, res) => res.json(await requests.badges(db, v(req)))));
+  // Barre latérale de chaque module : « Mon espace » (fiche employé) et « Demandes du service » (membre ou chef)
+  r.get('/espace', ah(async (req, res) => res.json({
+    has_employee: !!(await db('employees').where({ user_id: req.user.id }).first('id')),
+    departments: req.depts, waiting: await requests.departmentWaiting(db, v(req)),
+  })));
 
   // Bons de commande soumis par les Achats : le validateur ou la Direction les voit et décide ici aussi
   const appro = require('../../services/appro');

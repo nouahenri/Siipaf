@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { Link } from 'react-router-dom';
+import { Link, useLocation } from 'react-router-dom';
 import { LogIn, LogOut, CalendarPlus, Receipt, Plus, Palmtree, Hourglass, CalendarCheck, KeyRound, GraduationCap, Target, FolderOpen, UserX, MapPin } from 'lucide-react';
 import { api } from '@admin/lib/api';
 import { useAuth, useResource, useToast, useSaved } from '@admin/lib/app-context';
@@ -17,6 +17,7 @@ import PlacePicker, { placeLabel, NO_PLACE } from '../../components/PlacePicker'
 /** Libre-service de l'employé (référence : espace « Mon profil » d'Odoo) : pointage, congés, frais, formations, entretien. */
 export default function MySpace() {
   const { can } = useAuth();
+  const base = useLocation().pathname.split('/')[1];
   const { meta } = useRhMeta();
   const me = useResource(`${RH}/me`);
   const att = useResource(`${RH}/me/attendance`);
@@ -38,7 +39,7 @@ export default function MySpace() {
           <p className="muted small">{e.matricule} · {e.job_title}{manager ? ` · responsable : ${manager}` : ''} · entré(e) le {date(e.hire_date)}</p>
         </div>
         <div className="row">
-          <Link className="btn" to={`/rh/personnel/${e.id}`}><FolderOpen />Mon dossier et mes compétences</Link>
+          <Link className="btn" to={`/${base}/moi/dossier/${e.id}`}><FolderOpen />Mon dossier et mes compétences</Link>
           {can('self:pointage') && <button className="btn" onClick={() => setPin(true)}><KeyRound />{e.has_pin ? 'Changer mon code de pointage' : 'Choisir mon code de pointage'}</button>}
         </div>
       </div>

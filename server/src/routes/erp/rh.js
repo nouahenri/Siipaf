@@ -20,6 +20,7 @@ const paie = require('../../services/paie');
 const performance = require('../../services/performance');
 const departures = require('../../services/departures');
 const positions = require('../../services/positions');
+const employees = require('../../services/employees');
 const { listRoles } = require('../../services/roles');
 
 const day = z.string().regex(/^\d{4}-\d{2}-\d{2}$/, 'Date attendue au format AAAA-MM-JJ');
@@ -289,38 +290,11 @@ module.exports = function rhRoutes(db) {
     });
   }));
 
-  // Champs du dossier RH (les éléments de salaire restent dans Comptabilité › Employés, droit paie:write)
-  r.patch('/employees/:id', requirePermission('rh:files'), ah(async (req, res) => {
-    const e = await rh.getEmployee(db, idParam(req));
-    const data = parse(z.object({
-      phone: optText(40), email: z.string().trim().toLowerCase().email().optional().nullable().or(z.literal('').transform(() => null)), address: optText(255),
-      birth_date: day.optional().nullable(), birth_place: optText(80), gender: z.enum(['F', 'M']).optional().nullable(), nationality: optText(60),
-      id_number: optText(60), cnps_number: optText(40), marital_status: z.enum(Object.keys(MARITAL)), children: z.number().int().min(0).max(20),
-      emergency_contact: optText(160), job_title: z.string().trim().min(2).max(120), department: z.enum(Object.keys(DEPARTMENTS)), category: optText(40),
-      contract_type: z.enum(Object.keys(CONTRACT_TYPES)), end_date: day.optional().nullable(), trial_end_date: day.optional().nullable(),
-      manager_id: z.number().int().positive().optional().nullable(), project_id: z.number().int().positive().optional().nullable(),
-      leave_opening_days: z.number().min(-60).max(200).optional().nullable(), leave_opening_date: day.optional().nullable(), notes: optText(500),
-    }).partial(), req.body);
-    if (e.user_id === req.user.id && req.user.role !== 'super_admin') throw new HttpError(403, 'Votre propre dossier se modifie par le service RH (vos coordonnées : Mon espace).');
-    if (('leave_opening_days' in data || 'leave_opening_date' in data) && !req.can('conges:manage')) throw new HttpError(403, 'Le solde d’ouverture des congés se règle avec le droit « Gérer les absences ».');
-    // Se nommer responsable de quelqu'un donne ses droits de responsable : jamais pour soi-même
-    if (data.manager_id && req.user.role !== 'super_admin' && (await db('employees').where({ id: data.manager_id }).first('user_id'))?.user_id === req.user.id) {
-      throw new HttpError(403, 'Vous ne pouvez pas vous nommer responsable d’un employé : demandez au service RH.');
-    }
-    if (data.manager_id === e.id) throw new HttpError(400, 'Un employé ne peut pas être son propre responsable.');
-    if (data.manager_id && !(await db('employees').where({ id: data.manager_id }).first())) throw new HttpError(404, 'Responsable introuvable.');
-    // Pas de boucle dans la hiérarchie (A responsable de B, B responsable de A)
-    for (let m = data.manager_id, guard = 0; m && guard < 50; guard++) {
-      if (m === e.id) throw new HttpError(400, 'Cette hiérarchie formerait une boucle.');
-      m = (await db('employees').where({ id: m }).first('manager_id'))?.manager_id;
-    }
-    await db.transaction(async trx => {
-      // Un intitulé saisi ici reste dans la liste des postes (RH › Réglages)
-      if (data.job_title && data.job_title !== e.job_title) Object.assign(data, await positions.resolve(trx, { job_title: data.job_title, department: data.department || e.department }));
-      await trx('employees').where({ id: e.id }).update({ ...data, updated_at: new Date() });
-      await rh.logChanges(trx, e, data, req.user.id);
-    });
-    res.json(paie.serializeEmployee(await db('employees').where({ id: e.id }).first(), { withPay: req.can('paie:read') }));
+  // Fiche employé : même formulaire et même règle que Comptabilité › Employés (services/employees) ;
+  // salaire et paiement restent au droit « Gérer les fiches salariés »
+  r.patch('/employees/:id', requirePermission('rh:files', 'paie:employees'), ah(async (req, res) => {
+    const { after } = await employees.update(db, idParam(req), parse(employees.employeeSchema.partial(), req.body), { user: req.user, can: p => req.can(p) });
+    res.json(paie.serializeEmployee(after, { withPay: req.can('paie:read') }));
   }));
 
   r.post('/employees/:id/adjustments', requirePermission('conges:manage'), ah(async (req, res) => {
