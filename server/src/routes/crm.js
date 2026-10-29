@@ -105,14 +105,15 @@ module.exports = function crmRoutes(db) {
     res.status(201).json(await db('leads').where({ id: lead.id }).first());
   }));
 
-  r.patch('/leads/:id', requirePermission('leads:edit', 'leads:stage', 'leads:assign'), ah(async (req, res) => {
+  r.patch('/leads/:id', requirePermission('leads:edit', 'clients:edit', 'leads:stage', 'leads:assign'), ah(async (req, res) => {
     const id = idParam(req);
     const data = parse(leadSchema.partial(), req.body);
     // Chaque partie de la fiche relève de son action : étape (leads:stage), le reste (leads:edit)
     const { stage: _stage, assigned_to: _assigned, ...fields } = data;
     if ('stage' in data && !req.can('leads:stage')) throw new HttpError(403, 'Faire avancer un prospect dans le circuit demande le droit correspondant.');
-    if (Object.keys(fields).length && !req.can('leads:edit')) throw new HttpError(403, 'Modifier la fiche d’un prospect demande le droit correspondant.');
     const lead = await leadInScope(db, id, req.user);
+    // Fiche d'un client (code client) : clients:edit ; d'un prospect : leads:edit
+    if (Object.keys(fields).length && !req.can(lead.client_code ? 'clients:edit' : 'leads:edit')) throw new HttpError(403, `Modifier la fiche d’un ${lead.client_code ? 'client' : 'prospect'} demande le droit correspondant.`);
     // Changer de commercial (ou retirer un prospect de son portefeuille) : responsable seulement, sinon demande de transfert
     if ('assigned_to' in data && (data.assigned_to || null) !== (lead.assigned_to || null) && !canAssignLeads(req.user)) {
       throw new HttpError(403, 'Seul le responsable change le commercial d’un prospect ou d’un client : faites une demande de transfert.');
@@ -147,7 +148,9 @@ module.exports = function crmRoutes(db) {
     res.json({ ok: true });
   }));
 
-  r.get('/leads.csv', requirePermission('leads:read'), ah(async (req, res) => {
+  r.get('/leads.csv', requirePermission('leads:read', 'clients:export'), ah(async (req, res) => {
+    // Liste des clients : clients:export ; des prospects : leads:read
+    if (!req.can(req.query.type === 'clients' ? 'clients:export' : 'leads:read')) throw new HttpError(403, 'Droits insuffisants pour cet export.');
     const rows = await onlyType(scopeLeads(db('leads as ld'), req.user), req.query.type)
       .leftJoin('projects as p', 'p.id', 'ld.project_id')
       .select('ld.id', 'ld.name', 'ld.email', 'ld.phone', 'ld.country', 'ld.stage', 'ld.source', 'ld.financing', 'p.name as projet', 'ld.created_at')

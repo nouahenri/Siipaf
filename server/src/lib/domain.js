@@ -380,12 +380,25 @@ const PERMISSION_SPLITS = {
   'appointments:write': ['appointments:create', 'appointments:edit', 'appointments:cancel'],
   'lots:status': ['lots:option', 'lots:reserve', 'lots:desist'],
   'sales:write': ['sales:open', 'sales:edit', 'sales:clients'],
+  // Clients (29/10, 2ᵉ découpage) : ceux qui voyaient les dossiers voient les clients ; qui modifiait un prospect modifie un client
+  'sales:clients': ['clients:create', 'clients:import'],
+  'sales:read': ['sales:read', 'clients:read', 'clients:export'],
+  'leads:edit': ['leads:edit', 'clients:edit'],
   'payments:write': ['payments:write', 'payments:delete'],
   'documents:write': ['documents:status', 'documents:files', 'documents:visibility'],
   'client_access:write': ['client_access:open', 'client_access:disable'],
   'client_messages': ['client_messages', 'client_messages:group'],
 };
-const splitPermissions = list => [...new Set(list.flatMap(p => PERMISSION_SPLITS[p] || [p]))];
+// Découpage répété jusqu'aux actions finales (un privilège découpé peut l'être à nouveau)
+function splitPermissions(list) {
+  let out = [...new Set(list)];
+  for (let i = 0; i < 5; i++) {
+    const next = [...new Set(out.flatMap(p => (PERMISSION_SPLITS[p] && !(PERMISSION_SPLITS[p].length === 1 && PERMISSION_SPLITS[p][0] === p) ? PERMISSION_SPLITS[p] : [p])))];
+    if (next.length === out.length && next.every(p => out.includes(p))) break;
+    out = next;
+  }
+  return out;
+}
 
 /** Droits par défaut des rôles d'origine. Le super administrateur a tous les droits. */
 const PERMISSIONS = {
@@ -454,7 +467,6 @@ const PERMISSION_CATALOG = [
     ['sales:read', 'Voir les dossiers d’acquisition', 'Acquéreur, prix, paiements, documents'],
     ['sales:open', 'Ouvrir un dossier', 'Réserver un lot pour un de ses prospects ou un nouvel acquéreur', 'Dossiers'],
     ['sales:edit', 'Modifier le dossier', 'Prix convenu, financement, date de réservation, livraison promise, notes, travaux modificatifs ; la date de l’acte relève du Juridique', 'Dossiers'],
-    ['sales:clients', 'Créer ou importer des clients', 'Client repris sans dossier, import de la liste des clients', 'Dossiers'],
     ['payments:record', 'Déclarer un versement (à confirmer)', 'Saisir le versement d’un de ses clients ; il ne compte qu’après confirmation de la Comptabilité', 'Versements'],
     ['payments:write', 'Enregistrer et confirmer (Comptabilité)', 'Enregistrer un versement, confirmer ou refuser ceux déclarés par les commerciaux', 'Versements'],
     ['payments:delete', 'Supprimer un versement', 'Erreur de saisie ; le dossier et les totaux sont recalculés', 'Versements'],
@@ -462,7 +474,12 @@ const PERMISSION_CATALOG = [
     ['documents:files', 'Ajouter des pièces et joindre les fichiers', null, 'Documents juridiques'],
     ['documents:visibility', 'Rendre une pièce visible au client', 'Dans son espace client', 'Documents juridiques'],
   ] },
-  { group: 'Espace client', items: [
+  { group: 'Clients et espace client', items: [
+    ['clients:read', 'Voir les clients', 'Liste des clients, fiche, dossiers, versements et retards (les siens, ou tous avec la portée « toute l’équipe »)', 'Fiches clients'],
+    ['clients:create', 'Créer un client sans dossier', 'Client repris de l’ancienne plateforme : lot et prix rattachés ensuite', 'Fiches clients'],
+    ['clients:edit', 'Modifier la fiche d’un client', 'Nom, coordonnées, pays, diaspora, programme (celle d’un prospect relève de « Modifier la fiche » des prospects)', 'Fiches clients'],
+    ['clients:import', 'Importer la liste des clients', 'Fichier CSV ou Excel : clients, lots, prix ; les montants versés restent réservés à la Comptabilité', 'Fiches clients'],
+    ['clients:export', 'Exporter la liste des clients (CSV)', null, 'Fiches clients'],
     ['client_access:open', 'Ouvrir l’accès ou renvoyer un mot de passe', 'Code client et mot de passe provisoire', 'Accès des clients'],
     ['client_access:disable', 'Désactiver ou réactiver un accès', null, 'Accès des clients'],
     ['client_messages', 'Lire et répondre', 'Messages de ses clients (de tous les clients avec la portée « toute l’équipe »)', 'Messagerie clients'],

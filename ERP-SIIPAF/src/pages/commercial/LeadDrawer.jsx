@@ -19,8 +19,8 @@ export default function LeadDrawer({ id, onClose, onChange }) {
   const [selling, setSelling] = useState(false);
   const [appt, setAppt] = useState(false);
   const [error, setError] = useState(null);
-  // Actions détaillées : fiche (leads:edit), étapes et perte (leads:stage), activités et notes (leads:activities)
-  const write = can('leads:edit');
+  // Actions détaillées : fiche (leads:edit, ou clients:edit pour un client), étapes et perte (leads:stage), activités et notes (leads:activities)
+  const write = can(lead.data?.client_code ? 'clients:edit' : 'leads:edit');
   const staging = can('leads:stage');
   const acting = can('leads:activities');
   const refresh = () => { lead.reload(); onChange?.(); };

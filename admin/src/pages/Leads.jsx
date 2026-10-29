@@ -91,7 +91,7 @@ export default function Leads() {
         : <Pipeline leads={leads} onOpen={setSelected} canWrite={can('leads:stage')} />}
 
       {selected && <LeadDrawer id={selected} onClose={() => setSelected(null)} onSaved={leads.reload} projects={projects.data || []} />}
-      {importing && <ImportModal mode="prospects" allowModes={can('sales:clients') ? ['prospects', 'clients'] : ['prospects']} onClose={() => setImporting(false)} onDone={() => leads.reload()} />}
+      {importing && <ImportModal mode="prospects" allowModes={can('clients:import') ? ['prospects', 'clients'] : ['prospects']} onClose={() => setImporting(false)} onDone={() => leads.reload()} />}
       {creating && <LeadDrawer onClose={() => setCreating(false)} onSaved={() => { setCreating(false); leads.reload(); }} projects={projects.data || []} />}
     </div>
   );

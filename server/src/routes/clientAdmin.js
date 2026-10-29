@@ -19,7 +19,7 @@ module.exports = function clientAdminRoutes(db) {
   const r = express.Router();
 
   // ─── Clients (prospects devenus acquéreurs : ils ont un code client) ─────
-  r.get('/clients', requirePermission('sales:read'), ah(async (req, res) => {
+  r.get('/clients', requirePermission('clients:read'), ah(async (req, res) => {
     const [leads, sales, accounts, unread] = await Promise.all([
       // Un commercial ne voit que ses clients (portée « toute l'équipe » : tous)
       scopeLeads(db('leads as ld'), req.user).leftJoin('projects as p', 'p.id', 'ld.project_id').whereNotNull('ld.client_code')
@@ -60,7 +60,7 @@ module.exports = function clientAdminRoutes(db) {
   }));
 
   // Nouveau client sans dossier : lot, prix et programme se rattachent ensuite
-  r.post('/clients', requirePermission('sales:clients'), ah(async (req, res) => {
+  r.post('/clients', requirePermission('clients:create'), ah(async (req, res) => {
     const data = parse(z.object({
       name: z.string().trim().min(2, 'Nom requis.').max(120),
       first_name: z.string().trim().max(120).optional(),

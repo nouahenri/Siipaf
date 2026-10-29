@@ -85,7 +85,7 @@ module.exports = function commercialRoutes(db) {
     });
   }));
 
-  r.patch('/leads/:id', read, requirePermission('leads:edit', 'leads:assign'), ah(async (req, res) => {
+  r.patch('/leads/:id', read, requirePermission('leads:edit', 'clients:edit', 'leads:assign'), ah(async (req, res) => {
     const lead = await ownLead(req);
     const data = parse(z.object({
       name: z.string().trim().min(2).max(160), email: z.string().trim().toLowerCase().email().nullable(), phone: optText(40),
@@ -96,7 +96,7 @@ module.exports = function commercialRoutes(db) {
       assigned_to: z.number().int().positive().nullable(),
     }).partial(), req.body);
     const { assigned_to: _assigned, ...fields } = data;
-    if (Object.keys(fields).length && !req.can('leads:edit')) throw new HttpError(403, 'Modifier la fiche d’un prospect demande le droit correspondant.');
+    if (Object.keys(fields).length && !req.can(lead.client_code ? 'clients:edit' : 'leads:edit')) throw new HttpError(403, `Modifier la fiche d’un ${lead.client_code ? 'client' : 'prospect'} demande le droit correspondant.`);
     // Changer de commercial : responsable seulement (leads:assign), sinon demande de transfert
     if ('assigned_to' in data && (data.assigned_to || null) !== (lead.assigned_to || null) && !cm.canAssignLeads(req.user)) {
       throw new HttpError(403, 'Seul le responsable change le commercial d’un prospect ou d’un client : faites une demande de transfert.');

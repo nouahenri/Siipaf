@@ -18,7 +18,7 @@ Précision du client (29/10) : « Gérer les prospects » doit devenir des cases
 
 - ☑ **Ventes** : Gérer ses prospects (créer, modifier, faire avancer, activités, importer, demander un transfert) ; Gérer les rendez-vous (planifier, confirmer/déplacer, annuler) ; Statut des lots (option, réserver/vendre, désistement).
 - ☑ **Dossiers** : ouvrir, modifier, créer/importer des clients ; Versements (déclarer, enregistrer et confirmer, supprimer) ; Documents juridiques (faire avancer, joindre, rendre visible au client).
-- ☑ **Espace client** : accès (ouvrir, désactiver) ; messagerie (lire et répondre, écrire à plusieurs clients).
+- ☑ **Clients et espace client** : fiches clients (voir, créer sans dossier, modifier la fiche, importer, exporter) ; accès (ouvrir, désactiver) ; messagerie (lire et répondre, écrire à plusieurs clients) ; avancement et échéanciers. Migration `20261129300000_privileges_clients.js`.
 - ☐ Catalogue (projets : créer, modifier, grilles de prix, supprimer ; plans), Site web (médiathèque, newsletter), Administration (comptes : créer, modifier, mot de passe, désactiver).
 - ☐ ERP : Service commercial, Achats, Comptabilité (dont `achats:validate`), Paie, RH, Administration générale, Juridique, Chantiers, SAV (dont `sav:all`).
 

@@ -14,7 +14,7 @@ const NAV = [
   { group: null, items: [{ to: '/', label: 'Tableau de bord', icon: LayoutDashboard, end: true }] },
   { group: 'Ventes', items: [
     { to: '/prospects', label: 'Prospects', icon: Users, perm: 'leads:read', badge: 'new_leads' },
-    { to: '/clients', label: 'Clients', icon: UserCheck, perm: 'sales:read' },
+    { to: '/clients', label: 'Clients', icon: UserCheck, perm: 'clients:read' },
     { to: '/rendez-vous', label: 'Rendez-vous', icon: CalendarDays, perm: 'appointments:read', badge: 'site_appointment_requests', panel: true },
     { to: '/messagerie-clients', label: 'Messagerie clients', icon: MessagesSquare, perm: 'client_messages', badge: 'unread_client_messages' },
   ] },

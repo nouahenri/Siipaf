@@ -1,6 +1,6 @@
 import { useMemo, useState } from 'react';
 import { useOutletContext } from 'react-router-dom';
-import { Search, UserCheck, Phone, Mail as MailIcon, ExternalLink, Upload, Plus } from 'lucide-react';
+import { Search, UserCheck, Phone, Mail as MailIcon, ExternalLink, Upload, Plus, Download } from 'lucide-react';
 import { useAuth, useResource, useToast } from '../lib/app-context';
 import { api } from '../lib/api';
 import { Card, Drawer, Badge, Empty, ErrorBox, Skeleton, Pagination, Modal, Field, Advance } from '../components/ui';
@@ -71,8 +71,9 @@ export default function Clients() {
             <Search aria-hidden="true" />
             <input className="input" placeholder="Nom, code, téléphone, lot…" value={q} onChange={e => { setQ(e.target.value); setPage(1); }} aria-label="Rechercher un client" />
           </div>
-          {can('sales:clients') && <button className="btn" onClick={() => setImporting(true)}><Upload />Importer</button>}
-          {can('sales:clients') && <button className="btn btn-primary" onClick={() => setCreating(true)}><Plus />Nouveau client</button>}
+          {can('clients:export') && <a className="btn" href="/api/admin/leads.csv?type=clients"><Download />Exporter</a>}
+          {can('clients:import') && <button className="btn" onClick={() => setImporting(true)}><Upload />Importer</button>}
+          {can('clients:create') && <button className="btn btn-primary" onClick={() => setCreating(true)}><Plus />Nouveau client</button>}
         </div>
       </div>
       <ErrorBox error={clients.error} />

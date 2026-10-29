@@ -26,7 +26,7 @@ module.exports = function importRoutes(db) {
         filename: z.string().trim().max(200).optional(), assigned_to: z.number().int().positive().nullable().optional(),
       }).optional(),
     }), req.body);
-    const perm = data.mode === 'clients' ? 'sales:clients' : 'leads:import';
+    const perm = data.mode === 'clients' ? 'clients:import' : 'leads:import';
     if (!req.can(perm)) throw new HttpError(403, 'Droits insuffisants pour cet import.');
     if (data.open_access && !req.can('client_access:open')) throw new HttpError(403, 'Droits insuffisants pour ouvrir les espaces clients.');
     // Reprise des versements : enregistrés directement, donc réservée à la Comptabilité (payments:write)

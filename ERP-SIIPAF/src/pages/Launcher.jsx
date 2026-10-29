@@ -1,5 +1,5 @@
 import { Link } from 'react-router-dom';
-import { LifeBuoy, Calculator, Users, Scale, Building, HardHat, Boxes, Briefcase, ArrowRight } from 'lucide-react';
+import { LifeBuoy, Calculator, Users, Scale, Building, HardHat, Boxes, Briefcase, ArrowRight, ShieldAlert } from 'lucide-react';
 import { useAuth, useResource } from '@admin/lib/app-context';
 import { useErpNotifications } from '../components/NotificationCenter';
 import { ADMIN_SHOW, JURIDIQUE, JURIDIQUE_SHOW } from '../components/ErpLayout';
@@ -14,6 +14,8 @@ const MODULES = [
   { id: 'chantiers', to: '/chantiers', label: 'Chantiers', text: 'Plusieurs chantiers par programme : planning (Gantt), phases, tâches, budget par poste.', icon: HardHat, perm: CHANTIERS, show: CHANTIERS_SHOW, badges: 'chantiers', color: '#eda100' },
   { id: 'achats', to: '/achats', label: 'Achats & stocks', text: 'Commandes, sous-traitance, dépôt ↔ chantier.', icon: Boxes, perm: 'appro:read', color: '#e87ba4' },
   { id: 'juridique', to: '/juridique', label: 'Juridique', text: 'Ventes jusqu’à l’acte notarié, litiges, cautions et retenues de garantie, impayés transmis, contrats et échéances.', icon: Scale, perm: [...JURIDIQUE, 'compta:read'], show: JURIDIQUE_SHOW, badges: 'juridique', color: '#6d28d9' },
+  // Demandé par le client le 29/10, cadrage à venir : tuile visible de tous, sans accès
+  { id: 'shse', label: 'SHSE', text: 'Santé, hygiène, sécurité et environnement : accidents et incidents, équipements de protection, inspections et visites de sécurité, formations sécurité, déchets.', icon: ShieldAlert, color: '#0f766e', status: 'En cours' },
   { id: 'admin', module: 'administration', to: '/administration', label: 'Administration générale', text: 'Vue Direction de tous les services, courrier arrivée et départ, contrats et échéances, parc auto et matériel, documents internes, demandes internes, lieux (siège, bureaux, dépôts), circuit d’information entre les services.', icon: Building, perm: ['direction:read', 'courrier:read', 'courrier:write', 'courrier:assign', 'contrats:read', 'contrats:write', 'parc:read', 'parc:write', 'demandes:handle', 'demandes:dg', 'lieux:write', 'users:write'], show: ADMIN_SHOW, color: '#5b6170' },
 ];
 
@@ -45,7 +47,7 @@ export default function Launcher() {
               <span className="module-name">{m.label}</span>
               <span className="module-text">{m.text}</span>
               <span className="module-foot">
-                {ready ? <>Ouvrir <ArrowRight aria-hidden="true" /></> : m.to ? 'Accès non autorisé' : 'À venir'}
+                {ready ? <>Ouvrir <ArrowRight aria-hidden="true" /></> : m.to ? 'Accès non autorisé' : m.status || 'À venir'}
               </span>
             </>
           );
