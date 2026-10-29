@@ -240,6 +240,8 @@ function ApplicantDrawer({ id, onClose, onChange }) {
 
 function HireForm({ applicant, onClose, onDone }) {
   const { meta } = useRhMeta();
+  const { can } = useAuth();
+  const canPay = can('paie:employees'); // salaire de la fiche : Paie
   const toast = useToast();
   const saved = useSaved();
   const [f, setF] = useState({ hire_date: applicant.available_from || today(), base_salary: applicant.proposed_salary || applicant.expected_salary || '', trial_end_date: '', contract_type: '', job_title: applicant.job_title || '' });
@@ -248,7 +250,7 @@ function HireForm({ applicant, onClose, onDone }) {
   const save = async e => {
     e.preventDefault();
     try {
-      await api.post(`${RH}/applicants/${applicant.id}/hire`, { hire_date: f.hire_date, base_salary: Number(f.base_salary) || 0, trial_end_date: f.trial_end_date || null, ...(f.contract_type ? { contract_type: f.contract_type } : {}), ...(f.job_title ? { job_title: f.job_title } : {}) });
+      await api.post(`${RH}/applicants/${applicant.id}/hire`, { hire_date: f.hire_date, ...(canPay ? { base_salary: Number(f.base_salary) || 0 } : {}), trial_end_date: f.trial_end_date || null, ...(f.contract_type ? { contract_type: f.contract_type } : {}), ...(f.job_title ? { job_title: f.job_title } : {}) });
       saved('Fiche employé créée : complétez-la dans le dossier et la paie'); onDone();
     } catch (err) { setError(err); }
   };
@@ -260,7 +262,8 @@ function HireForm({ applicant, onClose, onDone }) {
         <Field label="Contrat"><select className="select" value={f.contract_type} onChange={set('contract_type')}><option value="">Celui de l’offre</option>{meta && Object.entries(meta.contract_types).map(([k, v]) => <option key={k} value={k}>{v}</option>)}</select></Field>
         <Field label="Date d’entrée"><input className="input" type="date" required value={f.hire_date} onChange={set('hire_date')} /></Field>
         <Field label="Fin de la période d’essai"><input className="input" type="date" value={f.trial_end_date} onChange={set('trial_end_date')} /></Field>
-        <Field label="Salaire de base (FCFA)" className="full"><input className="input" type="number" min="0" value={f.base_salary} onChange={set('base_salary')} /></Field>
+        {canPay ? <Field label="Salaire de base (FCFA)" className="full"><input className="input" type="number" min="0" value={f.base_salary} onChange={set('base_salary')} /></Field>
+          : <p className="full small muted">Le salaire de la fiche est fixé par la Comptabilité (Comptabilité › Employés).</p>}
       </form>
     </Modal>
   );

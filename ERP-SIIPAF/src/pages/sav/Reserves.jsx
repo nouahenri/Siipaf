@@ -56,7 +56,7 @@ export default function Reserves() {
                   <td>{r.status === 'levee' ? <Badge tone="ok">Levée {r.lifted_at ? `le ${date(r.lifted_at)}` : ''}</Badge> : <Badge tone="warn">À lever</Badge>}</td>
                   <td className="nowrap right">
                     {r.ticket_id && <Link className="btn btn-sm btn-ghost" to={`/sav/reclamations?t=${r.ticket_id}`}><ClipboardList />Réclamation</Link>}
-                    {write && !r.ticket_id && r.status === 'ouverte' && (
+                    {can('sav:create') && !r.ticket_id && r.status === 'ouverte' && (
                       <button className="btn btn-sm btn-ghost" onClick={() => act(() => api.post(`/admin/erp/sav/reserves/${r.id}/ticket`), 'Réclamation ouverte pour suivre la réserve')}><Plus />Suivre</button>
                     )}
                     {write && (r.status === 'ouverte'

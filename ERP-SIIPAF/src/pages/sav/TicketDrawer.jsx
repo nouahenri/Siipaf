@@ -78,7 +78,7 @@ export default function TicketDrawer({ id, onClose, onChange }) {
             </dl>
           </section>
 
-          {write && (
+          {can('sav:assign') && (
             <div className="form-grid">
               <Field label="Responsable">
                 <select className="select" value={d.assigned_to || ''} disabled={busy} onChange={e => patch({ assigned_to: Number(e.target.value) || null })}>

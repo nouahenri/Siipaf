@@ -4,7 +4,7 @@ import { api, qs } from '@admin/lib/api';
 import { Modal, Field, ErrorBox } from '@admin/components/ui';
 import { useSavMeta } from '../../components/SavBits';
 import { PhotoPicker } from '../../components/Photos';
-import { useSaved } from '@admin/lib/app-context';
+import { useAuth, useSaved } from '@admin/lib/app-context';
 
 /** Recherche d'un dossier d'acquisition (client, code client, lot, téléphone). */
 export function SalePicker({ value, onChange, autoFocus }) {
@@ -46,6 +46,7 @@ export function SalePicker({ value, onChange, autoFocus }) {
 }
 
 export default function NewTicket({ onClose, onCreated }) {
+  const { can } = useAuth();
   const saved = useSaved();
   const meta = useSavMeta();
   const [sale, setSale] = useState(null);
@@ -92,12 +93,14 @@ export default function NewTicket({ onClose, onCreated }) {
           </Field>
           <Field label="Titre" className="full"><input className="input" required minLength={3} maxLength={160} value={form.title} onChange={set('title')} placeholder="Ex. Infiltration au plafond de la chambre" /></Field>
           <Field label="Emplacement"><input className="input" maxLength={120} value={form.location} onChange={set('location')} placeholder="Pièce, façade, jardin…" /></Field>
-          <Field label="Responsable">
-            <select className="select" value={form.assigned_to} onChange={set('assigned_to')}>
-              <option value="">— Personne —</option>
-              {meta?.technicians.map(u => <option key={u.id} value={u.id}>{u.name}</option>)}
-            </select>
-          </Field>
+          {can('sav:assign') && (
+            <Field label="Responsable">
+              <select className="select" value={form.assigned_to} onChange={set('assigned_to')}>
+                <option value="">— Personne —</option>
+                {meta?.technicians.map(u => <option key={u.id} value={u.id}>{u.name}</option>)}
+              </select>
+            </Field>
+          )}
           <Field label="Description" className="full"><textarea className="textarea" rows={4} value={form.description} onChange={set('description')} /></Field>
         </div>
         <Field label="Photos" hint="Visibles par le client dans son espace">

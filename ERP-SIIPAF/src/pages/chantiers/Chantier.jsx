@@ -377,7 +377,7 @@ function Budget({ w, refs, onChange }) {
                 <tr key={`p${p.id}`}><td className="small nowrap">Parc<div className="muted">{date(p.date)}</div></td><td>{p.asset}<div className="small muted">{p.label || p.kind}</div></td><td className="small">{refs.budget_labels.engins}</td><td className="right tabular">{fcfa(p.amount_fcfa)}</td></tr>
               ))}
               {c.labor.map(l => (
-                <tr key={`m${l.employee_id}`}><td className="small nowrap">Pointages</td><td>{l.name}<div className="small muted">{l.job_title} · {num(l.hours)} h × {fcfa(l.rate)}{l.source === 'salaire' ? ' (tiré du salaire)' : l.source === 'aucun' ? ' (aucun salaire ni taux)' : ''}</div></td><td className="small">{refs.budget_labels.main_oeuvre}</td><td className="right tabular">{fcfa(l.amount_fcfa)}</td></tr>
+                <tr key={`m${l.employee_id}`}><td className="small nowrap">Pointages</td><td>{l.name}<div className="small muted">{l.job_title} · {num(l.hours)} h{l.rate == null ? '' : <> × {fcfa(l.rate)}{l.source === 'salaire' ? ' (tiré du salaire)' : l.source === 'aucun' ? ' (aucun salaire ni taux)' : ''}</>}</div></td><td className="small">{refs.budget_labels.main_oeuvre}</td><td className="right tabular">{l.amount_fcfa == null ? <span className="muted" title="Montant par personne réservé à la Paie ; il est compté dans le total">—</span> : fcfa(l.amount_fcfa)}</td></tr>
               ))}
             </tbody>
           </table></div>

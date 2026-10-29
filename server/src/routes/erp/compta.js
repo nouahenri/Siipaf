@@ -20,6 +20,20 @@ const lineSchema = z.object({
 
 module.exports = function comptaRoutes(db) {
   const r = express.Router();
+  // Salaire de chacun : les lignes nominatives de la paie (net à payer, salaire versé, avance retenue) ne montrent ni le nom
+  // ni la personne sans le droit « Consulter la paie » ; les montants restent, les totaux et les états sont exacts (audit du 29/10)
+  const PAY_LINE = /^(Net à payer|Salaire .* — |Avance retenue) /;
+  const maskPay = v => {
+    if (Array.isArray(v)) return v.map(maskPay);
+    if (!v || typeof v !== 'object') return v;
+    const out = Object.fromEntries(Object.entries(v).map(([k, x]) => [k, maskPay(x)]));
+    if (out.partner_type === 'employe' && typeof out.label === 'string' && PAY_LINE.test(out.label)) Object.assign(out, { label: 'Salaire d’un employé (détail réservé à la Paie)', partner_id: null, partner_name: null });
+    return out;
+  };
+  r.use((req, res, next) => {
+    if (!req.can('paie:read')) { const send = res.json.bind(res); res.json = body => send(maskPay(body)); }
+    next();
+  });
   const read = requirePermission('compta:read');
   // Actions détaillées (Rôles & privilèges) : voir lib/domain.js, groupe « ERP · Comptabilité »
   const period = req => ({

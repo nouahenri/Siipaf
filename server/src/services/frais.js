@@ -96,7 +96,7 @@ async function transition(db, id, action, { user, can, note = null, journal = nu
   const set = patch => db('hr_expenses').where({ id }).update({ ...patch, updated_at: now });
 
   if (action === 'submit') {
-    if (!own && !can('frais:approve')) throw new HttpError(403, 'Seul l’employé soumet sa note de frais.');
+    if (!own) throw new HttpError(403, 'Seul l’employé soumet sa note de frais.');
     if (!['brouillon', 'refusee'].includes(raw.status)) throw new HttpError(409, 'Note déjà soumise.');
     if (!raw.receipt_filename) throw new HttpError(400, 'Joignez la photo du reçu avant de soumettre.');
     await set({ status: 'soumise', refusal_reason: null });

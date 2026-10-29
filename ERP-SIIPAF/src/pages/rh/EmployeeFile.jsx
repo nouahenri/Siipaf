@@ -49,7 +49,7 @@ export default function EmployeeFile() {
       {tab === 'conges' && <LeaveTab d={d} hr={hr} onChange={file.reload} />}
       {tab === 'documents' && <Documents d={d} hr={hr} onChange={file.reload} />}
       {tab === 'carriere' && <Career d={d} hr={hr} onChange={file.reload} />}
-      {tab === 'competences' && <Profile employeeId={e.id} editable={hr || d.access === 'self'} />}
+      {tab === 'competences' && <Profile employeeId={e.id} editable={can('formation:write') || d.access === 'self'} />}
       {tab === 'objectifs' && <div className="stack"><Indicators employeeId={e.id} /><PerformanceCurves employeeId={e.id} /><ObjectivesPanel employee={e} /></div>}
       {tab === 'presences' && <EmployeeAttendance employeeId={e.id} />}
     </div>
@@ -192,7 +192,10 @@ function HrPin({ employee, onClose, onSaved }) {
   );
 }
 
-function LeaveTab({ d, hr, onChange }) {
+function LeaveTab({ d, hr: _hr, onChange }) {
+  // Ajuster le solde, saisir une absence : droit « Gérer les absences » (pas seulement « Gérer les dossiers »)
+  const { can } = useAuth();
+  const hr = can('conges:manage') && d.access !== 'self';
   const { meta } = useRhMeta();
   const toast = useToast();
   const [form, setForm] = useState(false);

@@ -46,10 +46,10 @@ Précision du client (29/10) : « Gérer les prospects » doit devenir des cases
 ## B. ERP — Commercial, Chantiers, Compta, Paie, Juridique
 - ☑ services/commercial.js `dashboard` : `team`, `series`, `late_fund_calls` limités au périmètre.
 - ☑ erp/commercial.js:376 GET /vefa/calls — `scopeLeads` ; sans `sales:read` masquer client et payé.
-- ☐ services/chantiers.js:427 `laborRows` — taux horaire et montant par personne réservés à `paie:read`.
-- ☐ Front Payroll.jsx:111/112/252/268/300 — `paie:validate`, `paie:pay`, `paie:settings`.
+- ☑ services/chantiers.js:427 `laborRows` — taux horaire et montant par personne réservés à `paie:read`.
+- ☑ Front Payroll.jsx:111/112/252/268/300 — `paie:validate`, `paie:pay`, `paie:settings`.
 - ☑ erp/commercial.js:201 GET /property — acquéreur, prix, payé seulement avec `sales:read` et dans le périmètre.
-- ☐ compta : écritures de paie nominatives visibles avec `compta:read` — masquer libellés salariés sans `paie:read`.
+- ☑ compta : écritures de paie nominatives visibles avec `compta:read` — masquer libellés salariés sans `paie:read`.
 - ☐ erp/commercial.js:276/288 PATCH /lots — `price_fcfa` exige `projects:write`.
 - ☐ compta.js:316-360 — nouveau `achats:validate` (validation des factures d'achat et des dépenses du Parc).
 - ☐ chantiers.js:169 TMA, juridique.js:113 actes — périmètre si l'accès ne vient que de `sales:read`.
@@ -62,20 +62,20 @@ Précision du client (29/10) : « Gérer les prospects » doit devenir des cases
 - ☑ erp/commercial.js:139/184 activités : pas d'activité confiée à un collègue sans `leads:assign`.
 
 ## C. ERP — RH, présences, frais, recrutement, demandes, SAV
-- ☐ services/rh.js:238 décision de congé en mode « RH seulement » : responsable direct ne peut pas approuver définitivement.
-- ☐ erp/rh.js:307/313 ajustement de son propre solde — interdit.
-- ☐ erp/rh.js:280 modification de sa propre fiche ; se nommer responsable — interdit ; `leave_opening_days` → `conges:manage`.
-- ☐ presences.js:96-104 ses propres pointages — interdit.
-- ☐ recrutement.js:101 embauche avec salaire — `paie:employees` ; champ masqué au front.
-- ☐ positions.js:176, recrutement.js:32 — salaires masqués sans `paie:read`.
-- ☐ erp/rh.js:227 POST /leaves `approve:true` — `conges:approve`.
-- ☐ frais.js:80-84 — modifier/soumettre la note d'un autre interdit ; pas d'approbation de sa propre note.
-- ☐ requests.js:37 — pas de validation DG de sa propre demande.
-- ☐ requests.js:126-150 — facture d'achat créée seulement avec `achats:write` ; pas de traitement de sa propre demande.
+- ☑ services/rh.js:238 décision de congé en mode « RH seulement » : responsable direct ne peut pas approuver définitivement.
+- ☑ erp/rh.js:307/313 ajustement de son propre solde — interdit.
+- ☑ erp/rh.js:280 modification de sa propre fiche ; se nommer responsable — interdit ; `leave_opening_days` → `conges:manage`.
+- ☑ presences.js:96-104 ses propres pointages — interdit.
+- ☑ recrutement.js:101 embauche avec salaire — `paie:employees` ; champ masqué au front.
+- ☑ positions.js:176, recrutement.js:32 — salaires masqués sans `paie:read`.
+- ☑ erp/rh.js:227 POST /leaves `approve:true` — `conges:approve`.
+- ☑ frais.js:80-84 — modifier/soumettre la note d'un autre interdit ; pas d'approbation de sa propre note.
+- ☑ requests.js:37 — pas de validation DG de sa propre demande.
+- ☑ requests.js:126-150 — facture d'achat créée seulement avec `achats:write` ; pas de traitement de sa propre demande.
 - ☐ sav.js:51/159/251 — nouveau `sav:all` ; sans lui, tickets et interventions qui lui sont confiés.
 - ☐ presences.js:55-75 — conducteur : employés de ses chantiers seulement.
 - ☐ presences.js:44 borne : limiter les essais de code.
 - ☐ Libellés : `demandes:dg` (circuit), `kpi:write` (objectifs individuels), `sav:reserves`, `self:conges`.
 - ☐ Lectures ouvertes : organigramme, `/rh/meta`, `/onboarding`.
 - ☐ sav.js:304 POST /files — `lead_id` lié au ticket.
-- ☐ Front : EmployeeFile.jsx:210/222 (`conges:manage`), :52 (`formation:write`), Positions.jsx:140, TicketDrawer.jsx:81, NewTicket.jsx:95 (`sav:assign`), Reserves.jsx:59 (`sav:create`), Expenses.jsx:99 (`can_approve`).
+- ☑ Front : EmployeeFile.jsx:210/222 (`conges:manage`), :52 (`formation:write`), Positions.jsx:140, TicketDrawer.jsx:81, NewTicket.jsx:95 (`sav:assign`), Reserves.jsx:59 (`sav:create`), Expenses.jsx:99 (`can_approve`).

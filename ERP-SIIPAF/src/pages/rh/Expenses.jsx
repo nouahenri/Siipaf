@@ -96,7 +96,7 @@ function ExpenseDrawer({ id, onClose, onChange }) {
             ? <a href={d.receipt_url} target="_blank" rel="noreferrer"><img className="receipt" src={d.receipt_url} alt={`Reçu ${d.reference}`} /></a>
             : d.receipt_url && <a className="btn" href={d.receipt_url} target="_blank" rel="noreferrer"><FileText />Ouvrir le reçu</a>}
 
-          {d.status === 'soumise' && !own && (
+          {d.status === 'soumise' && !own && d.can_approve && (
             <div className="erp-panel stack" style={{ gap: 10 }}>
               <Field label="Commentaire (obligatoire pour un refus)"><textarea className="textarea" rows={2} value={note} onChange={e => setNote(e.target.value)} /></Field>
               <div className="row" style={{ gap: 8 }}><button className="btn btn-primary" disabled={busy} onClick={() => act('approve')}><Check />Approuver</button><button className="btn" disabled={busy || !note.trim()} onClick={() => act('refuse', { note })}><X />Refuser</button></div>

@@ -75,12 +75,19 @@ module.exports = function presencesRoutes(db) {
     res.json(await presences.today(db));
   }));
 
+  // Personne ne saisit, ne corrige ni ne supprime ses propres pointages (heures supplémentaires → paie) : audit du 29/10
+  const notMine = async (req, employeeIds) => {
+    if (req.user.role === 'super_admin') return;
+    const own = await db('employees').whereIn('id', [].concat(employeeIds)).where({ user_id: req.user.id }).first('id');
+    if (own) throw new HttpError(403, 'Vos propres pointages se font à la borne ou dans Mon espace ; une correction passe par un collègue habilité.');
+  };
   r.post('/attendance/sheet', pointer, ah(async (req, res) => {
     const data = parse(z.object({
       date: day, project_id: projectId, worksite_id: projectId, place_id: projectId,
       rows: z.array(z.object({ employee_id: z.number().int().positive(), periods: z.array(z.tuple([hm, hm])).max(3), note: z.string().trim().max(255).optional() })).min(1).max(300),
     }), req.body);
     if (data.date > new Date().toISOString().slice(0, 10)) throw new HttpError(400, 'Feuille de présence d’un jour à venir.');
+    await notMine(req, data.rows.map(x => x.employee_id));
     res.status(201).json({ created: await presences.saveSheet(db, data, req.user.id) });
   }));
 
@@ -88,14 +95,22 @@ module.exports = function presencesRoutes(db) {
     employee_id: z.number().int().positive(), check_in: z.string().min(10), check_out: z.string().min(10).optional().nullable(),
     project_id: projectId, worksite_id: projectId, place_id: projectId, note: z.string().trim().min(3, 'Motif de la correction obligatoire').max(255),
   });
-  r.post('/attendance', pointer, ah(async (req, res) => res.status(201).json(await presences.upsertManual(db, parse(manualSchema, req.body), req.user.id))));
+  r.post('/attendance', pointer, ah(async (req, res) => {
+    const data = parse(manualSchema, req.body);
+    await notMine(req, data.employee_id);
+    res.status(201).json(await presences.upsertManual(db, data, req.user.id));
+  }));
   r.patch('/attendance/:id', pointer, ah(async (req, res) => {
     const a = await db('hr_attendances').where({ id: idParam(req) }).first();
     if (!a) throw new HttpError(404, 'Pointage introuvable.');
+    await notMine(req, a.employee_id);
     const data = parse(manualSchema.partial().extend({ note: manualSchema.shape.note }), req.body);
     res.json(await presences.upsertManual(db, { employee_id: a.employee_id, check_in: a.check_in, check_out: a.check_out, ...(data.project_id !== undefined || data.worksite_id !== undefined || data.place_id !== undefined ? {} : { project_id: a.project_id, worksite_id: a.worksite_id, place_id: a.place_id }), ...data, id: a.id }, req.user.id));
   }));
   r.delete('/attendance/:id', pointer, ah(async (req, res) => {
+    const a = await db('hr_attendances').where({ id: idParam(req) }).first('employee_id');
+    if (!a) throw new HttpError(404, 'Pointage introuvable.');
+    await notMine(req, a.employee_id);
     if (!(await db('hr_attendances').where({ id: idParam(req) }).del())) throw new HttpError(404, 'Pointage introuvable.');
     res.json({ ok: true });
   }));

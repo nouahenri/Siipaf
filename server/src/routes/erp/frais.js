@@ -76,10 +76,15 @@ module.exports = function fraisRoutes(db) {
     throw new HttpError(403, 'Droits insuffisants.');
   }
 
-  r.get('/expenses/:id', ah(async (req, res) => { const x = await load(req); await canSee(req, x); res.json(await frais.detail(db, x.id)); }));
+  // can_approve : le panneau Approuver / Refuser ne s'affiche qu'à qui peut approuver cette note
+  r.get('/expenses/:id', ah(async (req, res) => {
+    const x = await load(req); await canSee(req, x);
+    res.json({ ...(await frais.detail(db, x.id)), can_approve: await frais.canApprove(db, x, { user: req.user, can: p => req.can(p) }) });
+  }));
   r.patch('/expenses/:id', frais.receiptUpload(), guarded(async (req, res) => {
     const x = await load(req);
-    if (x.employee_user_id !== req.user.id && !req.can('frais:approve')) throw new HttpError(403, 'Seul l’auteur modifie sa note de frais.');
+    // Seul l'auteur modifie sa note : un approbateur ne corrige pas puis n'approuve pas la note d'un autre (audit du 29/10)
+    if (x.employee_user_id !== req.user.id) throw new HttpError(403, 'Seul l’auteur modifie sa note de frais ; refusez-la avec un motif pour qu’il la corrige.');
     await frais.update(db, x, parse(expenseSchema.partial(), req.body), { file: req.file });
     res.json(await frais.detail(db, x.id));
   }));

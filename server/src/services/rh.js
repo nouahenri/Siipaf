@@ -229,6 +229,8 @@ async function decideLeave(db, leaveId, { action, note = null }, { user, can }) 
     if (!['en_attente', 'approuve_manager'].includes(l.status)) throw new HttpError(409, 'Cette demande n’est plus à approuver.');
     if (own && !superAdmin) throw new HttpError(403, 'Vous ne pouvez pas statuer sur votre propre demande.');
     if (!hr && !manager) throw new HttpError(403, 'Seuls le responsable direct et le service RH statuent sur cette demande.');
+    // Réglage « seul le service RH approuve » : le responsable direct peut refuser, pas approuver (audit du 29/10)
+    if (action === 'approve' && !hr && s.approval === 'rh') throw new HttpError(403, 'Seul le service RH approuve les congés (RH › Réglages).');
     if (action === 'refuse') {
       if (!note) throw new HttpError(400, 'Indiquez le motif du refus.');
       Object.assign(patch, { status: 'refusee', decision_note: note, decided_by: user.id, decided_at: new Date() });

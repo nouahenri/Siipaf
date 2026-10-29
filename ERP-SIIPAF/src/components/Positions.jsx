@@ -137,7 +137,8 @@ export function ChangePositionModal({ d, onClose, onSaved }) {
 /** Changements de poste de la fiche (planifiés, appliqués, annulés). */
 export function PositionChanges({ employeeId, hr, onChange }) {
   const toast = useToast();
-  const list = useResource(`${RH}/employees/${employeeId}/position-changes`);
+  const { can } = useAuth();
+  const list = useResource(can('rh:read') ? `${RH}/employees/${employeeId}/position-changes` : null);
   if (!list.data?.length) return null;
   const cancel = async c => {
     if (!window.confirm('Annuler ce changement planifié ?')) return;

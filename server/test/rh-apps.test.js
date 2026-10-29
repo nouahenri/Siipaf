@@ -61,17 +61,20 @@ test('pointage : en ligne, borne avec code, feuille de chantier, correction moti
 
   // Semaine du 2 au 8 mars 2026 sur le chantier : 5 jours de 10 h + samedi matin
   const rows = d => [{ employee_id: koffi.id, periods: d === '07' ? [['08:00', '12:00']] : [['07:00', '12:00'], ['13:00', '18:00']] }];
+  // Ses propres heures : jamais par soi-même (audit du 29/10) ; la feuille est tenue par un collègue habilité
+  assert.equal((await koffiAgent.post(`${R}/attendance/sheet`).send({ date: '2026-03-02', rows: rows('02') })).status, 403);
+  const rhAgent = await login(app);
   for (const d of ['02', '03', '04', '05', '06', '07']) {
-    res = await koffiAgent.post(`${R}/attendance/sheet`).send({ date: `2026-03-${d}`, rows: rows(d) });
+    res = await rhAgent.post(`${R}/attendance/sheet`).send({ date: `2026-03-${d}`, rows: rows(d) });
     assert.equal(res.status, 201, JSON.stringify(res.body));
   }
-  res = await koffiAgent.post(`${R}/attendance/sheet`).send({ date: '2026-03-02', rows: rows('02') });
+  res = await rhAgent.post(`${R}/attendance/sheet`).send({ date: '2026-03-02', rows: rows('02') });
   assert.equal(res.body.created, 2, 'la feuille du jour remplace la précédente');
-  res = await koffiAgent.post(`${R}/attendance`).send({ employee_id: koffi.id, check_in: '2026-03-08T08:00:00Z', check_out: '2026-03-08T10:00:00Z', note: '' });
+  res = await rhAgent.post(`${R}/attendance`).send({ employee_id: koffi.id, check_in: '2026-03-08T08:00:00Z', check_out: '2026-03-08T10:00:00Z', note: '' });
   assert.equal(res.status, 400, 'motif obligatoire');
-  res = await koffiAgent.post(`${R}/attendance`).send({ employee_id: koffi.id, check_in: '2026-03-08T08:00:00Z', check_out: '2026-03-08T10:00:00Z', note: 'Coulage de dalle le dimanche' });
+  res = await rhAgent.post(`${R}/attendance`).send({ employee_id: koffi.id, check_in: '2026-03-08T08:00:00Z', check_out: '2026-03-08T10:00:00Z', note: 'Coulage de dalle le dimanche' });
   assert.equal(res.status, 201, JSON.stringify(res.body));
-  assert.equal((await koffiAgent.post(`${R}/attendance`).send({ employee_id: koffi.id, check_in: '2026-03-08T09:00:00Z', check_out: '2026-03-08T11:00:00Z', note: 'Doublon' })).status, 409);
+  assert.equal((await rhAgent.post(`${R}/attendance`).send({ employee_id: koffi.id, check_in: '2026-03-08T09:00:00Z', check_out: '2026-03-08T11:00:00Z', note: 'Doublon' })).status, 409);
 
   res = await koffiAgent.get(`${R}/overtime?period=2026-03`);
   const k = res.body.rows.find(r => r.employee_id === koffi.id);

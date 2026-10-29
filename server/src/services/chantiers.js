@@ -153,6 +153,8 @@ async function detail(db, w, v) {
   const byCategory = postes.map(p => ({ category: p.code, label: p.label, amount_fcfa: lines.filter(l => l.category === p.code).reduce((t, l) => t + l.amount_fcfa, 0) }));
   const sold = lots.filter(l => ['reserve', 'vendu'].includes(l.status)).length;
   const cost = await costs(db, w.id);
+  // Taux horaire et montant par personne trahissent le salaire : réservés à la Paie ; les autres voient les heures et le total
+  if (!v.can('paie:read')) cost.labor = cost.labor.map(({ rate, amount_fcfa, ...r }) => ({ ...r, rate: null, amount_fcfa: null }));
   const budgetTotal = lines.reduce((t, l) => t + l.amount_fcfa, 0);
   for (const c of byCategory) c.spent_fcfa = cost.by_category[c.category] || 0;
   const shown = byCategory.filter(c => c.amount_fcfa || c.spent_fcfa || postes.find(p => p.code === c.category)?.active);

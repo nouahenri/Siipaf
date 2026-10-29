@@ -108,8 +108,8 @@ export function PayrollRun() {
           <button className="btn" onClick={() => setRecap(true)}>Déclarations CNPS / DGI</button>
           {write && draft && <button className="btn" onClick={() => act(() => api.post(`/admin/erp/paie/runs/${d.id}/refresh`), 'Bulletins recalculés')}><RefreshCw />Recalculer</button>}
           {write && draft && <button className="btn btn-ghost btn-danger" onClick={() => window.confirm('Supprimer cette paie en brouillon ?') && act(async () => { await api.del(`/admin/erp/paie/runs/${d.id}`); navigate('/compta/paie'); }, 'Paie supprimée')}><Trash2 /></button>}
-          {write && draft && <button className="btn btn-primary" onClick={() => window.confirm('Valider la paie ? Les bulletins deviennent définitifs et l’écriture de paie est passée en comptabilité.') && act(() => api.post(`/admin/erp/paie/runs/${d.id}/validate`), 'Paie validée : écriture au journal PA')}><CheckCheck />Valider</button>}
-          {write && d.status === 'valide' && <button className="btn btn-primary" onClick={() => setPaying(true)}><Wallet />Payer les salaires</button>}
+          {can('paie:validate') && draft && <button className="btn btn-primary" onClick={() => window.confirm('Valider la paie ? Les bulletins deviennent définitifs et l’écriture de paie est passée en comptabilité.') && act(() => api.post(`/admin/erp/paie/runs/${d.id}/validate`), 'Paie validée : écriture au journal PA')}><CheckCheck />Valider</button>}
+          {can('paie:pay') && d.status === 'valide' && <button className="btn btn-primary" onClick={() => setPaying(true)}><Wallet />Payer les salaires</button>}
         </div>
       </div>
 
@@ -249,7 +249,7 @@ function Scale() {
   const [error, setError] = useState(null);
   useEffect(() => { if (meta?.settings) setS(structuredClone(meta.settings)); }, [meta]);
   if (!s) return <Skeleton h={400} />;
-  const write = can('paie:prepare');
+  const write = can('paie:settings'); // barème : « Régler le barème de paie »
   const num = k => ({ value: s[k], onChange: e => setS(x => ({ ...x, [k]: e.target.value })) });
   const save = async e => {
     e.preventDefault(); setError(null);

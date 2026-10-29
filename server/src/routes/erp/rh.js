@@ -110,7 +110,11 @@ module.exports = function rhRoutes(db) {
     const change = (await positions.changesOf(db, e.id)).find(c => c.id === id);
     res.status(201).json(change);
   }));
-  r.get('/employees/:id/position-changes', requirePermission('rh:read'), ah(async (req, res) => res.json(await positions.changesOf(db, idParam(req)))));
+  // Salaire d'un changement de poste : seulement avec le droit Paie (« Voir le personnel » est sans les salaires)
+  r.get('/employees/:id/position-changes', requirePermission('rh:read'), ah(async (req, res) => {
+    const rows = await positions.changesOf(db, idParam(req));
+    res.json(req.can('paie:read') ? rows : rows.map(c => ({ ...c, base_salary: null })));
+  }));
   r.delete('/position-changes/:id', requirePermission('rh:files'), ah(async (req, res) => {
     const c = await db('hr_position_changes').where({ id: idParam(req) }).first();
     if (!c) throw new HttpError(404, 'Changement introuvable.');
@@ -227,6 +231,8 @@ module.exports = function rhRoutes(db) {
   r.post('/leaves', requirePermission('conges:manage'), ah(async (req, res) => {
     const { employee_id, approve, ...data } = parse(leaveSchema.extend({ employee_id: z.number().int().positive(), approve: z.boolean().optional() }), req.body);
     const e = await rh.getEmployee(db, employee_id);
+    if (approve && !req.can('conges:approve')) throw new HttpError(403, 'Saisir une absence déjà approuvée demande le droit « Approuver les congés ».');
+    if (e.user_id === req.user.id && req.user.role !== 'super_admin') throw new HttpError(403, 'Votre propre absence se demande depuis Mon espace.');
     if (data.document_id && !(await db('hr_documents').where({ id: data.document_id, employee_id }).first())) throw new HttpError(400, 'Justificatif introuvable.');
     res.status(201).json(await rh.createLeave(db, e, data, { user: req.user, asHr: true, approve: !!approve }));
   }));
@@ -288,6 +294,12 @@ module.exports = function rhRoutes(db) {
       manager_id: z.number().int().positive().optional().nullable(), project_id: z.number().int().positive().optional().nullable(),
       leave_opening_days: z.number().min(-60).max(200).optional().nullable(), leave_opening_date: day.optional().nullable(), notes: optText(500),
     }).partial(), req.body);
+    if (e.user_id === req.user.id && req.user.role !== 'super_admin') throw new HttpError(403, 'Votre propre dossier se modifie par le service RH (vos coordonnées : Mon espace).');
+    if (('leave_opening_days' in data || 'leave_opening_date' in data) && !req.can('conges:manage')) throw new HttpError(403, 'Le solde d’ouverture des congés se règle avec le droit « Gérer les absences ».');
+    // Se nommer responsable de quelqu'un donne ses droits de responsable : jamais pour soi-même
+    if (data.manager_id && req.user.role !== 'super_admin' && (await db('employees').where({ id: data.manager_id }).first('user_id'))?.user_id === req.user.id) {
+      throw new HttpError(403, 'Vous ne pouvez pas vous nommer responsable d’un employé : demandez au service RH.');
+    }
     if (data.manager_id === e.id) throw new HttpError(400, 'Un employé ne peut pas être son propre responsable.');
     if (data.manager_id && !(await db('employees').where({ id: data.manager_id }).first())) throw new HttpError(404, 'Responsable introuvable.');
     // Pas de boucle dans la hiérarchie (A responsable de B, B responsable de A)
@@ -306,12 +318,16 @@ module.exports = function rhRoutes(db) {
 
   r.post('/employees/:id/adjustments', requirePermission('conges:manage'), ah(async (req, res) => {
     const e = await rh.getEmployee(db, idParam(req));
+    if (e.user_id === req.user.id && req.user.role !== 'super_admin') throw new HttpError(403, 'Personne n’ajuste son propre solde de congés.');
     const data = parse(z.object({ date: day, days: z.number().min(-100).max(100).refine(v => v !== 0, 'Nombre de jours non nul'), label: z.string().trim().min(3).max(200) }), req.body);
     await db('hr_leave_adjustments').insert({ ...data, employee_id: e.id, created_by: req.user.id });
     res.status(201).json(await rh.balanceOf(db, e));
   }));
   r.delete('/adjustments/:id', requirePermission('conges:manage'), ah(async (req, res) => {
-    if (!(await db('hr_leave_adjustments').where({ id: idParam(req) }).del())) throw new HttpError(404, 'Ajustement introuvable.');
+    const adj = await db('hr_leave_adjustments as a').join('employees as e', 'e.id', 'a.employee_id').where('a.id', idParam(req)).first('a.id', 'e.user_id');
+    if (!adj) throw new HttpError(404, 'Ajustement introuvable.');
+    if (adj.user_id === req.user.id && req.user.role !== 'super_admin') throw new HttpError(403, 'Personne n’ajuste son propre solde de congés.');
+    await db('hr_leave_adjustments').where({ id: adj.id }).del();
     res.json({ ok: true });
   }));
 

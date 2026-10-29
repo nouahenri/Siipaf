@@ -34,8 +34,9 @@ async function load(db, id) {
 /** Ce que le compte peut faire sur la demande à son étape. */
 function rights(r, { userId, can, superAdmin }) {
   return {
-    approve: (r.status === 'attente_responsable' && (r.manager_user_id === userId || superAdmin)) || (r.status === 'attente_dg' && can('demandes:dg')),
-    handle: can('demandes:handle') && ['attente_sg', 'en_cours'].includes(r.status),
+    // Personne ne valide ni ne traite sa propre demande (audit du 29/10), sauf le super administrateur
+    approve: (r.status === 'attente_responsable' && (r.manager_user_id === userId || superAdmin)) || (r.status === 'attente_dg' && can('demandes:dg') && (r.requested_by !== userId || superAdmin)),
+    handle: can('demandes:handle') && ['attente_sg', 'en_cours'].includes(r.status) && (r.requested_by !== userId || superAdmin),
     cancel: r.requested_by === userId && ['attente_responsable', 'attente_dg', 'attente_sg'].includes(r.status),
   };
 }
@@ -133,6 +134,8 @@ async function close(db, r, data, v) {
     await db.transaction(async trx => {
       if (data.invoice) {
         if (!REQUEST_KINDS[r.kind]?.purchase) throw new HttpError(400, 'Seul un achat devient une facture d’achat.');
+        // Une facture d'achat relève de la Comptabilité (droit « Gérer les achats »)
+        if (!v.can('achats:write')) throw new HttpError(403, 'Préparer la facture d’achat demande le droit « Gérer les achats » : clôturez sans facture, la Comptabilité la saisira.');
         if (!data.supplier_id || !data.amount_ttc) throw new HttpError(400, 'Facture : fournisseur et montant TTC.');
         const s = await trx('suppliers').where({ id: data.supplier_id }).first();
         if (!s) throw new HttpError(404, 'Fournisseur introuvable.');

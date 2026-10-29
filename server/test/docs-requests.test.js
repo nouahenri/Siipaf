@@ -113,7 +113,10 @@ test('demandes : responsable direct, DG au-delà du plafond, services généraux
   assert.equal((await resp.get(`${REQ}?scope=handle`)).body.length, 1);
   res = await resp.post(`${REQ}/${id}/prendre`);
   assert.equal(res.body.status, 'en_cours');
+  // La facture d'achat relève de la Comptabilité (achats:write) : les services généraux seuls ne la préparent pas
   res = await resp.post(`${REQ}/${id}/cloturer`).send({ outcome: 'traitee', note: 'Livré et posé', invoice: true, supplier_id: supplier, amount_ttc: 708000, vat_rate: 18 });
+  assert.equal(res.status, 403);
+  res = await admin.post(`${REQ}/${id}/cloturer`).send({ outcome: 'traitee', note: 'Livré et posé', invoice: true, supplier_id: supplier, amount_ttc: 708000, vat_rate: 18 });
   assert.equal(res.status, 200, JSON.stringify(res.body));
   assert.equal(res.body.status, 'traitee');
   const inv = await db('purchase_invoices').where({ id: res.body.purchase_invoice_id }).first();

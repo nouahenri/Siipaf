@@ -16,6 +16,13 @@ const insertedId = r => (typeof r === 'object' ? r.id : r);
 
 module.exports = function recrutementRoutes(db) {
   const r = express.Router();
+  // Prétentions et salaire proposé : visibles du recruteur (recrutement:write) et de la Paie, pas de « Voir le personnel » seul
+  const SALARY_KEYS = ['expected_salary', 'proposed_salary'];
+  const strip = v => (Array.isArray(v) ? v.map(strip) : v && typeof v === 'object' ? Object.fromEntries(Object.entries(v).map(([k, x]) => [k, SALARY_KEYS.includes(k) ? null : strip(x)])) : v);
+  r.use((req, res, next) => {
+    if (!req.can('recrutement:write') && !req.can('paie:read')) { const send = res.json.bind(res); res.json = body => send(strip(body)); }
+    next();
+  });
   const read = requirePermission('rh:read');
   const write = requirePermission('recrutement:write');
   const cleanup = req => req.file && fs.promises.unlink(req.file.path).catch(() => {});
@@ -103,6 +110,11 @@ module.exports = function recrutementRoutes(db) {
       hire_date: day, base_salary: z.number().int().min(0).optional(), trial_end_date: day.optional().nullable(),
       contract_type: z.enum(Object.keys(CONTRACT_TYPES)).optional(), job_title: z.string().trim().min(2).max(120).optional(),
     }), req.body);
+    // Le salaire de la fiche relève de la Paie : sans ce droit, la fiche est créée à 0 et la Comptabilité le fixe
+    if (!req.can('paie:employees')) {
+      if (data.base_salary != null) throw new HttpError(403, 'Le salaire se fixe avec le droit « Gérer les fiches salariés » (Comptabilité › Employés).');
+      data.base_salary = 0;
+    }
     const employeeId = await recrutement.hire(db, idParam(req), data, req.user.id);
     res.status(201).json({ employee_id: employeeId, applicant: await recrutement.applicant(db, idParam(req)) });
   }));
