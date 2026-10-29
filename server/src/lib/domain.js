@@ -1205,9 +1205,10 @@ const REQUEST_KINDS = {
 };
 const REQUEST_STATUSES = {
   attente_responsable: 'En attente du responsable', attente_dg: 'En attente de la DG', attente_sg: 'À traiter (services généraux)',
+  attente_achats: 'À traiter (Achats)', commande: 'Commandée (Achats)',
   en_cours: 'En cours de traitement', traitee: 'Traitée', refusee: 'Refusée', annulee: 'Annulée',
 };
-const REQUEST_OPEN = ['attente_responsable', 'attente_dg', 'attente_sg', 'en_cours'];
+const REQUEST_OPEN = ['attente_responsable', 'attente_dg', 'attente_sg', 'attente_achats', 'commande', 'en_cours'];
 const REQUEST_DG_THRESHOLD = 500000;
 
 /** La direction générale valide les achats (et équipements) dont le montant estimé atteint le plafond. */
@@ -1218,8 +1219,10 @@ const requestNeedsDg = (r, threshold) => !!REQUEST_KINDS[r.kind]?.purchase && Nu
  * services généraux. `from` : l'étape franchie (null à la création). Une étape sans valideur est sautée.
  */
 function requestNextStep(r, { from = null, hasManager, threshold }) {
-  const steps = ['attente_responsable', 'attente_dg', 'attente_sg'];
-  const applies = { attente_responsable: hasManager, attente_dg: requestNeedsDg(r, threshold), attente_sg: true };
+  // Achat ou équipement : traité par les Achats (bon de commande → réception → facture), le reste par les services généraux
+  const last = REQUEST_KINDS[r.kind]?.purchase ? 'attente_achats' : 'attente_sg';
+  const steps = ['attente_responsable', 'attente_dg', last];
+  const applies = { attente_responsable: hasManager, attente_dg: requestNeedsDg(r, threshold), [last]: true };
   const start = from ? steps.indexOf(from) + 1 : 0;
   return steps.slice(start).find(s => applies[s]);
 }
@@ -1482,6 +1485,7 @@ const INFO_EVENTS = {
   'tma.demandee': { module: 'chantiers', label: 'Travaux modificatifs (TMA) demandés par un acquéreur', audiences: ['exploitation'], priority: 'action' },
   'tma.acceptee': { module: 'chantiers', label: 'TMA acceptée par l’acquéreur (montant ajouté à l’échéancier)', audiences: ['exploitation', 'compta'], priority: 'action' },
   'tma.refusee': { module: 'chantiers', label: 'TMA refusée par l’acquéreur', audiences: [] },
+  'demande.achat': { module: 'achats', label: 'Demande d’achat d’un service validée, à commander', audiences: ['achats'], priority: 'action', requiredPerms: ['appro:read'], recipient_hint: 'Accès à Achats & stocks requis ; le demandeur est prévenu de la commande et de la livraison.' },
   'chantier.besoin': { module: 'achats', label: 'Besoin en matériaux transmis par un chantier aux Achats', audiences: [], priority: 'action' },
   'lot.livre': { module: 'chantiers', label: 'Lot réceptionné par l’acquéreur (PV, réserves, garanties)', audiences: ['dg', 'exploitation', 'sav', 'juridique', 'compta'] },
   'chantier.marche_receptionne': { module: 'chantiers', label: 'Travaux d’un sous-traitant réceptionnés (libération de la retenue programmée)', audiences: ['juridique', 'compta'] },

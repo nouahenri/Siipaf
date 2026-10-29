@@ -1,22 +1,23 @@
 /**
  * ERP · Administration générale › Demandes internes. L'employé demande depuis Mon espace (self:demandes) ; son
- * responsable direct valide, puis la DG pour un achat au-delà du plafond (Paramètres › Général), puis les services
- * généraux (demandes:handle) prennent en charge et clôturent. Un achat traité devient une facture d'achat en
- * brouillon. Règles dans lib/domain.js (REQUEST_*, requestNextStep).
+ * responsable direct valide, puis la DG pour un achat au-delà du plafond (Paramètres › Général). Un achat ou un
+ * équipement arrive ensuite dans Achats › Besoins (bon de commande, réception, facture en Comptabilité : services/appro.js) ;
+ * les autres demandes vont aux services généraux (demandes:handle), qui prennent en charge et clôturent.
+ * Règles dans lib/domain.js (REQUEST_*, requestNextStep).
  */
 const { HttpError, isoDay, isoTime } = require('../lib/http');
 const { REQUEST_KINDS, REQUEST_STATUSES, REQUEST_OPEN, requestNextStep, requestNeedsDg } = require('../lib/domain');
 const { splitVat } = require('../lib/compta');
 const { nextPurchaseNumber } = require('./compta');
 const { getSetting } = require('./settings');
-const { notify, resolve, usersWith } = require('./notifications');
+const { notify, resolve, usersWith, inform } = require('./notifications');
 
 const insertedId = r => (typeof r === 'object' ? r.id : r);
 
 const query = db => db('internal_requests as r').join('users as u', 'u.id', 'r.requested_by').leftJoin('users as m', 'm.id', 'r.manager_user_id')
   .leftJoin('users as h', 'h.id', 'r.handled_by').leftJoin('projects as p', 'p.id', 'r.project_id').leftJoin('worksites as w', 'w.id', 'r.worksite_id').leftJoin('places as pl', 'pl.id', 'r.place_id').leftJoin('suppliers as s', 's.id', 'r.supplier_id')
-  .leftJoin('purchase_invoices as i', 'i.id', 'r.purchase_invoice_id')
-  .select('r.*', 'u.name as requested_by_name', 'm.name as manager_name', 'h.name as handled_by_name', 'p.name as project_name', 'w.reference as worksite_reference', 'w.name as worksite_name', 'pl.name as place_name', 's.name as supplier_name', 'i.number as invoice_number');
+  .leftJoin('purchase_invoices as i', 'i.id', 'r.purchase_invoice_id').leftJoin('appro_orders as o', 'o.id', 'r.order_id')
+  .select('r.*', 'o.reference as order_reference', 'u.name as requested_by_name', 'm.name as manager_name', 'h.name as handled_by_name', 'p.name as project_name', 'w.reference as worksite_reference', 'w.name as worksite_name', 'pl.name as place_name', 's.name as supplier_name', 'i.number as invoice_number');
 
 const serialize = r => ({
   ...r, kind_label: r.kind === 'autre' && r.kind_other ? r.kind_other : REQUEST_KINDS[r.kind]?.label || r.kind, status_label: REQUEST_STATUSES[r.status],
@@ -40,7 +41,8 @@ function rights(r, { userId, can, superAdmin }) {
     cancel: r.requested_by === userId && ['attente_responsable', 'attente_dg', 'attente_sg'].includes(r.status),
   };
 }
-const canSee = (r, v) => r.requested_by === v.userId || r.manager_user_id === v.userId || v.can('demandes:handle') || v.can('demandes:dg') || v.superAdmin;
+const canSee = (r, v) => r.requested_by === v.userId || r.manager_user_id === v.userId || v.can('demandes:handle') || v.can('demandes:dg') || v.superAdmin
+  || (REQUEST_KINDS[r.kind]?.purchase && v.can('appro:read'));
 
 /** Prévient le ou les valideurs de l'étape où se trouve la demande. */
 async function notifyStep(db, r, except) {
@@ -51,6 +53,9 @@ async function notifyStep(db, r, except) {
     await notify(db, { ...base, to: r.manager_user_id, event: 'demande.responsable', title: `Demande de ${r.requested_by_name} à valider`, body: what, key: `demande:${r.id}:responsable` });
   } else if (r.status === 'attente_dg') {
     await notify(db, { ...base, to: await usersWith(db, 'demandes:dg'), event: 'demande.dg', title: `Achat à valider (DG) : ${r.reference}`, body: `${what} — demandé par ${r.requested_by_name}`, key: `demande:${r.id}:dg` });
+  } else if (r.status === 'attente_achats') {
+    // Besoin d'un service : les Achats le commandent (circuit réglable dans Administration générale › Circuit d'information)
+    await inform(db, 'demande.achat', { except, key: `demande:${r.id}:achats`, priority: base.priority, title: `Besoin à commander : ${r.reference}`, body: `${what} — ${r.requested_by_name}`, link: '/achats/besoins' });
   } else if (r.status === 'attente_sg') {
     await notify(db, { ...base, to: await usersWith(db, 'demandes:handle'), event: 'demande.sg', title: `Demande à traiter : ${r.reference}`, body: `${what} — ${r.requested_by_name}`, key: `demande:${r.id}:sg` });
   }
@@ -202,4 +207,4 @@ async function badges(db, v) {
   return { to_approve: approve, to_handle: handle };
 }
 
-module.exports = { query, serialize, load, rights, canSee, create, decide, take, close, cancel, list, badges, requestNeedsDg };
+module.exports = { query, serialize, load, rights, canSee, create, decide, take, close, cancel, list, badges, requestNeedsDg, notifyRequester };

@@ -36,7 +36,7 @@ test('règles : relance de lecture, circuit responsable → DG au-delà du plafo
   const achat = { kind: 'achat', estimated_amount: 800000 };
   assert.equal(requestNextStep(achat, { hasManager: true, threshold: 500000 }), 'attente_responsable');
   assert.equal(requestNextStep(achat, { from: 'attente_responsable', hasManager: true, threshold: 500000 }), 'attente_dg');
-  assert.equal(requestNextStep({ ...achat, estimated_amount: 100000 }, { from: 'attente_responsable', hasManager: true, threshold: 500000 }), 'attente_sg');
+  assert.equal(requestNextStep({ ...achat, estimated_amount: 100000 }, { from: 'attente_responsable', hasManager: true, threshold: 500000 }), 'attente_achats', 'achat sous le plafond : aux Achats (29/10)');
   assert.equal(requestNextStep({ kind: 'intervention' }, { hasManager: false, threshold: 500000 }), 'attente_sg', 'sans responsable : directement aux services généraux');
   assert.equal(requestNextStep(achat, { hasManager: false, threshold: 500000 }), 'attente_dg');
 });
@@ -109,7 +109,9 @@ test('demandes : responsable direct, DG au-delà du plafond, services généraux
   assert.equal((await resp.post(`${REQ}/${id}/decision`).send({ approve: true })).status, 403, 'droit DG requis');
   const admin = await login(app);
   res = await admin.post(`${REQ}/${id}/decision`).send({ approve: true });
-  assert.equal(res.body.status, 'attente_sg');
+  assert.equal(res.body.status, 'attente_achats', 'achat validé : aux Achats (besoins des services)');
+  // Traitement d'une demande par les services généraux (achat déjà en cours avant le 29/10, ou repris par eux)
+  await db('internal_requests').where({ id }).update({ status: 'attente_sg' });
   assert.equal((await resp.get(`${REQ}?scope=handle`)).body.length, 1);
   res = await resp.post(`${REQ}/${id}/prendre`);
   assert.equal(res.body.status, 'en_cours');

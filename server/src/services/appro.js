@@ -187,6 +187,8 @@ async function saveDocument(db, type, data, id, userId) {
     const amounts = type === 'order' ? approAmounts(data.lines, data.vat_rate) : {};
     if (amounts.error) fail(400, amounts.error);
     const { lines: ignored, ...header } = data;
+    if (type !== 'order') delete header.request_id;
+    if (type === 'order' && header.request_id) await checkRequest(trx, header.request_id, id);
     if (type === 'order') {
       header.issuer_id = data.issuer_id || old?.issuer_id || userId;
       if (!(await issuers(trx)).some(u => u.id === Number(header.issuer_id))) fail(400, 'L’émetteur choisi n’a pas le droit de préparer les achats.');
@@ -271,6 +273,7 @@ async function approveOrder(db, id, actor, { refuse = false, reason = null } = {
       const n = await row(trx, 'worksite_needs', l.need_id), w = await row(trx, 'worksites', n.worksite_id);
       await ch.moveNeed(trx, w, n, { status: 'commande', supplier_id: o.supplier_id, estimate_fcfa: Math.round(l.quantity * l.unit_price_fcfa), date: today() }, { userId: actor.userId });
     }
+    if (o.request_id) await moveRequest(trx, o.request_id, { status: 'commande', order_id: id, supplier_id: o.supplier_id }, actor.userId, `Commande passée : ${o.reference}`, `${d.supplier_name} · livraison : ${d.location_name}`);
     await resolveOrderValidation(trx, id); await event(trx, 'order', id, 'confirmation', actor.userId, { threshold, substitute });
     await inform(trx, 'commande.confirmee', { direct: informed, except: actor.userId, key: `appro:commande:${id}:confirmee`, title: `Commande confirmée : ${o.reference}`, body: `${d.supplier_name} · à réceptionner : ${d.location_name}`, link: `/achats/commandes?fiche=${id}` });
     return detail(trx, 'order', id);
@@ -387,6 +390,7 @@ async function receiveOrder(db, id, data, actor) {
     const allLines = await trx('appro_order_lines').where({ order_id: id });
     const complete = allLines.every(l => Number(l.received_units) === Number(l.quantity_units));
     await trx('appro_orders').where({ id }).update({ status: complete ? 'recue' : 'partielle', updated_at: new Date() });
+    if (complete && o.request_id) await moveRequest(trx, o.request_id, { status: 'traitee', closed_at: new Date(), final_amount: Number(o.amount_ttc) || null }, actor.userId, `Livré : ${o.reference}`, `Réception à ${loc.name} le ${data.date}`);
     for (const l of allLines.filter(l => l.need_id && Number(l.received_units) === Number(l.quantity_units))) {
       const n = await row(trx, 'worksite_needs', l.need_id), w = await row(trx, 'worksites', n.worksite_id);
       if (n.status === 'commande' && Number(loc.worksite_id) === Number(w.id)) await ch.moveNeed(trx, w, n, { status: 'livre', date: data.date }, { userId: actor.userId });
@@ -459,6 +463,72 @@ async function prepareNeed(db, id, userId) {
       note: [`Besoin ${n.worksite_reference} — ${n.worksite_name} : ${n.label}`, n.note].filter(Boolean).join('\n') };
   });
 }
+// ─── Besoins des services (demandes internes d'achat ou d'équipement validées) ───────────
+const REQ_OPEN = ['attente_achats'];
+async function activeOrderFor(db, requestId, excluding = null) {
+  const q = db('appro_orders').where({ request_id: requestId }).whereNotIn('status', ['annulee', 'refusee']);
+  if (excluding) q.whereNot('id', excluding);
+  return q.first('id', 'reference');
+}
+async function checkRequest(db, requestId, excluding = null) {
+  const r = await db('internal_requests').where({ id: requestId }).forUpdate().first();
+  if (!r) fail(404, 'Demande introuvable.');
+  if (!REQ_OPEN.includes(r.status) && !(excluding && r.order_id === excluding)) fail(409, 'Cette demande n’est plus à commander.');
+  const other = await activeOrderFor(db, requestId, excluding);
+  if (other) fail(409, `Cette demande figure déjà dans le bon de commande ${other.reference}.`);
+  return r;
+}
+/** Avance la demande et prévient le demandeur (Mon espace). */
+async function moveRequest(db, id, patch, userId, title, body) {
+  await db('internal_requests').where({ id }).update({ ...patch, handled_by: userId, handled_at: patch.status === 'commande' ? new Date() : undefined, updated_at: new Date() });
+  const reqs = require('./requests');
+  const r = await reqs.load(db, id);
+  await reqs.notifyRequester(db, r, `${title} — ${r.title}`, body, userId);
+}
+/** Besoins exprimés par les services : demandes d'achat à commander, et celles commandées (suivi jusqu'à la livraison). */
+async function serviceNeeds(db) {
+  const reqs = require('./requests');
+  const rows = await reqs.query(db).whereIn('r.kind', ['achat', 'equipement']).whereIn('r.status', ['attente_achats', 'commande']).orderBy([{ column: 'r.needed_by' }, { column: 'r.id', order: 'desc' }]).limit(300);
+  const employees = await db('employees').whereIn('user_id', rows.map(r => r.requested_by)).select('user_id', 'department');
+  const { DEPARTMENTS } = require('../lib/paie');
+  return rows.map(r => {
+    const dep = employees.find(e => e.user_id === r.requested_by)?.department;
+    return { ...reqs.serialize(r), department: dep || null, department_label: dep ? DEPARTMENTS[dep] || dep : null };
+  });
+}
+/** Bon de commande pré-rempli pour une demande : emplacement du chantier ou du lieu (créé au besoin), montant estimé, note. */
+async function prepareRequest(db, id, userId) {
+  return db.transaction(async trx => {
+    const r = await checkRequest(trx, id);
+    let loc = null;
+    if (r.worksite_id || r.place_id) {
+      loc = await trx('appro_locations').where(r.worksite_id ? { worksite_id: r.worksite_id } : { place_id: r.place_id }).first();
+      if (loc && !loc.active) loc = null;
+      if (!loc) {
+        const site = r.worksite_id ? await trx('worksites').where({ id: r.worksite_id }).first('reference', 'name', 'status') : null;
+        const place = r.place_id ? await trx('places').where({ id: r.place_id }).first('name') : null;
+        if (site?.status !== 'clos' && (site || place)) {
+          const [x] = await trx('appro_locations').insert(r.worksite_id ? { worksite_id: r.worksite_id, name: `${site.reference} — ${site.name}` } : { place_id: r.place_id, name: place.name });
+          loc = { id: insertedId(x) }; await event(trx, 'location', loc.id, 'creation', userId, { request_id: id });
+        }
+      }
+    }
+    const requester = await trx('users').where({ id: r.requested_by }).first('name');
+    return { request_id: r.id, location_id: loc?.id || null, needed_on: isoDay(r.needed_by), estimated_fcfa: r.estimated_amount == null ? null : Number(r.estimated_amount),
+      note: [`Demande ${r.reference} de ${requester?.name || '—'} : ${r.title}${r.quantity ? ` (${r.quantity})` : ''}`, r.details].filter(Boolean).join('\n') };
+  });
+}
+/** Refus motivé par les Achats (déjà en stock, doublon…) : la demande est close, le demandeur prévenu. */
+async function refuseRequest(db, id, reason, userId) {
+  return db.transaction(async trx => {
+    const r = await checkRequest(trx, id);
+    await trx('internal_requests').where({ id: r.id }).update({ status: 'refusee', decision_note: reason, closed_at: new Date(), handled_by: userId, updated_at: new Date() });
+    const reqs = require('./requests');
+    await reqs.notifyRequester(trx, await reqs.load(trx, r.id), `Demande refusée par les Achats — ${r.title}`, `Motif : ${reason}`, userId);
+    return { ok: true };
+  });
+}
+
 /** Refus motivé d'un besoin par les Achats (déjà couvert par le stock, doublon…) ; le chantier en est prévenu. */
 async function refuseNeed(db, id, reason, userId) {
   return db.transaction(async trx => {
@@ -538,19 +608,20 @@ async function contracts(db) {
   return db('contracts as c').leftJoin('suppliers as s', 's.id', 'c.supplier_id').whereIn('c.kind', ['fournisseur', 'sous_traitance']).orderBy('c.id', 'desc').limit(500).select('c.id', 'c.reference', 'c.title', 'c.kind', 'c.status', 'c.contract_amount', 'c.start_date', 'c.end_date', 's.name as supplier_name');
 }
 async function dashboard(db) {
-  const [open, positions, needsCount, quotesCount, conf, recent, waiting, receipts] = await Promise.all([
+  const [open, positions, needsCount, quotesCount, conf, serviceCount, recent, waiting, receipts] = await Promise.all([
     db('appro_orders').whereIn('status', ['confirmee', 'partielle']).select('id', 'amount_ttc'), stock(db),
     db('worksite_needs as n').whereIn('n.status', ['demande', 'valide']).whereNotExists(db('appro_order_lines as l').join('appro_orders as o', 'o.id', 'l.order_id').whereRaw('l.need_id = n.id').whereNotIn('o.status', ['annulee', 'refusee'])).count({ n: '*' }).first(),
     db('appro_quotes').where({ status: 'brouillon' }).count({ n: '*' }).first(), settings(db),
+    db('internal_requests').where({ status: 'attente_achats' }).count({ n: '*' }).first(),
     documentQuery(db, 'order').orderBy('d.id', 'desc').limit(8), db('appro_orders').whereIn('status', APPRO_PENDING_STATUSES).count({ n: '*' }).first(),
     db('appro_movements').where({ kind: 'reception', status: 'valide' }).groupBy('order_id').select('order_id').sum({ received_ttc: 'amount_ttc' }),
   ]);
   const totals = Object.fromEntries(receipts.map(r => [r.order_id, Number(r.received_ttc)]));
   const committed = open.reduce((sum, o) => sum + Math.max(0, Number(o.amount_ttc) - (totals[o.id] || 0)), 0);
   return { orders_waiting: Number(waiting.n), to_receive: open.length, low_stock: positions.filter(b => b.low), committed_fcfa: committed,
-    needs: Number(needsCount.n), quotes_waiting: Number(quotesCount.n), recent_orders: recent.map(o => serializeDocument(o, 'order')), settings: conf };
+    needs: Number(needsCount.n) + Number(serviceCount.n), quotes_waiting: Number(quotesCount.n), recent_orders: recent.map(o => serializeDocument(o, 'order')), settings: conf };
 }
 module.exports = { settings, saveSettings, refs, articles, saveArticle, locations, createLocation, stock, setStockMinimum, needs, contracts, dashboard,
-  approvers, issuers, prepareNeed, refuseNeed, importArticles, listDocuments, detail, saveDocument, receiveQuote, quoteToOrder, cancelDocument, submitOrder, approveOrder, reopenOrder, informPayment, movements, movementDetail, saveMovement, postMovement, cancelMovement, receiveOrder, prepareInvoice };
+  approvers, issuers, prepareNeed, refuseNeed, serviceNeeds, prepareRequest, refuseRequest, importArticles, listDocuments, detail, saveDocument, receiveQuote, quoteToOrder, cancelDocument, submitOrder, approveOrder, reopenOrder, informPayment, movements, movementDetail, saveMovement, postMovement, cancelMovement, receiveOrder, prepareInvoice };
 
 

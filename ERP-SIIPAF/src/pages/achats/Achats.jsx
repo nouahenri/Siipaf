@@ -45,6 +45,37 @@ function ToWorksiteNeeds({ worksites, onClose }) {
       <p className="small muted">Le besoin s’exprime dans la fiche du chantier (onglet Besoins), puis il est transmis ici aux Achats, qui le commandent par un bon de commande soumis à validation.</p>
     </form></Modal>;
 }
+/**
+ * Besoins des services (demandes internes d'achat ou d'équipement validées par le responsable, et la DG au-delà du
+ * plafond) : les Achats préparent le bon de commande (même circuit : validation, réception, facture en Comptabilité)
+ * ou refusent avec un motif. Le demandeur suit la commande et la livraison dans Mon espace.
+ */
+function ServiceNeeds({ refs, onOrder }) {
+  const res = useResource(`${APPRO}/service-needs`), { can } = useAuth(), prep = useApproAction(), [refusing, setRefusing] = useState(null);
+  const start = r => prep.run(() => api.post(`${APPRO}/service-needs/${r.id}/prepare`), null, pre => onOrder({ ...r, prefill: pre }));
+  const rows = res.data || [];
+  return <Card title="Besoins des services" actions={<span className="small muted">Demandes d’achat ou d’équipement validées (Mon espace › Demandes)</span>} bodyClass="">
+    <ErrorBox error={res.error || prep.error} />
+    {!res.data ? <Loading res={res} /> : !rows.length ? <div className="card-body"><Empty icon={ClipboardList}>Aucun besoin de service à commander.</Empty></div> : <div className="table-wrap"><table className="table"><thead><tr><th>Demandé par</th><th>Besoin</th><th>Montant estimé</th><th>Souhaité le</th><th>État</th><th>Suite</th></tr></thead><tbody>{rows.map(r => <tr key={r.id}>
+      <td className="small"><b>{r.requested_by_name}</b><div className="muted">{r.department_label || '—'}{r.place_name ? ` · ${r.place_name}` : r.worksite_reference ? ` · ${r.worksite_reference}` : ''}</div></td>
+      <td><b>{r.title}</b><div className="small muted">{r.reference} · {r.kind_label}{r.quantity ? ` · ${r.quantity}` : ''}</div>{r.details && <div className="small muted prewrap">{r.details}</div>}</td>
+      <td className="small tabular">{r.estimated_amount == null ? '—' : fcfa(r.estimated_amount)}</td>
+      <td className="small">{r.needed_by ? date(r.needed_by) : '—'}{r.urgency === 'urgente' && <> <Badge tone="danger">Urgent</Badge></>}</td>
+      <td><Badge tone={r.status === 'commande' ? 'ok' : 'warn'}>{r.status_label}</Badge></td>
+      <td className="nowrap">{r.order_id ? <Link className="link small" to={`/achats/commandes?fiche=${r.order_id}`}>{r.order_reference}</Link> : can('appro:write') && r.status === 'attente_achats' && <><button className="btn btn-sm btn-primary" disabled={prep.busy} onClick={() => start(r)}><ShoppingCart />Commander</button> <button className="btn btn-sm btn-ghost" onClick={() => setRefusing(r)}>Refuser</button></>}</td>
+    </tr>)}</tbody></table></div>}
+    {refusing && <RefuseRequest request={refusing} onClose={() => setRefusing(null)} onSaved={() => { setRefusing(null); res.reload(); }} />}
+  </Card>;
+}
+function RefuseRequest({ request: r, onClose, onSaved }) {
+  const action = useApproAction(), [reason, setReason] = useState('');
+  return <Modal title={`Refuser la demande — ${r.title}`} onClose={onClose} footer={<><button className="btn btn-ghost" onClick={onClose}>Retour</button><button className="btn btn-primary" form="refuse-request" disabled={action.busy}>Confirmer le refus</button></>}>
+    <form id="refuse-request" className="stack" onSubmit={e => { e.preventDefault(); action.run(() => api.post(`${APPRO}/service-needs/${r.id}/refuse`, { reason }), 'Demande refusée, demandeur prévenu', onSaved); }}><ErrorBox error={action.error} />
+      <p className="small">{r.reference} · {r.requested_by_name}</p>
+      <Field label="Motif transmis au demandeur *" hint="Ex. : disponible au dépôt, doublon, à préciser."><textarea className="textarea" minLength={3} maxLength={255} required value={reason} onChange={e => setReason(e.target.value)} /></Field>
+    </form></Modal>;
+}
+
 /** Refus motivé d'un besoin par les Achats ; le chantier qui l'a exprimé est prévenu. */
 function RefuseNeed({ need, onClose, onSaved }) {
   const action = useApproAction(), [reason, setReason] = useState('');
@@ -55,6 +86,7 @@ function RefuseNeed({ need, onClose, onSaved }) {
     </form></Modal>;
 }
 export function ApproNeeds() {
+  const [serviceRequest, setServiceRequest] = useState(null);
   const res = useResource(`${APPRO}/needs`), refs = useApproRefs(), { can } = useAuth(), navigate = useNavigate(), [params, setParams] = useSearchParams(), [need, setNeed] = useState(null), [refusing, setRefusing] = useState(null), [creating, setCreating] = useState(false), [q, setQ] = useState('');
   // Préparation serveur (emplacement du chantier, article, prix…) puis bon de commande pré-rempli
   const prep = useApproAction();
@@ -64,9 +96,11 @@ export function ApproNeeds() {
   useEffect(() => { const n = toOrder && res.data?.find(x => x.id === toOrder); if (n) { if (['demande', 'valide'].includes(n.status) && !n.order_id) startOrder(n); setParams({}, { replace: true }); } }, [toOrder, res.data]);
   if (!refs.data) return <Loading res={refs} />;
   const rows = (res.data || []).filter(n => `${n.label} ${n.worksite_reference}`.toLowerCase().includes(q.toLowerCase()));
-  return <div className="stack"><p className="muted">Besoins en matériaux des chantiers : le chantier les exprime (fiche du chantier › Besoins) et ils arrivent ici ; les Achats préparent le bon de commande, qui est soumis à validation, réceptionné puis facturé par la Comptabilité — ou refusent le besoin avec un motif.</p><div className="row-between"><SearchBox value={q} onChange={setQ} placeholder="Matériau, chantier…" />{can('chantiers:write') && <button className="btn btn-primary" disabled={!refs.data.worksites.length} onClick={() => setCreating(true)}><Plus />Exprimer un besoin</button>}</div>
+  return <div className="stack"><p className="muted">Besoins des chantiers (fiche du chantier › Besoins) et des services (demandes d’achat validées, plus bas) : ils arrivent ici ; les Achats préparent le bon de commande, qui est soumis à validation, réceptionné puis facturé par la Comptabilité — ou refusent le besoin avec un motif.</p><div className="row-between"><SearchBox value={q} onChange={setQ} placeholder="Matériau, chantier…" />{can('chantiers:write') && <button className="btn btn-primary" disabled={!refs.data.worksites.length} onClick={() => setCreating(true)}><Plus />Exprimer un besoin</button>}</div>
     {refusing && <RefuseNeed need={refusing} onClose={() => setRefusing(null)} onSaved={() => { setRefusing(null); res.reload(); }} />}{creating && <ToWorksiteNeeds worksites={refs.data.worksites} onClose={() => setCreating(false)} />}<ErrorBox error={res.error} /><Card bodyClass="">{!res.data ? <Loading res={res} /> : !rows.length ? <div className="card-body"><Empty icon={Boxes}>Aucun besoin en matériaux.</Empty></div> : <div className="table-wrap"><table className="table"><thead><tr><th>Chantier</th><th>Besoin</th><th>Quantité</th><th>Souhaité le</th><th>État</th><th>Suite</th></tr></thead><tbody>{rows.map(n => <tr key={n.id}><td className="small"><Link className="link" to={`/chantiers/${n.worksite_id}?onglet=besoins`}>{n.worksite_reference}</Link></td><td><b>{n.label}</b>{n.article_code ? <span className="small muted"> · {n.article_code}</span> : <> <Badge tone="warn">Hors catalogue</Badge></>}{n.note && <div className="small muted">{n.note}</div>}</td><td className="tabular nowrap">{qty(n.quantity)} {n.unit_label}</td><td className="small nowrap">{n.needed_on ? date(n.needed_on) : '—'}</td><td><Badge tone={tone(n.status)}>{n.status_label}</Badge></td><td>{n.order_id ? <Link to={`/achats/commandes?fiche=${n.order_id}`} className="link">{n.order_reference}</Link> : ['demande', 'valide'].includes(n.status) && can('appro:write') ? <span className="row nowrap" style={{ gap: 6 }}><button className="btn btn-sm btn-primary" disabled={prep.busy} onClick={() => startOrder(n)}>Préparer la commande</button><button className="btn btn-sm btn-ghost" onClick={() => setRefusing(n)}>Refuser</button></span> : <Link className="link small" to={`/chantiers/${n.worksite_id}?onglet=besoins`}>Voir le besoin</Link>}</td></tr>)}</tbody></table></div>}</Card>
     <ErrorBox error={prep.error} />{need && <DocumentForm kind="order" need={need} prefill={need.prefill} refs={refs.data} onClose={() => setNeed(null)} onSaved={d => { setNeed(null); navigate(`/achats/commandes?fiche=${d.id}`); }} />}
+    <ServiceNeeds refs={refs.data} onOrder={setServiceRequest} />
+    {serviceRequest && <DocumentForm kind="order" request={serviceRequest} prefill={serviceRequest.prefill} refs={refs.data} onClose={() => setServiceRequest(null)} onSaved={d => { setServiceRequest(null); navigate(`/achats/commandes?fiche=${d.id}`); }} />}
   </div>;
 }
 export function ApproStock() {

@@ -11,7 +11,7 @@ const day = z.string().regex(/^\d{4}-\d{2}-\d{2}$/).refine(v => { const d = new 
 const qty = z.number().positive().refine(v => stockQuantityUnits(v) !== null, 'Quantité au centième, de 0,01 à 10 000 000');
 const minimum = z.number().min(0).refine(v => stockQuantityUnits(v) !== null, 'Seuil au centième attendu');
 const item = z.object({ article_id: id, quantity: qty, unit_price_fcfa: z.number().int().min(0).max(1000000000).nullable().optional(), need_id: optId });
-const doc = z.object({ supplier_id: id, location_id: id, date: day, needed_on: day.nullable().optional(), vat_rate: z.number().min(0).max(100), supplier_ref: text(100), note: text(5000), lines: z.array(item).min(1).max(100) });
+const doc = z.object({ request_id: optId, supplier_id: id, location_id: id, date: day, needed_on: day.nullable().optional(), vat_rate: z.number().min(0).max(100), supplier_ref: text(100), note: text(5000), lines: z.array(item).min(1).max(100) });
 const article = z.object({ code: z.string().trim().min(1).max(40), label: z.string().trim().min(2).max(200), unit: z.string().trim().min(1).max(30), min_quantity: minimum.default(0), active: z.boolean().default(true) });
 // Bon de commande : prix obligatoires et validateur désigné par l'émetteur (contrôlé à la soumission).
 const order = doc.omit({ supplier_ref: true }).extend({ issuer_id: optId, approver_id: optId, lines: z.array(item.extend({ unit_price_fcfa: z.number().int().min(0).max(1000000000) })).min(1).max(100) });
@@ -36,6 +36,10 @@ module.exports = db => {
   r.get('/needs', ah(async (req, res) => res.json(await s.needs(db))));
   r.post('/needs/:id/prepare', action('appro:write'), ah(async (req, res) => res.json(await s.prepareNeed(db, idParam(req), req.user.id))));
   r.post('/needs/:id/refuse', action('appro:write'), ah(async (req, res) => res.json(await s.refuseNeed(db, idParam(req), parse(z.object({ reason: z.string().trim().min(3).max(255) }), req.body).reason, req.user.id))));
+  // Besoins des services (demandes internes d'achat ou d'équipement validées)
+  r.get('/service-needs', ah(async (req, res) => res.json(await s.serviceNeeds(db))));
+  r.post('/service-needs/:id/prepare', action('appro:write'), ah(async (req, res) => res.json(await s.prepareRequest(db, idParam(req), req.user.id))));
+  r.post('/service-needs/:id/refuse', action('appro:write'), ah(async (req, res) => res.json(await s.refuseRequest(db, idParam(req), parse(z.object({ reason: z.string().trim().min(3).max(255) }), req.body).reason, req.user.id))));
   r.get('/contracts', action('contrats:read'), ah(async (req, res) => res.json(await s.contracts(db))));
   for (const [url, type] of [['orders', 'order'], ['quotes', 'quote']]) {
     r.get(`/${url}`, ah(async (req, res) => res.json(await s.listDocuments(db, type, { status: req.query.status || null }))));
