@@ -4,6 +4,7 @@ import { Search, Plus, Download, List, Columns3, Users, Phone, Mail as MailIcon,
 import ImportModal from '../components/ImportModal';
 import PortfolioHistory from '../components/PortfolioHistory';
 import PipelineBoard from '../components/PipelineBoard';
+import { TransferModal, TransferRequests } from '../components/Transfers';
 import { api, qs } from '../lib/api';
 import { useAuth, useResource, useToast, useSaved } from '../lib/app-context';
 import { Card, Drawer, Field, Badge, Empty, ErrorBox, Skeleton, Pagination } from '../components/ui';
@@ -64,11 +65,13 @@ export default function Leads() {
               {PROSPECT_STAGES.map(s => <option key={s.id} value={s.id}>{s.label}</option>)}
             </select>
           )}
-          <select className="select" style={{ width: 'auto' }} value={seller} onChange={e => setSeller(e.target.value)} aria-label="Commercial">
-            <option value="">Tous les commerciaux</option>
-            <option value="aucun">Non attribués (à répartir)</option>
-            {sellers.data?.map(u => <option key={u.id} value={u.id}>{u.name}</option>)}
-          </select>
+          {can('leads:all') && (
+            <select className="select" style={{ width: 'auto' }} value={seller} onChange={e => setSeller(e.target.value)} aria-label="Commercial">
+              <option value="">Tous les commerciaux</option>
+              <option value="aucun">Non attribués (à répartir)</option>
+              {sellers.data?.map(u => <option key={u.id} value={u.id}>{u.name}</option>)}
+            </select>
+          )}
         </div>
         <div className="row">
           <div className="seg" role="tablist" aria-label="Affichage">
@@ -82,6 +85,7 @@ export default function Leads() {
       </div>
 
       <ErrorBox error={leads.error} />
+      <TransferRequests onChange={leads.reload} />
       {view === 'liste'
         ? <LeadTable leads={leads} page={page} setPage={setPage} pageSize={pageSize} setPageSize={changePageSize} onOpen={setSelected} sellers={sellers.data} />
         : <Pipeline leads={leads} onOpen={setSelected} canWrite={can('leads:write')} />}
@@ -94,7 +98,7 @@ export default function Leads() {
 }
 
 function LeadTable({ leads, page, setPage, pageSize, setPageSize, onOpen, sellers }) {
-  const { can, user } = useAuth();
+  const { can } = useAuth();
   const toast = useToast();
   const [picked, setPicked] = useState(() => new Set());
   const [to, setTo] = useState('');
@@ -102,14 +106,14 @@ function LeadTable({ leads, page, setPage, pageSize, setPageSize, onOpen, seller
   const { rows = [], total = 0 } = leads.data || {};
   useEffect(() => setPicked(new Set()), [leads.data]);
   if (leads.loading && !leads.data) return <Card><Skeleton h={200} /></Card>;
-  // Le responsable attribue, répartit et transfère ; un commercial peut prendre pour lui des prospects libres
-  const manager = can('leads:all');
-  const selectable = can('leads:write') && (manager || rows.some(l => !l.assigned_to));
-  const pickable = l => manager || !l.assigned_to;
+  // Le responsable attribue, répartit et transfère ; un commercial demande un transfert depuis la fiche
+  const manager = can('leads:assign');
+  const selectable = manager;
+  const pickable = () => manager;
   const toggle = id => setPicked(s => { const n = new Set(s); if (n.has(id)) n.delete(id); else n.add(id); return n; });
   const all = rows.filter(pickable);
   const assign = async () => {
-    const target = manager ? (to === 'aucun' ? null : Number(to)) : user.id;
+    const target = to === 'aucun' ? null : Number(to);
     setBusy(true);
     try {
       const out = await api.post('/admin/leads/assign', { ids: [...picked], user_id: target });
@@ -122,16 +126,12 @@ function LeadTable({ leads, page, setPage, pageSize, setPageSize, onOpen, seller
       {selectable && picked.size > 0 && (
         <div className="card-body row" style={{ borderBottom: '1px solid var(--border)', paddingTop: 12, paddingBottom: 12 }}>
           <strong className="small">{picked.size} sélectionné(s)</strong>
-          {manager ? (
-            <>
-              <select className="select" style={{ width: 'auto' }} value={to} onChange={e => setTo(e.target.value)} aria-label="Attribuer à">
-                <option value="">Attribuer à…</option>
-                {sellers?.map(u => <option key={u.id} value={u.id}>{u.name}</option>)}
-                <option value="aucun">Retirer le commercial</option>
-              </select>
-              <button className="btn btn-primary btn-sm" disabled={!to || busy} onClick={assign}>Valider</button>
-            </>
-          ) : <button className="btn btn-primary btn-sm" disabled={busy} onClick={assign}>Me les attribuer</button>}
+          <select className="select" style={{ width: 'auto' }} value={to} onChange={e => setTo(e.target.value)} aria-label="Attribuer à">
+            <option value="">Attribuer à…</option>
+            {sellers?.map(u => <option key={u.id} value={u.id}>{u.name}</option>)}
+            <option value="aucun">Retirer le commercial</option>
+          </select>
+          <button className="btn btn-primary btn-sm" disabled={!to || busy} onClick={assign}>Valider</button>
           <button className="btn btn-ghost btn-sm" onClick={() => setPicked(new Set())}>Annuler</button>
         </div>
       )}
@@ -233,6 +233,8 @@ function LeadDrawer({ id, onClose, onSaved, projects }) {
   const [error, setError] = useState(null);
   const [busy, setBusy] = useState(false);
   const [appt, setAppt] = useState(null);
+  const [transfer, setTransfer] = useState(null); // { lead, mine }
+  const assigner = can('leads:assign');
 
   const remove = async () => {
     if (!window.confirm(`Supprimer définitivement ${detail.data?.name || 'ce prospect'} ? Ses rendez-vous et messages seront aussi supprimés.`)) return;
@@ -257,7 +259,8 @@ function LeadDrawer({ id, onClose, onSaved, projects }) {
       email: form.email || null, phone: form.phone || null, country: form.country || null,
       financing: form.financing || null, message: form.message || null, property_type: form.property_type || null,
       project_id: form.project_id ? Number(form.project_id) : null,
-      assigned_to: form.assigned_to ? Number(form.assigned_to) : null,
+      // Le commercial ne change pas d'attribution ici : le responsable, ou une demande de transfert
+      ...(assigner ? { assigned_to: form.assigned_to ? Number(form.assigned_to) : null } : { assigned_to: undefined }),
     };
     try {
       const out = id ? await api.patch(`/admin/leads/${id}`, body) : await api.post('/admin/leads', body);
@@ -337,17 +340,27 @@ function LeadDrawer({ id, onClose, onSaved, projects }) {
               <Field label="Type de bien" hint={d?.source === 'site' && d?.property_type ? 'Consulté sur le site' : undefined}>
                 <input className="input" value={form.property_type} onChange={set('property_type')} placeholder="Appartement social 3 pièces" />
               </Field>
-              <Field label="Commercial assigné">
-                <select className="select" value={form.assigned_to} onChange={set('assigned_to')}>
-                  <option value="">Non assigné</option>
-                  {sellers.data?.map(u => <option key={u.id} value={u.id}>{u.name}</option>)}
-                </select>
+              <Field label="Commercial assigné" hint={!assigner ? 'Changement de commercial : demande au responsable' : undefined}>
+                {assigner ? (
+                  <select className="select" value={form.assigned_to} onChange={set('assigned_to')}>
+                    <option value="">Non assigné</option>
+                    {sellers.data?.map(u => <option key={u.id} value={u.id}>{u.name}</option>)}
+                  </select>
+                ) : (
+                  <div className="row" style={{ gap: 8 }}>
+                    <span className="input" style={{ display: 'flex', alignItems: 'center', flex: 1 }}>{id ? (sellers.data?.find(u => u.id === Number(form.assigned_to))?.name || d?.assigned_name || 'Vous') : 'Vous'}</span>
+                    {id && editable && <button type="button" className="btn btn-sm" onClick={() => setTransfer({ lead: { id, name: d?.name }, mine: true })}>Demander un transfert</button>}
+                  </div>
+                )}
               </Field>
               <label className="checkbox" style={{ alignSelf: 'end', height: 40 }}><input type="checkbox" checked={form.is_diaspora} onChange={set('is_diaspora')} />Client de la diaspora</label>
               <Field label="Notes / message" className="full"><textarea className="textarea" value={form.message} onChange={set('message')} /></Field>
             </div>
           </fieldset>
+          {error?.details?.transfer && <button type="button" className="btn btn-sm" onClick={() => setTransfer({ lead: { id: error.details.lead_id, name: form.name }, mine: false })}>Demander le transfert au responsable</button>}
+          {id && <TransferRequests leadId={id} />}
           {id && can('leads:read') && <PortfolioHistory leadId={id} />}
+          {transfer && <TransferModal lead={transfer.lead} mine={transfer.mine} onClose={() => setTransfer(null)} onDone={() => { setError(null); onSaved?.(); }} />}
 
           {d && (
             <>

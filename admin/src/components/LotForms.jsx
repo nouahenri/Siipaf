@@ -208,6 +208,8 @@ export function LotFormModal({ projectId, lot, onClose, onDone }) {
 
 /** Modifier le dossier d'acquisition. Changer le prix, le financement ou la date de réservation recalcule l'échéancier type. */
 export function SaleEditModal({ sale, onClose, onDone }) {
+  const { can } = useAuth();
+  const legal = can('juridique:write'); // la date de l'acte se saisit avec le droit Juridique
   const toast = useToast();
   const saved = useSaved();
   const [f, setF] = useState({
@@ -224,7 +226,7 @@ export function SaleEditModal({ sale, onClose, onDone }) {
     setBusy(true);
     const body = {
       price_fcfa: Math.round(toNumber(f.price_fcfa)), financing: f.financing || null,
-      reserved_at: f.reserved_at || null, signed_at: f.signed_at || null, promised_delivery_on: f.promised_delivery_on || null, notes: f.notes.trim() || null,
+      reserved_at: f.reserved_at || null, ...(legal ? { signed_at: f.signed_at || null } : {}), promised_delivery_on: f.promised_delivery_on || null, notes: f.notes.trim() || null,
     };
     try {
       const data = await api.patch(`/admin/sales/${sale.id}`, body);
@@ -250,7 +252,7 @@ export function SaleEditModal({ sale, onClose, onDone }) {
           </select>
         </Field>
         <Field label="Date de réservation"><input className="input" type="date" value={f.reserved_at} onChange={set('reserved_at')} /></Field>
-        <Field label="Date de signature du contrat"><input className="input" type="date" value={f.signed_at} onChange={set('signed_at')} /></Field>
+        {legal && <Field label="Date de signature du contrat"><input className="input" type="date" value={f.signed_at} onChange={set('signed_at')} /></Field>}
         <Field label="Livraison promise à l’acquéreur" hint="Comparée à la livraison prévue du chantier : un retard prévient le commercial, le SAV et la Direction"><input className="input" type="date" value={f.promised_delivery_on} onChange={set('promised_delivery_on')} /></Field>
         <Field label="Notes internes" className="full"><textarea className="textarea" rows={3} value={f.notes} onChange={set('notes')} /></Field>
       </div>

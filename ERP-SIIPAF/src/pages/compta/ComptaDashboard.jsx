@@ -2,8 +2,8 @@ import { useState } from 'react';
 import { Link } from 'react-router-dom';
 import { Landmark, TrendingUp, TrendingDown, Minus, Scale, Users, Truck, Receipt, FileClock, RefreshCw, CheckCheck, CalendarPlus, Wallet, Smartphone, Banknote, ArrowRight } from 'lucide-react';
 import { api } from '@admin/lib/api';
-import { useAuth, useResource, useToast } from '@admin/lib/app-context';
-import { Card, Skeleton, Empty } from '@admin/components/ui';
+import { useAuth, useResource, useToast, useSaved } from '@admin/lib/app-context';
+import { Card, Skeleton, Empty, Badge } from '@admin/components/ui';
 import { LineChart, useCountUp, monthLabel } from '@admin/components/Charts';
 import { SmoothAreaChart, GroupedBars, HighlightBars, Donut } from '@admin/components/ChartsPlus';
 import { fcfa, date } from '@admin/lib/format';
@@ -60,6 +60,8 @@ export default function ComptaDashboard() {
 
   if (!d.fiscal_year) {
     return (
+      <div className="stack">
+      <PendingPayments />
       <Card>
         <Empty icon={CalendarPlus}>
           <b>Aucun exercice comptable ne couvre la date du jour.</b>
@@ -67,6 +69,7 @@ export default function ComptaDashboard() {
           {can('compta:close') && <Link className="btn btn-primary" style={{ marginTop: 12 }} to="/compta/parametres">Créer l’exercice</Link>}
         </Empty>
       </Card>
+      </div>
     );
   }
 
@@ -87,6 +90,8 @@ export default function ComptaDashboard() {
           </div>
         )}
       </div>
+
+      <PendingPayments />
 
       <div className="grid grid-4">
         <Kpi icon={Wallet} label="Trésorerie" value={d.treasury_total} trend={trendOf(cur.tresorerie, prev.tresorerie)} foot="banques, caisse, Mobile Money" tint="blue" />
@@ -169,5 +174,46 @@ export default function ComptaDashboard() {
       {meta && <p className="small muted">Chiffre d’affaires : VEFA {meta.settings.revenue_vefa === 'avancement' ? 'à l’avancement' : 'à la livraison'} · ventes sur échéancier {meta.settings.revenue_echeancier === 'acte' ? 'à l’acte définitif' : 'à l’encaissement'} · TVA sur ventes {meta.settings.vat_sales_rate} % (<Link className="link" to="/compta/parametres">réglages</Link>). Montants des graphiques en FCFA, brouillons compris.</p>}
       {d.drafts > 0 && <p className="small" style={{ color: 'var(--warn)' }}>Les écritures automatiques sont créées en brouillon : le comptable les contrôle puis les valide (numérotation définitive).</p>}
     </div>
+  );
+}
+
+const METHODS = { virement: 'Virement', mobile_money: 'Mobile Money', especes: 'Espèces', cheque: 'Chèque', autre: 'Autre' };
+
+/**
+ * Versements déclarés par les commerciaux, en attente de la confirmation de la réception des fonds (choix du client
+ * du 29/10). Confirmer fait entrer le versement dans le dossier (solde, espace client, reçu, écriture) ; refuser
+ * prévient le commercial avec le motif. Rien n'est affiché s'il n'y en a aucun.
+ */
+function PendingPayments() {
+  const { can } = useAuth();
+  const toast = useToast();
+  const saved = useSaved();
+  const list = useResource(can('payments:write') ? '/admin/payment-declarations?status=a_confirmer' : null);
+  const rows = list.data || [];
+  if (!rows.length) return null;
+  const decide = async (x, ok) => {
+    const reason = ok ? null : window.prompt('Motif du refus (transmis au commercial)');
+    if (!ok && !reason) return;
+    try {
+      await api.post(`/admin/payment-declarations/${x.id}/${ok ? 'confirm' : 'reject'}`, ok ? {} : { reason });
+      saved(ok ? `Réception des fonds confirmée : ${x.client_name}` : 'Versement refusé'); list.reload();
+    } catch (e) { toast(e.message, 'err'); }
+  };
+  return (
+    <Card title={<span className="row" style={{ gap: 8 }}>Versements à confirmer <Badge tone="warn">{rows.length}</Badge></span>} bodyClass="">
+      <div className="table-wrap"><table className="table table-compact">
+        <thead><tr><th>Client</th><th>Bien</th><th>Versement</th><th>Déclaré par</th><th className="right">Montant</th><th /></tr></thead>
+        <tbody>{rows.map(x => (
+          <tr key={x.id}>
+            <td><b>{x.client_name}</b><div className="small muted">{x.client_code}</div></td>
+            <td className="small">{x.project_name} · lot {x.lot_code}</td>
+            <td className="small">{date(x.paid_at)} · {METHODS[x.method] || x.method}{x.reference ? ` · ${x.reference}` : ''}{x.note && <div className="muted">{x.note}</div>}</td>
+            <td className="small">{x.declared_by_name}</td>
+            <td className="right tabular"><b>{fcfa(x.amount_fcfa)}</b></td>
+            <td className="nowrap right"><button className="btn btn-sm btn-primary" onClick={() => decide(x, true)}>Confirmer</button> <button className="btn btn-sm btn-ghost btn-danger" onClick={() => decide(x, false)}>Refuser</button> <Link className="btn btn-sm btn-ghost" to={`/commercial/ventes?d=${x.sale_id}`}>Dossier</Link></td>
+          </tr>
+        ))}</tbody>
+      </table></div>
+    </Card>
   );
 }

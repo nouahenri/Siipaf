@@ -358,12 +358,19 @@ module.exports = function commercialRoutes(db) {
     const s = await cm.scopeLeads(salesQuery(), req.user).where('s.id', idParam(req)).first();
     if (!s) throw new HttpError(404, 'Dossier introuvable.');
     const t = await totals(db, s);
-    const [payments, schedule] = await Promise.all([
-      db('payments as p').leftJoin('users as u', 'u.id', 'p.recorded_by').where('p.sale_id', s.id)
-        .select('p.*', 'u.name as recorded_by_name').orderBy([{ column: 'p.paid_at', order: 'desc' }, { column: 'p.id', order: 'desc' }]),
+    const [payments, schedule, declarations] = await Promise.all([
+      db('payments as p').leftJoin('users as u', 'u.id', 'p.recorded_by').leftJoin('users as dd', 'dd.id', 'p.declared_by').where('p.sale_id', s.id)
+        .select('p.*', 'u.name as recorded_by_name', 'dd.name as declared_by_name').orderBy([{ column: 'p.paid_at', order: 'desc' }, { column: 'p.id', order: 'desc' }]),
       scheduleStatus(db, s, t),
+      // Versements déclarés par un commercial : à confirmer par la Comptabilité, ou refusés (motif)
+      db('payment_declarations as pd').leftJoin('users as u', 'u.id', 'pd.declared_by').where('pd.sale_id', s.id).whereIn('pd.status', ['a_confirmer', 'rejete'])
+        .select('pd.*', 'u.name as declared_by_name').orderBy('pd.id', 'desc'),
     ]);
-    res.json({ ...(await saleRow(s, await progressIndex(db))), notes: s.notes, promised_delivery_on: isoDay(s.promised_delivery_on), delivered_at: isoDay(s.delivered_at), schedule, payments: payments.map(p => ({ ...p, paid_at: isoDay(p.paid_at), amount_fcfa: Number(p.amount_fcfa) })) });
+    res.json({
+      ...(await saleRow(s, await progressIndex(db))), notes: s.notes, promised_delivery_on: isoDay(s.promised_delivery_on), delivered_at: isoDay(s.delivered_at), schedule,
+      payments: payments.map(p => ({ ...p, paid_at: isoDay(p.paid_at), amount_fcfa: Number(p.amount_fcfa) })),
+      declarations: declarations.map(x => ({ ...x, paid_at: isoDay(x.paid_at), amount_fcfa: Number(x.amount_fcfa) })),
+    });
   }));
 
   // ─── VEFA : plans et appels de fonds ──────────────────────

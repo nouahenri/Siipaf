@@ -437,3 +437,8 @@ button.gantt-row:focus-visible { outline: 2px solid var(--focus); outline-offset
   .kpi-templates { grid-template-columns: minmax(0, 1fr); }
   .kpi-tpl-list { max-height: 260px; }
 }
+
+/* Reçu de versement (Comptabilité › reçu) : même mise en page d'impression que les bons de commande */
+.receipt-print { max-width: 760px; }
+.receipt-print-amount { display: flex; flex-direction: column; gap: 4px; padding: 16px; border: 1px solid var(--border); border-radius: 8px; }
+.receipt-print-amount strong { font-size: 26px; }

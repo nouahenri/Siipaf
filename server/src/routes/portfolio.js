@@ -78,12 +78,12 @@ module.exports = function portfolioRoutes(db) {
       except: req.user.id, key: `transfert:${tId}`,
       title: `Transfert demandé par ${req.user.name}${mine ? '' : ' (personne suivie par un collègue)'}`,
       body: `${mine ? lead.name : 'Une personne de votre portefeuille'} → ${target} · ${data.reason}`,
-      link: '/prospects?transferts=1',
+      link: '/commercial/pipeline',
     });
     // Le commercial actuel est prévenu qu'un collègue demande à reprendre son prospect
     if (!mine && lead.assigned_to) {
       await notify(db, { to: [lead.assigned_to], module: 'commercial', event: 'prospect.transfert_demande', key: `transfert:${tId}:titulaire`,
-        title: `${req.user.name} demande à reprendre ${lead.name}`, body: `Motif : ${data.reason}. Le responsable décidera.`, link: '/prospects' });
+        title: `${req.user.name} demande à reprendre ${lead.name}`, body: `Motif : ${data.reason}. Le responsable décidera.`, link: '/commercial/pipeline' });
     }
     res.status(201).json((await transferRows(db('lead_transfer_requests as t')).where('t.id', tId))[0]);
   }));
@@ -99,7 +99,7 @@ module.exports = function portfolioRoutes(db) {
     const verb = status === 'validee' ? 'accepté' : 'refusé';
     await notify(db, {
       to: [t.requested_by, t.from_user_id, t.to_user_id], module: 'commercial', event: 'prospect.transfert_decide', except: user.id, key: `transfert:${t.id}:decision`,
-      title: `Transfert ${verb} : ${lead?.name || 'prospect'}`, body: note ? `Note du responsable : ${note}` : null, link: '/prospects',
+      title: `Transfert ${verb} : ${lead?.name || 'prospect'}`, body: note ? `Note du responsable : ${note}` : null, link: '/commercial/pipeline',
     });
   };
 

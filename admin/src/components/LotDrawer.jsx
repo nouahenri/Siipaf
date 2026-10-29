@@ -227,7 +227,11 @@ function Payments({ sale, onChange }) {
   const [f, setF] = useState({ amount_fcfa: '', paid_at: today, method: 'virement', reference: '', note: '' });
   const [error, setError] = useState(null);
   const set = k => e => setF(x => ({ ...x, [k]: e.target.value }));
-  const editable = can('payments:write') && sale.status !== 'desiste';
+  // Comptabilité : enregistre ; commercial : déclare un versement de son client, à confirmer par la Comptabilité
+  const confirmer = can('payments:write');
+  const editable = (confirmer || can('payments:record')) && sale.status !== 'desiste';
+  const pending = (sale.declarations || []).filter(x => x.status === 'a_confirmer');
+  const refused = (sale.declarations || []).filter(x => x.status === 'rejete');
 
   const add = async () => {
     setError(null);
@@ -237,9 +241,21 @@ function Payments({ sale, onChange }) {
         reference: f.reference || undefined, note: f.note || undefined,
       });
       setF({ ...f, amount_fcfa: '', reference: '', note: '' });
-      saved('Versement enregistré');
+      saved(confirmer ? 'Versement enregistré' : 'Versement transmis à la Comptabilité pour confirmation');
       onChange(data);
     } catch (e) { setError(e); }
+  };
+  const decide = async (d, ok) => {
+    const reason = ok ? null : window.prompt('Motif du refus (transmis au commercial)');
+    if (!ok && !reason) return;
+    try {
+      onChange(await api.post(`/admin/payment-declarations/${d.id}/${ok ? 'confirm' : 'reject'}`, ok ? {} : { reason }));
+      saved(ok ? 'Réception des fonds confirmée' : 'Versement refusé');
+    } catch (e) { toast(e.message, 'err'); }
+  };
+  const withdraw = async d => {
+    if (!window.confirm(`Retirer le versement déclaré de ${fcfa(d.amount_fcfa)} ?`)) return;
+    try { onChange(await api.del(`/admin/payment-declarations/${d.id}`)); toast('Déclaration retirée'); } catch (e) { toast(e.message, 'err'); }
   };
   const remove = async p => {
     if (!window.confirm(`Supprimer le versement de ${fcfa(p.amount_fcfa)} du ${date(p.paid_at)} ?`)) return;
@@ -254,7 +270,8 @@ function Payments({ sale, onChange }) {
         <div className="card kpi"><span className="kpi-label">Avancement</span><span className="kpi-value" style={{ fontSize: 18 }}>{sale.percent_paid} %</span></div>
       </div>
       {editable && sale.remaining_fcfa > 0 && (
-        <Card title="Enregistrer un versement">
+        <Card title={confirmer ? 'Enregistrer un versement' : 'Déclarer un versement'}>
+          {!confirmer && <p className="small muted" style={{ marginBottom: 8 }}>Le versement est transmis à la Comptabilité : il ne compte dans le dossier qu’après la confirmation de la réception des fonds.</p>}
           <ErrorBox error={error} />
           <div className="form-grid">
             <Field label="Montant (FCFA)"><input className="input tabular" inputMode="numeric" value={f.amount_fcfa} onChange={set('amount_fcfa')} placeholder={String(sale.remaining_fcfa)} /></Field>
@@ -263,8 +280,25 @@ function Payments({ sale, onChange }) {
             <Field label="Référence"><input className="input" value={f.reference} onChange={set('reference')} placeholder="N° de transaction, de chèque…" /></Field>
           </div>
           <div className="row" style={{ justifyContent: 'flex-end', marginTop: 12 }}>
-            <button className="btn btn-primary btn-sm" disabled={!f.amount_fcfa} onClick={add}><Plus />Enregistrer</button>
+            <button className="btn btn-primary btn-sm" disabled={!f.amount_fcfa} onClick={add}><Plus />{confirmer ? 'Enregistrer' : 'Transmettre'}</button>
           </div>
+        </Card>
+      )}
+      {(pending.length > 0 || refused.length > 0) && (
+        <Card title="Versements déclarés par le commercial" bodyClass="">
+          <div className="table-wrap"><table className="table"><tbody>
+            {[...pending, ...refused].map(d => (
+              <tr key={d.id}>
+                <td className="nowrap">{date(d.paid_at)}</td>
+                <td>{PAYMENT_METHODS[d.method]}{d.reference && <div className="small muted">{d.reference}</div>}<div className="small muted">déclaré par {d.declared_by_name || '—'}</div></td>
+                <td className="right tabular nowrap"><strong>{fcfa(d.amount_fcfa)}</strong><div>{d.status === 'a_confirmer' ? <Badge tone="warn">À confirmer</Badge> : <Badge tone="danger">Refusé</Badge>}</div>{d.reject_reason && <div className="small muted">{d.reject_reason}</div>}</td>
+                <td className="nowrap right" style={{ width: 1 }}>
+                  {d.status === 'a_confirmer' && confirmer && <><button className="btn btn-sm btn-primary" onClick={() => decide(d, true)}>Confirmer</button> <button className="btn btn-sm btn-ghost btn-danger" onClick={() => decide(d, false)}>Refuser</button></>}
+                  {d.status === 'a_confirmer' && !confirmer && <button className="btn btn-sm btn-ghost" onClick={() => withdraw(d)}>Retirer</button>}
+                </td>
+              </tr>
+            ))}
+          </tbody></table></div>
         </Card>
       )}
       <Card title="Historique des versements" bodyClass="">
@@ -274,7 +308,7 @@ function Payments({ sale, onChange }) {
               <tr key={p.id}>
                 <td className="nowrap">{date(p.paid_at)}</td>
                 <td>{PAYMENT_METHODS[p.method]}{p.reference && <div className="small muted">{p.reference}</div>}</td>
-                <td className="right tabular nowrap"><strong>{fcfa(p.amount_fcfa)}</strong><div className="small muted">{p.recorded_by_name || ''}</div></td>
+                <td className="right tabular nowrap"><strong>{fcfa(p.amount_fcfa)}</strong><div className="small muted">{p.declared_by_name ? `déclaré par ${p.declared_by_name}, confirmé par ${p.recorded_by_name || '—'}` : p.recorded_by_name || ''}</div></td>
                 {can('payments:write') && <td style={{ width: 40 }}><button className="btn btn-sm btn-ghost btn-icon btn-danger" onClick={() => remove(p)} aria-label="Supprimer le versement"><Trash2 /></button></td>}
               </tr>
             ))}

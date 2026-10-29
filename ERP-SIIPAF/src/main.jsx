@@ -43,6 +43,7 @@ import Chart from './pages/compta/Chart';
 import ComptaSettings from './pages/compta/Settings';
 import Employees from './pages/compta/Employees';
 import Payroll, { PayrollRun } from './pages/compta/Payroll';
+import Receipt from './pages/compta/Receipt';
 import RhDashboard from './pages/rh/RhDashboard';
 import MySpace from './pages/rh/MySpace';
 import Staff from './pages/rh/Staff';
@@ -131,6 +132,7 @@ function App() {
         <Route path="commercial/objectifs" element={<Guard perm="commercial:read"><Targets /></Guard>} />
         <Route path="commercial/reglages" element={<ModuleSettings module="commercial" />} />
         <Route path="compta" element={<Guard perm="compta:read"><ComptaDashboard /></Guard>} />
+        <Route path="compta/recu/:id" element={<Guard perm={['sales:read', 'payments:write']}><Receipt /></Guard>} />
         <Route path="compta/ecritures" element={<Guard perm="compta:read"><Entries /></Guard>} />
         <Route path="compta/achats" element={<Guard perm="compta:read"><Purchases /></Guard>} />
         <Route path="compta/etats" element={<Guard perm="compta:read"><Reports /></Guard>} />

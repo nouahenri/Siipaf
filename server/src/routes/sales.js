@@ -6,6 +6,7 @@ const { requirePermission } = require('../auth');
 const { PAYMENT_METHODS, DOCUMENT_TYPES, DOCUMENT_STATUSES, SCHEDULE_KINDS } = require('../lib/domain');
 const { openSale, refreshSaleStatus, totals, ACTIVE } = require('../services/sales');
 const { regenerateSchedule, replaceSchedule, scheduleStatus } = require('../services/schedule');
+const { receiptNumber } = require('../services/clients');
 const juridique = require('../services/juridique');
 const { inform, notify } = require('../services/notifications');
 const { seesAllLeads, saleInScope, leadInScope } = require('../services/commercial');
@@ -128,7 +129,7 @@ module.exports = function salesRoutes(db) {
       notes: z.string().max(2000).nullable(),
     }).partial(), req.body);
     const before = await saleInScope(db, id, req.user);
-    if ('signed_at' in data && String(data.signed_at || '') !== String(before.signed_at || '') && !req.can('juridique:write')) {
+    if ('signed_at' in data && (isoDay(data.signed_at) || null) !== (isoDay(before.signed_at) || null) && !req.can('juridique:write')) {
       throw new HttpError(403, 'La date de signature de l’acte se saisit dans ERP › Juridique.');
     }
     // Acte signé saisi ici plutôt que dans ERP › Juridique : mêmes effets (lot vendu, pièce signée, annonces)
@@ -213,7 +214,7 @@ module.exports = function salesRoutes(db) {
       direct: [info.assigned_to, declaration?.declared_by].filter(Boolean), except: user.id, key: `versement:${pid}`,
       title: `${declaration ? 'Versement confirmé' : 'Versement reçu'} : ${info.client_name} — ${Number(data.amount_fcfa).toLocaleString('fr-FR')} FCFA`,
       body: `${info.project_name}, lot ${info.lot_code} · le ${paidAt.toLocaleDateString('fr-FR')}${declaration ? ' · réception des fonds confirmée par la Comptabilité' : ''}`,
-      link: '/commercial/ventes', links: { compta: '/compta/versements' },
+      link: '/commercial/ventes', links: { compta: '/compta' },
     });
     return pid;
   };
@@ -233,7 +234,7 @@ module.exports = function salesRoutes(db) {
       except: req.user.id, key: `declaration:${typeof dId === 'object' ? dId.id : dId}`,
       title: `Versement à confirmer : ${info.client_name} — ${data.amount_fcfa.toLocaleString('fr-FR')} FCFA`,
       body: `${info.project_name}, lot ${info.lot_code} · déclaré par ${req.user.name}, payé le ${data.paid_at.toLocaleDateString('fr-FR')} (${data.method})`,
-      link: '/compta/versements',
+      link: '/compta',
     });
     res.status(201).json(await saleDetail(sale));
   }));
@@ -287,6 +288,29 @@ module.exports = function salesRoutes(db) {
     if (d.declared_by !== req.user.id && !req.can('payments:write')) throw new HttpError(403, 'Seul son auteur retire un versement déclaré.');
     await db('payment_declarations').where({ id: d.id }).update({ status: 'annule', updated_at: new Date() });
     res.json(await saleDetail(await db('sales').where({ id: d.sale_id }).first()));
+  }));
+
+  // Reçu de versement (preuve du versement effectué) : imprimable depuis l'ERP ; même numéro que dans l'espace client.
+  // Totaux arrêtés au versement (cumul des versements jusqu'à celui-ci), coordonnées de Contenu du site › Coordonnées.
+  r.get('/payments/:id/receipt', requirePermission('sales:read', 'payments:write'), ah(async (req, res) => {
+    const p = await db('payments as p').leftJoin('users as u', 'u.id', 'p.recorded_by').where('p.id', idParam(req)).first('p.*', 'u.name as recorded_by_name');
+    if (!p) throw new HttpError(404, 'Versement introuvable.');
+    const sale = await saleInScope(db, p.sale_id, req.user);
+    const [lead, lot, all, site] = await Promise.all([
+      db('leads').where({ id: sale.lead_id }).first('name', 'client_code', 'phone', 'email'),
+      db('lots as l').join('projects as pr', 'pr.id', 'l.project_id').where('l.id', sale.lot_id).first('l.code', 'l.ilot', 'pr.name as project_name'),
+      db('payments').where({ sale_id: sale.id }).select('id', 'amount_fcfa', 'paid_at'),
+      db('site_content').where({ key: 'site' }).first('value'),
+    ]);
+    const t = await totals(db, sale);
+    const upTo = all.filter(x => (isoDay(x.paid_at) < isoDay(p.paid_at)) || (isoDay(x.paid_at) === isoDay(p.paid_at) && x.id <= p.id)).reduce((s, x) => s + Number(x.amount_fcfa), 0);
+    const contact = json(site?.value) || {};
+    res.json({
+      id: p.id, receipt_number: receiptNumber(p), amount_fcfa: Number(p.amount_fcfa), paid_at: isoDay(p.paid_at), method: p.method, reference: p.reference,
+      recorded_by_name: p.recorded_by_name, client: lead, lot, sale_id: sale.id,
+      due_fcfa: t.total_due_fcfa, paid_to_date_fcfa: upTo, remaining_after_fcfa: Math.max(0, t.total_due_fcfa - upTo),
+      company: { phone: contact.phone || null, email: contact.email || null, address: contact.address || null },
+    });
   }));
 
   r.delete('/payments/:id', requirePermission('payments:write'), ah(async (req, res) => {

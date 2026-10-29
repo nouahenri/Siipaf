@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
-import { useSearchParams } from 'react-router-dom';
-import { Search, FileSignature, Plus } from 'lucide-react';
+import { Link, useSearchParams } from 'react-router-dom';
+import { Search, FileSignature, Plus, Printer } from 'lucide-react';
 import { api, qs } from '@admin/lib/api';
 import { useAuth, useResource, useToast, useSaved } from '@admin/lib/app-context';
 import { Card, Empty, Skeleton, ErrorBox, Drawer, Field, Badge, Pagination, Advance } from '@admin/components/ui';
@@ -99,12 +99,25 @@ export function SaleDrawer({ id, onClose, onChange }) {
   const [pay, setPay] = useState(null);
   const d = s.data;
 
+  // Comptabilité : enregistre et confirme ; commercial : déclare un versement de son client (à confirmer)
+  const confirmer = can('payments:write');
   const record = async e => {
     e.preventDefault();
     try {
       await api.post(`/admin/sales/${id}/payments`, { amount_fcfa: Number(pay.amount_fcfa), paid_at: pay.paid_at, method: pay.method, reference: pay.reference || undefined });
-      setPay(null); saved('Versement enregistré'); s.reload(); onChange?.();
+      setPay(null); saved(confirmer ? 'Versement enregistré' : 'Versement transmis à la Comptabilité pour confirmation'); s.reload(); onChange?.();
     } catch (err) { toast(err.message, 'err'); }
+  };
+  const decide = async (x, ok) => {
+    const reason = ok ? null : window.prompt('Motif du refus (transmis au commercial)');
+    if (!ok && !reason) return;
+    try {
+      await api.post(`/admin/payment-declarations/${x.id}/${ok ? 'confirm' : 'reject'}`, ok ? {} : { reason });
+      saved(ok ? 'Réception des fonds confirmée' : 'Versement refusé'); s.reload(); onChange?.();
+    } catch (err) { toast(err.message, 'err'); }
+  };
+  const withdraw = async x => {
+    try { await api.del(`/admin/payment-declarations/${x.id}`); toast('Déclaration retirée'); s.reload(); } catch (err) { toast(err.message, 'err'); }
   };
 
   return (
@@ -190,7 +203,7 @@ export function SaleDrawer({ id, onClose, onChange }) {
           <section>
             <div className="row-between">
               <h3 className="erp-h3">Versements ({d.payments.length})</h3>
-              {can('payments:write') && !pay && <button className="btn btn-sm" onClick={() => setPay({ amount_fcfa: d.schedule.next_due?.remaining_fcfa || '', paid_at: new Date().toISOString().slice(0, 10), method: 'virement', reference: '' })}><Plus />Versement</button>}
+              {(confirmer || can('payments:record')) && d.status !== 'desiste' && !pay && <button className="btn btn-sm" onClick={() => setPay({ amount_fcfa: d.schedule.next_due?.remaining_fcfa || '', paid_at: new Date().toISOString().slice(0, 10), method: 'virement', reference: '' })}><Plus />Versement</button>}
             </div>
             {pay && (
               <form className="erp-panel form-grid" onSubmit={record} style={{ marginBottom: 10 }}>
@@ -202,15 +215,34 @@ export function SaleDrawer({ id, onClose, onChange }) {
                   </select>
                 </Field>
                 <Field label="Référence"><input className="input" value={pay.reference} onChange={e => setPay(p => ({ ...p, reference: e.target.value }))} /></Field>
-                <div className="full row" style={{ gap: 8 }}><button className="btn btn-sm btn-primary">Enregistrer</button><button type="button" className="btn btn-sm btn-ghost" onClick={() => setPay(null)}>Annuler</button></div>
+                {!confirmer && <p className="full small muted">Le versement est transmis à la Comptabilité : il ne compte dans le dossier qu’après la confirmation de la réception des fonds.</p>}
+                <div className="full row" style={{ gap: 8 }}><button className="btn btn-sm btn-primary">{confirmer ? 'Enregistrer' : 'Transmettre'}</button><button type="button" className="btn btn-sm btn-ghost" onClick={() => setPay(null)}>Annuler</button></div>
               </form>
             )}
-            {!d.payments.length ? <p className="small muted">Aucun versement.</p> : (
+            {d.declarations?.length > 0 && (
+              <ul className="list" style={{ marginBottom: 8 }}>
+                {d.declarations.map(x => (
+                  <li key={`d${x.id}`} className="list-row" style={{ padding: '8px 0', alignItems: 'flex-start' }}>
+                    <span className="small">{date(x.paid_at)} · {METHODS[x.method]}{x.reference ? ` · ${x.reference}` : ''}<br /><span className="muted">déclaré par {x.declared_by_name || '—'}{x.reject_reason ? ` · refusé : ${x.reject_reason}` : ''}</span></span>
+                    <span className="row" style={{ gap: 6 }}>
+                      <b className="small tabular">{fcfa(x.amount_fcfa)}</b>
+                      {x.status === 'a_confirmer' ? <Badge tone="warn">À confirmer</Badge> : <Badge tone="danger">Refusé</Badge>}
+                      {x.status === 'a_confirmer' && confirmer && <><button className="btn btn-sm btn-primary" onClick={() => decide(x, true)}>Confirmer</button><button className="btn btn-sm btn-ghost btn-danger" onClick={() => decide(x, false)}>Refuser</button></>}
+                      {x.status === 'a_confirmer' && !confirmer && <button className="btn btn-sm btn-ghost" onClick={() => withdraw(x)}>Retirer</button>}
+                    </span>
+                  </li>
+                ))}
+              </ul>
+            )}
+            {!d.payments.length ? <p className="small muted">Aucun versement confirmé.</p> : (
               <ul className="list">
                 {d.payments.map(p => (
                   <li key={p.id} className="list-row" style={{ padding: '8px 0' }}>
-                    <span className="small">{date(p.paid_at)} · {METHODS[p.method]}{p.reference ? ` · ${p.reference}` : ''}</span>
-                    <b className="small tabular">{fcfa(p.amount_fcfa)}</b>
+                    <span className="small">{date(p.paid_at)} · {METHODS[p.method]}{p.reference ? ` · ${p.reference}` : ''}{p.declared_by_name ? <><br /><span className="muted">déclaré par {p.declared_by_name}, confirmé par {p.recorded_by_name || '—'}</span></> : null}</span>
+                    <span className="row" style={{ gap: 6 }}>
+                      <b className="small tabular">{fcfa(p.amount_fcfa)}</b>
+                      <Link className="btn btn-sm btn-ghost btn-icon" to={`/compta/recu/${p.id}`} aria-label={`Reçu du versement du ${date(p.paid_at)}`} title="Reçu de versement"><Printer /></Link>
+                    </span>
                   </li>
                 ))}
               </ul>

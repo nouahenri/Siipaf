@@ -23,7 +23,7 @@ export default function Activities() {
       <div className="row">
         <div className="seg" role="group" aria-label="Portée">
           <button className={scope === 'mine' ? 'active' : ''} onClick={() => setScope('mine')}>Les miennes</button>
-          {can('leads:read') && <button className={scope === 'team' ? 'active' : ''} onClick={() => setScope('team')}>Toute l’équipe</button>}
+          {can('leads:all') && <button className={scope === 'team' ? 'active' : ''} onClick={() => setScope('team')}>Toute l’équipe</button>}
         </div>
         {scope === 'team' && (
           <select className="select" style={{ width: 'auto' }} value={assigned} onChange={e => setAssigned(e.target.value)} aria-label="Commercial">

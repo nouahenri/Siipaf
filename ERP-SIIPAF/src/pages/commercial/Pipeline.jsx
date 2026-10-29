@@ -4,6 +4,7 @@ import { Plus, Search, Star, Clock, UserRound } from 'lucide-react';
 import { api, qs } from '@admin/lib/api';
 import { useAuth, useResource, useToast } from '@admin/lib/app-context';
 import { Skeleton, ErrorBox, Modal, Field } from '@admin/components/ui';
+import { TransferRequests } from '@admin/components/Transfers';
 import PipelineBoard from '@admin/components/PipelineBoard';
 import { initials } from '@admin/lib/format';
 import { useCommercialMeta, compact, ACTIVITY_STATE, STAGE_COLORS } from '../../lib/commercial';
@@ -54,15 +55,18 @@ export default function Pipeline() {
             <option value="">Tous les programmes</option>
             {meta?.projects.map(p => <option key={p.id} value={p.id}>{p.name}</option>)}
           </select>
-          <select className="select" style={{ width: 'auto' }} value={assigned} onChange={e => set('assigned_to', e.target.value)} aria-label="Commercial">
-            <option value="">Toute l’équipe</option>
-            {meta?.sellers.map(u => <option key={u.id} value={u.id}>{u.name}</option>)}
-          </select>
+          {can('leads:all') && (
+            <select className="select" style={{ width: 'auto' }} value={assigned} onChange={e => set('assigned_to', e.target.value)} aria-label="Commercial">
+              <option value="">Toute l’équipe</option>
+              {meta?.sellers.map(u => <option key={u.id} value={u.id}>{u.name}</option>)}
+            </select>
+          )}
           <label className="checkbox small"><input type="checkbox" checked={showLost} onChange={e => set('perdus', e.target.checked ? '1' : '')} />Afficher les perdus</label>
         </div>
         {can('leads:write') && <button className="btn btn-primary" onClick={() => setCreating(true)}><Plus />Nouveau prospect</button>}
       </div>
       <ErrorBox error={list.error} />
+      <TransferRequests onChange={list.reload} />
       {!meta && <Skeleton h={320} />}
 
       <PipelineBoard>

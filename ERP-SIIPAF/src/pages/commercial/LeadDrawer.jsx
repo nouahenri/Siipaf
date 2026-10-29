@@ -5,6 +5,7 @@ import { useAuth, useResource, useToast, useSaved } from '@admin/lib/app-context
 import { Drawer, Modal, Field, Skeleton, ErrorBox, Badge, Empty, Advance } from '@admin/components/ui';
 import { dateTime, fcfa, relative, toLocalInput } from '@admin/lib/format';
 import { useCommercialMeta, ACTIVITY_STATE, STAGE_COLORS, compact } from '../../lib/commercial';
+import { TransferModal, TransferRequests } from '@admin/components/Transfers';
 
 const HISTORY_ICONS = { etape: '◆', note: '✎', activite: '✓', rdv: '◷', option: '◇', vente: '€', paiement: '₣', message: '✉', espace_client: '✉', sav: '⚑' };
 const waLink = phone => `https://wa.me/${String(phone || '').replace(/\D/g, '').replace(/^0/, '225')}`;
@@ -98,10 +99,14 @@ export default function LeadDrawer({ id, onClose, onChange }) {
 }
 
 function LeadInfo({ lead, meta, write, onSaved }) {
+  const { can } = useAuth();
   const toast = useToast();
   const saved = useSaved();
   const [form, setForm] = useState(null);
   const [error, setError] = useState(null);
+  const [transfer, setTransfer] = useState(false);
+  // Changer de commercial : responsable (leads:assign) ; un commercial en fait la demande
+  const assigner = can('leads:assign');
   useEffect(() => setForm({
     name: lead.name, phone: lead.phone || '', email: lead.email || '', country: lead.country || '', kind: lead.kind || '',
     priority: lead.priority || 0, expected_revenue_fcfa: lead.expected_revenue_fcfa ?? '', financing: lead.financing || '',
@@ -115,7 +120,8 @@ function LeadInfo({ lead, meta, write, onSaved }) {
       await api.patch(`/admin/erp/commercial/leads/${lead.id}`, {
         name: form.name, phone: form.phone || null, email: form.email || null, country: form.country || null, kind: form.kind || null,
         priority: Number(form.priority), expected_revenue_fcfa: form.expected_revenue_fcfa === '' ? null : Number(form.expected_revenue_fcfa),
-        financing: form.financing || null, project_id: Number(form.project_id) || null, assigned_to: Number(form.assigned_to) || null, is_diaspora: form.is_diaspora,
+        financing: form.financing || null, project_id: Number(form.project_id) || null, is_diaspora: form.is_diaspora,
+        ...(assigner ? { assigned_to: Number(form.assigned_to) || null } : {}),
       });
       saved('Fiche enregistrée'); onSaved();
     } catch (err) { setError(err); }
@@ -157,16 +163,20 @@ function LeadInfo({ lead, meta, write, onSaved }) {
             {meta && Object.entries(meta.financings).map(([k, v]) => <option key={k} value={k}>{v}</option>)}
           </select>
         </Field>
-        <Field label="Commercial">
-          <select className="select" value={form.assigned_to} onChange={set('assigned_to')}>
-            <option value="">— Non attribué —</option>
-            {meta?.sellers.map(u => <option key={u.id} value={u.id}>{u.name}</option>)}
-          </select>
+        <Field label="Commercial" hint={!assigner ? 'Changement : demande au responsable' : undefined}>
+          {assigner ? (
+            <select className="select" value={form.assigned_to} onChange={set('assigned_to')}>
+              <option value="">— Non attribué —</option>
+              {meta?.sellers.map(u => <option key={u.id} value={u.id}>{u.name}</option>)}
+            </select>
+          ) : <input className="input" readOnly value={lead.assigned_name || '— Non attribué —'} />}
         </Field>
         <Field label="Pays de résidence"><input className="input" value={form.country} onChange={set('country')} /></Field>
         <label className="checkbox" style={{ alignSelf: 'end', paddingBottom: 10 }}><input type="checkbox" checked={form.is_diaspora} onChange={set('is_diaspora')} />Diaspora</label>
       </fieldset>
-      {write && <div><button className="btn btn-sm btn-primary">Enregistrer la fiche</button></div>}
+      {write && <div className="row" style={{ gap: 8 }}><button className="btn btn-sm btn-primary">Enregistrer la fiche</button>{!assigner && <button type="button" className="btn btn-sm" onClick={() => setTransfer(true)}>Demander un transfert</button>}</div>}
+      <TransferRequests leadId={lead.id} onChange={onSaved} />
+      {transfer && <TransferModal lead={lead} onClose={() => setTransfer(false)} onDone={onSaved} />}
     </form>
   );
 }
@@ -397,6 +407,8 @@ const APPT_KINDS = { visite: 'Visite sur site', appel: 'Appel', bureau: 'Rendez-
 /** Planifie un rendez-vous (visite du site, appel, bureau, visio) ; une visite effectuée fait passer le prospect à « Visite ». */
 function ApptModal({ lead, onClose, onDone }) {
   const meta = useCommercialMeta();
+  const { can } = useAuth();
+  const team = can('leads:all'); // un commercial ne planifie que ses propres rendez-vous
   const [f, setF] = useState({ kind: 'visite', starts_at: toLocalInput(new Date(Date.now() + 2 * 864e5)), duration_min: 60, assigned_to: lead.assigned_to || '', notes: '' });
   const [error, setError] = useState(null);
   const set = k => e => setF(x => ({ ...x, [k]: e.target.value }));
@@ -405,7 +417,7 @@ function ApptModal({ lead, onClose, onDone }) {
     try {
       await api.post('/admin/appointments', {
         lead_id: lead.id, kind: f.kind, status: 'confirme', starts_at: new Date(f.starts_at).toISOString(), duration_min: Number(f.duration_min) || 60,
-        assigned_to: Number(f.assigned_to) || null, project_id: lead.project_id || null, lot_id: lead.lot_id || null, notes: f.notes || null,
+        ...(team ? { assigned_to: Number(f.assigned_to) || null } : {}), project_id: lead.project_id || null, lot_id: lead.lot_id || null, notes: f.notes || null,
       });
       onDone();
     } catch (err) { setError(err); }
@@ -419,12 +431,14 @@ function ApptModal({ lead, onClose, onDone }) {
         </Field>
         <Field label="Date et heure"><input className="input" type="datetime-local" required value={f.starts_at} onChange={set('starts_at')} /></Field>
         <Field label="Durée (minutes)"><input className="input" type="number" min="5" max="480" value={f.duration_min} onChange={set('duration_min')} /></Field>
-        <Field label="Commercial">
-          <select className="select" value={f.assigned_to} onChange={set('assigned_to')}>
-            <option value="">—</option>
-            {meta?.sellers.map(u => <option key={u.id} value={u.id}>{u.name}</option>)}
-          </select>
-        </Field>
+        {team && (
+          <Field label="Commercial">
+            <select className="select" value={f.assigned_to} onChange={set('assigned_to')}>
+              <option value="">—</option>
+              {meta?.sellers.map(u => <option key={u.id} value={u.id}>{u.name}</option>)}
+            </select>
+          </Field>
+        )}
         <Field label="Notes" className="full"><input className="input" value={f.notes} onChange={set('notes')} placeholder="Lieu de rendez-vous, documents à apporter…" /></Field>
       </form>
     </Modal>

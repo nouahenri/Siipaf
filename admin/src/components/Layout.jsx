@@ -32,7 +32,7 @@ const NAV = [
   { group: 'Administration', items: [
     { to: '/utilisateurs', label: 'Utilisateurs', icon: UserCog, perm: 'users:read' },
     { to: '/roles', label: 'Rôles & privilèges', icon: ShieldCheck, perm: 'users:read' },
-    { to: '/parametres', label: 'Paramètres', icon: SlidersHorizontal },
+    { to: '/parametres', label: 'Paramètres', icon: SlidersHorizontal, perm: 'projects:read' },
   ] },
 ];
 
