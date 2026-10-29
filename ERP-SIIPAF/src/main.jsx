@@ -44,6 +44,7 @@ import ComptaSettings from './pages/compta/Settings';
 import Employees from './pages/compta/Employees';
 import Payroll, { PayrollRun } from './pages/compta/Payroll';
 import Receipt from './pages/compta/Receipt';
+import ServiceRequests from './components/ServiceRequests';
 import RhDashboard from './pages/rh/RhDashboard';
 import MySpace from './pages/rh/MySpace';
 import Staff from './pages/rh/Staff';
@@ -80,7 +81,7 @@ function Settings({ module, perm, who, children }) {
 /** Entrée du module RH : le tableau de bord pour le service RH, « Mon espace » pour les autres. */
 function RhHome() {
   const { can } = useAuth();
-  return can('rh:read') ? <RhDashboard /> : <Navigate to="/rh/moi" replace />;
+  return can('rh:read') ? <div className="stack"><ServiceRequests service="rh" /><RhDashboard /></div> : <Navigate to="/rh/moi" replace />;
 }
 
 /** Entrée de l'Administration générale : la vue Direction, sinon la première partie ouverte au compte. */
@@ -98,7 +99,7 @@ function AdminHome() {
 /** Entrée du Juridique : le tableau de bord, sinon les litiges du juriste en charge ou du service concerné. */
 function JuridiqueHome() {
   const { can } = useAuth();
-  if (JURIDIQUE.some(can)) return <JuridiqueDashboard />;
+  if (JURIDIQUE.some(can)) return <div className="stack"><ServiceRequests service="juridique" /><JuridiqueDashboard /></div>;
   return <Navigate to={can('compta:read') ? '/juridique/cautions' : '/juridique/litiges'} replace />;
 }
 

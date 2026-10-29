@@ -8,7 +8,7 @@ import { today } from '../lib/rh';
 import PlacePicker from './PlacePicker';
 
 const URL = '/admin/erp/demandes';
-export const REQUEST_TONES = { attente_responsable: 'warn', attente_dg: 'warn', attente_sg: 'warn', en_cours: '', traitee: 'ok', refusee: 'danger', annulee: '' };
+export const REQUEST_TONES = { attente_responsable: 'warn', attente_dg: 'warn', attente_sg: 'warn', attente_achats: 'warn', commande: '', attente_service: 'warn', en_cours: '', traitee: 'ok', refusee: 'danger', annulee: '' };
 
 /** Mon espace : demandes internes (achat, équipement, intervention, prêt de matériel, autre) et leur avancement. */
 export default function MyRequests() {
@@ -45,7 +45,7 @@ export default function MyRequests() {
 function RequestForm({ onClose, onSaved }) {
   const toast = useToast();
   const refs = useResource(`${URL}/refs`);
-  const [f, setF] = useState({ kind: 'achat', kind_other: '', title: '', details: '', quantity: '', estimated_amount: '', site: { project_id: null, worksite_id: null, place_id: null }, location: '', needed_by: '', urgency: 'normale' });
+  const [f, setF] = useState({ kind: 'achat', service: '', kind_other: '', title: '', details: '', quantity: '', estimated_amount: '', site: { project_id: null, worksite_id: null, place_id: null }, location: '', needed_by: '', urgency: 'normale' });
   const [error, setError] = useState(null);
   const [busy, setBusy] = useState(false);
   const set = k => e => setF(x => ({ ...x, [k]: e.target.value }));
@@ -55,6 +55,7 @@ function RequestForm({ onClose, onSaved }) {
     try {
       const body = Object.fromEntries(Object.entries(f).map(([k, v]) => [k, v === '' ? null : v]));
       body.estimated_amount = body.estimated_amount == null ? null : Number(body.estimated_amount);
+      if (f.kind !== 'service') body.service = null;
       Object.assign(body, f.site);
       delete body.site;
       const r = await api.post(URL, body);
@@ -70,14 +71,15 @@ function RequestForm({ onClose, onSaved }) {
         <form id="request-form" className="form-grid" onSubmit={save}>
           <div className="full"><ErrorBox error={error} /></div>
           <Field label="Nature"><select className="select" value={f.kind} onChange={set('kind')}>{Object.entries(refs.data.kinds).map(([k, x]) => <option key={k} value={k}>{x.label}</option>)}</select></Field>
+          {f.kind === 'service' && <Field label="Service destinataire *" hint="La demande lui arrive directement, sans accord du responsable"><select className="select" required value={f.service} onChange={set('service')}><option value="">Choisir le service…</option>{Object.entries(refs.data.services || {}).map(([k, l]) => <option key={k} value={k}>{l}</option>)}</select></Field>}
           {f.kind === 'autre' ? <Field label="Précisez"><input className="input" required maxLength={100} value={f.kind_other} onChange={set('kind_other')} placeholder="Badge, cartes de visite, accès…" /></Field>
             : <Field label="Urgence"><select className="select" value={f.urgency} onChange={set('urgency')}><option value="normale">Normale</option><option value="urgente">Urgente</option></select></Field>}
-          <Field label="Objet" className="full"><input className="input" required minLength={3} maxLength={200} value={f.title} onChange={set('title')} placeholder="Ramettes de papier, climatiseur en panne, groupe électrogène pour le chantier…" /></Field>
+          <Field label="Objet" className="full"><input className="input" required minLength={3} maxLength={200} value={f.title} onChange={set('title')} placeholder={f.kind === 'service' ? 'Attestation de travail, avis sur un contrat, relevé de compte client…' : 'Ramettes de papier, climatiseur en panne, groupe électrogène pour le chantier…'} /></Field>
           <Field label="Détails" className="full"><textarea className="textarea" rows={3} maxLength={4000} value={f.details} onChange={set('details')} /></Field>
-          <Field label="Quantité"><input className="input" maxLength={60} value={f.quantity} onChange={set('quantity')} placeholder="10 cartons, 2 unités…" /></Field>
+          {f.kind !== 'service' && <><Field label="Quantité"><input className="input" maxLength={60} value={f.quantity} onChange={set('quantity')} placeholder="10 cartons, 2 unités…" /></Field>
           <Field label={kind?.purchase ? 'Montant estimé (FCFA)' : 'Montant estimé (facultatif)'} hint={over ? `Au-delà de ${fcfa(refs.data.threshold)} : validation de la direction générale` : undefined}>
             <input className="input" type="number" min="0" required={!!kind?.purchase} value={f.estimated_amount} onChange={set('estimated_amount')} />
-          </Field>
+          </Field></>}
           <Field label="Pour" hint="Programme, chantier ou lieu ; vide : siège social"><PlacePicker value={f.site} onChange={v => setF(x => ({ ...x, site: v }))} /></Field>
           <Field label="Lieu"><input className="input" maxLength={120} value={f.location} onChange={set('location')} placeholder="Siège, bureau 3, dépôt…" /></Field>
           <Field label="Pour le"><input className="input" type="date" min={today()} value={f.needed_by} onChange={set('needed_by')} /></Field>

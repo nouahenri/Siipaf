@@ -1212,14 +1212,27 @@ const REQUEST_KINDS = {
   equipement: { label: 'Équipement pour le bureau ou le chantier', purchase: true },
   intervention: { label: 'Intervention / dépannage', purchase: false },
   materiel: { label: 'Prêt de matériel', purchase: false },
+  service: { label: 'Demande à un service', purchase: false, service: true },
   autre: { label: 'Autre demande', purchase: false },
+};
+/**
+ * Services destinataires d'une « demande à un service » (29/10) : comptes qui la traitent (droits) et module où elle
+ * s'affiche (carte « Demandes reçues »). L'Administration générale passe par les services généraux (attente_sg).
+ */
+const REQUEST_SERVICES = {
+  rh: { label: 'Ressources humaines', perms: ['rh:files'], module: 'rh', link: '/rh' },
+  commercial: { label: 'Service commercial', perms: ['leads:assign'], module: 'commercial', link: '/commercial' },
+  sav: { label: 'Client & SAV', perms: ['sav:handle'], module: 'sav', link: '/sav' },
+  compta: { label: 'Comptabilité', perms: ['compta:entries', 'achats:write'], module: 'compta', link: '/compta' },
+  juridique: { label: 'Juridique', perms: ['juridique:write'], module: 'juridique', link: '/juridique' },
+  administration: { label: 'Administration générale (services généraux)', perms: ['demandes:handle'], module: 'administration', link: '/administration/demandes' },
 };
 const REQUEST_STATUSES = {
   attente_responsable: 'En attente du responsable', attente_dg: 'En attente de la DG', attente_sg: 'À traiter (services généraux)',
-  attente_achats: 'À traiter (Achats)', commande: 'Commandée (Achats)',
+  attente_achats: 'À traiter (Achats)', commande: 'Commandée (Achats)', attente_service: 'À traiter (service destinataire)',
   en_cours: 'En cours de traitement', traitee: 'Traitée', refusee: 'Refusée', annulee: 'Annulée',
 };
-const REQUEST_OPEN = ['attente_responsable', 'attente_dg', 'attente_sg', 'attente_achats', 'commande', 'en_cours'];
+const REQUEST_OPEN = ['attente_responsable', 'attente_dg', 'attente_sg', 'attente_achats', 'commande', 'attente_service', 'en_cours'];
 const REQUEST_DG_THRESHOLD = 500000;
 
 /** La direction générale valide les achats (et équipements) dont le montant estimé atteint le plafond. */
@@ -1230,6 +1243,8 @@ const requestNeedsDg = (r, threshold) => !!REQUEST_KINDS[r.kind]?.purchase && Nu
  * services généraux. `from` : l'étape franchie (null à la création). Une étape sans valideur est sautée.
  */
 function requestNextStep(r, { from = null, hasManager, threshold }) {
+  // Demande à un service : directement au service (sans accord du responsable) ; l'Administration générale = services généraux
+  if (REQUEST_KINDS[r.kind]?.service) return r.service === 'administration' ? 'attente_sg' : 'attente_service';
   // Achat ou équipement : traité par les Achats (bon de commande → réception → facture), le reste par les services généraux
   const last = REQUEST_KINDS[r.kind]?.purchase ? 'attente_achats' : 'attente_sg';
   const steps = ['attente_responsable', 'attente_dg', last];
@@ -1673,7 +1688,7 @@ module.exports = {
   DEED_STEPS, DEED_STEP_KEYS, deedProgress, deedStepRefusal, LITIGATION_ORIGINS, LITIGATION_STAGES, LITIGATION_OUTCOMES, litigationReminder,
   GUARANTEE_DIRECTIONS, DEFAULT_GUARANTEE_KINDS, GUARANTEE_STATUSES, guaranteeDeadline, LEGAL_SETTINGS, unpaidAge, LEGAL_ACTIONS,
   DOC_KINDS, DOC_AUDIENCES, DOC_STATUSES, DOC_ACTION_STATUSES, docReference, readReminder,
-  REQUEST_KINDS, REQUEST_STATUSES, REQUEST_OPEN, REQUEST_DG_THRESHOLD, requestNeedsDg, requestNextStep, DOCS_ACTIONS, REQUEST_ACTIONS,
+  REQUEST_KINDS, REQUEST_SERVICES, REQUEST_STATUSES, REQUEST_OPEN, REQUEST_DG_THRESHOLD, requestNeedsDg, requestNextStep, DOCS_ACTIONS, REQUEST_ACTIONS,
   ASSET_KINDS, ASSET_STATUSES, ASSET_ASSIGNMENT_KINDS, ASSET_DOC_KINDS, ASSET_COST_KINDS, RESERVATION_STATUSES, MAINTENANCE_SOON, PARC_ACTIONS,
   assetCode, maintenanceDue, fuelConsumption, reservationsOverlap,
   ASSET_PAYMENT_MODES, COST_ACCOUNTING_STATUSES, costAccountingStatus, depreciationAt, depreciationFor, addDays,

@@ -59,7 +59,7 @@ export default function Demandes() {
   );
 }
 
-function RequestDrawer({ id, refs, onClose, onChange }) {
+export function RequestDrawer({ id, refs, onClose, onChange }) {
   const toast = useToast();
   const x = useResource(`${URL}/${id}`);
   const r = x.data;
@@ -90,9 +90,10 @@ function RequestDrawer({ id, refs, onClose, onChange }) {
 
           <div className="erp-panel">
             <b>Circuit</b>
-            <div className="kv"><span>Responsable direct</span><b>{r.manager_name ? `${r.manager_name}${r.manager_at ? ` · validé le ${dateTime(r.manager_at)}` : ''}` : 'aucun (étape sautée)'}</b></div>
+            {r.kind === 'service' ? <div className="kv"><span>Adressée à</span><b>{r.service_label} (sans accord du responsable)</b></div>
+              : <div className="kv"><span>Responsable direct</span><b>{r.manager_name ? `${r.manager_name}${r.manager_at ? ` · validé le ${dateTime(r.manager_at)}` : ''}` : 'aucun (étape sautée)'}</b></div>}
             {(r.dg_at || r.status === 'attente_dg') && <div className="kv"><span>Direction générale</span><b>{r.dg_at ? `validé le ${dateTime(r.dg_at)}` : 'en attente'}</b></div>}
-            <div className="kv"><span>Services généraux</span><b>{r.handled_by_name ? `${r.handled_by_name}${r.closed_at ? ` · clos le ${dateTime(r.closed_at)}` : ''}` : '—'}</b></div>
+            <div className="kv"><span>{r.kind === 'service' && r.service !== 'administration' ? 'Traitée par' : 'Services généraux'}</span><b>{r.handled_by_name ? `${r.handled_by_name}${r.closed_at ? ` · clos le ${dateTime(r.closed_at)}` : ''}` : '—'}</b></div>
             {r.decision_note && <div className="kv"><span>{r.status === 'refusee' ? 'Motif' : 'Réponse'}</span><b>{r.decision_note}</b></div>}
             {r.invoice_number && <div className="kv"><span>Facture d’achat</span><b><Receipt style={{ width: 14, height: 14, verticalAlign: -2 }} /> {r.invoice_number} · {r.supplier_name} · {fcfa(r.final_amount)} (brouillon à valider en Comptabilité)</b></div>}
           </div>
@@ -106,7 +107,7 @@ function RequestDrawer({ id, refs, onClose, onChange }) {
               </div>
             </div>
           )}
-          {r.rights.handle && r.status === 'attente_sg' && <button className="btn btn-primary" style={{ alignSelf: 'start' }} disabled={busy} onClick={() => call('prendre', {}, 'Demande prise en charge')}><Hand />Prendre en charge</button>}
+          {r.rights.handle && ['attente_sg', 'attente_service'].includes(r.status) && <button className="btn btn-primary" style={{ alignSelf: 'start' }} disabled={busy} onClick={() => call('prendre', {}, 'Demande prise en charge')}><Hand />Prendre en charge</button>}
           {r.rights.handle && !closing && <button className="btn" style={{ alignSelf: 'start' }} onClick={() => setClosing(true)}><CheckCheck />Clôturer</button>}
           {closing && <ClosePanel r={r} refs={refs} busy={busy} onCancel={() => setClosing(false)} onSubmit={body => call('cloturer', body, body.outcome === 'refusee' ? 'Demande refusée' : body.invoice ? 'Demande traitée — facture d’achat préparée' : 'Demande traitée')} />}
         </div>

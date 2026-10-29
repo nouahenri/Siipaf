@@ -6,6 +6,7 @@ import { LineChart, BarList, useCountUp } from '@admin/components/Charts';
 import { dateTime, relative, num } from '@admin/lib/format';
 import { useSavMeta, Priority } from '../../components/SavBits';
 import { STATUS_COLORS } from '../../lib/sav';
+import ServiceRequests from '../../components/ServiceRequests';
 
 const Kpi = ({ icon: Icon, label, count, format = num, foot, to, tint }) => {
   const animated = useCountUp(count ?? 0);
@@ -35,6 +36,7 @@ export default function SavDashboard() {
 
   return (
     <div className="stack">
+      <ServiceRequests service="sav" />
       <div className="grid grid-4">
         <Kpi icon={ClipboardList} label="Réclamations ouvertes" count={s.open} to="/sav/reclamations?open=1" tint="blue" foot={`${s.urgent} haute ou urgente`} />
         <Kpi icon={AlarmClock} label="En retard sur l’échéance" count={s.overdue} to="/sav/reclamations?overdue=1" tint={s.overdue ? 'amber' : undefined} foot="délai de la priorité dépassé" />

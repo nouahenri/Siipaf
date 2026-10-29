@@ -3,7 +3,7 @@ const express = require('express');
 const { z } = require('zod');
 const { ah, parse, idParam, HttpError } = require('../../lib/http');
 const { requirePermission } = require('../../auth');
-const { REQUEST_KINDS, REQUEST_STATUSES } = require('../../lib/domain');
+const { REQUEST_KINDS, REQUEST_SERVICES, REQUEST_STATUSES } = require('../../lib/domain');
 const { getSetting } = require('../../services/settings');
 const requests = require('../../services/requests');
 
@@ -16,7 +16,7 @@ module.exports = function requestRoutes(db) {
   r.get('/refs', ah(async (req, res) => {
     const handle = req.can('demandes:handle');
     res.json({
-      kinds: REQUEST_KINDS, statuses: REQUEST_STATUSES, threshold: await getSetting(db, 'request_dg_threshold'),
+      kinds: REQUEST_KINDS, statuses: REQUEST_STATUSES, services: Object.fromEntries(Object.entries(REQUEST_SERVICES).map(([k, s]) => [k, s.label])), threshold: await getSetting(db, 'request_dg_threshold'),
       projects: await db('projects').orderBy('name').select('id', 'name'),
       suppliers: handle ? await db('suppliers').where({ active: true }).orderBy('name').select('id', 'name') : [],
     });
@@ -33,7 +33,7 @@ module.exports = function requestRoutes(db) {
     const { reason } = parse(z.object({ reason: z.string().trim().min(3, 'Indiquez le motif du refus.').max(255) }), req.body);
     res.json(await appro.approveOrder(db, idParam(req), { userId: req.user.id, superAdmin: req.user.role === 'super_admin', can: req.can }, { refuse: true, reason }));
   }));
-  r.get('/', ah(async (req, res) => res.json(await requests.list(db, v(req), { scope: String(req.query.scope || 'mine'), status: req.query.status || null }))));
+  r.get('/', ah(async (req, res) => res.json(await requests.list(db, v(req), { scope: String(req.query.scope || 'mine'), status: req.query.status || null, service: req.query.service ? String(req.query.service) : null }))));
 
   r.post('/', requirePermission('self:demandes'), ah(async (req, res) => {
     const data = parse(z.object({
@@ -42,6 +42,7 @@ module.exports = function requestRoutes(db) {
       estimated_amount: z.number().int().min(0).nullable().optional(), project_id: z.number().int().positive().nullable().optional(),
       worksite_id: z.number().int().positive().nullable().optional(), place_id: z.number().int().positive().nullable().optional(),
       location: z.string().trim().max(120).nullable().optional(), needed_by: day.nullable().optional(), urgency: z.enum(['normale', 'urgente']).optional(),
+      service: z.enum(Object.keys(REQUEST_SERVICES)).nullable().optional(),
     }), req.body);
     const id = await requests.create(db, data, { user: req.user });
     const row = await requests.load(db, id);

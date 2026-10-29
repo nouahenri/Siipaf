@@ -97,6 +97,8 @@ test('coûts réels du chantier : achats, parc et main-d’œuvre pointée ; ale
 
   await conducteur.post(`${W}/${worksite.id}/budget`).send({ category: 'materiaux', label: 'Ciment', amount_fcfa: 2500000 });
   res = await conducteur.get(`${W}/${worksite.id}`);
+  assert.deepEqual((({ hours, rate, amount_fcfa }) => [hours, rate, amount_fcfa])(res.body.costs.labor.find(l => l.employee_id === daily)), [8, null, null], 'taux et coût masqués sans le droit « Consulter la paie » (audit du 29/10)');
+  res = await admin.get(`${W}/${worksite.id}`);
   const c = res.body.costs;
   assert.equal(c.by_category.materiaux, 2000000, 'facture de ciment HT');
   const labor = c.labor.find(l => l.employee_id === daily);

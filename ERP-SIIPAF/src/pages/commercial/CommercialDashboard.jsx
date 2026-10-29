@@ -5,6 +5,7 @@ import { Card, Skeleton, Empty } from '@admin/components/ui';
 import { LineChart, BarList, useCountUp } from '@admin/components/Charts';
 import { fcfa, num } from '@admin/lib/format';
 import { useCommercialMeta, compact, STAGE_COLORS, monthName } from '../../lib/commercial';
+import ServiceRequests from '../../components/ServiceRequests';
 
 export const trendOf = (now, before) => (before ? Math.round(((now - before) / before) * 1000) / 10 : null);
 const Trend = ({ value }) => {
@@ -35,6 +36,7 @@ export default function CommercialDashboard() {
   return (
     <div className="stack">
       <p className="muted">Activité de {monthName(d.month)}.</p>
+      <ServiceRequests service="commercial" />
       <div className="grid grid-4">
         <Kpi icon={Percent} label="Taux de conversion" count={c.conversion_pct ?? null} format={v => `${String(v).replace('.', ',')} %`} trend={c.conversion_pct != null && p.conversion_pct != null ? Math.round((c.conversion_pct - p.conversion_pct) * 10) / 10 : null} foot={`${c.clients.net} nouveau(x) client(s) pour ${c.prospects.brut - c.prospects.transferes} prospect(s) reçu(s) ce mois`} tint="green" />
         <Kpi icon={Banknote} label="Chiffre d’affaires signé" count={c.ca_fcfa} format={v => `${compact(v)} FCFA`} trend={trendOf(c.ca_fcfa, p.ca_fcfa)} foot="dossiers ouverts ce mois" tint="blue" to="/commercial/ventes" />

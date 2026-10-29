@@ -6,11 +6,12 @@
  * Règles dans lib/domain.js (REQUEST_*, requestNextStep).
  */
 const { HttpError, isoDay, isoTime } = require('../lib/http');
-const { REQUEST_KINDS, REQUEST_STATUSES, REQUEST_OPEN, requestNextStep, requestNeedsDg } = require('../lib/domain');
+const { REQUEST_KINDS, REQUEST_SERVICES, REQUEST_STATUSES, REQUEST_OPEN, requestNextStep, requestNeedsDg } = require('../lib/domain');
 const { splitVat } = require('../lib/compta');
 const { nextPurchaseNumber } = require('./compta');
 const { getSetting } = require('./settings');
 const { notify, resolve, usersWith, inform } = require('./notifications');
+const usersWithAny = async (db, perms) => [...new Map((await Promise.all(perms.map(p => usersWith(db, p)))).flat().map(u => [u.id, u])).values()];
 
 const insertedId = r => (typeof r === 'object' ? r.id : r);
 
@@ -20,7 +21,8 @@ const query = db => db('internal_requests as r').join('users as u', 'u.id', 'r.r
   .select('r.*', 'o.reference as order_reference', 'u.name as requested_by_name', 'm.name as manager_name', 'h.name as handled_by_name', 'p.name as project_name', 'w.reference as worksite_reference', 'w.name as worksite_name', 'pl.name as place_name', 's.name as supplier_name', 'i.number as invoice_number');
 
 const serialize = r => ({
-  ...r, kind_label: r.kind === 'autre' && r.kind_other ? r.kind_other : REQUEST_KINDS[r.kind]?.label || r.kind, status_label: REQUEST_STATUSES[r.status],
+  ...r, kind_label: r.kind === 'autre' && r.kind_other ? r.kind_other : r.kind === 'service' && REQUEST_SERVICES[r.service] ? `Demande à : ${REQUEST_SERVICES[r.service].label}` : REQUEST_KINDS[r.kind]?.label || r.kind,
+  status_label: r.status === 'attente_service' && REQUEST_SERVICES[r.service] ? `À traiter (${REQUEST_SERVICES[r.service].label})` : REQUEST_STATUSES[r.status], service_label: REQUEST_SERVICES[r.service]?.label || null,
   needed_by: isoDay(r.needed_by), estimated_amount: r.estimated_amount == null ? null : Number(r.estimated_amount), final_amount: r.final_amount == null ? null : Number(r.final_amount),
   manager_at: isoTime(r.manager_at), dg_at: isoTime(r.dg_at), handled_at: isoTime(r.handled_at), closed_at: isoTime(r.closed_at), created_at: isoTime(r.created_at),
   purchase: !!REQUEST_KINDS[r.kind]?.purchase, open: REQUEST_OPEN.includes(r.status),
@@ -32,8 +34,18 @@ async function load(db, id) {
   return r;
 }
 
+/** Le compte traite les demandes adressées à ce service (droits de REQUEST_SERVICES). */
+const servesFor = (service, v) => !!REQUEST_SERVICES[service] && (v.superAdmin || REQUEST_SERVICES[service].perms.some(p => v.can(p)));
+
 /** Ce que le compte peut faire sur la demande à son étape. */
 function rights(r, { userId, can, superAdmin }) {
+  if (r.kind === 'service' && r.service !== 'administration') {
+    return {
+      approve: false,
+      handle: servesFor(r.service, { can, superAdmin }) && ['attente_service', 'en_cours'].includes(r.status) && (r.requested_by !== userId || superAdmin),
+      cancel: r.requested_by === userId && r.status === 'attente_service',
+    };
+  }
   return {
     // Personne ne valide ni ne traite sa propre demande (audit du 29/10), sauf le super administrateur
     approve: (r.status === 'attente_responsable' && (r.manager_user_id === userId || superAdmin)) || (r.status === 'attente_dg' && can('demandes:dg') && (r.requested_by !== userId || superAdmin)),
@@ -42,6 +54,7 @@ function rights(r, { userId, can, superAdmin }) {
   };
 }
 const canSee = (r, v) => r.requested_by === v.userId || r.manager_user_id === v.userId || v.can('demandes:handle') || v.can('demandes:dg') || v.superAdmin
+  || (r.kind === 'service' && servesFor(r.service, v))
   || (REQUEST_KINDS[r.kind]?.purchase && v.can('appro:read'));
 
 /** Prévient le ou les valideurs de l'étape où se trouve la demande. */
@@ -56,6 +69,9 @@ async function notifyStep(db, r, except) {
   } else if (r.status === 'attente_achats') {
     // Besoin d'un service : les Achats le commandent (circuit réglable dans Administration générale › Circuit d'information)
     await inform(db, 'demande.achat', { except, key: `demande:${r.id}:achats`, priority: base.priority, title: `Besoin à commander : ${r.reference}`, body: `${what} — ${r.requested_by_name}`, link: '/achats/besoins?onglet=services' });
+  } else if (r.status === 'attente_service' && REQUEST_SERVICES[r.service]) {
+    const svc = REQUEST_SERVICES[r.service];
+    await notify(db, { ...base, module: svc.module, link: svc.link, to: await usersWithAny(db, svc.perms), event: 'demande.service', title: `Demande reçue : ${r.title}`, body: `${r.requested_by_name} — ${r.reference}`, key: `demande:${r.id}:service` });
   } else if (r.status === 'attente_sg') {
     await notify(db, { ...base, to: await usersWith(db, 'demandes:handle'), event: 'demande.sg', title: `Demande à traiter : ${r.reference}`, body: `${what} — ${r.requested_by_name}`, key: `demande:${r.id}:sg` });
   }
@@ -68,6 +84,8 @@ async function notifyRequester(db, r, title, body, except) {
 async function create(db, data, { user }) {
   if (!REQUEST_KINDS[data.kind]) throw new HttpError(400, 'Sorte de demande inconnue.');
   if (data.kind === 'autre' && !data.kind_other) throw new HttpError(400, 'Précisez la nature de la demande.');
+  if (data.kind === 'service' && !REQUEST_SERVICES[data.service]) throw new HttpError(400, 'Choisissez le service destinataire.');
+  if (data.kind !== 'service') data.service = null;
   if (REQUEST_KINDS[data.kind].purchase && !data.estimated_amount) throw new HttpError(400, 'Achat : indiquez le montant estimé.');
   data = { ...data, ...(await require('./lieux').placeFields(db, data)) };
   // Responsable direct de la fiche RH (jamais soi-même)
@@ -116,9 +134,9 @@ async function decide(db, r, { approve, note }, v) {
 
 /** Prise en charge par les services généraux. */
 async function take(db, r, v) {
-  if (!rights(r, v).handle || r.status !== 'attente_sg') throw new HttpError(409, 'Cette demande n’est pas à prendre en charge.');
+  if (!rights(r, v).handle || !['attente_sg', 'attente_service'].includes(r.status)) throw new HttpError(409, 'Cette demande n’est pas à prendre en charge.');
   await db('internal_requests').where({ id: r.id }).update({ status: 'en_cours', handled_by: v.userId, handled_at: new Date(), updated_at: new Date() });
-  await resolve(db, `demande:${r.id}:sg`);
+  await resolve(db, `demande:${r.id}:${r.status === 'attente_service' ? 'service' : 'sg'}`);
   const fresh = await load(db, r.id);
   await notifyRequester(db, fresh, `Demande prise en charge : ${r.title}`, `Par ${(await db('users').where({ id: v.userId }).first('name')).name}`, v.userId);
   return fresh;
@@ -183,7 +201,7 @@ async function cancel(db, r, v) {
 }
 
 /** Liste : `scope` mine (mes demandes), approve (à valider par moi), handle (services généraux), all. */
-async function list(db, v, { scope = 'mine', status = null } = {}) {
+async function list(db, v, { scope = 'mine', status = null, service = null } = {}) {
   const q = query(db).orderBy('r.created_at', 'desc').limit(1000);
   if (scope === 'mine') q.where('r.requested_by', v.userId);
   else if (scope === 'approve') {
@@ -191,6 +209,9 @@ async function list(db, v, { scope = 'mine', status = null } = {}) {
       w.where(x => x.where('r.status', 'attente_responsable').where('r.manager_user_id', v.userId));
       if (v.can('demandes:dg')) w.orWhere('r.status', 'attente_dg');
     });
+  } else if (scope === 'service') {
+    if (!servesFor(service, v) || service === 'administration') throw new HttpError(403, 'Droits insuffisants.');
+    q.where({ 'r.kind': 'service', 'r.service': service }).whereIn('r.status', ['attente_service', 'en_cours']);
   } else if (scope === 'handle') {
     if (!v.can('demandes:handle')) throw new HttpError(403, 'Droits insuffisants.');
     q.whereIn('r.status', ['attente_sg', 'en_cours']);
