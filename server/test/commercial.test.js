@@ -132,6 +132,9 @@ test('VEFA : appels de fonds émis selon l’avancement du chantier', async () =
   assert.equal(res.status, 200, JSON.stringify(res.body));
 
   res = await commercial.post(`/api/admin/lots/${lots[0].id}/sale`).send({ lead_id: lead.id, vefa: true, signed_at: '2026-09-01' });
+  assert.equal(res.status, 403, 'la date de l’acte relève du Juridique');
+  // Acte déjà daté : ouverture par un compte qui a le droit Juridique (ici l'administrateur), dossier du commercial
+  res = await admin.post(`/api/admin/lots/${lots[0].id}/sale`).send({ lead_id: lead.id, vefa: true, signed_at: '2026-09-01' });
   assert.equal(res.status, 201, JSON.stringify(res.body));
   sale = res.body;
   assert.equal(sale.schedule.vefa, true);

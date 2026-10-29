@@ -29,11 +29,11 @@ module.exports = function commercialRoutes(db) {
   // Les appels de fonds se consultent avec le module ou avec le droit de les gérer (conducteur de travaux)
   const vefaRead = (req, res, next) => (req.can('commercial:read') || req.can('vefa:write') ? next() : next(new HttpError(403, 'Droits insuffisants.')));
 
-  async function ownLead(req, id = idParam(req)) {
-    const lead = await cm.scopeLeads(db('leads as ld'), req.user).where('ld.id', id).select('ld.*').first();
-    if (!lead) throw new HttpError(404, 'Prospect introuvable.');
-    return lead;
-  }
+  const ownLead = (req, id = idParam(req)) => cm.leadInScope(db, id, req.user);
+  // Une activité ne se confie à un collègue qu'avec la portée « toute l'équipe »
+  const checkAssignee = (req, assignedTo) => {
+    if (assignedTo && assignedTo !== req.user.id && !cm.seesAllLeads(req.user)) throw new HttpError(403, 'Un commercial ne confie pas une activité à un collègue.');
+  };
 
   // ─── Référentiels ─────────────────────────────────────────
   r.get('/meta', vefaRead, ah(async (req, res) => {
@@ -95,8 +95,9 @@ module.exports = function commercialRoutes(db) {
       project_id: z.number().int().positive().nullable(), lot_id: z.number().int().positive().nullable(),
       assigned_to: z.number().int().positive().nullable(),
     }).partial(), req.body);
-    if (!cm.seesAllLeads(req.user) && data.assigned_to && data.assigned_to !== req.user.id) {
-      throw new HttpError(403, 'Un commercial ne peut attribuer un prospect qu’à lui-même.');
+    // Changer de commercial : responsable seulement (leads:assign), sinon demande de transfert
+    if ('assigned_to' in data && (data.assigned_to || null) !== (lead.assigned_to || null) && !cm.canAssignLeads(req.user)) {
+      throw new HttpError(403, 'Seul le responsable change le commercial d’un prospect ou d’un client : faites une demande de transfert.');
     }
     await db.transaction(async trx => {
       await trx('leads').where({ id: lead.id }).update({ ...data, updated_at: new Date() });
@@ -139,12 +140,13 @@ module.exports = function commercialRoutes(db) {
   r.post('/leads/:id/activities', read, requirePermission('leads:write'), ah(async (req, res) => {
     const lead = await ownLead(req);
     const data = parse(z.object(activityFields), req.body);
+    checkAssignee(req, data.assigned_to);
     if (data.kind !== 'note' && !data.due_at) throw new HttpError(400, 'Indiquez la date de l’activité.');
     // Une note s'inscrit directement dans l'historique
     const row = {
       lead_id: lead.id, kind: data.kind, summary: data.summary || ACTIVITY_KINDS[data.kind], note: data.note,
       due_at: data.due_at ? new Date(data.due_at) : null, done_at: data.kind === 'note' ? new Date() : null,
-      assigned_to: data.assigned_to || lead.assigned_to || req.user.id, created_by: req.user.id,
+      assigned_to: data.assigned_to || (cm.seesAllLeads(req.user) ? lead.assigned_to : null) || req.user.id, created_by: req.user.id,
     };
     if (data.kind === 'note' && !data.note) throw new HttpError(400, 'Note vide.');
     const [id] = await db('lead_activities').insert(row);
@@ -168,6 +170,7 @@ module.exports = function commercialRoutes(db) {
       next: z.object(activityFields).optional(),
     }), req.body);
     if (data.next && !data.next.due_at) throw new HttpError(400, 'Indiquez la date de l’activité suivante.');
+    checkAssignee(req, data.next?.assigned_to);
     await db.transaction(async trx => {
       await trx('lead_activities').where({ id: a.id }).update({ done_at: new Date(), outcome: data.outcome, created_by: a.created_by || req.user.id, updated_at: new Date() });
       if (data.next) {
@@ -184,6 +187,7 @@ module.exports = function commercialRoutes(db) {
   r.patch('/activities/:id', read, requirePermission('leads:write'), ah(async (req, res) => {
     const a = await ownActivity(req);
     const data = parse(z.object(activityFields).partial(), req.body);
+    checkAssignee(req, data.assigned_to);
     const patch = { ...data, updated_at: new Date() };
     if (data.due_at) patch.due_at = new Date(data.due_at);
     await db('lead_activities').where({ id: a.id }).update(patch);
@@ -212,18 +216,23 @@ module.exports = function commercialRoutes(db) {
         .leftJoin('lot_options as o', b => b.on('o.lot_id', 'l.id').andOn('o.state', db.raw('?', ['active']))).leftJoin('leads as ol', 'ol.id', 'o.lead_id')
         .where('l.project_id', projectId)
         .select('l.id', 'l.code', 'l.ilot', 'l.status', 'l.price_fcfa', 'l.surface_m2', 'l.property_type_id', 'pt.label as property_type', 'l.building_id', 'l.floor', 'l.rooms',
-          'l.title_number', 'l.tantiemes', 's.id as sale_id', 's.vefa', 's.price_fcfa as sale_price_fcfa', 'ld.name as buyer_name',
-          'o.expires_at as option_expires_at', 'ol.name as option_lead_name',
+          'l.title_number', 'l.tantiemes', 's.id as sale_id', 's.vefa', 's.price_fcfa as sale_price_fcfa', 'ld.name as buyer_name', 'ld.assigned_to as buyer_owner',
+          'o.expires_at as option_expires_at', 'ol.name as option_lead_name', 'ol.assigned_to as option_owner',
           db.raw('(select coalesce(sum(p.amount_fcfa), 0) from payments p where p.sale_id = s.id) as paid_fcfa')),
       vefa.getPlan(db, projectId),
     ]);
     const stock = lots.filter(l => ['disponible', 'desistement'].includes(l.status));
     res.json({
       project, buildings, vefa_plan: plan,
-      lots: lots.map(l => ({
-        ...l, price_fcfa: l.price_fcfa == null ? null : Number(l.price_fcfa), surface_m2: l.surface_m2 == null ? null : Number(l.surface_m2), vefa: !!l.vefa,
-        paid_fcfa: l.sale_id ? Number(l.paid_fcfa) : null, sale_price_fcfa: l.sale_price_fcfa == null ? null : Number(l.sale_price_fcfa),
-      })),
+      lots: lots.map(({ buyer_owner, option_owner, ...l }) => {
+        const buyer = req.can('sales:read') && (cm.seesAllLeads(req.user) || buyer_owner === req.user.id);
+        const optionLead = req.can('sales:read') && (cm.seesAllLeads(req.user) || option_owner === req.user.id);
+        return {
+          ...l, price_fcfa: l.price_fcfa == null ? null : Number(l.price_fcfa), surface_m2: l.surface_m2 == null ? null : Number(l.surface_m2), vefa: !!l.vefa,
+          buyer_name: buyer ? l.buyer_name : null, option_lead_name: optionLead ? l.option_lead_name : null,
+          paid_fcfa: buyer && l.sale_id ? Number(l.paid_fcfa) : null, sale_price_fcfa: buyer && l.sale_price_fcfa != null ? Number(l.sale_price_fcfa) : null,
+        };
+      }),
       summary: {
         lots: lots.length,
         by_status: lots.reduce((o, l) => ({ ...o, [l.status]: (o[l.status] || 0) + 1 }), {}),
@@ -327,7 +336,7 @@ module.exports = function commercialRoutes(db) {
 
   const salesQuery = () => db('sales as s').join('lots as l', 'l.id', 's.lot_id').join('projects as p', 'p.id', 'l.project_id')
     .join('leads as ld', 'ld.id', 's.lead_id').leftJoin('users as u', 'u.id', 'ld.assigned_to')
-    .select('s.*', 'l.code as lot_code', 'l.ilot', 'l.project_id', 'p.name as project_name', 'ld.name as client_name', 'ld.client_code', 'u.name as assigned_name');
+    .select('s.*', 'l.code as lot_code', 'l.ilot', 'l.project_id', 'p.name as project_name', 'ld.name as client_name', 'ld.client_code', 'ld.assigned_to', 'u.name as assigned_name');
 
   r.get('/sales', read, requirePermission('sales:read'), ah(async (req, res) => {
     const q = cm.scopeLeads(salesQuery(), req.user);
@@ -374,7 +383,9 @@ module.exports = function commercialRoutes(db) {
 
   // Liste des appels de fonds (émis et à venir) avec leur état de paiement
   r.get('/vefa/calls', vefaRead, ah(async (req, res) => {
+    const named = req.can('sales:read');
     const q = salesQuery().where('s.vefa', true).whereIn('s.status', ['en_cours', 'solde']);
+    if (named && !req.can('vefa:write')) cm.scopeLeads(q, req.user);
     if (req.query.project_id) q.where('l.project_id', Number(req.query.project_id));
     const sales = await q.orderBy('s.id');
     const rows = [];
@@ -384,8 +395,9 @@ module.exports = function commercialRoutes(db) {
       for (const c of st.calls) {
         const line = lineBy[c.seq];
         rows.push({
-          ...c, sale_id: s.id, lot_code: s.lot_code, ilot: s.ilot, project_name: s.project_name, client_name: s.client_name, client_code: s.client_code,
-          payment_status: c.status === 'appele' ? line?.status || 'a_venir' : null, paid_fcfa: line ? line.paid_fcfa ?? null : null,
+          ...c, sale_id: s.id, lot_code: s.lot_code, ilot: s.ilot, project_name: s.project_name,
+          ...(named && (cm.seesAllLeads(req.user) || s.assigned_to === req.user.id) ? { client_name: s.client_name, client_code: s.client_code } : { client_name: null, client_code: null }),
+          payment_status: c.status === 'appele' ? line?.status || 'a_venir' : null, paid_fcfa: named && line ? line.paid_fcfa ?? null : null,
         });
       }
     }

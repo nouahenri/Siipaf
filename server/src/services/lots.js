@@ -102,7 +102,7 @@ async function changeLotStatus(db, { lotId, to, user, leadId = null, reason = nu
  * Pose une option (pré-réservation) sur un lot pour un prospect.
  * Règles : lot commercialisable, pas d'option active sur ce lot, une seule option active par prospect.
  */
-async function placeOption(db, { lotId, leadData, userId = null }) {
+async function placeOption(db, { lotId, leadData, userId = null, user = null }) {
   return db.transaction(async trx => {
     const lot = await trx('lots').where({ id: lotId }).first();
     if (!lot) throw new HttpError(404, 'Lot introuvable.');
@@ -110,6 +110,13 @@ async function placeOption(db, { lotId, leadData, userId = null }) {
       throw new HttpError(409, "Ce lot n'est plus disponible à la pré-réservation.");
     }
     const lead = await findOrCreateLead(trx, { ...leadData, project_id: lot.project_id, lot_id: lot.id });
+    // Option posée depuis le dashboard : jamais pour le prospect d'un collègue ; un nouveau prospect revient à son auteur
+    if (user && !(user.permissions || []).some(p => p === '*' || p === 'leads:all')) {
+      if (!lead.created && lead.assigned_to && lead.assigned_to !== user.id) {
+        throw new HttpError(409, 'Cette personne est déjà suivie par un autre commercial. Pour la reprendre, demandez son transfert au responsable.', { lead_id: lead.id, transfer: true });
+      }
+      if (lead.created || !lead.assigned_to) await trx('leads').where({ id: lead.id }).update({ assigned_to: user.id });
+    }
 
     const active = await trx('lot_options')
       .where({ lead_id: lead.id, state: 'active' })

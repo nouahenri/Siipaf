@@ -66,6 +66,12 @@ async function openSale(db, { lotId, leadId, leadData, price_fcfa, financing, no
       if (!lead) throw new HttpError(404, 'Prospect introuvable.');
     } else {
       lead = await findOrCreateLead(trx, { ...leadData, project_id: lot.project_id, lot_id: lot.id, source: 'admin', created_by: user.id });
+      // Personne déjà suivie par un collègue : dossier refusé sans divulguer sa fiche (le responsable la transfère)
+      const all = (user.permissions || []).some(p => p === '*' || p === 'leads:all');
+      if (!lead.created && lead.assigned_to && lead.assigned_to !== user.id && !all) {
+        throw new HttpError(409, 'Cette personne est déjà suivie par un autre commercial. Pour la reprendre, demandez son transfert au responsable.', { lead_id: lead.id, transfer: true });
+      }
+      if (lead.created && !all) await trx('leads').where({ id: lead.id }).update({ assigned_to: user.id });
     }
 
     // Le lot passe « réservé »

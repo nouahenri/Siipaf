@@ -10,7 +10,7 @@ const { toDate, isoDay, isoTime, HttpError } = require('../lib/http');
 const { portfolioState, replayPortfolio, portfolioDiff, portfolioCounts, PORTFOLIO_EVENTS, PORTFOLIO_REASONS, CLIENT_STAGES } = require('../lib/domain');
 const { buckets, GRANULARITIES } = require('./performance');
 
-const seesAllLeads = user => (user.permissions || []).some(p => p === '*' || p === 'leads:all');
+const seesAllLeads = user => (user.permissions || []).some(p => p === '*' || p === 'leads:all'); // même règle que services/commercial.js
 const insertedId = r => (typeof r === 'object' ? r.id : r);
 const byTime = (a, b) => (toDate(a.at) - toDate(b.at)) || (a.id - b.id);
 

@@ -5,6 +5,7 @@ const { ah, parse, idParam, HttpError, json } = require('../lib/http');
 const { requirePermission } = require('../auth');
 const { LOT_STATUSES, DELETABLE_LOT_STATUSES, NEW_LOT_STATUSES, PROJECT_CATEGORIES, SITE_FIGURE_ICONS } = require('../lib/domain');
 const { changeLotStatus, placeOption, throttledExpiry } = require('../services/lots');
+const { seesAllLeads, leadInScope } = require('../services/commercial');
 const multer = require('multer');
 const { parseCad } = require('../services/cad');
 const { applyProjectRefs, applyProjectTypes, withTypeLabels, projectRefs, checkLotType } = require('../services/refs');
@@ -18,6 +19,17 @@ const shape = z.array(point).min(3, 'Un lot doit avoir au moins 3 points.').max(
 
 module.exports = function catalogRoutes(db) {
   const r = express.Router();
+  // Lot en option ou réservé pour le client d'un collègue : un commercial n'y touche pas (portée « toute l'équipe » : oui)
+  const lotOfMyClient = async (lotId, user) => {
+    if (seesAllLeads(user)) return;
+    const holders = await db('lots as l').leftJoin('lot_options as o', function () { this.on('o.lot_id', 'l.id').andOn('o.state', db.raw('?', ['active'])); })
+      .leftJoin('sales as s', function () { this.on('s.lot_id', 'l.id').andOnIn('s.status', ['en_cours', 'solde']); })
+      .leftJoin('leads as a', 'a.id', 'o.lead_id').leftJoin('leads as b', 'b.id', 's.lead_id').where('l.id', lotId).first('a.assigned_to as option_owner', 'b.assigned_to as buyer_owner', 'o.id as option_id', 's.id as sale_id');
+    if (!holders) return;
+    if ((holders.option_id && holders.option_owner !== user.id) || (holders.sale_id && holders.buyer_owner !== user.id)) {
+      throw new HttpError(403, 'Ce lot est en option ou réservé pour le client d’un autre commercial.');
+    }
+  };
   const expire = throttledExpiry(db);
 
   // ─── Projets ──────────────────────────────────────────────
@@ -292,15 +304,21 @@ module.exports = function catalogRoutes(db) {
       .leftJoin('leads as ld', 'ld.id', 'o.lead_id')
       .leftJoin('sales as s', function () { this.on('s.lot_id', 'l.id').andOnIn('s.status', ['en_cours', 'solde']); })
       .leftJoin('leads as b', 'b.id', 's.lead_id').leftJoin('ref_items as pt', 'pt.id', 'l.property_type_id')
-      .select('l.*', 'pt.label as property_type', 'o.expires_at as option_expires_at', 'ld.id as option_lead_id', 'ld.name as option_lead_name',
-        's.id as sale_id', 's.status as sale_status', 's.price_fcfa as sale_price_fcfa', 'b.name as buyer_name',
+      .select('l.*', 'pt.label as property_type', 'o.expires_at as option_expires_at', 'ld.id as option_lead_id', 'ld.name as option_lead_name', 'ld.assigned_to as option_owner',
+        's.id as sale_id', 's.status as sale_status', 's.price_fcfa as sale_price_fcfa', 'b.name as buyer_name', 'b.assigned_to as buyer_owner',
         db.raw('(select coalesce(sum(p.amount_fcfa), 0) from payments p where p.sale_id = s.id) as paid_fcfa'))
       .orderBy(['l.project_id', 'l.code']);
     if (req.query.project_id) q.where('l.project_id', Number(req.query.project_id));
     if (req.query.plan_id) q.where('l.plan_id', Number(req.query.plan_id));
     if (req.query.status) q.whereIn('l.status', String(req.query.status).split(','));
+    // Acquéreur et prospect en option : droit « dossiers » et client du commercial (portée « toute l'équipe » : tous)
     const salesVisible = req.can('sales:read');
-    res.json((await q).map(decodeLot).map(l => (salesVisible ? l : { ...l, buyer_name: null, paid_fcfa: null, sale_price_fcfa: null, option_lead_name: null })));
+    const all = seesAllLeads(req.user);
+    res.json((await q).map(decodeLot).map(({ option_owner, buyer_owner, ...l }) => ({
+      ...l,
+      ...(salesVisible && (all || buyer_owner === req.user.id) ? {} : { buyer_name: null, paid_fcfa: null, sale_price_fcfa: null }),
+      ...(salesVisible && (all || option_owner === req.user.id) ? {} : { option_lead_id: null, option_lead_name: null }),
+    })));
   }));
 
   const lotFields = {
@@ -424,6 +442,8 @@ module.exports = function catalogRoutes(db) {
       lead_id: z.number().int().positive().nullable().optional(),
       reason: z.string().trim().max(255).optional(),
     }), req.body);
+    if (data.lead_id) await leadInScope(db, data.lead_id, req.user);
+    await lotOfMyClient(idParam(req), req.user);
     const lot = await changeLotStatus(db, { lotId: idParam(req), to: data.status, user: req.user, leadId: data.lead_id, reason: data.reason });
     res.json(decodeLot(lot));
   }));
@@ -438,13 +458,11 @@ module.exports = function catalogRoutes(db) {
     }), req.body);
     let leadData = data;
     if (data.lead_id) {
-      const lead = await db('leads').where({ id: data.lead_id }).first();
-      if (!lead) throw new HttpError(404, 'Prospect introuvable.');
-      leadData = lead;
+      leadData = await leadInScope(db, data.lead_id, req.user);
     } else if (!data.name || (!data.email && !data.phone)) {
       throw new HttpError(400, 'Choisissez un prospect ou indiquez nom et contact.');
     }
-    const result = await placeOption(db, { lotId: idParam(req), leadData: { ...leadData, source: 'admin' }, userId: req.user.id });
+    const result = await placeOption(db, { lotId: idParam(req), leadData: { ...leadData, source: 'admin' }, userId: req.user.id, user: req.user });
     res.status(201).json(result);
   }));
 
@@ -453,9 +471,11 @@ module.exports = function catalogRoutes(db) {
       .leftJoin('users as u', 'u.id', 'h.user_id')
       .leftJoin('leads as l', 'l.id', 'h.lead_id')
       .where('h.lot_id', idParam(req))
-      .select('h.*', 'u.name as user_name', 'l.name as lead_name')
+      .select('h.*', 'u.name as user_name', 'l.name as lead_name', 'l.assigned_to as lead_owner')
       .orderBy('h.id', 'desc');
-    res.json(rows);
+    const all = seesAllLeads(req.user);
+    const named = req.can('sales:read');
+    res.json(rows.map(({ lead_owner, ...h }) => (named && (all || lead_owner === req.user.id) ? h : { ...h, lead_id: null, lead_name: null })));
   }));
 
   return r;

@@ -25,12 +25,10 @@ module.exports = function crmRoutes(db) {
   const r = express.Router();
 
   // ─── Prospects ────────────────────────────────────────────
-  // Un commercial ne voit que ses prospects et ceux non assignés
-  const { seesAllLeads } = require('../services/commercial');
-  const scopeLeads = (q, user) => {
-    if (!seesAllLeads(user)) q.where(b => b.where('ld.assigned_to', user.id).orWhereNull('ld.assigned_to'));
-    return q;
-  };
+  // Un commercial ne voit que ses prospects et clients ; la portée « toute l'équipe » voit aussi les non attribués
+  const { seesAllLeads, canAssignLeads, scopeLeads, leadInScope } = require('../services/commercial');
+  // Prospect ou rendez-vous d'un collègue : on ne révèle rien, sauf qu'un transfert peut être demandé au responsable
+  const ownedElsewhere = lead => new HttpError(409, 'Cette personne est déjà suivie par un autre commercial. Pour la reprendre, demandez son transfert au responsable.', { lead_id: lead.id, transfer: true });
 
   // Prospect OU client, jamais les deux : un client a un code client (page Clients), un prospect n'en a pas
   const onlyType = (q, type) => {
@@ -62,8 +60,7 @@ module.exports = function crmRoutes(db) {
 
   r.get('/leads/:id', requirePermission('leads:read'), ah(async (req, res) => {
     const id = idParam(req);
-    const lead = await scopeLeads(db('leads as ld'), req.user).where('ld.id', id).select('ld.*').first();
-    if (!lead) throw new HttpError(404, 'Prospect introuvable.');
+    const lead = await leadInScope(db, id, req.user);
     // Fiche ouverte par l'équipe : le prospect n'est plus « nouveau » (compteur du menu Prospects)
     if (!lead.seen_at) await db('leads').where({ id }).whereNull('seen_at').update({ seen_at: new Date() });
     const [options, appointments, messages] = await Promise.all([
@@ -91,15 +88,16 @@ module.exports = function crmRoutes(db) {
 
   r.post('/leads', requirePermission('leads:write'), ah(async (req, res) => {
     const data = parse(leadSchema, req.body);
-    if (!seesAllLeads(req.user) && data.assigned_to && data.assigned_to !== req.user.id) {
-      throw new HttpError(403, 'Un commercial ne peut assigner un prospect qu’à lui-même.');
+    if (!canAssignLeads(req.user) && data.assigned_to && data.assigned_to !== req.user.id) {
+      throw new HttpError(403, 'Seul le responsable attribue un prospect à un autre commercial.');
     }
     const lead = await db.transaction(async trx => {
       const found = await findOrCreateLead(trx, { ...data, source: 'admin', created_by: req.user.id });
+      if (!found.created && found.assigned_to && found.assigned_to !== req.user.id && !seesAllLeads(req.user)) throw ownedElsewhere(found);
       const patch = {};
       if (data.stage) patch.stage = data.stage;
       // Attribué d'office à celui qui a établi le contact ; une personne déjà connue garde son commercial
-      if (found.created || !found.assigned_to) patch.assigned_to = data.assigned_to ?? (seesAllLeads(req.user) ? null : req.user.id);
+      if (found.created || !found.assigned_to) patch.assigned_to = data.assigned_to ?? (canAssignLeads(req.user) ? null : req.user.id);
       if (Object.keys(patch).length) await trx('leads').where({ id: found.id }).update(patch);
       await syncLead(trx, found.id, { by: req.user.id, reason: found.created ? 'creation' : 'attribution' });
       return found;
@@ -110,10 +108,10 @@ module.exports = function crmRoutes(db) {
   r.patch('/leads/:id', requirePermission('leads:write'), ah(async (req, res) => {
     const id = idParam(req);
     const data = parse(leadSchema.partial(), req.body);
-    const lead = await scopeLeads(db('leads as ld'), req.user).where('ld.id', id).select('ld.*').first();
-    if (!lead) throw new HttpError(404, 'Prospect introuvable.');
-    if (!seesAllLeads(req.user) && data.assigned_to && data.assigned_to !== req.user.id) {
-      throw new HttpError(403, 'Un commercial ne peut assigner un prospect qu’à lui-même.');
+    const lead = await leadInScope(db, id, req.user);
+    // Changer de commercial (ou retirer un prospect de son portefeuille) : responsable seulement, sinon demande de transfert
+    if ('assigned_to' in data && (data.assigned_to || null) !== (lead.assigned_to || null) && !canAssignLeads(req.user)) {
+      throw new HttpError(403, 'Seul le responsable change le commercial d’un prospect ou d’un client : faites une demande de transfert.');
     }
     await db.transaction(async trx => {
       await trx('leads').where({ id }).update({ ...data, updated_at: new Date() });
@@ -131,8 +129,7 @@ module.exports = function crmRoutes(db) {
   // ou détient une option en cours ; ses rendez-vous, accès client et messages partent avec elle.
   r.delete('/leads/:id', requirePermission('leads:delete'), ah(async (req, res) => {
     const id = idParam(req);
-    const lead = await db('leads').where({ id }).first();
-    if (!lead) throw new HttpError(404, 'Prospect introuvable.');
+    const lead = await leadInScope(db, id, req.user);
     if (await db('sales').where({ lead_id: id }).first()) {
       throw new HttpError(409, 'Cette personne a un dossier d’acquisition : elle ne peut pas être supprimée.');
     }
@@ -169,7 +166,7 @@ module.exports = function crmRoutes(db) {
     if (req.query.status) q.whereIn('a.status', String(req.query.status).split(','));
     // a_traiter : demandes venues du site encore au statut « Demandé » (pastille du menu Rendez-vous)
     if (req.query.a_traiter) siteRequests(q);
-    if (!seesAllLeads(req.user)) q.where(b => b.where('a.assigned_to', req.user.id).orWhereNull('a.assigned_to'));
+    scopeLeads(q, req.user); // rendez-vous de ses prospects et clients seulement
     res.json(await q);
   }));
 
@@ -187,16 +184,23 @@ module.exports = function crmRoutes(db) {
 
   r.post('/appointments', requirePermission('appointments:write'), ah(async (req, res) => {
     const data = parse(apptSchema, req.body);
-    if (!(await db('leads').where({ id: data.lead_id }).first())) throw new HttpError(404, 'Prospect introuvable.');
-    const [id] = await db('appointments').insert({ ...data, source: 'admin', assigned_to: data.assigned_to ?? req.user.id });
+    const lead = await leadInScope(db, data.lead_id, req.user);
+    const assignedTo = data.assigned_to ?? (seesAllLeads(req.user) ? lead.assigned_to || req.user.id : req.user.id);
+    if (!seesAllLeads(req.user) && assignedTo !== req.user.id) throw new HttpError(403, 'Un commercial ne planifie que ses propres rendez-vous.');
+    const [id] = await db('appointments').insert({ ...data, source: 'admin', assigned_to: assignedTo });
     res.status(201).json(await db('appointments').where({ id }).first());
   }));
 
   r.patch('/appointments/:id', requirePermission('appointments:write'), ah(async (req, res) => {
     const id = idParam(req);
     const data = parse(apptSchema.partial(), req.body);
-    const n = await db('appointments').where({ id }).update({ ...data, updated_at: new Date() });
-    if (!n) throw new HttpError(404, 'Rendez-vous introuvable.');
+    const current = await scopeLeads(db('appointments as a').join('leads as ld', 'ld.id', 'a.lead_id'), req.user).where('a.id', id).first('a.id', 'a.lead_id');
+    if (!current) throw new HttpError(404, 'Rendez-vous introuvable.');
+    if (!seesAllLeads(req.user)) {
+      if (data.lead_id && data.lead_id !== current.lead_id) await leadInScope(db, data.lead_id, req.user);
+      if (data.assigned_to && data.assigned_to !== req.user.id) throw new HttpError(403, 'Un commercial ne confie pas un rendez-vous à un collègue.');
+    }
+    await db('appointments').where({ id }).update({ ...data, updated_at: new Date() });
     // Une visite effectuée fait avancer le prospect à l'étape « visite »
     const appt = await db('appointments').where({ id }).first();
     if (data.status === 'effectue' && appt.kind === 'visite') {
@@ -246,14 +250,16 @@ module.exports = function crmRoutes(db) {
   r.get('/stats', ah(async (req, res) => {
     const since = new Date(Date.now() - 30 * 24 * 3600 * 1000);
     const pendingTestimonials = req.can('testimonials:write') ? Number((await db('testimonials').where({ status: 'en_attente' }).count({ n: '*' }))[0].n) : 0;
-    const unreadClientMessages = req.can('client_messages') ? Number((await db('client_messages').where({ sender: 'client' }).whereNull('read_at').count({ n: '*' }))[0].n) : 0;
+    // Chiffres du commercial seul, sauf portée « toute l'équipe »
+    const myLeads = () => scopeLeads(db('leads as ld'), req.user);
+    const unreadClientMessages = req.can('client_messages') ? Number((await scopeLeads(db('client_messages as m').join('leads as ld', 'ld.id', 'm.lead_id'), req.user).where('m.sender', 'client').whereNull('m.read_at').count({ n: '*' }))[0].n) : 0;
     const [lotsByStatus, leadsByStage, newLeads, prevLeads, newMessages, upcoming, subscribers] = await Promise.all([
       db('lots').select('status').count({ n: '*' }).groupBy('status'),
-      req.can('leads:read') ? db('leads').select('stage').count({ n: '*' }).groupBy('stage') : [],
-      req.can('leads:read') ? db('leads').where('created_at', '>=', since).count({ n: '*' }) : [{ n: 0 }],
-      req.can('leads:read') ? db('leads').where('created_at', '>=', new Date(since.getTime() - 30 * 24 * 3600 * 1000)).where('created_at', '<', since).count({ n: '*' }) : [{ n: 0 }],
+      req.can('leads:read') ? myLeads().select('ld.stage').count({ n: '*' }).groupBy('ld.stage') : [],
+      req.can('leads:read') ? myLeads().where('ld.created_at', '>=', since).count({ n: '*' }) : [{ n: 0 }],
+      req.can('leads:read') ? myLeads().where('ld.created_at', '>=', new Date(since.getTime() - 30 * 24 * 3600 * 1000)).where('ld.created_at', '<', since).count({ n: '*' }) : [{ n: 0 }],
       req.can('contacts:read') ? db('contact_messages').where({ status: 'nouveau' }).count({ n: '*' }) : [{ n: 0 }],
-      req.can('appointments:read') ? db('appointments').where('starts_at', '>=', new Date()).whereIn('status', ['demande', 'confirme']).count({ n: '*' }) : [{ n: 0 }],
+      req.can('appointments:read') ? scopeLeads(db('appointments as a').join('leads as ld', 'ld.id', 'a.lead_id'), req.user).where('a.starts_at', '>=', new Date()).whereIn('a.status', ['demande', 'confirme']).count({ n: '*' }) : [{ n: 0 }],
       db('newsletter_subscribers').where({ status: 'actif' }).count({ n: '*' }),
     ]);
     const obj = rows => Object.fromEntries(rows.map(r => [r.status || r.stage, Number(r.n)]));
@@ -273,8 +279,7 @@ module.exports = function crmRoutes(db) {
   }));
 
   const countSiteRequests = async user => {
-    const q = siteRequests(db('appointments as a'));
-    if (!seesAllLeads(user)) q.where(b => b.where('a.assigned_to', user.id).orWhereNull('a.assigned_to'));
+    const q = scopeLeads(siteRequests(db('appointments as a')).join('leads as ld', 'ld.id', 'a.lead_id'), user);
     return Number((await q.count({ n: '*' }))[0].n);
   };
 
@@ -329,13 +334,18 @@ module.exports = function crmRoutes(db) {
 
     const seeLeads = req.can('leads:read');
     const seeSales = req.can('sales:read');
+    // Périmètre du compte : un commercial ne voit que l'activité de ses prospects et clients 
+    const leadsQ = () => scopeLeads(db('leads as ld'), req.user);
+    const salesQ = () => scopeLeads(db('sales as s').join('leads as ld', 'ld.id', 's.lead_id'), req.user);
+    const paymentsQ = () => scopeLeads(db('payments as p').join('sales as s', 's.id', 'p.sale_id').join('leads as ld', 'ld.id', 's.lead_id'), req.user);
+    const apptsQ = () => scopeLeads(db('appointments as a').join('leads as ld', 'ld.id', 'a.lead_id'), req.user);
     const [leads, sales, payments, appts, sources, sold] = await Promise.all([
-      seeLeads ? db('leads').where('created_at', '>=', start).select('created_at as d') : [],
-      seeSales ? db('sales').where('created_at', '>=', start).select('created_at as d') : [],
-      seeSales ? db('payments').where('paid_at', '>=', start).select('paid_at as d', 'amount_fcfa') : [],
-      req.can('appointments:read') ? db('appointments').where('starts_at', '>=', start).select('starts_at as d') : [],
-      seeLeads ? db('leads').select('source').count({ n: '*' }).groupBy('source') : [],
-      seeSales ? db('sales as s').leftJoin(db('payments').select('sale_id').sum({ paid: 'amount_fcfa' }).groupBy('sale_id').as('p'), 'p.sale_id', 's.id')
+      seeLeads ? leadsQ().where('ld.created_at', '>=', start).select('ld.created_at as d') : [],
+      seeSales ? salesQ().where('s.created_at', '>=', start).select('s.created_at as d') : [],
+      seeSales ? paymentsQ().where('p.paid_at', '>=', start).select('p.paid_at as d', 'p.amount_fcfa') : [],
+      req.can('appointments:read') ? apptsQ().where('a.starts_at', '>=', start).select('a.starts_at as d') : [],
+      seeLeads ? leadsQ().select('ld.source').count({ n: '*' }).groupBy('ld.source') : [],
+      seeSales ? salesQ().leftJoin(db('payments').select('sale_id').sum({ paid: 'amount_fcfa' }).groupBy('sale_id').as('p'), 'p.sale_id', 's.id')
         .whereIn('s.status', ['en_cours', 'solde']).select(db.raw('coalesce(sum(s.price_fcfa), 0) as ca'), db.raw('coalesce(sum(p.paid), 0) as paid'), db.raw('count(*) as n')) : [{ ca: 0, paid: 0, n: 0 }],
     ]);
     add(leads, 'leads');
@@ -354,12 +364,12 @@ module.exports = function crmRoutes(db) {
     const byDay = Object.fromEntries(week.map(w => [w.day, w]));
     const localDay = v => { const d = new Date(typeof v === 'number' || /^\d+$/.test(v) ? Number(v) : v); return dayKey(new Date(Date.UTC(d.getFullYear(), d.getMonth(), d.getDate()))); };
     const [weekLeads, weekAppts, byProject, recent] = await Promise.all([
-      seeLeads ? db('leads').where('created_at', '>=', weekStart).select('created_at as d') : [],
-      req.can('appointments:read') ? db('appointments').where('created_at', '>=', weekStart).select('created_at as d') : [],
-      seeSales ? db('payments as p').join('sales as s', 's.id', 'p.sale_id').join('lots as l', 'l.id', 's.lot_id').join('projects as pr', 'pr.id', 'l.project_id')
+      seeLeads ? leadsQ().where('ld.created_at', '>=', weekStart).select('ld.created_at as d') : [],
+      req.can('appointments:read') ? apptsQ().where('a.created_at', '>=', weekStart).select('a.created_at as d') : [],
+      seeSales ? paymentsQ().join('lots as l', 'l.id', 's.lot_id').join('projects as pr', 'pr.id', 'l.project_id')
         .select('pr.name').sum({ total: 'p.amount_fcfa' }).groupBy('pr.id', 'pr.name') : [],
-      seeSales ? db('payments as p').join('sales as s', 's.id', 'p.sale_id').join('leads as b', 'b.id', 's.lead_id').join('lots as l', 'l.id', 's.lot_id').join('projects as pr', 'pr.id', 'l.project_id')
-        .select('p.id', 'p.amount_fcfa', 'p.paid_at', 'p.method', 'b.name as buyer', 'l.code as lot', 'pr.name as project', 'l.id as lot_id')
+      seeSales ? paymentsQ().join('lots as l', 'l.id', 's.lot_id').join('projects as pr', 'pr.id', 'l.project_id')
+        .select('p.id', 'p.amount_fcfa', 'p.paid_at', 'p.method', 'ld.name as buyer', 'l.code as lot', 'pr.name as project', 'l.id as lot_id')
         .orderBy([{ column: 'p.paid_at', order: 'desc' }, { column: 'p.id', order: 'desc' }]).limit(6) : [],
     ]);
     weekLeads.forEach(r => { const w = byDay[localDay(r.d)]; if (w) w.leads++; });

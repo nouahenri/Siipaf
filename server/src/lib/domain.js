@@ -374,7 +374,7 @@ const PERMISSIONS = {
   super_admin: ['*'],
   commercial: [
     'projects:read', 'lots:read', 'lots:status', 'leads:read', 'leads:write',
-    'appointments:read', 'appointments:write', 'contacts:read', 'sales:read', 'sales:write',
+    'appointments:read', 'appointments:write', 'contacts:read', 'sales:read', 'sales:write', 'payments:record',
     'client_access:write', 'client_messages', 'sav:read', 'commercial:read', ...SELF_SERVICE,
   ],
   editeur: [
@@ -384,7 +384,7 @@ const PERMISSIONS = {
   conducteur_travaux: [
     ...APPRO_ACTIONS,
     'projects:read', 'lots:read', 'sales:read', 'documents:write', 'site_updates:write', 'client_messages',
-    'sav:read', 'sav:create', 'sav:handle', 'sav:reserves', 'sav:interventions', 'vefa:write', 'presence:write', ...CONTRACT_ACTIONS, ...LEGAL_ACTIONS,
+    'sav:read', 'sav:create', 'sav:handle', 'sav:reserves', 'sav:interventions', 'vefa:write', 'presence:write', ...CONTRACT_ACTIONS, ...LEGAL_ACTIONS, 'leads:all',
     'chantiers:read', 'chantiers:write', ...SELF_SERVICE,
   ],
   comptable: [
@@ -399,7 +399,7 @@ const PERMISSIONS = {
     'appointments:read', 'contacts:read', 'users:read', 'newsletter:read',
     'sales:read', 'sales:write', 'documents:write', 'testimonials:write',
     'client_access:write', 'client_messages', 'site_updates:write', 'schedule:write', 'settings:write',
-    'leads:all', 'sav:read', ...SAV_ACTIONS, 'commercial:read', 'targets:write', 'vefa:write', 'property:write', 'compta:read',
+    'leads:all', 'leads:assign', 'sav:read', ...SAV_ACTIONS, 'commercial:read', 'targets:write', 'vefa:write', 'property:write', 'compta:read',
     'rh:read', ...RH_ACTIONS, 'kpi:write', 'presence:write', 'direction:read', ...COURRIER_ACTIONS, ...CONTRACT_ACTIONS, ...PARC_ACTIONS, ...DOCS_ACTIONS, ...REQUEST_ACTIONS, ...LEGAL_ACTIONS,
     'chantiers:read', 'chantiers:write', 'lieux:write', ...SELF_SERVICE,
   ],
@@ -414,23 +414,25 @@ const PERMISSIONS = {
 const PERMISSION_CATALOG = [
   { group: 'Ventes', items: [
     ['leads:read', 'Voir les prospects', 'Liste, fiches et export CSV des prospects'],
-    ['leads:all', 'Voir les prospects de toute l’équipe', 'Sans ce droit, on ne voit que ses prospects et ceux qui ne sont pas encore attribués'],
-    ['leads:write', 'Gérer les prospects', 'Créer, modifier, faire avancer dans le circuit, assigner'],
+    ['leads:all', 'Portée : toute l’équipe (responsable, services support)', 'Prospects, clients, rendez-vous, dossiers, versements et messages de tous les commerciaux, et ceux non attribués. Sans ce droit, un commercial ne voit et ne traite que les siens'],
+    ['leads:assign', 'Attribuer et transférer (responsable)', 'Attribuer les prospects non attribués, changer le commercial d’un prospect ou d’un client, valider ou refuser les demandes de transfert des commerciaux'],
+    ['leads:write', 'Gérer ses prospects', 'Créer, modifier, faire avancer dans le circuit ; demander le transfert d’un prospect ou d’un client au responsable'],
     ['leads:delete', 'Supprimer des prospects', 'Doublons ou demande d’effacement ; impossible si la personne a un dossier d’acquisition'],
-    ['appointments:read', 'Voir les rendez-vous', null],
-    ['appointments:write', 'Gérer les rendez-vous', 'Planifier, confirmer, annuler'],
+    ['appointments:read', 'Voir les rendez-vous', 'Les siens, ou ceux de toute l’équipe avec la portée « toute l’équipe »'],
+    ['appointments:write', 'Gérer les rendez-vous', 'Planifier, confirmer, annuler les rendez-vous de ses prospects et clients (de toute l’équipe avec la portée « toute l’équipe »)'],
     ['lots:read', 'Voir les lots', 'Disponibilités, fiche lot, historique'],
     ['lots:status', 'Changer le statut des lots', 'Option, réservation, vente, désistement'],
   ] },
   { group: 'Dossiers d’acquisition', items: [
     ['sales:read', 'Voir les dossiers d’acquisition', 'Acquéreur, prix, paiements, documents'],
     ['sales:write', 'Ouvrir et modifier les dossiers', 'Ouvrir un dossier, changer le prix convenu'],
-    ['payments:write', 'Saisir les versements', 'Enregistrer ou supprimer un versement'],
+    ['payments:record', 'Déclarer un versement (à confirmer)', 'Saisir le versement d’un de ses clients ; il ne compte qu’après confirmation de la Comptabilité'],
+    ['payments:write', 'Enregistrer et confirmer les versements (Comptabilité)', 'Enregistrer un versement, confirmer ou refuser ceux déclarés par les commerciaux, supprimer un versement'],
     ['documents:write', 'Gérer les documents juridiques', 'Statut des pièces, fichiers joints, visibilité client'],
   ] },
   { group: 'Espace client', items: [
     ['client_access:write', 'Gérer les accès clients', 'Créer ou réinitialiser le code et le mot de passe d’un client'],
-    ['client_messages', 'Messagerie clients', 'Lire les messages des clients et leur répondre'],
+    ['client_messages', 'Messagerie clients', 'Lire les messages de ses clients et leur répondre (de tous les clients avec la portée « toute l’équipe »)'],
     ['site_updates:write', 'Publier l’avancement du chantier', 'Étapes, pourcentages, photos et vidéos pour les acquéreurs ; n’émet pas d’appel de fonds (déclaration de la Direction)'],
     ['schedule:write', 'Gérer les échéanciers', 'Générer et modifier les échéances de paiement'],
   ] },
@@ -1362,6 +1364,7 @@ function deliveryDelay(promised, forecast, deliveredAt = null) {
  * aussi le super administrateur.
  */
 const INFO_AUDIENCES = {
+  commercial_resp: { label: 'Responsables commerciaux', hint: 'Comptes qui attribuent les prospects et valident les transferts', perms: ['leads:assign'], module: 'commercial' },
   achats: { label: 'Achats & stocks', hint: 'Comptes qui préparent les achats, valident les commandes ou gèrent les stocks', perms: ['appro:write', 'appro:validate', 'appro:direction', 'appro:stock'], module: 'achats' },
   dg: { label: 'Direction générale', hint: 'Super administrateur et comptes qui valident en direction (demandes, chantiers)', perms: ['demandes:dg', 'chantiers:direction'], superAdmin: true },
   exploitation: { label: 'Direction des exploitations', hint: 'Comptes qui ouvrent la Vue Direction', perms: ['direction:read'] },
@@ -1409,6 +1412,8 @@ const INFO_EVENTS = {
   'chantier.marche_receptionne': { module: 'chantiers', label: 'Travaux d’un sous-traitant réceptionnés (libération de la retenue programmée)', audiences: ['juridique', 'compta'] },
   'chantier.phase_retard': { module: 'chantiers', label: 'Phase de chantier en retard sur le planning', audiences: ['exploitation'], priority: 'action' },
   'vente.versement': { module: 'commercial', label: 'Versement d’un client enregistré', audiences: ['compta'] },
+  'versement.a_confirmer': { module: 'compta', label: 'Versement déclaré par un commercial, à confirmer', audiences: ['compta'], priority: 'action', recipient_hint: 'Le commercial est prévenu de la confirmation ou du refus.' },
+  'prospect.transfert_demande': { module: 'commercial', label: 'Demande de transfert d’un prospect ou d’un client à valider', audiences: ['commercial_resp'], priority: 'action', recipient_hint: 'Le commercial qui a fait la demande est prévenu de la décision.' },
   'echeance.impayee': { module: 'commercial', label: 'Échéance d’un client impayée', audiences: ['compta'], priority: 'action' },
   'rh.depart': { module: 'rh', label: 'Départ d’un employé (solde de tout compte)', audiences: ['compta'] },
 };

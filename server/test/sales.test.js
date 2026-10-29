@@ -36,9 +36,9 @@ test('versements : saisis par le comptable, reste à payer, soldé, pas de dépa
   assert.equal((await pay(20000000)).status, 409, 'au-delà du reste à payer');
   res = await pay(13212000);
   assert.equal(res.body.status, 'solde');
-  // Un commercial ne saisit pas de versement
+  // Un commercial ne déclare un versement que pour ses clients
   const commercial = await login(app, await createUser(db, 'commercial'), 'motdepasse-test-123');
-  assert.equal((await commercial.post(`/api/admin/sales/${sale.id}/payments`).send({ amount_fcfa: 1, paid_at: '2026-10-01', method: 'especes' })).status, 403);
+  assert.equal((await commercial.post(`/api/admin/sales/${sale.id}/payments`).send({ amount_fcfa: 1, paid_at: '2026-10-01', method: 'especes' })).status, 404);
   // Supprimer un versement repasse le dossier « en cours »
   res = await comptable.delete(`/api/admin/payments/${res.body.payments[0].id}`);
   assert.equal(res.body.status, 'en_cours');

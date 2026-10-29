@@ -13,6 +13,7 @@ const { grantAccess, accessStatus, siteUpdatesQuery, serializeUpdate, progressIn
 const { totals } = require('../services/sales');
 const { scheduleStatus } = require('../services/schedule');
 const { createClient } = require('../services/importer');
+const { scopeLeads, leadInScope } = require('../services/commercial');
 
 module.exports = function clientAdminRoutes(db) {
   const r = express.Router();
@@ -20,9 +21,10 @@ module.exports = function clientAdminRoutes(db) {
   // ─── Clients (prospects devenus acquéreurs : ils ont un code client) ─────
   r.get('/clients', requirePermission('sales:read'), ah(async (req, res) => {
     const [leads, sales, accounts, unread] = await Promise.all([
-      db('leads as ld').leftJoin('projects as p', 'p.id', 'ld.project_id').whereNotNull('ld.client_code')
+      // Un commercial ne voit que ses clients (portée « toute l'équipe » : tous)
+      scopeLeads(db('leads as ld'), req.user).leftJoin('projects as p', 'p.id', 'ld.project_id').whereNotNull('ld.client_code')
         .select('ld.*', 'p.name as project_name').orderBy('ld.client_code', 'desc'),
-      db('sales as s').join('lots as l', 'l.id', 's.lot_id').join('projects as p', 'p.id', 'l.project_id')
+      scopeLeads(db('sales as s').join('leads as ld', 'ld.id', 's.lead_id'), req.user).join('lots as l', 'l.id', 's.lot_id').join('projects as p', 'p.id', 'l.project_id')
         .select('s.*', 'l.code as lot_code', 'l.ilot', 'l.project_id', 'p.name as project_name').orderBy('s.id'),
       db('client_accounts').select('lead_id', 'active', 'must_change_password', 'last_login_at'),
       db('client_messages').where({ sender: 'client' }).whereNull('read_at').select('lead_id').count({ n: '*' }).groupBy('lead_id'),
@@ -77,18 +79,21 @@ module.exports = function clientAdminRoutes(db) {
 
   // ─── Accès à l'espace client ──────────────────────────────
   r.get('/leads/:id/client-access', requirePermission('leads:read'), ah(async (req, res) => {
+    await leadInScope(db, idParam(req), req.user, 'Client introuvable.');
     res.json({ access: await accessStatus(db, idParam(req)) });
   }));
 
   // Ouvre l'accès ou génère un nouveau mot de passe provisoire (affiché une seule fois)
   r.post('/leads/:id/client-access', requirePermission('client_access:write'), ah(async (req, res) => {
     const { notify } = parse(z.object({ notify: z.boolean().default(true) }), req.body || {});
+    await leadInScope(db, idParam(req), req.user, 'Client introuvable.');
     const out = await grantAccess(db, { leadId: idParam(req), user: req.user, notify });
     res.status(201).json({ access: out.account, temporary_password: out.password, emailed: out.emailed });
   }));
 
   r.patch('/leads/:id/client-access', requirePermission('client_access:write'), ah(async (req, res) => {
     const { active } = parse(z.object({ active: z.boolean() }), req.body);
+    await leadInScope(db, idParam(req), req.user, 'Client introuvable.');
     const n = await db('client_accounts').where({ lead_id: idParam(req) }).update({ active, updated_at: new Date() });
     if (!n) throw new HttpError(404, 'Ce client n’a pas encore d’accès.');
     res.json({ access: await accessStatus(db, idParam(req)) });
@@ -172,7 +177,7 @@ module.exports = function clientAdminRoutes(db) {
   r.get('/client-messages', requirePermission('client_messages'), ah(async (req, res) => {
     const last = db('client_messages').select('lead_id').max({ last_id: 'id' }).count({ total: '*' })
       .sum({ unread: db.raw("case when sender = 'client' and read_at is null then 1 else 0 end") }).groupBy('lead_id').as('t');
-    const rows = await db(last).join('client_messages as m', 'm.id', 't.last_id').join('leads as l', 'l.id', 't.lead_id')
+    const rows = await scopeLeads(db(last).join('client_messages as m', 'm.id', 't.last_id').join('leads as l', 'l.id', 't.lead_id'), req.user, 'l')
       .select('t.lead_id', 't.total', 't.unread', 'l.name', 'l.client_code', 'm.body as last_body', 'm.sender as last_sender', 'm.created_at as last_at')
       .orderBy('t.last_id', 'desc');
     res.json(rows.map(t => ({
@@ -183,6 +188,7 @@ module.exports = function clientAdminRoutes(db) {
 
   r.get('/leads/:id/messages', requirePermission('client_messages'), ah(async (req, res) => {
     const leadId = idParam(req);
+    await leadInScope(db, leadId, req.user, 'Client introuvable.');
     const rows = await db('client_messages as m').leftJoin('users as u', 'u.id', 'm.user_id').where('m.lead_id', leadId)
       .select('m.*', 'u.name as author').orderBy([{ column: 'm.created_at', order: 'asc' }, { column: 'm.id', order: 'asc' }]).limit(500);
     await db('client_messages').where({ lead_id: leadId, sender: 'client' }).whereNull('read_at').update({ read_at: new Date() });
@@ -192,18 +198,10 @@ module.exports = function clientAdminRoutes(db) {
     })));
   }));
 
-  r.post('/leads/:id/messages', requirePermission('client_messages'), ah(async (req, res) => {
-    const leadId = idParam(req);
-    const data = parse(z.object({
-      body: z.string().trim().min(1, 'Message vide.').max(4000),
-      sale_id: z.number().int().positive().optional(),
-    }), req.body);
-    const lead = await db('leads').where({ id: leadId }).first();
-    if (!lead || !lead.client_code) throw new HttpError(404, 'Client introuvable.');
-    if (data.sale_id && !(await db('sales').where({ id: data.sale_id, lead_id: leadId }).first())) throw new HttpError(400, 'Ce dossier n’appartient pas au client.');
-    const [id] = await db('client_messages').insert({ lead_id: leadId, sale_id: data.sale_id || null, sender: 'equipe', user_id: req.user.id, body: data.body });
-    // Le client est prévenu par e-mail (sans le contenu, qui reste dans son espace)
-    const access = await db('client_accounts').where({ lead_id: leadId, active: true }).first();
+  // Écrit à un client ; il est prévenu par e-mail (sans le contenu, qui reste dans son espace)
+  const sendToClient = async (lead, { body, sale_id = null }, user) => {
+    const [id] = await db('client_messages').insert({ lead_id: lead.id, sale_id, sender: 'equipe', user_id: user.id, body });
+    const access = await db('client_accounts').where({ lead_id: lead.id, active: true }).first();
     if (access && lead.email) {
       sendMail({
         to: lead.email,
@@ -211,6 +209,32 @@ module.exports = function clientAdminRoutes(db) {
         text: `Bonjour ${lead.name},\n\nL’équipe SIIPAF vous a écrit. Lisez et répondez depuis votre espace client :\n${clientAppUrl}\n\nSIIPAF SA`,
       }).catch(() => {});
     }
+    return id;
+  };
+
+  // Même message à plusieurs clients (chacun le reçoit dans sa propre conversation) : ses clients seulement
+  r.post('/client-messages/groupe', requirePermission('client_messages'), ah(async (req, res) => {
+    const data = parse(z.object({
+      lead_ids: z.array(z.number().int().positive()).min(1, 'Choisissez au moins un client.').max(500),
+      body: z.string().trim().min(1, 'Message vide.').max(4000),
+    }), req.body);
+    const ids = [...new Set(data.lead_ids)];
+    const leads = await scopeLeads(db('leads as ld'), req.user).whereIn('ld.id', ids).whereNotNull('ld.client_code').select('ld.*');
+    if (leads.length !== ids.length) throw new HttpError(403, 'Certains destinataires ne sont pas vos clients.');
+    for (const lead of leads) await sendToClient(lead, { body: data.body }, req.user);
+    res.status(201).json({ sent: leads.length });
+  }));
+
+  r.post('/leads/:id/messages', requirePermission('client_messages'), ah(async (req, res) => {
+    const leadId = idParam(req);
+    const data = parse(z.object({
+      body: z.string().trim().min(1, 'Message vide.').max(4000),
+      sale_id: z.number().int().positive().optional(),
+    }), req.body);
+    const lead = await leadInScope(db, leadId, req.user, 'Client introuvable.');
+    if (!lead.client_code) throw new HttpError(404, 'Client introuvable.');
+    if (data.sale_id && !(await db('sales').where({ id: data.sale_id, lead_id: leadId }).first())) throw new HttpError(400, 'Ce dossier n’appartient pas au client.');
+    const id = await sendToClient(lead, data, req.user);
     const m = await db('client_messages').where({ id }).first();
     res.status(201).json({ id: m.id, sender: 'equipe', body: m.body, sale_id: m.sale_id, author: req.user.name, created_at: isoTime(m.created_at), read_at: null });
   }));

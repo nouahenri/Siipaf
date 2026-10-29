@@ -2,7 +2,7 @@
  * ERP · Commercial : historique des échanges (façon « chatter » Odoo), activités planifiées, pipeline,
  * objectifs des commerciaux et indicateurs. Regroupements par mois faits en JavaScript (MySQL = SQLite).
  */
-const { isoDay, isoTime, toDate: parseDate } = require('../lib/http');
+const { isoDay, isoTime, toDate: parseDate, HttpError } = require('../lib/http');
 const { STAGE_PROBABILITY, PIPELINE_STAGES, WON_STAGES, ACTIVITY_KINDS, LOST_REASONS, activityState, portfolioCounts } = require('../lib/domain');
 const { totals } = require('./sales');
 const { scheduleStatus } = require('./schedule');
@@ -18,13 +18,32 @@ const monthRange = month => {
 };
 const insertedId = r => (typeof r === 'object' ? r.id : r);
 
-/** Droit « Voir les prospects de toute l'équipe » (Rôles & privilèges). */
+/** Portée « toute l'équipe » (Rôles & privilèges) : responsables et services support. */
 const seesAllLeads = user => (user.permissions || []).some(p => p === '*' || p === 'leads:all');
+/** Attribuer, transférer, valider les demandes de transfert (responsable commercial). */
+const canAssignLeads = user => (user.permissions || []).some(p => p === '*' || p === 'leads:assign');
 
-/** Sans ce droit, on ne voit que ses prospects et ceux qui ne sont pas encore attribués (même règle que le dashboard). */
+/**
+ * Sans la portée « toute l'équipe », un commercial ne voit et ne traite que ses prospects et clients : les non attribués
+ * sont répartis par le responsable (choix du client du 29/10). S'applique à toute requête jointe à `leads` (alias).
+ */
 function scopeLeads(q, user, alias = 'ld') {
-  if (!seesAllLeads(user)) q.where(b => b.where(`${alias}.assigned_to`, user.id).orWhereNull(`${alias}.assigned_to`));
+  if (!seesAllLeads(user)) q.where(`${alias}.assigned_to`, user.id);
   return q;
+}
+
+/** Prospect ou client dans le périmètre du compte, sinon 404 (on ne révèle pas qu'il existe chez un collègue). */
+async function leadInScope(db, leadId, user, message = 'Prospect introuvable.') {
+  const lead = await scopeLeads(db('leads as ld'), user).where('ld.id', leadId).select('ld.*').first();
+  if (!lead) throw new HttpError(404, message);
+  return lead;
+}
+
+/** Dossier d'acquisition dont l'acquéreur est dans le périmètre du compte, sinon 404. */
+async function saleInScope(db, saleId, user) {
+  const sale = await scopeLeads(db('sales as s').join('leads as ld', 'ld.id', 's.lead_id'), user).where('s.id', saleId).select('s.*').first();
+  if (!sale) throw new HttpError(404, 'Dossier introuvable.');
+  return sale;
 }
 
 /** Inscrit un événement dans l'historique d'un prospect (journal automatique ou note). */
@@ -191,8 +210,9 @@ async function dashboard(db, user, now = new Date()) {
   for (let i = 0; i < 12; i++) series.push({ month: monthKey(new Date(start.getFullYear(), start.getMonth() + i, 1)), ca: 0, ventes: 0, encaissements: 0 });
   const byKey = Object.fromEntries(series.map(s => [s.month, s]));
   const [sales, pays, sources, lost] = await Promise.all([
-    db('sales').whereNot('status', 'desiste').where('created_at', '>=', start).select('created_at', 'price_fcfa'),
-    db('payments').where('paid_at', '>=', start).select('paid_at', 'amount_fcfa'),
+    // Courbes du compte seul, sauf portée « toute l'équipe »
+    scopeLeads(db('sales as s').join('leads as ld', 'ld.id', 's.lead_id'), user).whereNot('s.status', 'desiste').where('s.created_at', '>=', start).select('s.created_at', 's.price_fcfa'),
+    scopeLeads(db('payments as p').join('sales as s', 's.id', 'p.sale_id').join('leads as ld', 'ld.id', 's.lead_id'), user).where('p.paid_at', '>=', start).select('p.paid_at', 'p.amount_fcfa'),
     scopeLeads(db('leads as ld'), user).where('ld.created_at', '>=', start).select('ld.source').count({ n: '*' }).groupBy('ld.source'),
     scopeLeads(db('leads as ld'), user).where('ld.stage', 'perdu').whereNotNull('ld.lost_reason').select('ld.lost_reason').count({ n: '*' }).groupBy('ld.lost_reason'),
   ]);
@@ -207,7 +227,7 @@ async function dashboard(db, user, now = new Date()) {
     .whereNull('a.done_at').where('a.due_at', '<', new Date(now.getFullYear(), now.getMonth(), now.getDate())).count({ n: '*' });
 
   // Appels de fonds VEFA en retard (échéance dépassée et non couverte par les versements)
-  const vefaSales = await db('sales').where({ vefa: true }).whereIn('status', ['en_cours', 'solde']);
+  const vefaSales = await scopeLeads(db('sales as s').join('leads as ld', 'ld.id', 's.lead_id'), user).where('s.vefa', true).whereIn('s.status', ['en_cours', 'solde']).select('s.*');
   let lateCalls = 0, lateCallsFcfa = 0;
   for (const s of vefaSales) {
     const st = await scheduleStatus(db, s, await totals(db, s));
@@ -222,8 +242,9 @@ async function dashboard(db, user, now = new Date()) {
     late_fund_calls: { n: lateCalls, amount_fcfa: lateCallsFcfa },
     sources: Object.fromEntries(sources.map(s => [s.source, Number(s.n)])),
     lost_reasons: Object.fromEntries(lost.map(l => [l.lost_reason, Number(l.n)])),
-    team: team.rows,
+    // Classement de l'équipe : responsable (portée équipe) ou qui fixe les objectifs ; sinon sa propre ligne
+    team: seesAllLeads(user) || (user.permissions || []).includes('targets:write') ? team.rows : team.rows.filter(x => x.user_id === user.id),
   };
 }
 
-module.exports = { STAGE_LABELS, seesAllLeads, scopeLeads, logActivity, changeStage, serializeActivity, leadHistory, pipeline, achieved, sellers, targetsReport, dashboard, monthKey, monthRange, isoDay };
+module.exports = { STAGE_LABELS, seesAllLeads, canAssignLeads, scopeLeads, leadInScope, saleInScope, logActivity, changeStage, serializeActivity, leadHistory, pipeline, achieved, sellers, targetsReport, dashboard, monthKey, monthRange, isoDay };

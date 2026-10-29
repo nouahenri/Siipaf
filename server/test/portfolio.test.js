@@ -50,11 +50,13 @@ test('attribution d’office au commercial qui crée le prospect ; une personne 
   assert.equal((await events(res.body.id)).length, 0);
 });
 
-test('transfert A → B par le responsable ; un commercial ne prend que des prospects libres', async () => {
+test('transfert A → B par le responsable ; un commercial n’attribue rien (choix du client du 29/10)', async () => {
   const free = (await admin.post('/api/admin/leads').send({ name: 'Libre', phone: '0703030303' })).body;
   assert.equal((await sellerB.post('/api/admin/leads/assign').send({ ids: [lead.id], user_id: idB })).status, 403, 'déjà à A');
   assert.equal((await sellerB.post('/api/admin/leads/assign').send({ ids: [free.id], user_id: idA })).status, 403, 'pas pour un autre');
-  assert.equal((await sellerB.post('/api/admin/leads/assign').send({ ids: [free.id], user_id: idB })).body.changed, 1);
+  assert.equal((await sellerB.post('/api/admin/leads/assign').send({ ids: [free.id], user_id: idB })).status, 403, 'pas même pour soi : le responsable répartit');
+  assert.equal((await sellerB.get(`/api/admin/leads/${free.id}`)).status, 404, 'un non attribué n’est vu que du responsable');
+  assert.equal((await admin.post('/api/admin/leads/assign').send({ ids: [free.id], user_id: idB })).body.changed, 1);
   const res = await admin.post('/api/admin/leads/assign').send({ ids: [lead.id], user_id: idB });
   assert.equal(res.body.changed, 1);
   assert.deepEqual((await events(lead.id)).map(e => `${e.kind}:${e.user_id}:${e.reason}`),

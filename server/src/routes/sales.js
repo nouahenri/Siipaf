@@ -7,7 +7,8 @@ const { PAYMENT_METHODS, DOCUMENT_TYPES, DOCUMENT_STATUSES, SCHEDULE_KINDS } = r
 const { openSale, refreshSaleStatus, totals, ACTIVE } = require('../services/sales');
 const { regenerateSchedule, replaceSchedule, scheduleStatus } = require('../services/schedule');
 const juridique = require('../services/juridique');
-const { inform } = require('../services/notifications');
+const { inform, notify } = require('../services/notifications');
+const { seesAllLeads, saleInScope, leadInScope } = require('../services/commercial');
 
 const day = z.coerce.date();
 
@@ -15,10 +16,13 @@ module.exports = function salesRoutes(db) {
   const r = express.Router();
 
   async function saleDetail(sale) {
-    const [lead, payments, documents, t] = await Promise.all([
+    const [lead, payments, declarations, documents, t] = await Promise.all([
       db('leads').where({ id: sale.lead_id }).first(),
-      db('payments as p').leftJoin('users as u', 'u.id', 'p.recorded_by').where('p.sale_id', sale.id)
-        .select('p.*', 'u.name as recorded_by_name').orderBy([{ column: 'p.paid_at', order: 'desc' }, { column: 'p.id', order: 'desc' }]),
+      db('payments as p').leftJoin('users as u', 'u.id', 'p.recorded_by').leftJoin('users as d', 'd.id', 'p.declared_by').where('p.sale_id', sale.id)
+        .select('p.*', 'u.name as recorded_by_name', 'd.name as declared_by_name').orderBy([{ column: 'p.paid_at', order: 'desc' }, { column: 'p.id', order: 'desc' }]),
+      // Versements déclarés par un commercial : à confirmer ou refusés (ne comptent pas dans les totaux)
+      db('payment_declarations as pd').leftJoin('users as u', 'u.id', 'pd.declared_by').where('pd.sale_id', sale.id).whereIn('pd.status', ['a_confirmer', 'rejete'])
+        .select('pd.*', 'u.name as declared_by_name').orderBy('pd.id', 'desc'),
       db('sale_documents as d').leftJoin('media as m', 'm.id', 'd.media_id').where('d.sale_id', sale.id)
         .select('d.*', 'm.filename', 'm.original_name').orderBy('d.sort'),
       totals(db, sale),
@@ -35,6 +39,7 @@ module.exports = function salesRoutes(db) {
         is_diaspora: !!lead.is_diaspora, client_code: lead.client_code, stage: lead.stage,
       },
       payments,
+      declarations: declarations.map(d => ({ ...d, amount_fcfa: Number(d.amount_fcfa), paid_at: isoDay(d.paid_at) })),
       documents: documents.map(d => ({ ...d, visible_client: !!d.visible_client, url: d.filename ? `/uploads/${d.filename}` : null })),
       schedule,
     };
@@ -56,12 +61,23 @@ module.exports = function salesRoutes(db) {
     ]);
     const canSales = req.can('sales:read');
     const current = sales.find(s => ACTIVE.includes(s.status));
+    // Coordonnées et dossier d'un acquéreur : droit « dossiers » et client du commercial (portée « toute l'équipe » : tous)
+    const visibleLeads = new Set();
+    if (canSales) {
+      const ids = [option?.lead_id, current?.lead_id, ...history.map(h => h.lead_id)].filter(Boolean);
+      const q = db('leads as ld').whereIn('ld.id', ids);
+      if (!seesAllLeads(req.user)) q.where('ld.assigned_to', req.user.id);
+      for (const l of await q.select('ld.id')) visibleLeads.add(l.id);
+    }
+    const seen = id => visibleLeads.has(id);
     res.json({
       ...lot,
       shape: json(lot.shape),
       surface_m2: lot.surface_m2 == null ? null : Number(lot.surface_m2),
-      project, offer, option: option || null, history,
-      sale: canSales && current ? await saleDetail(current) : null,
+      project, offer,
+      option: option ? (seen(option.lead_id) ? option : { ...option, lead_id: null, lead_name: null, lead_phone: null, lead_email: null }) : null,
+      history: history.map(h => (seen(h.lead_id) ? h : { ...h, lead_id: null, lead_name: null })),
+      sale: current && seen(current.lead_id) ? await saleDetail(current) : null,
       past_sales: canSales ? sales.filter(s => s.status === 'desiste').length : 0,
     });
   }));
@@ -84,6 +100,9 @@ module.exports = function salesRoutes(db) {
       throw new HttpError(400, 'Choisissez un prospect existant ou indiquez le nom et un contact de l’acquéreur.');
     }
     const { lead_id, name, phone, email, ...rest } = data;
+    if (lead_id) await leadInScope(db, lead_id, req.user);
+    // L'acte se date dans ERP › Juridique (ou avec le droit Juridique)
+    if (rest.signed_at && !req.can('juridique:write')) throw new HttpError(403, 'La date de signature de l’acte se saisit dans ERP › Juridique.');
     const sale = await openSale(db, { lotId: idParam(req), leadId: lead_id, leadData: { name, phone, email }, ...rest, user: req.user });
     // Circuit d'information : Direction générale, exploitation, Comptabilité, Juridique (réglable dans l'ERP)
     const info = await db('sales as s').join('lots as l', 'l.id', 's.lot_id').join('projects as p', 'p.id', 'l.project_id').join('leads as c', 'c.id', 's.lead_id')
@@ -108,8 +127,10 @@ module.exports = function salesRoutes(db) {
       vefa: z.boolean(),
       notes: z.string().max(2000).nullable(),
     }).partial(), req.body);
-    const before = await db('sales').where({ id }).first();
-    if (!before) throw new HttpError(404, 'Dossier introuvable.');
+    const before = await saleInScope(db, id, req.user);
+    if ('signed_at' in data && String(data.signed_at || '') !== String(before.signed_at || '') && !req.can('juridique:write')) {
+      throw new HttpError(403, 'La date de signature de l’acte se saisit dans ERP › Juridique.');
+    }
     // Acte signé saisi ici plutôt que dans ERP › Juridique : mêmes effets (lot vendu, pièce signée, annonces)
     const signedNow = !before.signed_at && !!data.signed_at && before.status !== 'desiste';
     await db('sales').where({ id }).update({ ...data, updated_at: new Date() });
@@ -135,8 +156,7 @@ module.exports = function salesRoutes(db) {
       deposit_fcfa: z.number().int().min(0).optional(),
       months: z.number().int().min(0).max(120).optional(),
     }), req.body || {});
-    const sale = await db('sales').where({ id }).first();
-    if (!sale) throw new HttpError(404, 'Dossier introuvable.');
+    const sale = await saleInScope(db, id, req.user);
     if (!sale.financing && !sale.vefa) throw new HttpError(400, 'Indiquez d’abord le mode de financement du dossier.');
     if (opts.deposit_fcfa != null && opts.deposit_fcfa > Number(sale.price_fcfa)) {
       throw new HttpError(400, 'L’apport dépasse le prix du bien.');
@@ -153,43 +173,120 @@ module.exports = function salesRoutes(db) {
       due_date: day,
       amount_fcfa: z.number().int().positive(),
     })).min(1).max(240), req.body);
-    const sale = await db('sales').where({ id }).first();
-    if (!sale) throw new HttpError(404, 'Dossier introuvable.');
+    const sale = await saleInScope(db, id, req.user);
     await db.transaction(trx => replaceSchedule(trx, sale, lines));
     res.json(await saleDetail(sale));
   }));
 
-  // ─── Versements (comptable) ───────────────────────────────
-  r.post('/sales/:id/payments', requirePermission('payments:write'), ah(async (req, res) => {
-    const id = idParam(req);
-    const data = parse(z.object({
-      amount_fcfa: z.number().int().positive('Montant invalide'),
-      paid_at: day.refine(d => d.getTime() <= Date.now() + 86400000, 'La date de paiement ne peut pas être dans le futur.'),
-      method: z.enum(PAYMENT_METHODS),
-      reference: z.string().trim().max(120).optional(),
-      note: z.string().trim().max(255).optional(),
-    }), req.body);
-    const sale = await db('sales').where({ id }).first();
-    if (!sale) throw new HttpError(404, 'Dossier introuvable.');
+  // ─── Versements ───────────────────────────────────────────
+  // La Comptabilité (payments:write) enregistre ; un commercial (payments:record) déclare un versement de son client,
+  // qui reste « à confirmer » et ne compte nulle part avant la confirmation de la réception des fonds.
+  const paymentSchema = z.object({
+    amount_fcfa: z.number().int().positive('Montant invalide'),
+    paid_at: day.refine(d => d.getTime() <= Date.now() + 86400000, 'La date de paiement ne peut pas être dans le futur.'),
+    method: z.enum(PAYMENT_METHODS),
+    reference: z.string().trim().max(120).optional(),
+    note: z.string().trim().max(255).optional(),
+  });
+  const saleInfo = id => db('sales as s').join('lots as l', 'l.id', 's.lot_id').join('projects as p', 'p.id', 'l.project_id').join('leads as c', 'c.id', 's.lead_id')
+    .where('s.id', id).first('c.name as client_name', 'c.assigned_to', 'p.name as project_name', 'l.code as lot_code');
+  const pendingOf = async (saleId, exceptId = null) => Number((await db('payment_declarations').where({ sale_id: saleId, status: 'a_confirmer' })
+    .modify(q => { if (exceptId) q.whereNot('id', exceptId); }).sum({ v: 'amount_fcfa' }).first()).v || 0);
+  // Le versement ne doit pas dépasser le reste à payer (versements déclarés en attente compris)
+  const checkRemaining = async (sale, amount, exceptId = null) => {
     if (sale.status === 'desiste') throw new HttpError(409, 'Ce dossier est clos (désistement).');
-    const t = await totals(db, sale);
-    if (data.amount_fcfa > t.remaining_fcfa) {
-      throw new HttpError(409, `Le versement dépasse le reste à payer (${t.remaining_fcfa.toLocaleString('fr-FR')} FCFA).`);
-    }
+    const left = (await totals(db, sale)).remaining_fcfa - (await pendingOf(sale.id, exceptId));
+    if (amount > left) throw new HttpError(409, `Le versement dépasse le reste à payer (${Math.max(0, left).toLocaleString('fr-FR')} FCFA, versements à confirmer déduits).`);
+  };
+  // Enregistre le versement (Comptabilité) et prévient le commercial du client et la Comptabilité
+  const recordPayment = async (sale, data, user, declaration = null) => {
     const pid = await db.transaction(async trx => {
-      const [p] = await trx('payments').insert({ ...data, sale_id: id, recorded_by: req.user.id });
-      await refreshSaleStatus(trx, id);
-      return typeof p === 'object' ? p.id : p;
+      const [p] = await trx('payments').insert({ ...data, sale_id: sale.id, recorded_by: user.id, declared_by: declaration?.declared_by || null });
+      const paymentId = typeof p === 'object' ? p.id : p;
+      if (declaration) await trx('payment_declarations').where({ id: declaration.id }).update({ status: 'confirme', decided_by: user.id, decided_at: new Date(), payment_id: paymentId, updated_at: new Date() });
+      await refreshSaleStatus(trx, sale.id);
+      return paymentId;
     });
-    // Circuit d'information : le commercial du client et la Comptabilité (écriture d'encaissement à synchroniser)
-    const info = await db('sales as s').join('lots as l', 'l.id', 's.lot_id').join('projects as p', 'p.id', 'l.project_id').join('leads as c', 'c.id', 's.lead_id')
-      .where('s.id', id).first('c.name as client_name', 'c.assigned_to', 'p.name as project_name', 'l.code as lot_code');
+    const info = await saleInfo(sale.id);
+    const paidAt = new Date(data.paid_at);
     await inform(db, 'vente.versement', {
-      direct: info.assigned_to ? [info.assigned_to] : [], except: req.user.id, key: `versement:${pid}`,
-      title: `Versement reçu : ${info.client_name} — ${data.amount_fcfa.toLocaleString('fr-FR')} FCFA`, body: `${info.project_name}, lot ${info.lot_code} · le ${data.paid_at.toLocaleDateString('fr-FR')}`,
-      link: '/commercial/ventes', links: { compta: '/compta' },
+      direct: [info.assigned_to, declaration?.declared_by].filter(Boolean), except: user.id, key: `versement:${pid}`,
+      title: `${declaration ? 'Versement confirmé' : 'Versement reçu'} : ${info.client_name} — ${Number(data.amount_fcfa).toLocaleString('fr-FR')} FCFA`,
+      body: `${info.project_name}, lot ${info.lot_code} · le ${paidAt.toLocaleDateString('fr-FR')}${declaration ? ' · réception des fonds confirmée par la Comptabilité' : ''}`,
+      link: '/commercial/ventes', links: { compta: '/compta/versements' },
     });
-    res.status(201).json(await saleDetail(await db('sales').where({ id }).first()));
+    return pid;
+  };
+
+  r.post('/sales/:id/payments', requirePermission('payments:write', 'payments:record'), ah(async (req, res) => {
+    const id = idParam(req);
+    const data = parse(paymentSchema, req.body);
+    const sale = await saleInScope(db, id, req.user);
+    await checkRemaining(sale, data.amount_fcfa);
+    if (req.can('payments:write')) {
+      await recordPayment(sale, data, req.user);
+      return res.status(201).json(await saleDetail(await db('sales').where({ id }).first()));
+    }
+    const [dId] = await db('payment_declarations').insert({ ...data, sale_id: id, declared_by: req.user.id });
+    const info = await saleInfo(id);
+    await inform(db, 'versement.a_confirmer', {
+      except: req.user.id, key: `declaration:${typeof dId === 'object' ? dId.id : dId}`,
+      title: `Versement à confirmer : ${info.client_name} — ${data.amount_fcfa.toLocaleString('fr-FR')} FCFA`,
+      body: `${info.project_name}, lot ${info.lot_code} · déclaré par ${req.user.name}, payé le ${data.paid_at.toLocaleDateString('fr-FR')} (${data.method})`,
+      link: '/compta/versements',
+    });
+    res.status(201).json(await saleDetail(sale));
+  }));
+
+  // Versements déclarés : la Comptabilité voit tout ; un commercial voit les siens
+  r.get('/payment-declarations', requirePermission('payments:write', 'payments:record'), ah(async (req, res) => {
+    const status = String(req.query.status || 'a_confirmer');
+    const q = db('payment_declarations as pd').join('sales as s', 's.id', 'pd.sale_id').join('leads as ld', 'ld.id', 's.lead_id')
+      .join('lots as l', 'l.id', 's.lot_id').join('projects as p', 'p.id', 'l.project_id').leftJoin('users as u', 'u.id', 'pd.declared_by').leftJoin('users as dcd', 'dcd.id', 'pd.decided_by')
+      .select('pd.*', 'ld.name as client_name', 'ld.client_code', 'l.code as lot_code', 'p.name as project_name', 'u.name as declared_by_name', 'dcd.name as decided_by_name', 's.id as sale_id')
+      .orderBy('pd.id', 'desc').limit(300);
+    if (status !== 'tous') q.where('pd.status', status);
+    if (!req.can('payments:write')) q.where(b => b.where('pd.declared_by', req.user.id).orWhere('ld.assigned_to', req.user.id));
+    res.json((await q).map(d => ({ ...d, amount_fcfa: Number(d.amount_fcfa), paid_at: isoDay(d.paid_at) })));
+  }));
+
+  const pendingDeclaration = async req => {
+    const d = await db('payment_declarations').where({ id: idParam(req) }).first();
+    if (!d) throw new HttpError(404, 'Versement déclaré introuvable.');
+    if (d.status !== 'a_confirmer') throw new HttpError(409, 'Ce versement a déjà été traité.');
+    return d;
+  };
+
+  // Réception des fonds confirmée : le versement entre dans le dossier (solde, espace client, reçu, comptabilité)
+  r.post('/payment-declarations/:id/confirm', requirePermission('payments:write'), ah(async (req, res) => {
+    const d = await pendingDeclaration(req);
+    const fix = parse(z.object({ paid_at: day.optional(), reference: z.string().trim().max(120).optional() }), req.body || {});
+    const sale = await db('sales').where({ id: d.sale_id }).first();
+    await checkRemaining(sale, Number(d.amount_fcfa), d.id);
+    const data = { amount_fcfa: Number(d.amount_fcfa), paid_at: fix.paid_at || d.paid_at, method: d.method, reference: fix.reference ?? d.reference, note: d.note };
+    await recordPayment(sale, data, req.user, d);
+    res.json(await saleDetail(await db('sales').where({ id: d.sale_id }).first()));
+  }));
+
+  r.post('/payment-declarations/:id/reject', requirePermission('payments:write'), ah(async (req, res) => {
+    const d = await pendingDeclaration(req);
+    const { reason } = parse(z.object({ reason: z.string().trim().min(3, 'Indiquez le motif du refus.').max(255) }), req.body);
+    await db('payment_declarations').where({ id: d.id }).update({ status: 'rejete', decided_by: req.user.id, decided_at: new Date(), reject_reason: reason, updated_at: new Date() });
+    const info = await saleInfo(d.sale_id);
+    await notify(db, {
+      to: [d.declared_by, info.assigned_to], module: 'commercial', event: 'versement.refuse', priority: 'action', except: req.user.id, key: `declaration:${d.id}:refus`,
+      title: `Versement non confirmé : ${info.client_name} — ${Number(d.amount_fcfa).toLocaleString('fr-FR')} FCFA`,
+      body: `Motif de la Comptabilité : ${reason}`, link: '/commercial/ventes',
+    });
+    res.json(await saleDetail(await db('sales').where({ id: d.sale_id }).first()));
+  }));
+
+  // Le commercial retire sa déclaration tant qu'elle n'est pas traitée
+  r.delete('/payment-declarations/:id', requirePermission('payments:write', 'payments:record'), ah(async (req, res) => {
+    const d = await pendingDeclaration(req);
+    if (d.declared_by !== req.user.id && !req.can('payments:write')) throw new HttpError(403, 'Seul son auteur retire un versement déclaré.');
+    await db('payment_declarations').where({ id: d.id }).update({ status: 'annule', updated_at: new Date() });
+    res.json(await saleDetail(await db('sales').where({ id: d.sale_id }).first()));
   }));
 
   r.delete('/payments/:id', requirePermission('payments:write'), ah(async (req, res) => {
@@ -214,7 +311,7 @@ module.exports = function salesRoutes(db) {
   r.post('/sales/:id/documents', requirePermission('documents:write'), ah(async (req, res) => {
     const id = idParam(req);
     const data = parse(z.object({ type: z.enum(DOCUMENT_TYPES), ...docFields }).partial({ status: true, media_id: true, visible_client: true, note: true }), req.body);
-    if (!(await db('sales').where({ id }).first())) throw new HttpError(404, 'Dossier introuvable.');
+    await saleInScope(db, id, req.user);
     const [{ max }] = await db('sale_documents').where({ sale_id: id }).max({ max: 'sort' });
     await db('sale_documents').insert({ ...data, sale_id: id, sort: (Number(max) || 0) + 1, updated_by: req.user.id });
     res.status(201).json(await saleDetail(await db('sales').where({ id }).first()));
@@ -225,6 +322,7 @@ module.exports = function salesRoutes(db) {
     const data = parse(z.object(docFields).partial(), req.body);
     const doc = await db('sale_documents').where({ id }).first();
     if (!doc) throw new HttpError(404, 'Document introuvable.');
+    await saleInScope(db, doc.sale_id, req.user);
     await db('sale_documents').where({ id }).update({ ...data, updated_by: req.user.id, updated_at: new Date() });
     res.json(await saleDetail(await db('sales').where({ id: doc.sale_id }).first()));
   }));
