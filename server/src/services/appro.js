@@ -160,6 +160,10 @@ async function detail(db, type, id) {
   if (type === 'order') out.invoices = await db('purchase_invoices as p').whereIn('p.id', db('appro_invoice_receipts as i').join('appro_movements as m', 'm.id', 'i.movement_id').where('m.order_id', id).select('i.invoice_id')).whereNot('p.status', 'annulee').orderBy('p.id')
     .select('p.id', 'p.number', 'p.status', 'p.amount_ttc', db('purchase_payments as pp').whereRaw('pp.invoice_id = p.id').sum('pp.amount').as('paid_fcfa'))
     .then(rows => rows.map(p => ({ ...p, amount_ttc: Number(p.amount_ttc), paid_fcfa: Number(p.paid_fcfa || 0) })));
+  // Acomptes versés par la Comptabilité avant réception (déduits de la facture finale à sa validation)
+  if (type === 'order') out.advances = (await db('appro_order_advances as a').join('acc_journals as j', 'j.id', 'a.journal_id').leftJoin('users as u', 'u.id', 'a.created_by').where('a.order_id', id).orderBy('a.id')
+    .select('a.id', 'a.date', 'a.amount', 'a.applied_amount', 'a.reference', 'j.code as journal_code', 'j.label as journal_label', 'u.name as created_by_name'))
+    .map(a => ({ ...a, date: isoDay(a.date), amount: Number(a.amount), applied_amount: Number(a.applied_amount) }));
   if (type === 'order') out.receipts = await db('appro_movements as m').leftJoin('appro_invoice_receipts as i', 'i.movement_id', 'm.id').leftJoin('purchase_invoices as p', 'p.id', 'i.invoice_id').where({ 'm.order_id': id, 'm.status': 'valide' }).orderBy('m.id').select('m.id', 'm.reference', 'm.date', 'm.supplier_ref', db.raw("CASE WHEN p.status = 'annulee' THEN NULL ELSE p.id END as invoice_id"));
   return out;
 }
@@ -305,6 +309,12 @@ async function informPayment(db, invoice, amount, remaining, userId) {
   await event(db, 'order', o.id, 'paiement', userId, { invoice_id: invoice.id, number: invoice.number, amount, remaining });
   await inform(db, 'commande.payee', { direct: approParties(o), except: userId, key: `appro:paiement:${invoice.id}:${Date.now()}`, title: `${remaining > 0 ? 'Règlement partiel' : 'Facture réglée'} : ${o.reference}`,
     body: `${invoice.number} · ${amount.toLocaleString('fr-FR')} FCFA réglés${remaining > 0 ? ` · reste ${remaining.toLocaleString('fr-FR')} FCFA` : ''}`, link: `/achats/commandes?fiche=${o.id}` });
+}
+/** Acompte versé par la Comptabilité : trace sur la commande et information de son émetteur (événement « commande.payee »). */
+async function informAdvance(db, o, amount, userId) {
+  await event(db, 'order', o.id, 'acompte', userId, { amount });
+  await inform(db, 'commande.payee', { direct: approParties(o), except: userId, key: `appro:acompte:${o.id}:${Date.now()}`, title: `Acompte versé : ${o.reference}`,
+    body: `${amount.toLocaleString('fr-FR')} FCFA versés à ${o.supplier_name} · déduit de la facture finale`, link: `/achats/commandes?fiche=${o.id}` });
 }
 async function changeBalance(trx, articleId, locationId, delta, postingDate = null) {
   const key = { article_id: articleId, location_id: locationId };
@@ -633,6 +643,6 @@ async function dashboard(db) {
     needs: Number(needsCount.n) + Number(serviceCount.n), quotes_waiting: Number(quotesCount.n), recent_orders: recent.map(o => serializeDocument(o, 'order')), settings: conf };
 }
 module.exports = { settings, saveSettings, refs, articles, saveArticle, locations, createLocation, stock, setStockMinimum, needs, contracts, dashboard,
-  approvers, issuers, prepareNeed, refuseNeed, serviceNeeds, ordersToValidate, prepareRequest, refuseRequest, importArticles, listDocuments, detail, saveDocument, receiveQuote, quoteToOrder, cancelDocument, submitOrder, approveOrder, reopenOrder, informPayment, movements, movementDetail, saveMovement, postMovement, cancelMovement, receiveOrder, prepareInvoice };
+  approvers, issuers, prepareNeed, refuseNeed, serviceNeeds, ordersToValidate, informAdvance, prepareRequest, refuseRequest, importArticles, listDocuments, detail, saveDocument, receiveQuote, quoteToOrder, cancelDocument, submitOrder, approveOrder, reopenOrder, informPayment, movements, movementDetail, saveMovement, postMovement, cancelMovement, receiveOrder, prepareInvoice };
 
 

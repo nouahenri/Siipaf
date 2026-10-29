@@ -320,7 +320,69 @@ async function validatePurchase(db, invoiceId, userId) {
       project_id: inv.project_id, place_id: inv.place_id, lines, userId, validate: !!settings.auto_validate,
     });
     await trx('purchase_invoices').where({ id: inv.id }).update({ status: 'validee', updated_at: new Date() });
+    // Facture issue des réceptions d'une commande : ses acomptes sont imputés (seul le solde reste dû)
+    await applyOrderAdvances(trx, inv, settings, userId);
     return trx('purchase_invoices').where({ id: inv.id }).first();
+  });
+}
+
+/**
+ * Acomptes versés sur la commande d'origine d'une facture (Achats & stocks) : imputés à la validation de la facture,
+ * dans l'ordre des versements, jusqu'au montant TTC (écriture OD : fournisseur / avances fournisseurs). Chaque
+ * imputation est un règlement de la facture (purchase_payments.advance_id), sans mouvement de trésorerie.
+ */
+async function applyOrderAdvances(trx, inv, settings, userId) {
+  const order = await trx('appro_invoice_receipts as i').join('appro_movements as m', 'm.id', 'i.movement_id').where('i.invoice_id', inv.id).first('m.order_id');
+  if (!order?.order_id) return;
+  const advances = (await trx('appro_order_advances').where({ order_id: order.order_id }).orderBy('id')).filter(a => Number(a.amount) > Number(a.applied_amount));
+  if (!advances.length) return;
+  const od = await trx('acc_journals').where({ code: 'OD' }).first();
+  if (!od) throw new HttpError(400, 'Journal OD introuvable : il sert à imputer les acomptes fournisseurs.');
+  const [{ paid }] = await trx('purchase_payments').where({ invoice_id: inv.id }).sum({ paid: 'amount' });
+  let rest = Number(inv.amount_ttc) - (Number(paid) || 0);
+  const date = day(inv.date);
+  for (const a of advances) {
+    if (rest <= 0) break;
+    const amount = Math.min(rest, Number(a.amount) - Number(a.applied_amount));
+    const [pid] = await trx('purchase_payments').insert({ invoice_id: inv.id, date, amount, journal_id: od.id, reference: a.reference ? `Acompte ${a.reference}` : 'Acompte sur commande', advance_id: a.id, created_by: userId });
+    await createEntry(trx, {
+      journal: 'OD', date, label: `Imputation de l’acompte — ${inv.supplier_name} — ${inv.label}`, ref: inv.number, source: 'reglement', source_key: `purchase_advance_use:${insertedId(pid)}`,
+      project_id: inv.project_id, place_id: inv.place_id, userId, validate: !!settings.auto_validate,
+      lines: [
+        { account: settings.accounts.supplier, debit: amount, partner_type: 'fournisseur', partner_id: inv.supplier_id, project_id: inv.project_id, place_id: inv.place_id },
+        { account: settings.accounts.supplier_advance, credit: amount, partner_type: 'fournisseur', partner_id: inv.supplier_id, project_id: inv.project_id, place_id: inv.place_id },
+      ],
+    });
+    await trx('appro_order_advances').where({ id: a.id }).increment('applied_amount', amount);
+    rest -= amount;
+  }
+}
+
+/** Acompte versé au fournisseur sur un bon de commande confirmé, avant réception et facture (avance fournisseurs / trésorerie). */
+async function payOrderAdvance(db, orderId, { date, amount, journal_id, reference }, userId) {
+  const settings = await getSettings(db);
+  return db.transaction(async trx => {
+    const o = await trx('appro_orders as o').join('suppliers as s', 's.id', 'o.supplier_id').where('o.id', orderId).first('o.*', 's.name as supplier_name');
+    if (!o) throw new HttpError(404, 'Commande introuvable.');
+    if (!['confirmee', 'partielle'].includes(o.status)) throw new HttpError(409, 'Un acompte se verse sur une commande confirmée, avant sa réception complète.');
+    const [{ s }] = await trx('appro_order_advances').where({ order_id: o.id }).sum({ s: 'amount' });
+    const left = Number(o.amount_ttc) - (Number(s) || 0);
+    if (amount > left) throw new HttpError(400, `L’acompte dépasse le montant restant de la commande (${left.toLocaleString('fr-FR')} FCFA TTC).`);
+    const j = await trx('acc_journals as j').join('acc_accounts as a', 'a.id', 'j.account_id').where('j.id', journal_id).first('j.*', 'a.code as account_code');
+    if (!j || !['banque', 'caisse', 'mobile'].includes(j.kind)) throw new HttpError(400, 'Choisissez un journal de trésorerie (banque, caisse, Mobile Money).');
+    const loc = await trx('appro_locations').where({ id: o.location_id }).first();
+    const site = await require('./lieux').resolvePlace(trx, { worksite_id: loc?.worksite_id, place_id: loc?.place_id });
+    const [aid] = await trx('appro_order_advances').insert({ order_id: o.id, date, amount, journal_id, reference: reference || null, created_by: userId });
+    await createEntry(trx, {
+      journal: j, date, label: `Acompte ${o.supplier_name} — ${o.reference}`, ref: reference || o.reference, source: 'reglement', source_key: `purchase_advance:${insertedId(aid)}`,
+      project_id: site.project_id || null, place_id: site.place_id || null, userId, validate: !!settings.auto_validate,
+      lines: [
+        { account: settings.accounts.supplier_advance, debit: amount, partner_type: 'fournisseur', partner_id: o.supplier_id, project_id: site.project_id || null, place_id: site.place_id || null },
+        { account: j.account_code, credit: amount, project_id: site.project_id || null, place_id: site.place_id || null },
+      ],
+    });
+    await require('./appro').informAdvance(trx, o, amount, userId);
+    return { advance_id: insertedId(aid), advanced_fcfa: (Number(s) || 0) + amount };
   });
 }
 
@@ -575,7 +637,7 @@ async function dashboard(db) {
   };
 }
 
-module.exports = {
+module.exports = { payOrderAdvance, applyOrderAdvances,
   dashboard,
   getSettings, saveSettings, fiscalYearFor, assertWritable, createEntry, validateEntry, updateDraft, deleteDraft, reverseEntry, entryDetail,
   syncAutoEntries, nextPurchaseNumber, validatePurchase, payPurchase,

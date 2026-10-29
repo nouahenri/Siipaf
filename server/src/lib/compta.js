@@ -110,7 +110,7 @@ const DEFAULT_SETTINGS = {
   // Clôture mensuelle : période verrouillée au plus tard ce jour du mois suivant (indicateur RH › Performance, choix du client du 27/10)
   close_day: 10,
   accounts: {
-    client: '4111', client_advance: '4191', supplier: '4011', vat_collected: '4431', vat_deductible: '4452',
+    client: '4111', client_advance: '4191', supplier: '4011', supplier_advance: '4091', vat_collected: '4431', vat_deductible: '4452',
     sale_housing: '702110', sale_land: '702120', expense_default: '621100', opening_balance: '471',
     // Parc auto et matériel (choix du client du 23/10) : charge de chaque nature de dépense, carte carburant prépayée
     parc_carburant: '605', parc_entretien: '624', parc_reparation: '624', parc_pneus: '624', parc_location: '622',

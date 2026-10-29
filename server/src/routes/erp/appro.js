@@ -54,6 +54,12 @@ module.exports = db => {
   r.get('/issuers', ah(async (req, res) => res.json(await s.issuers(db))));
   r.post('/orders/:id/submit', action('appro:write'), ah(async (req, res) => res.json(await s.submitOrder(db, idParam(req), actor(req)))));
   r.post('/orders/:id/reopen', action('appro:write'), ah(async (req, res) => res.json(await s.reopenOrder(db, idParam(req), req.user.id))));
+  // Acompte au fournisseur sur une commande confirmée : Comptabilité, droit « Régler les fournisseurs »
+  r.post('/orders/:id/advances', action('achats:pay'), ah(async (req, res) => {
+    const data = parse(z.object({ date: day, amount: z.number().int().positive().max(1000000000000), journal_id: id, reference: text(120) }), req.body);
+    await require('../../services/compta').payOrderAdvance(db, idParam(req), data, req.user.id);
+    res.status(201).json(await s.detail(db, 'order', idParam(req)));
+  }));
   r.post('/orders/:id/approve', requirePermission('appro:validate', 'appro:direction'), ah(async (req, res) => res.json(await s.approveOrder(db, idParam(req), actor(req)))));
   r.post('/orders/:id/refuse', requirePermission('appro:validate', 'appro:direction'), ah(async (req, res) => res.json(await s.approveOrder(db, idParam(req), actor(req), { refuse: true, reason: parse(z.object({ reason: z.string().trim().min(3).max(500) }), req.body).reason }))));
   r.post('/orders/:id/receive', action('appro:stock'), ah(async (req, res) => res.json(await s.receiveOrder(db, idParam(req), parse(z.object({ date: day, supplier_ref: text(100), note: text(5000), lines: z.array(z.object({ order_line_id: id, quantity: qty })).min(1).max(100) }), req.body), actor(req)))));

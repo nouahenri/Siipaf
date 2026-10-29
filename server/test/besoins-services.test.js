@@ -20,6 +20,8 @@ before(async () => {
   const account = await db('acc_accounts').where({ code: '604100' }).first();
   const [sid] = await db('suppliers').insert({ name: 'Papeterie du Plateau', kind: 'fournisseur', expense_account_id: account.id }); supplier = typeof sid === 'object' ? sid.id : sid;
   place = await db('places').first();
+  const year = date.slice(0, 4);
+  ok(await comptable.post('/api/admin/erp/compta/fiscal-years').send({ label: year, start_date: `${year}-01-01`, end_date: `${year}-12-31` }), 201);
   const unit = (await db('worksite_ref_items').where({ kind: 'unite', active: true }).first()).code;
   article = ok(await comptable.post(`${A}/articles`).send({ code: 'RAMETTE', label: 'Ramette de papier A4', unit, min_quantity: 0 }), 201);
 });
@@ -54,6 +56,13 @@ test('demande d’achat d’un service : Achats › Besoins, commande, livraison
   assert.equal(r.status, 'commande');
   assert.equal(r.order_id, order.id);
   assert.ok(await db('notifications').where({ event: 'demande.suite', user_id: ids.editeur }).where('title', 'like', 'Commande passée%').first());
+  // Acompte versé par la Comptabilité avant la réception (TTC de la commande : 38 000 + 18 % = 44 840)
+  const bq = await db('acc_journals').where({ code: 'BQ' }).first();
+  assert.equal((await editeur.post(`${A}/orders/${order.id}/advances`).send({ date, amount: 10000, journal_id: bq.id })).status, 403, 'Comptabilité seulement');
+  assert.equal((await comptable.post(`${A}/orders/${order.id}/advances`).send({ date, amount: 50000, journal_id: bq.id })).status, 400, 'pas plus que la commande');
+  let detail = ok(await comptable.post(`${A}/orders/${order.id}/advances`).send({ date, amount: 15000, journal_id: bq.id, reference: 'VIR-ACOMPTE' }), 201);
+  assert.equal(detail.advances.length, 1);
+  assert.ok(await db('acc_entries').where({ source_key: `purchase_advance:${detail.advances[0].id}` }).first(), 'écriture avance fournisseur / banque');
   // Réception complète : la demande est traitée ; la facture part en Comptabilité (circuit existant)
   ok(await comptable.post(`${A}/orders/${order.id}/receive`).send({ date, lines: [{ order_line_id: (await db('appro_order_lines').where({ order_id: order.id }).first()).id, quantity: 10 }] }));
   r = await db('internal_requests').where({ id: r.id }).first();
@@ -61,6 +70,14 @@ test('demande d’achat d’un service : Achats › Besoins, commande, livraison
   assert.ok(await db('notifications').where({ event: 'demande.suite', user_id: ids.editeur }).where('title', 'like', 'Livré%').first());
   const invoice = ok(await admin.post(`${A}/orders/${order.id}/invoice`).send({ date, supplier_ref: 'FACT-RAMETTES', expense_account: '604100' }), 201);
   assert.ok(invoice.id || invoice.invoice_id);
+  // Validation de la facture finale : l'acompte est imputé, seul le solde reste dû
+  const invoiceId = invoice.invoice_id || invoice.id;
+  ok(await comptable.post(`/api/admin/erp/compta/purchases/${invoiceId}/validate`));
+  const paid = Number((await db('purchase_payments').where({ invoice_id: invoiceId }).sum({ s: 'amount' }).first()).s);
+  assert.equal(paid, 15000, 'acompte déduit de la facture');
+  assert.equal(Number((await db('appro_order_advances').where({ order_id: order.id }).first()).applied_amount), 15000);
+  detail = ok(await comptable.get(`${A}/orders/${order.id}`));
+  assert.equal(detail.invoices[0].paid_fcfa, 15000);
   needs = ok(await comptable.get(`${A}/service-needs`));
   assert.equal(needs.length, 0, 'livrée : plus dans la liste');
 

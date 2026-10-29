@@ -7,7 +7,7 @@ import { date } from '@admin/lib/format';
 import { useComptaMeta, AccountInput, amt } from '../../lib/compta';
 
 const ACCOUNT_LABELS = {
-  client: 'Clients', client_advance: 'Avances et acomptes reçus des clients', supplier: 'Fournisseurs', vat_collected: 'TVA facturée sur ventes',
+  client: 'Clients', client_advance: 'Avances et acomptes reçus des clients', supplier: 'Fournisseurs', supplier_advance: 'Acomptes versés aux fournisseurs (bons de commande)', vat_collected: 'TVA facturée sur ventes',
   vat_deductible: 'TVA récupérable sur achats', sale_housing: 'Ventes de logements', sale_land: 'Ventes de terrains aménagés', expense_default: 'Charge proposée par défaut sur un achat',
   opening_balance: 'Compte d’attente (reprise)',
 };

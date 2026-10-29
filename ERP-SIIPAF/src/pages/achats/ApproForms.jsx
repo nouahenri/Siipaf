@@ -1,11 +1,12 @@
 import { useState } from 'react';
 import { Link } from 'react-router-dom';
-import { Plus, Trash2, CheckCheck, Pencil, PackageCheck, Receipt, XCircle, Send, Undo2 } from 'lucide-react';
+import { Plus, Trash2, CheckCheck, Pencil, PackageCheck, Receipt, XCircle, Send, Undo2, Wallet } from 'lucide-react';
 import { api } from '@admin/lib/api';
 import { useAuth, useResource } from '@admin/lib/app-context';
 import { Modal, Drawer, Field, ErrorBox, Skeleton, Badge } from '@admin/components/ui';
 import { fcfa, date, dateTime } from '@admin/lib/format';
 import { APPRO, today, qty, tone, useApproAction } from '../../lib/appro';
+import { useComptaMeta } from '../../lib/compta';
 
 export function Select({ value, onChange, rows, empty = 'Choisir…', required = true, disabled = false, label = undefined }) {
   return <select className="select" aria-label={label} value={value ?? ''} required={required} disabled={disabled} onChange={e => onChange(e.target.value)}><option value="">{empty}</option>{rows.map(r => <option key={r.id ?? r.code} value={r.id ?? r.code}>{r.name || r.label}</option>)}</select>;
@@ -17,19 +18,21 @@ function Events({ rows }) {
   return <div><h3 className="erp-h3">Historique</h3><ul className="list">{rows.map(e => <li key={e.id} className="list-row"><div><b className="small">{labels[e.action] || e.action}</b><div className="small muted">{e.user_name || 'Compte supprimé'}{extra(e)}</div></div><span className="small muted">{dateTime(e.created_at)}</span></li>)}</ul></div>;
 }
 const INVOICE_STATUS = { brouillon: 'Brouillon à contrôler', validee: 'Validée' };
-/** Circuit du bon de commande : émission → validation → réception → facture → règlement. */
+/** Circuit du bon de commande : émission → validation → acompte éventuel (Comptabilité) → réception → facture → règlement. */
 function OrderCircuit({ d }) {
   const pending = ['a_valider', 'attente_direction'].includes(d.status), received = d.lines.reduce((s, l) => s + l.received_quantity, 0), ordered = d.lines.reduce((s, l) => s + l.quantity, 0);
   const billed = d.invoices.reduce((s, i) => s + i.amount_ttc, 0), paid = d.invoices.reduce((s, i) => s + i.paid_fcfa, 0);
+  const advances = d.advances || [], advanced = advances.reduce((s, a) => s + a.amount, 0), applied = advances.reduce((s, a) => s + a.applied_amount, 0);
   const decision = d.status === 'refusee' ? `Refusée par ${d.approved_by_name || '—'}` : d.approved_by_name && !pending && d.status !== 'brouillon' && d.status !== 'annulee' ? `Validée par ${d.approved_by_name}` : pending ? `En attente${d.status === 'attente_direction' ? ' de la Direction' : ''}` : d.status === 'brouillon' ? 'à soumettre' : '—';
   const steps = [
     ['Émission', `${d.issuer_name || d.created_by_name || 'Compte supprimé'}${(d.issuer_name ? d.issuer_role : d.created_by_role) ? ` — ${d.issuer_name ? d.issuer_role : d.created_by_role}` : ''}${d.issuer_id && d.created_by !== d.issuer_id ? ` · saisi par ${d.created_by_name || 'compte supprimé'}` : ''}`, true],
     ['Validation', `${d.approver_name ? `${d.approver_name}${d.approver_role ? ` — ${d.approver_role}` : ''}` : d.status === 'brouillon' ? 'Validateur à désigner' : d.status === 'attente_direction' ? 'Direction' : 'Validateur non désigné'} · ${decision}`, ['confirmee', 'partielle', 'recue'].includes(d.status)],
+    ['Acompte (Comptabilité)', advanced ? `${fcfa(advanced)} versé(s) au fournisseur${applied ? ` · ${fcfa(applied)} déduit(s) de la facture` : ' · déduit de la facture finale'}` : 'Facultatif : aucun acompte versé', advanced > 0, !advanced],
     ['Réception', received ? `${qty(received)} / ${qty(ordered)} reçus · ${d.receipts.length} bon(s) de réception` : 'Aucune réception', d.status === 'recue'],
     ['Facture', d.invoices.length ? d.invoices.map(i => `${i.number} (${INVOICE_STATUS[i.status] || i.status})`).join(', ') : d.receipts.length ? 'À préparer depuis les réceptions' : '—', d.invoices.length > 0 && d.invoices.every(i => i.status === 'validee')],
     ['Règlement', billed ? `${fcfa(paid)} réglés sur ${fcfa(billed)}` : '—', billed > 0 && paid >= billed],
   ];
-  return <ol className="appro-circuit">{steps.map(([label, text, done]) => <li key={label} className={done ? 'done' : ''}><b className="small">{label}</b><span className="small muted">{text}</span></li>)}</ol>;
+  return <ol className="appro-circuit">{steps.map(([label, text, done, optional]) => <li key={label} className={done ? 'done' : optional ? 'optional' : ''}><b className="small">{label}</b><span className="small muted">{text}</span></li>)}</ol>;
 }
 function LinesEditor({ lines, setLines, refs, prices, priceRequired, onCreateArticle }) {
   const update = (i, patch) => setLines(lines.map((l, j) => i === j ? { ...l, ...patch } : l));
@@ -121,6 +124,7 @@ function InvoiceForm({ document: d, refs, onClose, onSaved }) {
 }
 export function DocumentDrawer({ kind, id, refs, onClose, onChange, onOrder }) {
   const isOrder = kind === 'order', path = `${APPRO}/${isOrder ? 'orders' : 'quotes'}/${id}`, res = useResource(path), action = useApproAction(), { can, user } = useAuth();
+  const [advance, setAdvance] = useState(false);
   const [edit, setEdit] = useState(false), [receive, setReceive] = useState(false), [invoice, setInvoice] = useState(false), [refuse, setRefuse] = useState(false), [reason, setReason] = useState(''), [bill, setBill] = useState(null);
   const d = res.data, refresh = () => { action.clear(); res.reload(); onChange(); }, act = (suffix, message, body = {}) => action.run(() => api.post(`${path}/${suffix}`, body), message, refresh);
   // Mêmes règles que le serveur (approDeciderRefusal) : le validateur désigné, ou la Direction qui se substitue ; jamais l'émetteur.
@@ -143,6 +147,7 @@ export function DocumentDrawer({ kind, id, refs, onClose, onChange, onOrder }) {
       {isOrder && d.status === 'refusee' && can('appro:write') && <button className="btn btn-sm" disabled={action.busy} onClick={() => act('reopen', 'Commande reprise en brouillon')}><Undo2 />Reprendre en brouillon</button>}
       {!isOrder && d.status === 'brouillon' && can('appro:write') && <button className="btn btn-primary btn-sm" disabled={action.busy} onClick={() => act('received', 'Devis fournisseur enregistré')}><CheckCheck />Devis reçu</button>}
       {!isOrder && d.status === 'recue' && can('appro:write') && <button className="btn btn-primary btn-sm" disabled={action.busy} onClick={() => action.run(() => api.post(`${path}/order`), 'Commande préparée', o => { onChange(); onOrder?.(o.id); })}>Préparer la commande</button>}
+      {isOrder && ['confirmee', 'partielle'].includes(d.status) && can('achats:pay') && can('compta:read') && <button className="btn btn-sm" disabled={action.busy} onClick={() => setAdvance(true)}><Wallet />Verser un acompte</button>}
       {isOrder && ['confirmee', 'partielle'].includes(d.status) && can('appro:stock') && <button className="btn btn-primary btn-sm" disabled={action.busy} onClick={() => setReceive(true)}><PackageCheck />Réceptionner</button>}
       {isOrder && d.receipts.some(r => !r.invoice_id) && can('achats:write') && can('compta:read') && <button className="btn btn-sm" disabled={action.busy} onClick={() => setInvoice(true)}><Receipt />Préparer la facture</button>}
       {(isOrder ? ['brouillon', 'a_valider', 'attente_direction', 'refusee'] : ['brouillon', 'recue']).includes(d.status) && can('appro:write') && <button className="btn btn-ghost btn-sm btn-danger" disabled={action.busy} onClick={() => window.confirm('Annuler ce document ?') && act('cancel', 'Document annulé')}>Annuler</button>}
@@ -161,6 +166,7 @@ export function DocumentDrawer({ kind, id, refs, onClose, onChange, onOrder }) {
     <Events rows={d.events} />
     {edit && <DocumentForm kind={kind} document={d} refs={refs} onClose={() => setEdit(false)} onSaved={() => { setEdit(false); refresh(); }} />}
     {receive && <ReceiptForm document={d} onClose={() => setReceive(false)} onSaved={() => { setReceive(false); refresh(); }} />}
+    {advance && <AdvanceForm document={d} onClose={() => setAdvance(false)} onSaved={() => { setAdvance(false); refresh(); }} />}
     {invoice && <InvoiceForm document={d} refs={refs} onClose={() => setInvoice(false)} onSaved={b => { setInvoice(false); setBill(b); refresh(); }} />}
     {refuse && <Modal title={`Refuser ${d.reference}`} onClose={() => setRefuse(false)} footer={<><button className="btn btn-ghost" onClick={() => setRefuse(false)}>Retour</button><button className="btn btn-primary" form="appro-refuse" disabled={action.busy}>Confirmer le refus</button></>}><form id="appro-refuse" className="stack" onSubmit={e => { e.preventDefault(); action.run(() => api.post(`${path}/refuse`, { reason }), 'Commande refusée', () => { setRefuse(false); refresh(); }); }}><ErrorBox error={action.error} /><Field label="Motif *"><textarea className="textarea" minLength={3} maxLength={500} required value={reason} onChange={e => setReason(e.target.value)} /></Field></form></Modal>}
   </div>}</Drawer>;
@@ -206,3 +212,25 @@ export function MinimumForm({ balance: b, onClose, onSaved }) {
 
 
 
+
+/**
+ * Acompte au fournisseur sur une commande confirmée (Comptabilité) : écriture avance fournisseurs / trésorerie ;
+ * il est déduit automatiquement de la facture finale à sa validation (seul le solde reste dû).
+ */
+function AdvanceForm({ document: d, onClose, onSaved }) {
+  const { meta } = useComptaMeta();
+  const action = useApproAction();
+  const done = (d.advances || []).reduce((s, a) => s + a.amount, 0), left = Math.max(0, d.amount_ttc - done);
+  const journals = (meta?.journals || []).filter(j => ['banque', 'caisse', 'mobile'].includes(j.kind) && j.active !== false);
+  const [f, setF] = useState({ amount: '', date: today(), journal_id: '', reference: '' });
+  const set = k => e => setF(x => ({ ...x, [k]: e.target.value }));
+  const submit = e => { e.preventDefault(); action.run(() => api.post(`${APPRO}/orders/${d.id}/advances`, { amount: Number(f.amount), date: f.date, journal_id: Number(f.journal_id), reference: f.reference || null }), 'Acompte versé : il sera déduit de la facture finale', onSaved); };
+  return <Modal title={`Acompte — ${d.reference}`} onClose={onClose} footer={<><button className="btn btn-ghost" onClick={onClose}>Retour</button><button className="btn btn-primary" form="appro-advance" disabled={action.busy || !f.amount || !f.journal_id}>Enregistrer l’acompte</button></>}>
+    <form id="appro-advance" className="form-grid" onSubmit={submit}><div className="full"><ErrorBox error={action.error} /></div>
+      <p className="full small muted">{d.supplier_name} · commande de {fcfa(d.amount_ttc)} TTC{done ? ` · ${fcfa(done)} déjà versé(s)` : ''} · reste {fcfa(left)}. L’acompte est déduit automatiquement de la facture finale à sa validation.</p>
+      <Field label="Montant (FCFA) *"><input className="input tabular" type="number" min="1" max={left} required value={f.amount} onChange={set('amount')} /></Field>
+      <Field label="Date *"><input className="input" type="date" max={today()} required value={f.date} onChange={set('date')} /></Field>
+      <Field label="Payé par *"><select className="select" required value={f.journal_id} onChange={set('journal_id')}><option value="">Banque, caisse ou Mobile Money…</option>{journals.map(j => <option key={j.id} value={j.id}>{j.code} — {j.label}</option>)}</select></Field>
+      <Field label="Référence"><input className="input" value={f.reference} onChange={set('reference')} placeholder="N° de virement, de chèque…" /></Field>
+    </form></Modal>;
+}

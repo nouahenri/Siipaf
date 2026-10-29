@@ -12,6 +12,7 @@
 .appro-circuit li::before { content: ''; position: absolute; left: 3px; top: 5px; width: 9px; height: 9px; border-radius: 50%; border: 2px solid var(--border); background: var(--surface); }
 .appro-circuit li:not(:last-child)::after { content: ''; position: absolute; left: 8px; top: 18px; bottom: 2px; width: 1px; background: var(--border); }
 .appro-circuit li.done::before { border-color: var(--ok); background: var(--ok); }
+.appro-circuit li.optional::before { border-style: dashed; } /* étape facultative (acompte) */
 .appro-signatures { display: grid; grid-template-columns: 1fr 1fr; gap: 24px; margin-top: 12px; }
 .appro-signatures > div { border-top: 1px solid var(--border); padding-top: 8px; min-height: 90px; }
 
