@@ -15,7 +15,7 @@ const MODULES = [
   { id: 'achats', to: '/achats', label: 'Achats & stocks', text: 'Commandes, sous-traitance, dépôt ↔ chantier.', icon: Boxes, perm: 'appro:read', color: '#e87ba4' },
   { id: 'juridique', to: '/juridique', label: 'Juridique', text: 'Ventes jusqu’à l’acte notarié, litiges, cautions et retenues de garantie, impayés transmis, contrats et échéances.', icon: Scale, perm: [...JURIDIQUE, 'compta:read'], show: JURIDIQUE_SHOW, badges: 'juridique', color: '#6d28d9' },
   // Demandé par le client le 29/10, cadrage à venir : tuile visible de tous, sans accès
-  { id: 'shse', label: 'SHSE', text: 'Santé, hygiène, sécurité et environnement : accidents et incidents, équipements de protection, inspections et visites de sécurité, formations sécurité, déchets.', icon: ShieldAlert, color: '#0f766e', status: 'En cours' },
+  { id: 'qhse', label: 'QHSE', text: 'Qualité, hygiène, sécurité et environnement : règles, contrôles et actions de prévention pour la conformité des ouvrages, la santé des travailleurs et un impact environnemental limité sur les chantiers.', icon: ShieldAlert, color: '#0f766e', status: 'En cours' },
   { id: 'admin', module: 'administration', to: '/administration', label: 'Administration générale', text: 'Vue Direction de tous les services, courrier arrivée et départ, contrats et échéances, parc auto et matériel, documents internes, demandes internes, lieux (siège, bureaux, dépôts), circuit d’information entre les services.', icon: Building, perm: ['direction:read', 'courrier:read', 'courrier:write', 'courrier:assign', 'contrats:read', 'contrats:write', 'parc:read', 'parc:write', 'demandes:handle', 'demandes:dg', 'lieux:write', 'users:edit', 'circuit:write'], show: ADMIN_SHOW, color: '#5b6170' },
 ];
 
