@@ -164,6 +164,7 @@ async function achieved(db, { from, to, userId = null }) {
     encaissements_fcfa: pays.filter(r => inRange(r.d)).reduce((s, r) => s + Number(r.amount_fcfa), 0),
     nouveaux_prospects: fresh.length,
     conversion_pct: conversionRate(pf), // même définition que l'indicateur RH « Taux de conversion »
+    taux_conversion: conversionRate(pf), // nom de l'indicateur (cible de Commercial › Objectifs)
     prospects: pf.prospects, clients: pf.clients,
   };
 }
@@ -187,7 +188,7 @@ async function targetsReport(db, month) {
     const { target, employee_id } = targets[u.id];
     const done = await achieved(db, { from, to, userId: u.id });
     const pct = k => (target[k] ? Math.round((done[k] / target[k]) * 1000) / 10 : null);
-    rows.push({ user_id: u.id, name: u.name, role: u.role, employee_id, target, done, pct: { ca_fcfa: pct('ca_fcfa'), ventes: pct('ventes'), rdv: pct('rdv'), encaissements_fcfa: pct('encaissements_fcfa') } });
+    rows.push({ user_id: u.id, name: u.name, role: u.role, employee_id, target, done, pct: { taux_conversion: pct('taux_conversion'), ca_fcfa: pct('ca_fcfa'), ventes: pct('ventes'), rdv: pct('rdv'), encaissements_fcfa: pct('encaissements_fcfa') } });
   }
   return { month, rows };
 }

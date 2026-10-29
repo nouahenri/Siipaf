@@ -179,7 +179,7 @@ const OBJECTIVE_PERIODS = { annee: 'Année', trimestre: 'Trimestre', mois: 'Mois
 const PERIOD_COUNT = { annee: 1, trimestre: 4, mois: 12 };
 const MONTH_NAMES = ['janvier', 'février', 'mars', 'avril', 'mai', 'juin', 'juillet', 'août', 'septembre', 'octobre', 'novembre', 'décembre'];
 // Cibles mensuelles du Commercial › Objectifs (source unique avec les objectifs RH, choix du client du 27/10)
-const SALES_TARGET_METRICS = ['ca_fcfa', 'ventes', 'rdv', 'encaissements_fcfa'];
+const SALES_TARGET_METRICS = ['taux_conversion', 'ca_fcfa', 'ventes', 'rdv', 'encaissements_fcfa'];
 
 /** Bornes d'une période d'objectif (dates AAAA-MM-JJ incluses). */
 function periodRange(year, period = 'annee', index = null) {

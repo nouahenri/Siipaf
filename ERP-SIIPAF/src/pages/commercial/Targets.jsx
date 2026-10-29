@@ -10,6 +10,7 @@ import { PortfolioCounters, ImportLists } from './Portfolio';
 
 const shift = (m, n) => { const [y, mo] = m.split('-').map(Number); const d = new Date(y, mo - 1 + n, 1); return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`; };
 const METRICS = [
+  ['taux_conversion', 'Conversion', v => (v == null ? '—' : `${String(v).replace('.', ',')} %`)],
   ['ca_fcfa', 'CA signé', v => compact(v)],
   ['ventes', 'Ventes', v => v],
   ['rdv', 'RDV réalisés', v => v],
@@ -89,7 +90,7 @@ function MonthlyTargets() {
           </table></div>
         )}
       </Card>
-      <p className="small muted">Réalisé : dossiers de vente ouverts dans le mois (prix convenu), rendez-vous marqués « effectué », versements reçus sur les dossiers du commercial. Les objectifs du mois sont ceux de la fiche du personnel de chaque commercial : ils comptent aussi dans RH › Performance et entretiens.</p>
+      <p className="small muted">Conversion : nouveaux clients nets ÷ prospects reçus dans le mois (attribués, hors transferts). Réalisé : dossiers de vente ouverts dans le mois (prix convenu), rendez-vous marqués « effectué », versements reçus sur les dossiers du commercial. Les objectifs du mois sont ceux de la fiche du personnel de chaque commercial : ils comptent aussi dans RH › Performance et entretiens.</p>
       {edit && <TargetModal month={month} row={edit} onClose={() => setEdit(null)} onSaved={data => { setEdit(null); report.setData(data); }} />}
     </div>
   );
@@ -111,6 +112,7 @@ function TargetModal({ month, row, onClose, onSaved }) {
     <Modal title={`Objectifs de ${row.name} — ${monthName(month)}`} onClose={onClose} footer={<><button className="btn btn-ghost" onClick={onClose}>Annuler</button><button className="btn btn-primary" form="tgt">Enregistrer</button></>}>
       <form id="tgt" className="form-grid" onSubmit={save}>
         <div className="full"><ErrorBox error={error} /></div>
+        <Field label="Taux de conversion visé (%)" hint="Nouveaux clients ÷ prospects reçus dans le mois — objectif principal du Service commercial"><input className="input" type="number" min="0" max="100" value={f.taux_conversion} onChange={e => setF(x => ({ ...x, taux_conversion: e.target.value }))} /></Field>
         <Field label="Chiffre d’affaires signé (FCFA)" hint={f.ca_fcfa ? fcfa(f.ca_fcfa) : undefined}><input className="input" type="number" min="0" step="1000000" value={f.ca_fcfa} onChange={e => setF(x => ({ ...x, ca_fcfa: e.target.value }))} /></Field>
         <Field label="Nombre de ventes"><input className="input" type="number" min="0" value={f.ventes} onChange={e => setF(x => ({ ...x, ventes: e.target.value }))} /></Field>
         <Field label="Rendez-vous réalisés"><input className="input" type="number" min="0" value={f.rdv} onChange={e => setF(x => ({ ...x, rdv: e.target.value }))} /></Field>

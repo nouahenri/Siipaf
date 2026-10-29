@@ -192,7 +192,7 @@ test('objectifs du mois : cible et réalisé par commercial, objectifs mensuels 
   assert.equal(res.status, 201, JSON.stringify(res.body));
   const employeeId = res.body.id;
 
-  res = await admin.put(`${M}/targets`).send({ month, user_id: sellerId, ca_fcfa: 64000000, ventes: 2, rdv: 4 });
+  res = await admin.put(`${M}/targets`).send({ month, user_id: sellerId, taux_conversion: 30, ca_fcfa: 64000000, ventes: 2, rdv: 4 });
   assert.equal(res.status, 200, JSON.stringify(res.body));
   const mine = res.body.rows.find(r => r.user_id === sellerId);
   assert.equal(mine.employee_id, employeeId);
@@ -201,14 +201,19 @@ test('objectifs du mois : cible et réalisé par commercial, objectifs mensuels 
   assert.equal(mine.pct.ca_fcfa, 50);
   // Source unique : les cibles sont des objectifs mensuels de la fiche, vus et comptés par RH › Performance
   const objs = await db('hr_objectives').where({ employee_id: employeeId, year: y, period: 'mois', period_index: m });
-  assert.deepEqual(objs.map(o => o.metric).sort(), ['ca_fcfa', 'rdv', 'ventes']);
+  assert.deepEqual(objs.map(o => o.metric).sort(), ['ca_fcfa', 'rdv', 'taux_conversion', 'ventes']);
+  // Taux de conversion : cible fixée par le responsable, réalisé et atteinte calculés comme les autres cibles
+  assert.equal(mine.target.taux_conversion, 30);
+  assert.ok('taux_conversion' in mine.done);
+  assert.equal(mine.pct.taux_conversion, mine.done.taux_conversion == null ? null : Math.round((mine.done.taux_conversion / 30) * 1000) / 10);
+  assert.equal((await admin.put(`${M}/targets`).send({ month, user_id: sellerId, taux_conversion: 120 })).status, 400, 'au plus 100 %');
   assert.ok(objs.every(o => o.source === 'commercial' && o.adjusted && o.kpi_id));
   const card = (await admin.get(`/api/admin/erp/rh/employees/${employeeId}/objectives?annee=${y}&periode=mois&n=${m}`)).body;
   assert.equal(card.lines.find(l => l.metric === 'ca_fcfa').progress, 50, 'même atteinte dans RH › Performance');
   // Champ absent : inchangé ; vide : cible retirée
   res = await admin.put(`${M}/targets`).send({ month, user_id: sellerId, ventes: null, encaissements_fcfa: 5000000 });
   const after = res.body.rows.find(r => r.user_id === sellerId).target;
-  assert.deepEqual(after, { ca_fcfa: 64000000, ventes: null, rdv: 4, encaissements_fcfa: 5000000 });
+  assert.deepEqual(after, { taux_conversion: 30, ca_fcfa: 64000000, ventes: null, rdv: 4, encaissements_fcfa: 5000000 });
   res = await commercial.get(`${M}/targets?month=${month}`);
   assert.deepEqual(res.body.rows.map(r => r.user_id), [sellerId], 'un commercial ne voit que ses objectifs');
 

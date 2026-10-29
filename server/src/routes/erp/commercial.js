@@ -450,6 +450,7 @@ module.exports = function commercialRoutes(db) {
   r.put('/targets', requirePermission('targets:write'), ah(async (req, res) => {
     const data = parse(z.object({
       month, user_id: z.number().int().positive(),
+      taux_conversion: z.number().int().min(0).max(100).nullable().optional(),
       ca_fcfa: z.number().int().min(0).nullable().optional(), ventes: z.number().int().min(0).nullable().optional(),
       rdv: z.number().int().min(0).nullable().optional(), encaissements_fcfa: z.number().int().min(0).nullable().optional(),
     }), req.body);

@@ -759,6 +759,7 @@ const BUILDING_KINDS = { immeuble: 'Immeuble collectif', residence: 'Résidence 
 
 // Objectifs mensuels par commercial
 const TARGET_METRICS = {
+  taux_conversion: 'Taux de conversion (%)',
   ca_fcfa: 'Chiffre d’affaires signé (FCFA)',
   ventes: 'Ventes (dossiers ouverts)',
   rdv: 'Rendez-vous réalisés',
