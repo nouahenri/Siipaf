@@ -513,8 +513,8 @@ async function serviceNeeds(db) {
   const employees = await db('employees').whereIn('user_id', rows.map(r => r.requested_by)).select('user_id', 'department');
   const { DEPARTMENTS } = require('../lib/paie');
   return rows.map(r => {
-    const dep = employees.find(e => e.user_id === r.requested_by)?.department;
-    return { ...reqs.serialize(r), department: dep || null, department_label: dep ? DEPARTMENTS[dep] || dep : null };
+    const dep = r.department || employees.find(e => e.user_id === r.requested_by)?.department;
+    return { ...reqs.serialize(r), on_behalf: !!r.department, department: dep || null, department_label: dep ? DEPARTMENTS[dep] || dep : null };
   });
 }
 /** Bon de commande pré-rempli pour une demande : emplacement du chantier ou du lieu (créé au besoin), montant estimé, note. */

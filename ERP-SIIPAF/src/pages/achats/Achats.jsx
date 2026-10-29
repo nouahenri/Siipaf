@@ -57,7 +57,7 @@ function ServiceNeeds({ res, onOrder }) {
   return <Card title="Besoins des services" actions={<span className="small muted">Demandes d’achat ou d’équipement validées (Mon espace › Demandes)</span>} bodyClass="">
     <ErrorBox error={res.error || prep.error} />
     {!res.data ? <Loading res={res} /> : !rows.length ? <div className="card-body"><Empty icon={ClipboardList}>Aucun besoin de service à commander.</Empty></div> : <div className="table-wrap"><table className="table"><thead><tr><th>Demandé par</th><th>Besoin</th><th>Montant estimé</th><th>Souhaité le</th><th>État</th><th>Suite</th></tr></thead><tbody>{rows.map(r => <tr key={r.id}>
-      <td className="small"><b>{r.requested_by_name}</b><div className="muted">{r.department_label || '—'}{r.place_name ? ` · ${r.place_name}` : r.worksite_reference ? ` · ${r.worksite_reference}` : ''}</div></td>
+      <td className="small"><b>{r.requested_by_name}</b><div className="muted">{r.department_label ? `${r.on_behalf ? 'Au nom du service ' : ''}${r.department_label}` : '—'}{r.place_name ? ` · ${r.place_name}` : r.worksite_reference ? ` · ${r.worksite_reference}` : ''}</div></td>
       <td><b>{r.title}</b><div className="small muted">{r.reference} · {r.kind_label}{r.quantity ? ` · ${r.quantity}` : ''}</div>{r.details && <div className="small muted prewrap">{r.details}</div>}</td>
       <td className="small tabular">{r.estimated_amount == null ? '—' : fcfa(r.estimated_amount)}</td>
       <td className="small">{r.needed_by ? date(r.needed_by) : '—'}{r.urgency === 'urgente' && <> <Badge tone="danger">Urgent</Badge></>}</td>

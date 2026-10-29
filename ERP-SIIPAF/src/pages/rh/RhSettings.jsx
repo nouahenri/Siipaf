@@ -117,9 +117,51 @@ export default function RhSettings() {
         </Card>
       </div>
       {write && <div className="row" style={{ gap: 8 }}><button className="btn btn-primary" disabled={!s} onClick={save}><Save />Enregistrer les réglages</button><button className="btn btn-ghost" onClick={reset}><RotateCcw />Valeurs par défaut</button></div>}
+      <DepartmentHeads />
       <Positions />
       <Holidays />
     </div>
+  );
+}
+
+/**
+ * Chef de chaque service (choix du client du 29/10) : lui seul fait les demandes au nom du service (achat, équipement,
+ * véhicule…) depuis le tableau de bord du module ; il est prévenu de sa désignation. Employés ayant un compte.
+ */
+function DepartmentHeads() {
+  const { can } = useAuth();
+  const { meta } = useRhMeta();
+  const toast = useToast();
+  const heads = useResource(`${RH}/department-heads`);
+  const staff = useResource(`${RH}/employees`);
+  const write = can('rh:settings');
+  const change = async (department, value) => {
+    try { await api.put(`${RH}/department-heads/${department}`, { employee_id: value ? Number(value) : null }); toast(value ? 'Chef de service désigné : il est prévenu' : 'Chef de service retiré'); heads.reload(); } catch (e) { toast(e.message, 'err'); }
+  };
+  if (!meta || !heads.data || !staff.data) return <Card title="Chefs de service"><Skeleton h={160} /></Card>;
+  const people = staff.data.filter(e => e.user_id);
+  return (
+    <Card title="Chefs de service" bodyClass="">
+      <div className="card-body" style={{ borderBottom: '1px solid var(--border)' }}>
+        <p className="small muted" style={{ margin: 0 }}>Le chef fait les demandes au nom de tout son service (fournitures, équipement, dépannage, prêt de matériel, véhicule) depuis le tableau de bord du module ; même circuit que les demandes personnelles. Les membres du service les suivent. Seuls les employés ayant un compte sont proposés.</p>
+      </div>
+      <div className="table-wrap"><table className="table table-compact"><tbody>{Object.entries(meta.departments).map(([k, label]) => {
+        const mates = people.filter(e => e.department === k), others = people.filter(e => e.department !== k);
+        const opt = e => <option key={e.id} value={e.id}>{e.last_name} {e.first_name}{e.job_title ? ` — ${e.job_title}` : ''}</option>;
+        return (
+          <tr key={k}>
+            <td className="small"><b>{label}</b></td>
+            <td style={{ width: '60%' }}>
+              <select className="select" disabled={!write} value={heads.data[k]?.employee_id || ''} onChange={e => change(k, e.target.value)} aria-label={`Chef du service ${label}`}>
+                <option value="">— Aucun chef désigné —</option>
+                {mates.length > 0 && <optgroup label={`Service ${label}`}>{mates.map(opt)}</optgroup>}
+                {others.length > 0 && <optgroup label="Autres services">{others.map(opt)}</optgroup>}
+              </select>
+            </td>
+          </tr>
+        );
+      })}</tbody></table></div>
+    </Card>
   );
 }
 

@@ -8,6 +8,7 @@
 const { HttpError, isoDay, isoTime } = require('../lib/http');
 const { REQUEST_KINDS, REQUEST_SERVICES, REQUEST_STATUSES, REQUEST_OPEN, requestNextStep, requestNeedsDg } = require('../lib/domain');
 const { splitVat } = require('../lib/compta');
+const { DEPARTMENTS } = require('../lib/paie');
 const { nextPurchaseNumber } = require('./compta');
 const { getSetting } = require('./settings');
 const { notify, resolve, usersWith, inform } = require('./notifications');
@@ -23,6 +24,7 @@ const query = db => db('internal_requests as r').join('users as u', 'u.id', 'r.r
 const serialize = r => ({
   ...r, kind_label: r.kind === 'autre' && r.kind_other ? r.kind_other : r.kind === 'service' && REQUEST_SERVICES[r.service] ? `Demande à : ${REQUEST_SERVICES[r.service].label}` : REQUEST_KINDS[r.kind]?.label || r.kind,
   status_label: r.status === 'attente_service' && REQUEST_SERVICES[r.service] ? `À traiter (${REQUEST_SERVICES[r.service].label})` : REQUEST_STATUSES[r.status], service_label: REQUEST_SERVICES[r.service]?.label || null,
+  department_label: DEPARTMENTS[r.department] || null,
   needed_by: isoDay(r.needed_by), estimated_amount: r.estimated_amount == null ? null : Number(r.estimated_amount), final_amount: r.final_amount == null ? null : Number(r.final_amount),
   manager_at: isoTime(r.manager_at), dg_at: isoTime(r.dg_at), handled_at: isoTime(r.handled_at), closed_at: isoTime(r.closed_at), created_at: isoTime(r.created_at),
   purchase: !!REQUEST_KINDS[r.kind]?.purchase, open: REQUEST_OPEN.includes(r.status),
@@ -37,24 +39,29 @@ async function load(db, id) {
 /** Le compte traite les demandes adressées à ce service (droits de REQUEST_SERVICES). */
 const servesFor = (service, v) => !!REQUEST_SERVICES[service] && (v.superAdmin || REQUEST_SERVICES[service].perms.some(p => v.can(p)));
 
+/** Le compte dirige ce service ou en fait partie (fiche employé) : il suit les demandes du service. */
+const inDepartment = (department, v) => !!v.depts && (v.depts.member === department || v.depts.heads.includes(department));
+
 /** Ce que le compte peut faire sur la demande à son étape. */
-function rights(r, { userId, can, superAdmin }) {
+function rights(r, { userId, can, superAdmin, depts }) {
+  const author = r.requested_by === userId || (!!r.department && !!depts?.heads.includes(r.department));
   if (r.kind === 'service' && r.service !== 'administration') {
     return {
       approve: false,
       handle: servesFor(r.service, { can, superAdmin }) && ['attente_service', 'en_cours'].includes(r.status) && (r.requested_by !== userId || superAdmin),
-      cancel: r.requested_by === userId && r.status === 'attente_service',
+      cancel: author && r.status === 'attente_service',
     };
   }
   return {
     // Personne ne valide ni ne traite sa propre demande (audit du 29/10), sauf le super administrateur
     approve: (r.status === 'attente_responsable' && (r.manager_user_id === userId || superAdmin)) || (r.status === 'attente_dg' && can('demandes:dg') && (r.requested_by !== userId || superAdmin)),
     handle: can('demandes:handle') && ['attente_sg', 'en_cours'].includes(r.status) && (r.requested_by !== userId || superAdmin),
-    cancel: r.requested_by === userId && ['attente_responsable', 'attente_dg', 'attente_sg'].includes(r.status),
+    cancel: author && ['attente_responsable', 'attente_dg', 'attente_sg'].includes(r.status),
   };
 }
 const canSee = (r, v) => r.requested_by === v.userId || r.manager_user_id === v.userId || v.can('demandes:handle') || v.can('demandes:dg') || v.superAdmin
   || (r.kind === 'service' && servesFor(r.service, v))
+  || (!!r.department && inDepartment(r.department, v))
   || (REQUEST_KINDS[r.kind]?.purchase && v.can('appro:read'));
 
 /** Prévient le ou les valideurs de l'étape où se trouve la demande. */
@@ -87,6 +94,11 @@ async function create(db, data, { user }) {
   if (data.kind === 'service' && !REQUEST_SERVICES[data.service]) throw new HttpError(400, 'Choisissez le service destinataire.');
   if (data.kind !== 'service') data.service = null;
   if (REQUEST_KINDS[data.kind].purchase && !data.estimated_amount) throw new HttpError(400, 'Achat : indiquez le montant estimé.');
+  if (data.department) {
+    if (!DEPARTMENTS[data.department]) throw new HttpError(400, 'Service inconnu.');
+    const { departmentsOf } = require('./departments');
+    if (!(await departmentsOf(db, user.id)).heads.includes(data.department)) throw new HttpError(403, 'Seul le chef du service, désigné dans Réglages RH, fait une demande au nom du service.');
+  } else data.department = null;
   data = { ...data, ...(await require('./lieux').placeFields(db, data)) };
   // Responsable direct de la fiche RH (jamais soi-même)
   const e = await db('employees').where({ user_id: user.id }).first('manager_id');
@@ -200,11 +212,14 @@ async function cancel(db, r, v) {
   await resolve(db, `demande:${r.id}:`);
 }
 
-/** Liste : `scope` mine (mes demandes), approve (à valider par moi), handle (services généraux), all. */
-async function list(db, v, { scope = 'mine', status = null, service = null } = {}) {
+/** Liste : `scope` mine (mes demandes), approve (à valider par moi), handle (services généraux), service (adressées à un service), department (au nom d'un service), all. */
+async function list(db, v, { scope = 'mine', status = null, service = null, department = null } = {}) {
   const q = query(db).orderBy('r.created_at', 'desc').limit(1000);
   if (scope === 'mine') q.where('r.requested_by', v.userId);
-  else if (scope === 'approve') {
+  else if (scope === 'department') {
+    if (!DEPARTMENTS[department] || !(inDepartment(department, v) || v.can('demandes:handle') || v.superAdmin)) throw new HttpError(403, 'Droits insuffisants.');
+    q.where('r.department', department);
+  } else if (scope === 'approve') {
     q.where(w => {
       w.where(x => x.where('r.status', 'attente_responsable').where('r.manager_user_id', v.userId));
       if (v.can('demandes:dg')) w.orWhere('r.status', 'attente_dg');

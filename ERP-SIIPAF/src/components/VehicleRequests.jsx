@@ -42,12 +42,13 @@ export default function VehicleRequests() {
           ))}</tbody>
         </table></div>
       )}
-      {form && <RequestForm onClose={() => setForm(false)} onSaved={() => { setForm(false); list.reload(); }} />}
+      {form && <VehicleForm onClose={() => setForm(false)} onSaved={() => { setForm(false); list.reload(); }} />}
     </Card>
   );
 }
 
-function RequestForm({ onClose, onSaved }) {
+/** Demande de véhicule personnelle ou, avec `department`, au nom du service (chef de service). */
+export function VehicleForm({ onClose, onSaved, department = null, departmentLabel = '' }) {
   const toast = useToast();
   const [f, setF] = useState({ date: today(), start: '08:00', end_date: today(), end: '17:00', purpose: '', destination: '', passengers: '' });
   const [error, setError] = useState(null);
@@ -58,14 +59,14 @@ function RequestForm({ onClose, onSaved }) {
     try {
       await api.post(URL, {
         start_at: `${f.date}T${f.start}`, end_at: `${f.end_date}T${f.end}`, purpose: f.purpose.trim(), destination: f.destination.trim() || null,
-        passengers: f.passengers ? Number(f.passengers) : null,
+        passengers: f.passengers ? Number(f.passengers) : null, department,
       });
       toast('Demande envoyée aux services généraux');
       onSaved();
     } catch (err) { setError(err); setBusy(false); }
   };
   return (
-    <Modal title="Demander un véhicule" onClose={onClose}
+    <Modal title={department ? `Véhicule pour le service — ${departmentLabel}` : 'Demander un véhicule'} onClose={onClose}
       footer={<><button className="btn btn-ghost" onClick={onClose}>Annuler</button><button className="btn btn-primary" form="vehicle-form" disabled={busy}><Check />Envoyer la demande</button></>}>
       <form id="vehicle-form" className="form-grid" onSubmit={save}>
         <div className="full"><ErrorBox error={error} /></div>

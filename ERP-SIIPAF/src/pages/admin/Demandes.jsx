@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import DepartmentRequests from '../../components/DepartmentRequests';
 import { useSearchParams } from 'react-router-dom';
 import { Inbox, Check, X, Hand, CheckCheck, Receipt } from 'lucide-react';
 import { api, qs } from '@admin/lib/api';
@@ -30,6 +31,7 @@ export default function Demandes() {
   const tabs = [handle && ['handle', 'À traiter'], ['approve', 'À valider par moi'], deciding && ['commandes', 'Commandes à valider (Achats)'], (handle || can('demandes:dg')) && ['all', 'Toutes']].filter(Boolean);
   return (
     <div className="stack">
+      <DepartmentRequests department="administratif" />
       <div className="row-between">
         <div className="seg" role="group" aria-label="Affichage">{tabs.map(([k, l]) => <button key={k} className={scope === k ? 'active' : ''} onClick={() => setScope(k)}>{l}</button>)}</div>
         {refs.data && <span className="small muted">Validation de la DG à partir de {fcfa(refs.data.threshold)} (Paramètres › Général du dashboard)</span>}
@@ -45,7 +47,7 @@ export default function Demandes() {
               <tr key={r.id} className="clickable" onClick={() => setOpen(r.id)}>
                 <td className="small tabular nowrap"><b>{r.reference}</b></td>
                 <td>{r.title}<div className="small muted">{r.kind_label}{` · ${placeLabel(r)}`}{r.urgency === 'urgente' ? ' · ' : ''}{r.urgency === 'urgente' && <span style={{ color: 'var(--danger)' }}>urgente</span>}</div></td>
-                <td className="small">{r.requested_by_name}</td>
+                <td className="small">{r.requested_by_name}{r.department_label && <div className="muted">au nom du service {r.department_label}</div>}</td>
                 <td className="right small tabular">{r.final_amount ? fcfa(r.final_amount) : r.estimated_amount ? fcfa(r.estimated_amount) : ''}</td>
                 <td className="small nowrap">{r.needed_by ? date(r.needed_by) : '—'}</td>
                 <td><Badge tone={REQUEST_TONES[r.status]}>{r.status_label}</Badge></td>
@@ -80,7 +82,7 @@ export function RequestDrawer({ id, refs, onClose, onChange }) {
           </div>
           <div>
             <h3 style={{ margin: '0 0 8px' }}>{r.title}</h3>
-            <div className="kv"><span>Demandeur</span><b>{r.requested_by_name} · {dateTime(r.created_at)}</b></div>
+            <div className="kv"><span>Demandeur</span><b>{r.requested_by_name}{r.department_label ? ` (au nom du service ${r.department_label})` : ''} · {dateTime(r.created_at)}</b></div>
             {r.quantity && <div className="kv"><span>Quantité</span><b>{r.quantity}</b></div>}
             {r.estimated_amount ? <div className="kv"><span>Montant estimé</span><b>{fcfa(r.estimated_amount)}</b></div> : null}
             <div className="kv"><span>Pour</span><b>{[placeLabel(r), r.location].filter(Boolean).join(' · ')}</b></div>

@@ -13,6 +13,7 @@ import SignedBars from '../../components/SignedBars';
 import { ParcPayables } from '../../components/ParcCompta';
 import { PendingPayments, ClientPaymentButton } from './ClientPayments';
 import ServiceRequests from '../../components/ServiceRequests';
+import DepartmentRequests from '../../components/DepartmentRequests';
 
 // Nom court d'un programme sous les barres : « SIIPAF CITY AHOUTOUE » → « AHOUTOUE »
 const shortName = n => n.replace(/^(SIIPAF CITY|MINI-CITÉS DE|C & LY —)\s+/i, '').replace(/^(.{11}).+/, '$1…');
@@ -63,6 +64,7 @@ export default function ComptaDashboard() {
   if (!d.fiscal_year) {
     return (
       <div className="stack">
+      <DepartmentRequests department="comptabilite" />
       <ServiceRequests service="compta" />
       <PendingPayments />
       <Card>
@@ -95,6 +97,7 @@ export default function ComptaDashboard() {
         )}
       </div>
 
+      <DepartmentRequests department="comptabilite" />
       <ServiceRequests service="compta" />
       <PendingPayments />
 

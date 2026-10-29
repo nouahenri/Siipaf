@@ -77,6 +77,13 @@ module.exports = function rhRoutes(db) {
     title: z.string().trim().min(2).max(120), department: z.enum(Object.keys(DEPARTMENTS)), category: optText(40),
     default_role: z.string().trim().max(40).optional().nullable().transform(v => v || null), active: z.boolean().optional(),
   });
+  // Chef de chaque service (demandes au nom du service, choix du client du 29/10)
+  r.get('/department-heads', ah(async (req, res) => res.json(await require('../../services/departments').heads(db))));
+  r.put('/department-heads/:department', requirePermission('rh:settings'), ah(async (req, res) => {
+    const { employee_id } = parse(z.object({ employee_id: z.number().int().positive().nullable() }), req.body);
+    res.json(await require('../../services/departments').setHead(db, req.params.department, employee_id, { userId: req.user.id }));
+  }));
+
   r.post('/positions', requirePermission('rh:settings'), ah(async (req, res) => {
     const id = await positions.create(db, parse(positionSchema, req.body), req.user);
     res.status(201).json(await db('hr_positions').where({ id }).first());

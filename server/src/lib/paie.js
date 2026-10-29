@@ -24,7 +24,7 @@ const DEFAULT_PAYROLL = {
 };
 
 const CONTRACT_TYPES = { cdi: 'CDI', cdd: 'CDD', chantier: 'Contrat de chantier', stage: 'Stage', interim: 'Intérim', journalier: 'Journalier' };
-const DEPARTMENTS = { direction: 'Direction', commercial: 'Commercial', technique: 'Technique / bureau d’études', chantier: 'Chantier', administratif: 'Administratif', comptabilite: 'Comptabilité', juridique: 'Juridique' };
+const DEPARTMENTS = { direction: 'Direction', commercial: 'Commercial', technique: 'Technique / bureau d’études', chantier: 'Chantier', administratif: 'Administratif', comptabilite: 'Comptabilité', juridique: 'Juridique', rh: 'Ressources humaines', sav: 'Client & SAV' };
 const MARITAL = { celibataire: 'Célibataire', marie: 'Marié(e)', divorce: 'Divorcé(e)', veuf: 'Veuf / veuve' };
 const PAY_METHODS = { virement: 'Virement', especes: 'Espèces', mobile_money: 'Mobile Money', cheque: 'Chèque' };
 

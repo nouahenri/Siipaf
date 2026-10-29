@@ -7,6 +7,7 @@ const { requirePermission } = require('../../auth');
 const { ASSET_KINDS, ASSET_STATUSES, ASSET_ASSIGNMENT_KINDS, ASSET_DOC_KINDS, ASSET_COST_KINDS, RESERVATION_STATUSES, ASSET_PAYMENT_MODES, COST_ACCOUNTING_STATUSES, addMonths } = require('../../lib/domain');
 const pc = require('../../services/parcCompta');
 const parc = require('../../services/parc');
+const { DEPARTMENTS } = require('../../lib/paie');
 
 const day = z.string().regex(/^\d{4}-\d{2}-\d{2}$/, 'Date attendue au format AAAA-MM-JJ');
 const slot = z.string().regex(/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}$/, 'Date et heure attendues');
@@ -166,7 +167,12 @@ module.exports = function parcRoutes(db) {
   /** Les services généraux voient toutes les demandes ; chacun voit les siennes (`?mine=1`). */
   r.get('/reservations', ah(async (req, res) => {
     const q = parc.resaQuery(db).orderBy('r.start_at', 'desc').limit(500);
-    if (req.query.mine === '1' || !req.can('parc:write')) q.where('r.requested_by', req.user.id);
+    if (req.query.department) {
+      const department = String(req.query.department);
+      const d = await require('../../services/departments').departmentsOf(db, req.user.id);
+      if (d.member !== department && !d.heads.includes(department) && !req.can('parc:write')) throw new HttpError(403, 'Droits insuffisants.');
+      q.where('r.department', department);
+    } else if (req.query.mine === '1' || !req.can('parc:write')) q.where('r.requested_by', req.user.id);
     if (req.query.status) q.whereIn('r.status', String(req.query.status).split(','));
     if (req.query.upcoming === '1') q.where('r.end_at', '>=', `${new Date().toISOString().slice(0, 10)}T00:00`);
     res.json((await q).map(parc.resaRow));
@@ -174,8 +180,9 @@ module.exports = function parcRoutes(db) {
   r.post('/reservations', requirePermission('self:vehicule'), ah(async (req, res) => {
     const data = parse(z.object({
       start_at: slot, end_at: slot, purpose: z.string().trim().min(3).max(255), destination: opt(z.string().trim().max(160)),
-      passengers: num(z.number().int().min(1).max(60)),
+      passengers: num(z.number().int().min(1).max(60)), department: opt(z.enum(Object.keys(DEPARTMENTS))),
     }), req.body);
+    if (data.department && !(await require('../../services/departments').departmentsOf(db, req.user.id)).heads.includes(data.department)) throw new HttpError(403, 'Seul le chef du service, désigné dans Réglages RH, demande un véhicule au nom du service.');
     const id = await parc.request(db, data, { user: req.user });
     res.status(201).json(parc.resaRow(await parc.resaQuery(db).where('r.id', id).first()));
   }));
@@ -192,7 +199,8 @@ module.exports = function parcRoutes(db) {
   r.post('/reservations/:id/cancel', ah(async (req, res) => {
     const resa = await db('asset_reservations').where({ id: idParam(req) }).first();
     if (!resa) throw new HttpError(404, 'Demande introuvable.');
-    if (resa.requested_by !== req.user.id && !req.can('parc:write')) throw new HttpError(403, 'Droits insuffisants.');
+    const head = resa.department && (await require('../../services/departments').departmentsOf(db, req.user.id)).heads.includes(resa.department);
+    if (resa.requested_by !== req.user.id && !head && !req.can('parc:write')) throw new HttpError(403, 'Droits insuffisants.');
     if (!['demandee', 'accordee'].includes(resa.status)) throw new HttpError(409, 'Demande déjà close.');
     await db('asset_reservations').where({ id: resa.id }).update({ status: 'annulee', updated_at: new Date() });
     res.json(parc.resaRow(await parc.resaQuery(db).where('r.id', resa.id).first()));

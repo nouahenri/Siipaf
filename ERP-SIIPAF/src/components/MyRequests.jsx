@@ -28,7 +28,7 @@ export default function MyRequests() {
           <thead><tr><th>Demande</th><th>Le</th><th className="right">Montant estimé</th><th>Avancement</th><th /></tr></thead>
           <tbody>{list.data.map(r => (
             <tr key={r.id}>
-              <td><b>{r.title}</b><div className="small muted">{r.reference} · {r.kind_label}{r.urgency === 'urgente' ? ' · urgente' : ''}</div></td>
+              <td><b>{r.title}</b><div className="small muted">{r.reference} · {r.kind_label}{r.department_label ? ` · au nom du service ${r.department_label}` : ''}{r.urgency === 'urgente' ? ' · urgente' : ''}</div></td>
               <td className="small nowrap">{date(r.created_at.slice(0, 10))}</td>
               <td className="right small tabular">{r.estimated_amount ? fcfa(r.estimated_amount) : ''}</td>
               <td><Badge tone={REQUEST_TONES[r.status]}>{r.status_label}</Badge>{r.decision_note && <div className="small muted">{r.decision_note}</div>}</td>
@@ -42,7 +42,8 @@ export default function MyRequests() {
   );
 }
 
-function RequestForm({ onClose, onSaved }) {
+/** Demande personnelle (Mon espace) ou, avec `department`, au nom du service (chef de service, module du service). */
+export function RequestForm({ onClose, onSaved, department = null }) {
   const toast = useToast();
   const refs = useResource(`${URL}/refs`);
   const [f, setF] = useState({ kind: 'achat', service: '', kind_other: '', title: '', details: '', quantity: '', estimated_amount: '', site: { project_id: null, worksite_id: null, place_id: null }, location: '', needed_by: '', urgency: 'normale' });
@@ -56,6 +57,7 @@ function RequestForm({ onClose, onSaved }) {
       const body = Object.fromEntries(Object.entries(f).map(([k, v]) => [k, v === '' ? null : v]));
       body.estimated_amount = body.estimated_amount == null ? null : Number(body.estimated_amount);
       if (f.kind !== 'service') body.service = null;
+      body.department = department;
       Object.assign(body, f.site);
       delete body.site;
       const r = await api.post(URL, body);
@@ -65,12 +67,12 @@ function RequestForm({ onClose, onSaved }) {
   };
   const over = kind?.purchase && refs.data && Number(f.estimated_amount) >= refs.data.threshold;
   return (
-    <Modal title="Nouvelle demande interne" onClose={onClose}
+    <Modal title={department ? `Demande du service — ${refs.data?.departments?.[department] || ''}` : 'Nouvelle demande interne'} onClose={onClose}
       footer={<><button className="btn btn-ghost" onClick={onClose}>Annuler</button><button className="btn btn-primary" form="request-form" disabled={busy || !refs.data}><Check />Envoyer</button></>}>
       {!refs.data ? <Skeleton h={200} /> : (
         <form id="request-form" className="form-grid" onSubmit={save}>
           <div className="full"><ErrorBox error={error} /></div>
-          <Field label="Nature"><select className="select" value={f.kind} onChange={set('kind')}>{Object.entries(refs.data.kinds).map(([k, x]) => <option key={k} value={k}>{x.label}</option>)}</select></Field>
+          <Field label="Nature"><select className="select" value={f.kind} onChange={set('kind')}>{Object.entries(refs.data.kinds).filter(([k]) => !department || k !== 'service').map(([k, x]) => <option key={k} value={k}>{x.label}</option>)}</select></Field>
           {f.kind === 'service' && <Field label="Service destinataire *" hint="La demande lui arrive directement, sans accord du responsable"><select className="select" required value={f.service} onChange={set('service')}><option value="">Choisir le service…</option>{Object.entries(refs.data.services || {}).map(([k, l]) => <option key={k} value={k}>{l}</option>)}</select></Field>}
           {f.kind === 'autre' ? <Field label="Précisez"><input className="input" required maxLength={100} value={f.kind_other} onChange={set('kind_other')} placeholder="Badge, cartes de visite, accès…" /></Field>
             : <Field label="Urgence"><select className="select" value={f.urgency} onChange={set('urgency')}><option value="normale">Normale</option><option value="urgente">Urgente</option></select></Field>}

@@ -334,7 +334,7 @@ async function costsReport(db, { from, to }) {
 const resaQuery = db => db('asset_reservations as r').join('users as u', 'u.id', 'r.requested_by').leftJoin('assets as a', 'a.id', 'r.asset_id')
   .leftJoin('users as d', 'd.id', 'r.decided_by')
   .select('r.*', 'u.name as requested_by_name', 'a.code as asset_code', 'a.name as asset_name', 'a.plate as asset_plate', 'd.name as decided_by_name');
-const resaRow = r => ({ ...r, status_label: RESERVATION_STATUSES[r.status], decided_at: isoTime(r.decided_at), created_at: isoTime(r.created_at) });
+const resaRow = r => ({ ...r, status_label: RESERVATION_STATUSES[r.status], department_label: require('../lib/paie').DEPARTMENTS[r.department] || null, decided_at: isoTime(r.decided_at), created_at: isoTime(r.created_at) });
 
 async function request(db, data, { user }) {
   if (data.end_at <= data.start_at) throw new HttpError(400, 'La fin doit suivre le début.');
@@ -344,7 +344,7 @@ async function request(db, data, { user }) {
   // Lien RH (Mon espace) → services généraux
   await notify(db, {
     to: await usersWith(db, 'parc:write'), except: user.id, module: 'administration', event: 'vehicule.demande',
-    title: `Demande de véhicule de ${user.name}`, body: `Du ${fr(data.start_at.slice(0, 10))} ${data.start_at.slice(11)} au ${fr(data.end_at.slice(0, 10))} ${data.end_at.slice(11)} — ${data.purpose}`,
+    title: `Demande de véhicule de ${user.name}${data.department ? ` pour le service ${require('../lib/paie').DEPARTMENTS[data.department]}` : ''}`, body: `Du ${fr(data.start_at.slice(0, 10))} ${data.start_at.slice(11)} au ${fr(data.end_at.slice(0, 10))} ${data.end_at.slice(11)} — ${data.purpose}`,
     link: '/administration/parc?onglet=reservations', priority: 'action', key: `vehicule:${id}:demande`,
   });
   return id;
