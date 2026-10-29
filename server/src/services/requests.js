@@ -55,7 +55,7 @@ async function notifyStep(db, r, except) {
     await notify(db, { ...base, to: await usersWith(db, 'demandes:dg'), event: 'demande.dg', title: `Achat à valider (DG) : ${r.reference}`, body: `${what} — demandé par ${r.requested_by_name}`, key: `demande:${r.id}:dg` });
   } else if (r.status === 'attente_achats') {
     // Besoin d'un service : les Achats le commandent (circuit réglable dans Administration générale › Circuit d'information)
-    await inform(db, 'demande.achat', { except, key: `demande:${r.id}:achats`, priority: base.priority, title: `Besoin à commander : ${r.reference}`, body: `${what} — ${r.requested_by_name}`, link: '/achats/besoins' });
+    await inform(db, 'demande.achat', { except, key: `demande:${r.id}:achats`, priority: base.priority, title: `Besoin à commander : ${r.reference}`, body: `${what} — ${r.requested_by_name}`, link: '/achats/besoins?onglet=services' });
   } else if (r.status === 'attente_sg') {
     await notify(db, { ...base, to: await usersWith(db, 'demandes:handle'), event: 'demande.sg', title: `Demande à traiter : ${r.reference}`, body: `${what} — ${r.requested_by_name}`, key: `demande:${r.id}:sg` });
   }

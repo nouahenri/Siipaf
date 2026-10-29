@@ -29,7 +29,7 @@ const MODULES = {
     label: 'Achats & stocks', icon: Boxes, perm: 'appro:read',
     items: [
       { to: '/achats', label: 'Tableau de bord', icon: LayoutDashboard, end: true, perm: 'appro:read' },
-      { to: '/achats/besoins', label: 'Besoins chantier', icon: ClipboardList, badge: 'needs', perm: 'appro:read' },
+      { to: '/achats/besoins', label: 'Besoins (chantiers, services)', icon: ClipboardList, badge: 'needs', perm: 'appro:read' },
       { to: '/achats/prix', label: 'Demandes de prix', icon: FileSignature, badge: 'quotes_waiting', perm: 'appro:read' },
       { to: '/achats/commandes', label: 'Bons de commande', icon: ShoppingCart, badge: 'orders_waiting', perm: 'appro:read' },
       { to: '/achats/stocks', label: 'Stocks et mouvements', icon: PackageCheck, perm: 'appro:read' },
@@ -142,7 +142,7 @@ const MODULES = {
 };
 
 const TITLES = {
-  '/achats': 'Achats & stocks', '/achats/besoins': 'Besoins en matériaux', '/achats/prix': 'Demandes de prix', '/achats/commandes': 'Bons de commande', '/achats/stocks': 'Stocks et mouvements', '/achats/articles': 'Articles', '/achats/fournisseurs': 'Fournisseurs et contrats', '/achats/reglages': 'Réglages — Achats & stocks', '/achats/acces': 'Rôles et privilèges — Achats & stocks',
+  '/achats': 'Achats & stocks', '/achats/besoins': 'Besoins des chantiers et des services', '/achats/prix': 'Demandes de prix', '/achats/commandes': 'Bons de commande', '/achats/stocks': 'Stocks et mouvements', '/achats/articles': 'Articles', '/achats/fournisseurs': 'Fournisseurs et contrats', '/achats/reglages': 'Réglages — Achats & stocks', '/achats/acces': 'Rôles et privilèges — Achats & stocks',
   '/': 'Modules', '/commercial': 'Service commercial', '/commercial/pipeline': 'Pipeline commercial', '/commercial/activites': 'Mes activités',
   '/commercial/rendez-vous': 'Rendez-vous', '/commercial/parc': 'Parc immobilier', '/commercial/ventes': 'Dossiers de vente',
   '/commercial/vefa': 'Appels de fonds VEFA', '/commercial/objectifs': 'Objectifs et performance', '/administration': 'Vue Direction', '/administration/courrier': 'Courrier arrivée et départ', '/administration/contrats': 'Contrats et échéances', '/administration/parc': 'Parc auto et matériel', '/administration/documents': 'Documents internes', '/demarrer': 'Bien démarrer', '/administration/demandes': 'Demandes internes', '/administration/acces': 'Rôles et privilèges — Administration générale', '/administration/lieux': 'Lieux hors programmes', '/administration/circuit': 'Circuit d’information entre les services', '/administration/reglages': 'Réglages — Administration générale', '/commercial/reglages': 'Réglages — Service commercial', '/sav/reglages': 'Réglages — Client & SAV',

@@ -190,7 +190,13 @@ async function targetsReport(db, month) {
     const pct = k => (target[k] ? Math.round((done[k] / target[k]) * 1000) / 10 : null);
     rows.push({ user_id: u.id, name: u.name, role: u.role, employee_id, target, done, pct: { taux_conversion: pct('taux_conversion'), ca_fcfa: pct('ca_fcfa'), ventes: pct('ventes'), rdv: pct('rdv'), encaissements_fcfa: pct('encaissements_fcfa') } });
   }
-  return { month, rows };
+  // Un taux ne s'additionne pas : celui de l'équipe se calcule sur ses prospects reçus ; cible = moyenne des cibles fixées
+  const goals = rows.map(r => r.target.taux_conversion).filter(v => v != null).map(Number);
+  const team_conversion = {
+    done: (await achieved(db, { from, to })).taux_conversion,
+    target: goals.length ? Math.round((goals.reduce((s, v) => s + v, 0) / goals.length) * 10) / 10 : null,
+  };
+  return { month, rows, team_conversion };
 }
 
 /** Tableau de bord commercial : mois en cours, 12 mois glissants, pipeline, retards de paiement. */

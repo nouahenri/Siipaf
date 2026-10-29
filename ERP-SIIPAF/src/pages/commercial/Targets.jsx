@@ -45,9 +45,12 @@ function MonthlyTargets() {
   const report = useResource(`/admin/erp/commercial/targets?month=${month}`);
   const rows = report.data?.rows || [];
   const team = rows.reduce((o, r) => {
-    METRICS.forEach(([k]) => { o.target[k] += r.target[k] || 0; o.done[k] += r.done[k] || 0; });
+    METRICS.forEach(([k]) => { if (k !== 'taux_conversion') { o.target[k] += r.target[k] || 0; o.done[k] += r.done[k] || 0; } });
     return o;
   }, { target: { ca_fcfa: 0, ventes: 0, rdv: 0, encaissements_fcfa: 0 }, done: { ca_fcfa: 0, ventes: 0, rdv: 0, encaissements_fcfa: 0 } });
+  // Taux de conversion de l'équipe : calculé par le serveur sur ses prospects reçus (un taux ne s'additionne pas)
+  team.done.taux_conversion = report.data?.team_conversion?.done ?? null;
+  team.target.taux_conversion = report.data?.team_conversion?.target ?? null;
 
   return (
     <div className="stack">
@@ -64,7 +67,8 @@ function MonthlyTargets() {
             <div key={k} className="card kpi">
               <span className="kpi-label">{l} — équipe</span>
               <span className="kpi-value">{f(team.done[k])}</span>
-              {team.target[k] ? <Progress value={Math.round((team.done[k] / team.target[k]) * 1000) / 10} /> : <span className="kpi-foot">pas d’objectif</span>}
+              {team.target[k] ? <Progress value={Math.round(((team.done[k] || 0) / team.target[k]) * 1000) / 10} /> : <span className="kpi-foot">pas d’objectif</span>}
+              {k === 'taux_conversion' && team.target[k] ? <span className="kpi-foot">cible moyenne {String(team.target[k]).replace('.', ',')} %</span> : null}
             </div>
           ))}
         </div>
