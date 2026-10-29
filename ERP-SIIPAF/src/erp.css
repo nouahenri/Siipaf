@@ -152,11 +152,6 @@ a.module-tile .module-foot { color: var(--brand); }
 .pipe-card .stars .on { color: #e0a100; fill: currentColor; }
 
 /* Barre d'étapes de la fiche prospect */
-.stagebar { display: flex; flex-wrap: wrap; gap: 4px; }
-.stagebar button { flex: 1 1 auto; border: 1px solid var(--border); background: var(--surface-2); color: var(--ink-2); font-size: 12px; font-weight: 500; padding: 7px 10px; border-radius: 6px; cursor: pointer; white-space: nowrap; }
-.stagebar button:hover:not(:disabled) { border-color: var(--border-strong); color: var(--ink); }
-.stagebar button.on { color: #fff; font-weight: 600; cursor: default; }
-.stagebar button:disabled:not(.on) { cursor: default; }
 .stars-input-sm { display: inline-flex; gap: 2px; }
 .stars-input-sm button { border: none; background: none; padding: 2px; cursor: pointer; color: var(--border-strong); }
 .stars-input-sm button svg { width: 18px; height: 18px; }

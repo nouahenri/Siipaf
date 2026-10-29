@@ -8,6 +8,7 @@ import { MediaPicker } from './MediaLibrary';
 import { ScheduleTab, AccessTab, SiteTab, MessageThread } from './ClientSpace';
 import { LotFormModal, SaleEditModal } from './LotForms';
 import LeadAutocomplete from './LeadAutocomplete';
+import ClientStageBar from './ClientStageBar';
 import { FINANCING, lotStatus, stageLabel } from '../lib/domain';
 import { fcfa, num, date, dateTime, relative } from '../lib/format';
 
@@ -58,6 +59,7 @@ export default function LotDrawer({ lotId, onClose, onChanged, onChangeStatus, o
             <span className="row small muted" style={{ gap: 6 }} title="Statut du lot : réservé dès l'ouverture du dossier, vendu à la signature de l'acte notarié">Lot <StatusBadge status={d.status} /></span>
             {sale && <span className="row small muted" style={{ gap: 6 }} title="Statut du dossier de vente : suit les paiements">Dossier <Badge tone={SALE_STATUS[sale.status].tone}>{SALE_STATUS[sale.status].label}</Badge></span>}
           </div>
+          {sale && <ClientStageBar leadId={sale.lead.id} stage={sale.lead.stage} onChanged={() => { detail.reload(); onChanged?.(); }} />}
           <div className="tabs" role="tablist" style={{ marginBottom: 0 }}>
             {tabs.map(t => <button key={t.id} role="tab" aria-selected={tab === t.id} className={`tab ${tab === t.id ? 'active' : ''}`} onClick={() => setTab(t.id)}>{t.label}</button>)}
           </div>

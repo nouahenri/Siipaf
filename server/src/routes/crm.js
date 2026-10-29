@@ -112,6 +112,9 @@ module.exports = function crmRoutes(db) {
     const { stage: _stage, assigned_to: _assigned, ...fields } = data;
     if ('stage' in data && !req.can('leads:stage')) throw new HttpError(403, 'Faire avancer un prospect dans le circuit demande le droit correspondant.');
     const lead = await leadInScope(db, id, req.user);
+    if (['livraison', 'sav'].includes(data.stage) && data.stage !== lead.stage && !(await db('sales').where({ lead_id: id }).whereNot('status', 'desiste').first('id'))) {
+      throw new HttpError(409, 'Étape SAV : réservée aux clients qui ont un dossier de vente.');
+    }
     // Fiche d'un client (code client) : clients:edit ; d'un prospect : leads:edit
     if (Object.keys(fields).length && !req.can(lead.client_code ? 'clients:edit' : 'leads:edit')) throw new HttpError(403, `Modifier la fiche d’un ${lead.client_code ? 'client' : 'prospect'} demande le droit correspondant.`);
     // Changer de commercial (ou retirer un prospect de son portefeuille) : responsable seulement, sinon demande de transfert

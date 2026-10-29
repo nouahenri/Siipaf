@@ -334,7 +334,7 @@ module.exports = function commercialRoutes(db) {
     return {
       id: s.id, status: s.status, vefa: !!s.vefa, financing: s.financing, price_fcfa: Number(s.price_fcfa), reserved_at: isoDay(s.reserved_at), signed_at: isoDay(s.signed_at),
       lot_id: s.lot_id, lot_code: s.lot_code, ilot: s.ilot, project_id: s.project_id, project_name: s.project_name,
-      lead_id: s.lead_id, client_name: s.client_name, client_code: s.client_code, assigned_name: s.assigned_name,
+      lead_id: s.lead_id, lead_stage: s.lead_stage, client_name: s.client_name, client_code: s.client_code, assigned_name: s.assigned_name,
       ...t, overdue_fcfa: st.overdue_fcfa, overdue_count: st.overdue_count, next_due: st.next_due,
       progress_pct: progress.lot({ id: s.lot_id, project_id: s.project_id, ilot: s.ilot })?.progress_pct ?? 0,
     };
@@ -342,7 +342,7 @@ module.exports = function commercialRoutes(db) {
 
   const salesQuery = () => db('sales as s').join('lots as l', 'l.id', 's.lot_id').join('projects as p', 'p.id', 'l.project_id')
     .join('leads as ld', 'ld.id', 's.lead_id').leftJoin('users as u', 'u.id', 'ld.assigned_to')
-    .select('s.*', 'l.code as lot_code', 'l.ilot', 'l.project_id', 'p.name as project_name', 'ld.name as client_name', 'ld.client_code', 'ld.assigned_to', 'u.name as assigned_name');
+    .select('s.*', 'l.code as lot_code', 'l.ilot', 'l.project_id', 'p.name as project_name', 'ld.name as client_name', 'ld.client_code', 'ld.stage as lead_stage', 'ld.assigned_to', 'u.name as assigned_name');
 
   r.get('/sales', requirePermission('sales:read'), ah(async (req, res) => {
     const q = cm.scopeLeads(salesQuery(), req.user);

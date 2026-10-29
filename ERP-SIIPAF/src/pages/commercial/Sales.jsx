@@ -8,6 +8,7 @@ import { INSTALLMENT_STATUS } from '@admin/lib/domain';
 import { date, fcfa } from '@admin/lib/format';
 import { useCommercialMeta, compact } from '../../lib/commercial';
 import LeadDrawer from './LeadDrawer';
+import ClientStageBar from '@admin/components/ClientStageBar';
 import DeedSteps from '../../components/DeedSteps';
 import { TmaForm, TMA_TONES } from '../chantiers/Livraison';
 
@@ -130,6 +131,7 @@ export function SaleDrawer({ id, onClose, onChange }) {
             {d.vefa ? <Badge tone="brand">VEFA — appels de fonds</Badge> : <Badge>{meta?.financings[d.financing] || 'Financement à préciser'}</Badge>}
             <button className="btn btn-sm btn-ghost" onClick={() => setLeadId(d.lead_id)}>Fiche client</button>
           </div>
+          <ClientStageBar leadId={d.lead_id} stage={d.lead_stage} onChanged={s.reload} />
           <section className="erp-panel">
             <dl className="dl">
               <dt>Programme</dt><dd>{d.project_name}{d.ilot ? ` · îlot ${d.ilot}` : ''} · lot {d.lot_code}</dd>

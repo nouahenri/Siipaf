@@ -164,8 +164,8 @@ function LeadTable({ leads, page, setPage, pageSize, setPageSize, onOpen, seller
 function Pipeline({ leads, onOpen, canWrite }) {
   const toast = useToast();
   const [over, setOver] = useState(null);
-  // Clients au SAV : hors de la liste des prospects, affichés en dernière colonne
-  const sav = useResource(`/admin/leads${qs({ stage: 'sav', limit: 200 })}`);
+  // Clients (paiement et au-delà) : hors de la liste des prospects, affichés dans leurs colonnes
+  const clients = useResource(`/admin/leads${qs({ type: 'clients', stage: 'paiement,contrat,notaire,sav', limit: 200 })}`);
   if (leads.loading && !leads.data) return <Skeleton h={300} />;
   const rows = leads.data?.rows || [];
 
@@ -177,8 +177,8 @@ function Pipeline({ leads, onOpen, canWrite }) {
       const saved = await api.patch(`/admin/leads/${id}`, { stage });
       // Arrivé au paiement : la personne devient client et quitte la liste des prospects
       if (saved.client_code) {
-        toast(`${lead.name} devient client (${saved.client_code}) : retrouvez-le dans Clients`);
-        leads.reload();
+        toast(`${lead.name} devient client (${saved.client_code}) : il reste visible dans la colonne Paiement et dans Clients`);
+        leads.reload(); clients.reload();
       } else toast(`${lead.name} → ${stageLabel(stage)}`);
     } catch (e) {
       toast(e.message, 'err');
@@ -189,8 +189,10 @@ function Pipeline({ leads, onOpen, canWrite }) {
   return (
     <PipelineBoard>
       {/* Étapes du prospect, puis « Paiement » : y déposer une fiche en fait un client (elle passe dans Clients) */}
-      {[...PROSPECT_STAGES.filter(s => s.id !== 'perdu'), { id: 'paiement', label: 'Paiement → client' }, { id: 'sav', label: 'SAV', readOnly: true }, PROSPECT_STAGES.find(s => s.id === 'perdu')].map(st => {
-        const items = st.id === 'sav' ? sav.data?.rows || [] : rows.filter(r => r.stage === st.id);
+      {[...PROSPECT_STAGES.filter(s => s.id !== 'perdu'), { id: 'paiement', label: 'Paiement → client', clients: true },
+        { id: 'contrat', label: 'Contrat', readOnly: true, clients: true }, { id: 'notaire', label: 'Notaire', readOnly: true, clients: true }, { id: 'sav', label: 'SAV', readOnly: true, clients: true },
+        PROSPECT_STAGES.find(s => s.id === 'perdu')].map(st => {
+        const items = st.clients ? [...rows.filter(r => r.stage === st.id), ...(clients.data?.rows || []).filter(r => r.stage === st.id)] : rows.filter(r => r.stage === st.id);
         return (
           <div
             key={st.id}
@@ -203,7 +205,7 @@ function Pipeline({ leads, onOpen, canWrite }) {
             <div className="pipe-list">
               {items.map(l => (
                 <div
-                  key={l.id} className="pipe-card" draggable={canWrite && !st.readOnly} tabIndex={0}
+                  key={l.id} className="pipe-card" draggable={canWrite && !st.readOnly && !l.client_code} tabIndex={0}
                   onDragStart={e => e.dataTransfer.setData('text/plain', String(l.id))}
                   onClick={() => onOpen(l.id)} onKeyDown={e => e.key === 'Enter' && onOpen(l.id)}
                 >

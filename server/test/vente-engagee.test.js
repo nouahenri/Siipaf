@@ -51,3 +51,12 @@ test('pipeline : colonne SAV pour les clients qui ont un dossier, hors pipeline 
   const dash = (await seller.get('/api/admin/erp/commercial/dashboard')).body;
   assert.ok(!dash.stages.some(s => s.stage === 'sav'), 'le SAV ne compte pas dans le pipeline pondéré');
 });
+
+test('étapes du client sur la fiche du bien : dossier de vente (ERP) et même règle SAV au dashboard', async () => {
+  const s = (await conducteur.get(`/api/admin/erp/commercial/sales/${sale.id}`)).body;
+  assert.ok(s.lead_stage, 'étape du client renvoyée avec le dossier');
+  const prospect = (await seller.post('/api/admin/leads').send({ name: 'Encore sans dossier', phone: '0766666666' })).body;
+  assert.equal((await seller.patch(`/api/admin/leads/${prospect.id}`).send({ stage: 'sav' })).status, 409);
+  // Paiement : la personne devient client, même sans dossier
+  assert.ok((await seller.patch(`/api/admin/leads/${prospect.id}`).send({ stage: 'paiement' })).body.client_code);
+});
