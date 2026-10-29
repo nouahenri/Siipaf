@@ -131,7 +131,7 @@ function Rules({ meta, write, onChange }) {
   useEffect(() => setS(meta.settings), [meta.settings]);
   const save = async e => {
     e.preventDefault(); setError(null);
-    try { await api.put('/admin/erp/compta/settings', { ...s, vat_sales_rate: Number(s.vat_sales_rate), vat_purchases_rate: Number(s.vat_purchases_rate), depreciation_years: Object.fromEntries(Object.entries(s.depreciation_years || {}).map(([k, v]) => [k, Number(v)])) }); saved('Réglages enregistrés'); onChange(); } catch (err) { setError(err); }
+    try { await api.put('/admin/erp/compta/settings', { ...s, vat_sales_rate: Number(s.vat_sales_rate), vat_purchases_rate: Number(s.vat_purchases_rate), close_day: Number(s.close_day), depreciation_years: Object.fromEntries(Object.entries(s.depreciation_years || {}).map(([k, v]) => [k, Number(v)])) }); saved('Réglages enregistrés'); onChange(); } catch (err) { setError(err); }
   };
   return (
     <Card title="Règles comptables">
@@ -151,6 +151,9 @@ function Rules({ meta, write, onChange }) {
           <div className="form-grid">
             <Field label="TVA sur les ventes (%)" hint="Régime des logements et terrains à confirmer"><input className="input" type="number" min="0" max="100" value={s.vat_sales_rate} onChange={e => setS(x => ({ ...x, vat_sales_rate: e.target.value }))} /></Field>
             <Field label="TVA proposée sur les achats (%)"><input className="input" type="number" min="0" max="100" value={s.vat_purchases_rate} onChange={e => setS(x => ({ ...x, vat_purchases_rate: e.target.value }))} /></Field>
+            <Field label="Clôture mensuelle : au plus tard le" hint="Jour du mois suivant où la période doit être verrouillée (exercices ci-dessus) ; mesuré dans RH › Performance, indicateur « Clôtures mensuelles faites à temps »">
+              <div className="row" style={{ gap: 8 }}><input className="input" type="number" min="1" max="28" required value={s.close_day ?? 10} onChange={e => setS(x => ({ ...x, close_day: e.target.value }))} style={{ maxWidth: 90 }} /><span className="small muted">du mois suivant</span></div>
+            </Field>
           </div>
           <label className="checkbox"><input type="checkbox" checked={!!s.auto_validate} onChange={e => setS(x => ({ ...x, auto_validate: e.target.checked }))} />Valider directement les écritures automatiques (sinon : brouillon à contrôler)</label>
           <details>

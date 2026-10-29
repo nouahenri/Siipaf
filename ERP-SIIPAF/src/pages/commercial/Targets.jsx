@@ -75,21 +75,21 @@ function MonthlyTargets() {
             <tbody>
               {rows.map(r => (
                 <tr key={r.user_id}>
-                  <td><b>{r.name}</b></td>
+                  <td><b>{r.name}</b>{!r.employee_id && <div className="small muted" title="Les objectifs sont rattachés à la fiche du personnel (RH › Personnel), comme ceux de RH › Performance">sans fiche du personnel : pas d’objectif</div>}</td>
                   {METRICS.map(([k, , f]) => (
                     <td key={k} style={{ minWidth: 140 }}>
                       <span className="tabular"><b>{f(r.done[k])}</b>{r.target[k] != null && <span className="muted"> / {f(r.target[k])}</span>}</span>
                       {r.pct[k] != null && <Progress value={r.pct[k]} />}
                     </td>
                   ))}
-                  <td>{can('targets:write') && <button className="btn btn-sm btn-ghost btn-icon" onClick={() => setEdit(r)} aria-label={`Objectifs de ${r.name}`}><Pencil /></button>}</td>
+                  <td>{can('targets:write') && r.employee_id && <button className="btn btn-sm btn-ghost btn-icon" onClick={() => setEdit(r)} aria-label={`Objectifs de ${r.name}`}><Pencil /></button>}</td>
                 </tr>
               ))}
             </tbody>
           </table></div>
         )}
       </Card>
-      <p className="small muted">Réalisé : dossiers de vente ouverts dans le mois (prix convenu), rendez-vous marqués « effectué », versements reçus sur les dossiers du commercial.</p>
+      <p className="small muted">Réalisé : dossiers de vente ouverts dans le mois (prix convenu), rendez-vous marqués « effectué », versements reçus sur les dossiers du commercial. Les objectifs du mois sont ceux de la fiche du personnel de chaque commercial : ils comptent aussi dans RH › Performance et entretiens.</p>
       {edit && <TargetModal month={month} row={edit} onClose={() => setEdit(null)} onSaved={data => { setEdit(null); report.setData(data); }} />}
     </div>
   );

@@ -7,8 +7,10 @@ import {
   Banknote, Wallet, Landmark, HardHat, Gauge, Target, Users, UserMinus, LifeBuoy, AlarmClock, Star, Scale, ReceiptText, Briefcase,
   Building, Mail, FileClock, Truck, Inbox, FileText, ListChecks, Stamp, ShieldHalf, Flag, Handshake, CalendarClock, Boxes,
 } from 'lucide-react';
+import { useState } from 'react';
 import { Link } from 'react-router-dom';
 import { useResource } from '@admin/lib/app-context';
+import PeriodPicker, { thisYear, yearPeriod, periodQuery, periodName } from '../../components/PeriodPicker';
 import { Card, Skeleton, Empty, ErrorBox, Advance, Badge } from '@admin/components/ui';
 import { LineChart } from '@admin/components/Charts';
 import { fcfa, num, date, dateTime } from '@admin/lib/format';
@@ -25,6 +27,32 @@ const ATTENTION = {
   litiges: { icon: Scale, label: 'Litiges' }, cautions: { icon: ShieldHalf, label: 'Cautions' }, impayes: { icon: AlarmClock, label: 'Impayés' },
   chantiers: { icon: HardHat, label: 'Chantiers' },
 };
+
+/** Performance par service sur la période choisie (année, trimestre, mois) : mêmes scores que RH › Performance et entretiens. */
+function ServicePerformance({ initial }) {
+  const [period, setPeriod] = useState(yearPeriod());
+  const isYear = period.periode === 'annee' && period.annee === thisYear;
+  const res = useResource(isYear ? null : `/admin/erp/direction/performance${periodQuery(period)}`);
+  const data = isYear ? initial : res.data;
+  return (
+    <Card title="Performance par service" bodyClass="" actions={<span className="small muted">{periodName(period)}</span>}>
+      <div className="card-body" style={{ paddingBottom: 8 }}><PeriodPicker value={period} onChange={setPeriod} /></div>
+      <ErrorBox error={res.error} />
+      {!data ? <div className="card-body"><Skeleton h={160} /></div> : !data.departments.length ? <Empty icon={Target}>Aucun employé.</Empty> : (
+        <div className="table-wrap table-scroll"><table className="table table-compact">
+          <thead><tr><th>Service</th><th className="right">Effectif</th><th>Score</th><th className="right">Présence</th></tr></thead>
+          <tbody>{data.departments.map(s => (
+            <tr key={s.key}>
+              <td>{s.label}</td><td className="right tabular">{num(s.headcount)}</td>
+              <td title={s.collective_score != null && s.employees_score != null ? `Objectifs du service ${s.collective_score} % · employés ${s.employees_score} %` : undefined}>{s.score == null ? <span className="small muted">pas d’objectif</span> : <Progress value={s.score} />}</td>
+              <td className="right tabular">{s.presence == null ? '—' : `${s.presence.toLocaleString('fr-FR')} %`}</td>
+            </tr>
+          ))}</tbody>
+        </table></div>
+      )}
+    </Card>
+  );
+}
 
 function Section({ icon: Icon, title, to, children }) {
   return (
@@ -246,16 +274,7 @@ export default function Direction() {
           <Kpi icon={Target} label="Performance moyenne" count={rh.performance.overall} format={v => `${v} %`} foot="objectifs pondérés de l’année" />
         </div>
         <div className="grid grid-2" style={{ alignItems: 'start' }}>
-          <Card title="Performance par service" bodyClass="">
-            {!rh.performance.departments.length ? <Empty icon={Target}>Aucun employé.</Empty> : (
-              <div className="table-wrap table-scroll"><table className="table table-compact">
-                <thead><tr><th>Service</th><th className="right">Effectif</th><th>Score</th><th className="right">Présence</th></tr></thead>
-                <tbody>{rh.performance.departments.map(s => (
-                  <tr key={s.key}><td>{s.label}</td><td className="right tabular">{num(s.headcount)}</td><td>{s.score == null ? <span className="small muted">pas d’objectif</span> : <Progress value={s.score} />}</td><td className="right tabular">{s.presence == null ? '—' : `${s.presence} %`}</td></tr>
-                ))}</tbody>
-              </table></div>
-            )}
-          </Card>
+          <ServicePerformance initial={rh.performance} />
           <Card title="Masse salariale" actions={<span className="small muted">coût employeur, 12 mois</span>}>
             {rh.payroll.length ? (
               <LineChart data={rh.payroll} xKey="month" area format={(v, axis) => (axis ? compact(v) : fcfa(v))} ariaLabel="Masse salariale par mois"

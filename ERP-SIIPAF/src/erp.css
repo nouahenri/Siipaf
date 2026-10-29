@@ -425,3 +425,15 @@ button.gantt-row:focus-visible { outline: 2px solid var(--focus); outline-offset
   .gantt { min-width: calc(var(--track) + 140px); }
   .gantt-row { grid-template-columns: 140px var(--track); }
 }
+
+/* RH › Performance et entretiens › Référentiel KPI : liste des services et postes, éditeur du modèle */
+.kpi-templates { display: grid; grid-template-columns: minmax(220px, 1fr) minmax(0, 2fr); gap: 16px; align-items: start; }
+.kpi-tpl-list { display: flex; flex-direction: column; gap: 2px; max-height: 520px; overflow: auto; }
+.kpi-tpl-item { display: flex; justify-content: space-between; align-items: center; gap: 8px; width: 100%; text-align: left; padding: 8px 10px; border: 0; border-radius: 6px; background: none; color: inherit; cursor: pointer; font: inherit; }
+.kpi-tpl-item:hover { background: var(--bg); }
+.kpi-tpl-item.active { background: var(--brand-soft); }
+.alert-warn { background: color-mix(in srgb, var(--warn) 12%, var(--surface)); color: var(--ink); }
+@media (max-width: 760px) {
+  .kpi-templates { grid-template-columns: minmax(0, 1fr); }
+  .kpi-tpl-list { max-height: 260px; }
+}

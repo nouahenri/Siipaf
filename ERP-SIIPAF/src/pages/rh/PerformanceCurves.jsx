@@ -78,15 +78,17 @@ export default function PerformanceCurves({ employeeId = null, employees = null 
             <div className="grid grid-2" style={{ alignItems: 'start' }}>
               {d.objectives.map(o => {
                 const rows = d.buckets.map((b, i) => ({ key: b.key, ...o.points[i] }));
+                // Trajectoire depuis le 1er janvier : objectif annuel seul ; les objectifs mensuels ont leur cible par période
+                const trajectory = o.cumul && grain !== 'annee' && o.period === 'annee' && String(o.key).startsWith('o');
                 const series = o.metric === 'manuel'
                   ? [{ key: 'attainment', label: 'Avancement', color: 'var(--series-1)' }]
-                  : o.cumul && grain !== 'annee'
+                  : trajectory
                     ? [{ key: 'ytd', label: 'Réalisé depuis le 1er janvier', color: 'var(--series-1)' }, { key: 'ytd_target', label: 'Trajectoire de la cible', color: '#eb6834', dashed: true }]
                     : [{ key: 'actual', label: 'Réalisé', color: 'var(--series-1)' }, { key: 'target', label: o.cumul ? 'Cible de la période' : 'Cible', color: '#eb6834', dashed: true }];
                 const fmt = o.metric === 'manuel' ? pct : v => metricValue(o.unit, v);
                 return (
-                  <Card key={o.id} title={o.title} actions={<span className="small muted">{o.year} · poids {o.weight}</span>}>
-                    <p className="small muted" style={{ marginBottom: 8 }}>{o.label}{o.target_value != null ? ` · cible ${o.year} : ${metricValue(o.unit, o.target_value)}${o.lower ? ' au plus' : ''}` : ''}</p>
+                  <Card key={o.key} title={o.title} actions={<span className="small muted">{o.year} · poids {o.weight}</span>}>
+                    <p className="small muted" style={{ marginBottom: 8 }}>{o.label}{o.target_value != null ? ` · cible ${o.period === 'annee' ? o.year : 'de la période'} : ${metricValue(o.unit, o.target_value)}${o.lower ? ' au plus' : ''}` : o.count > 1 ? ' · une cible par période' : ''}</p>
                     <LineChart data={rows} {...axis} format={fmt} height={200} ariaLabel={`Évolution de l’objectif ${o.title}`} series={series} />
                   </Card>
                 );
