@@ -786,3 +786,7 @@ fieldset { min-width: 0; }
 .converted-by svg { width: 16px; height: 16px; flex: none; }
 .converted-by b { font-weight: 700; color: var(--ink); }
 :root[data-theme="sombre"] .converted-by { background: rgba(76, 194, 127, .16); }
+/* Bouton noir : changement de commercial (circuit d'accords), distinct de l'action principale rouge */
+.btn-dark { background: #16181d; border-color: #16181d; color: #fff; }
+.btn-dark:hover:not(:disabled) { background: #000; border-color: #000; color: #fff; }
+:root[data-theme="sombre"] .btn-dark { background: #000; border-color: #3a3f48; }

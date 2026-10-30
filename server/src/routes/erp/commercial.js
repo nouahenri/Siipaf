@@ -98,6 +98,9 @@ module.exports = function commercialRoutes(db) {
     }).partial(), req.body);
     const { assigned_to: _assigned, ...fields } = data;
     if (Object.keys(fields).length && !req.can(lead.client_code ? 'clients:edit' : 'leads:edit')) throw new HttpError(403, `Modifier la fiche d’un ${lead.client_code ? 'client' : 'prospect'} demande le droit correspondant.`);
+    if ('assigned_to' in data && lead.client_code && (data.assigned_to || null) !== (lead.assigned_to || null)) {
+      throw new HttpError(409, 'Changer le commercial d’un client : faites une demande de changement (accord du responsable commercial et de l’administrateur général).');
+    }
     // Changer de commercial : responsable seulement (leads:assign), sinon demande de transfert
     if ('assigned_to' in data && (data.assigned_to || null) !== (lead.assigned_to || null) && !cm.canAssignLeads(req.user)) {
       throw new HttpError(403, 'Seul le responsable change le commercial d’un prospect ou d’un client : faites une demande de transfert.');

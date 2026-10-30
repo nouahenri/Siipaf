@@ -239,7 +239,7 @@ function LeadDrawer({ id, onClose, onSaved, projects }) {
   const [busy, setBusy] = useState(false);
   const [appt, setAppt] = useState(null);
   const [transfer, setTransfer] = useState(null); // { lead, mine }
-  const assigner = can('leads:assign');
+  const assigner = can('leads:assign') && !detail.data?.client_code; // client : demande avec les deux accords
 
   const remove = async () => {
     if (!window.confirm(`Supprimer définitivement ${detail.data?.name || 'ce prospect'} ? Ses rendez-vous et messages seront aussi supprimés.`)) return;
@@ -325,7 +325,7 @@ function LeadDrawer({ id, onClose, onSaved, projects }) {
               <Field label="Type de bien" hint={d?.source === 'site' && d?.property_type ? 'Consulté sur le site' : undefined}>
                 <input className="input" value={form.property_type} onChange={set('property_type')} placeholder="Appartement social 3 pièces" />
               </Field>
-              <Field label="Commercial assigné" hint={!assigner ? 'Changement de commercial : demande au responsable' : undefined}>
+              <Field label="Commercial assigné" hint={d?.client_code ? 'Changement : accord du responsable commercial et de l’administrateur général' : !assigner ? 'Changement de commercial : demande au responsable' : undefined}>
                 {assigner ? (
                   <select className="select" value={form.assigned_to} onChange={set('assigned_to')}>
                     <option value="">Non assigné</option>
@@ -334,7 +334,7 @@ function LeadDrawer({ id, onClose, onSaved, projects }) {
                 ) : (
                   <div className="row" style={{ gap: 8 }}>
                     <span className="input" style={{ display: 'flex', alignItems: 'center', flex: 1 }}>{id ? (sellers.data?.find(u => u.id === Number(form.assigned_to))?.name || d?.assigned_name || 'Vous') : 'Vous'}</span>
-                    {id && can('leads:transfer') && <button type="button" className="btn btn-sm" onClick={() => setTransfer({ lead: { id, name: d?.name }, mine: true })}>Demander un transfert</button>}
+                    {id && (can('leads:transfer') || can('leads:assign')) && <button type="button" className="btn btn-sm btn-dark" onClick={() => setTransfer({ lead: { id, name: d?.name, client_code: d?.client_code, assigned_to: d?.assigned_to }, mine: d?.assigned_to === user.id })}>{d?.client_code ? 'Changer de commercial' : 'Demander un transfert'}</button>}
                   </div>
                 )}
               </Field>

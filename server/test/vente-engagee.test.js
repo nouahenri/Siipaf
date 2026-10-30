@@ -28,8 +28,8 @@ after(() => db.destroy());
 test('vente en cours : tous les champs de la fiche client restent modifiables (choix du client), ERP et dashboard', async () => {
   ok(await seller.patch(`/api/admin/erp/commercial/leads/${lead.id}`).send({ expected_revenue_fcfa: 26000000, financing: 'credit', name: 'Ibrahim CISSÉ', kind: 'entreprise' }));
   ok(await seller.patch(`/api/admin/leads/${lead.id}`).send({ financing: 'comptant', phone: '0700000000' }));
-  // Le commercial, lui, ne change pas d'un simple enregistrement : responsable seulement
-  assert.equal((await seller.patch(`/api/admin/erp/commercial/leads/${lead.id}`).send({ assigned_to: null })).status, 403);
+  // Le commercial d'un client ne change pas d'un simple enregistrement : demande avec les deux accords
+  assert.equal((await seller.patch(`/api/admin/erp/commercial/leads/${lead.id}`).send({ assigned_to: null })).status, 409);
 });
 
 test('dossiers de vente consultables hors du module Commercial (droit « Voir les dossiers »)', async () => {

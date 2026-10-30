@@ -117,6 +117,9 @@ module.exports = function crmRoutes(db) {
     }
     // Fiche d'un client (code client) : clients:edit ; d'un prospect : leads:edit
     if (Object.keys(fields).length && !req.can(lead.client_code ? 'clients:edit' : 'leads:edit')) throw new HttpError(403, `Modifier la fiche d’un ${lead.client_code ? 'client' : 'prospect'} demande le droit correspondant.`);
+    if ('assigned_to' in data && lead.client_code && (data.assigned_to || null) !== (lead.assigned_to || null)) {
+      throw new HttpError(409, 'Changer le commercial d’un client : faites une demande de changement (accord du responsable commercial et de l’administrateur général).');
+    }
     // Changer de commercial (ou retirer un prospect de son portefeuille) : responsable seulement, sinon demande de transfert
     if ('assigned_to' in data && (data.assigned_to || null) !== (lead.assigned_to || null) && !canAssignLeads(req.user)) {
       throw new HttpError(403, 'Seul le responsable change le commercial d’un prospect ou d’un client : faites une demande de transfert.');

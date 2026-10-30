@@ -100,11 +100,14 @@ test('demande de transfert : motivée par le commercial, validée ou refusée pa
   res = await resp.post(`/api/admin/lead-transfers/${t.id}/refuser`).send({ note: 'A suit déjà le dossier' });
   assert.equal(res.body.status, 'refusee');
   assert.equal((await db('leads').where({ id: leadA.id }).first()).assigned_to, idA);
-  // A confie son prospect à B ; le responsable valide
+  // A confie son client à B : accord du responsable, puis approbation de l'administrateur général (client : double validation)
   res = await sellerA.post(`/api/admin/leads/${leadA.id}/transfert`).send({ to_user_id: idB, reason: 'Je pars en congé trois mois' });
   assert.equal(res.status, 201);
+  const tId = res.body.id;
   assert.equal((await sellerA.get('/api/admin/lead-transfers')).body.length, 1, 'le commercial voit ses demandes');
-  res = await resp.post(`/api/admin/lead-transfers/${res.body.id}/valider`).send({});
+  res = await resp.post(`/api/admin/lead-transfers/${tId}/valider`).send({});
+  assert.equal(res.body.awaiting, 'administrateur');
+  res = await admin.post(`/api/admin/lead-transfers/${tId}/valider`).send({});
   assert.equal(res.body.status, 'validee');
   assert.equal((await db('leads').where({ id: leadA.id }).first()).assigned_to, idB);
   const events = await db('lead_portfolio_events').where({ lead_id: leadA.id }).orderBy('id');

@@ -117,7 +117,8 @@ function LeadInfo({ lead, meta, write, onSaved }) {
   const [error, setError] = useState(null);
   const [transfer, setTransfer] = useState(false);
   // Changer de commercial : responsable (leads:assign) ; un commercial en fait la demande
-  const assigner = can('leads:assign');
+  const assigner = can('leads:assign') && !lead.client_code;
+  const { user } = useAuth();
   useEffect(() => setForm({
     name: lead.name, phone: lead.phone || '', email: lead.email || '', country: lead.country || '', kind: lead.kind || '',
     priority: lead.priority || 0, expected_revenue_fcfa: lead.expected_revenue_fcfa ?? '', financing: lead.financing || '',
@@ -174,7 +175,7 @@ function LeadInfo({ lead, meta, write, onSaved }) {
             {meta && Object.entries(meta.financings).map(([k, v]) => <option key={k} value={k}>{v}</option>)}
           </select>
         </Field>
-        <Field label="Commercial" hint={!assigner ? 'Changement : demande au responsable' : undefined}>
+        <Field label="Commercial" hint={lead.client_code ? 'Changement : accord du responsable commercial et de l’administrateur général' : !assigner ? 'Changement : demande au responsable' : undefined}>
           {assigner ? (
             <select className="select" value={form.assigned_to} onChange={set('assigned_to')}>
               <option value="">— Non attribué —</option>
@@ -185,9 +186,9 @@ function LeadInfo({ lead, meta, write, onSaved }) {
         <Field label="Pays de résidence"><input className="input" value={form.country} onChange={set('country')} /></Field>
         <label className="checkbox" style={{ alignSelf: 'end', paddingBottom: 10 }}><input type="checkbox" checked={form.is_diaspora} onChange={set('is_diaspora')} />Diaspora</label>
       </fieldset>
-      {write && <div className="row" style={{ gap: 8 }}><button className="btn btn-sm btn-primary">Enregistrer la fiche</button>{!assigner && can('leads:transfer') && <button type="button" className="btn btn-sm" onClick={() => setTransfer(true)}>Demander un transfert</button>}</div>}
+      {write && <div className="row" style={{ gap: 8 }}><button className="btn btn-sm btn-primary">Enregistrer la fiche</button>{!assigner && (can('leads:transfer') || can('leads:assign')) && <button type="button" className="btn btn-sm btn-dark" onClick={() => setTransfer(true)}>{lead.client_code ? 'Changer de commercial' : 'Demander un transfert'}</button>}</div>}
       <TransferRequests leadId={lead.id} onChange={onSaved} />
-      {transfer && <TransferModal lead={lead} onClose={() => setTransfer(false)} onDone={onSaved} />}
+      {transfer && <TransferModal lead={lead} mine={lead.assigned_to === user?.id} onClose={() => setTransfer(false)} onDone={onSaved} />}
     </form>
   );
 }
