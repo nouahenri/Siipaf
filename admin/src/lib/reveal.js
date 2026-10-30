@@ -18,7 +18,8 @@ export function useRevealOnScroll(root, deps = []) {
       entries.forEach(e => {
         if (e.isIntersecting) { e.target.classList.add('in'); io.unobserve(e.target); }
       });
-    }, { rootMargin: '0px 0px -8% 0px', threshold: 0.08 });
+    // Seuil nul : une carte plus haute que l'écran (longue liste) apparaît dès qu'elle y entre, pas après un défilement
+    }, { rootMargin: '0px 0px -8% 0px', threshold: 0 });
     const watch = () => host.querySelectorAll('.card:not(.in):not([data-reveal])').forEach(el => { el.dataset.reveal = '1'; io.observe(el); });
     watch();
     const mo = new MutationObserver(watch);
