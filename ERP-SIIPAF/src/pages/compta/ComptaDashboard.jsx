@@ -86,7 +86,7 @@ export default function ComptaDashboard() {
     <div className="stack compta-charts">
       <div className="row-between">
         <p className="muted">Exercice {d.fiscal_year.label} · du {date(d.fiscal_year.start_date)} au {date(d.fiscal_year.end_date)} · brouillons compris</p>
-        {can('compta:entries') && (
+        {can('compta:sync') && (
           <div className="row" style={{ gap: 8 }}>
             <ClientPaymentButton onDone={dash.reload} />
             <button className="btn" disabled={busy} onClick={sync} title="Crée les écritures des versements, appels de fonds et ventes saisis dans le dashboard ou l’ERP"><RefreshCw />Synchroniser les ventes et versements</button>

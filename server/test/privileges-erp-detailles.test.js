@@ -402,7 +402,8 @@ for (const [index, [migration, splits]] of MIGRATIONS.entries()) {
     await migration.down(db);
     const back = await perms(original);
     for (const old of olds) assert.ok(back.includes(old), `down : ${old}`);
-    for (const action of allActions.filter(a => !olds.includes(a))) assert.ok(!back.includes(action), `down : ${action} retiré`);
+    // achats:validate existait avant ce découpage (migration 20261130700000) : le retour arrière le garde
+    for (const action of allActions.filter(a => !olds.includes(a) && a !== 'achats:validate')) assert.ok(!back.includes(action), `down : ${action} retiré`);
     assert.ok((await userRows(ids.granted)).includes(`${olds[1]}:1`));
 
     // Remise en état pour les tests suivants

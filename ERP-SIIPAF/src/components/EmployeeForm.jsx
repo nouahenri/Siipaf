@@ -115,7 +115,7 @@ export default function EmployeeForm({ employee, onClose, onSaved }) {
             <select className="select" value={f.project_id || ''} onChange={set('project_id')}><option value="">Frais généraux (siège)</option>{meta?.projects.map(p => <option key={p.id} value={p.id}>{p.name}</option>)}</select>
           </Field>
           {!isNew && <label className="checkbox" style={{ alignSelf: 'end', paddingBottom: 10 }}><input type="checkbox" checked={f.active} onChange={set('active')} />En poste</label>}
-          <Field label="Solde de congés repris (jours)" hint={canLeave ? 'Solde de l’ancienne gestion, à la date ci-contre' : 'Réservé au droit « Gérer les absences »'}><input className="input" type="number" step="0.5" disabled={!canLeave} value={f.leave_opening_days ?? ''} onChange={set('leave_opening_days')} /></Field>
+          <Field label="Solde de congés repris (jours)" hint={canLeave ? 'Solde de l’ancienne gestion, à la date ci-contre' : 'Réservé au droit « Ajuster les soldes »'}><input className="input" type="number" step="0.5" disabled={!canLeave} value={f.leave_opening_days ?? ''} onChange={set('leave_opening_days')} /></Field>
           <Field label="Date de reprise du solde" hint="L’acquisition de 2,2 j / mois repart de cette date"><input className="input" type="date" disabled={!canLeave} value={f.leave_opening_date ?? ''} onChange={set('leave_opening_date')} /></Field>
         </div>
         <h3 className="erp-h3">Famille (ITS et CMU)</h3>
@@ -125,7 +125,7 @@ export default function EmployeeForm({ employee, onClose, onSaved }) {
           {seePay && <Field label="Parts fiscales" hint={canPay ? `Proposé : ${suggested} (à confirmer par le comptable)` : payHint}><input className="input" type="number" min="1" max="5" step="0.5" disabled={!canPay} value={f.tax_parts ?? ''} onChange={set('tax_parts')} placeholder={String(suggested)} /></Field>}
         </div>
         <h3 className="erp-h3">Rémunération mensuelle</h3>
-        {!seePay ? <p className="small muted">Salaire, indemnités et moyen de paiement : tenus par la Comptabilité (droit « Gérer les fiches salariés »).</p> : (
+        {!seePay ? <p className="small muted">Salaire, indemnités et moyen de paiement : tenus par la Comptabilité (droit « Salaire et paiement »).</p> : (
           <fieldset className="form-grid" disabled={!canPay} style={{ border: 0, padding: 0, margin: 0 }}>
             {!canPay && <p className="small muted full">{payHint}.</p>}
             <Field label="Salaire de base (FCFA)" hint={meta?.settings ? `SMIG : ${fcfa(meta.settings.smig)}` : undefined}><input className="input" type="number" min="0" required={canPay} value={f.base_salary ?? ''} onChange={set('base_salary')} /></Field>

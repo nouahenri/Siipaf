@@ -144,7 +144,7 @@ function HrPin({ employee, onClose, onSaved }) {
 }
 
 function LeaveTab({ d, hr: _hr, onChange }) {
-  // Ajuster le solde, saisir une absence : droit « Gérer les absences » (pas seulement « Gérer les dossiers »)
+  // Ajuster le solde, saisir une absence : droit « Ajuster les soldes » (pas seulement « Gérer les dossiers »)
   const { can } = useAuth();
   const canEnter = can('conges:enter') && d.access !== 'self', canAdjust = can('conges:adjust') && d.access !== 'self';
   const hr = canEnter || canAdjust;

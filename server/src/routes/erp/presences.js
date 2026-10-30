@@ -123,7 +123,7 @@ module.exports = function presencesRoutes(db) {
     if (!a) throw new HttpError(404, 'Pointage introuvable.');
     await notMine(req, a.employee_id);
     await assertScope(req, a, a.employee_id);
-    const data = parse(manualSchema.partial().extend({ note: manualSchema.shape.note }), req.body);
+    const data = parse(manualSchema.omit({ employee_id: true }).partial().extend({ note: manualSchema.shape.note }), req.body);
     if (data.worksite_id !== undefined || data.project_id !== undefined) await assertScope(req, { worksite_id: data.worksite_id ?? null, project_id: data.project_id ?? null }, a.employee_id);
     res.json(await presences.upsertManual(db, { employee_id: a.employee_id, check_in: a.check_in, check_out: a.check_out, ...(data.project_id !== undefined || data.worksite_id !== undefined || data.place_id !== undefined ? {} : { project_id: a.project_id, worksite_id: a.worksite_id, place_id: a.place_id }), ...data, id: a.id }, req.user.id));
   }));

@@ -22,4 +22,5 @@ const SPLITS = {
 };
 
 exports.up = knex => expand(knex, SPLITS);
-exports.down = knex => collapse(knex, SPLITS);
+// achats:validate existait avant ce découpage (20261130700000) : il ne se replie pas dans achats:write au retour arrière
+exports.down = knex => collapse(knex, { ...SPLITS, 'achats:write': ['suppliers:write', 'achats:write'] });
