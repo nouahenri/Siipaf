@@ -5,7 +5,7 @@
  */
 const { HttpError, json, isoDay } = require('../lib/http');
 const {
-  DEFAULT_VEFA_PLAN, VEFA_DUE_DAYS, SITE_STAGES, SITE_STAGE_LABELS, checkVefaPlan, splitVefaAmounts,
+  DEFAULT_VEFA_PLAN, VEFA_DUE_DAYS, SITE_STAGE_LABELS, siteStageIndex, checkVefaPlan, splitVefaAmounts,
 } = require('../lib/domain');
 
 const ACTIVE = ['en_cours', 'solde'];
@@ -82,7 +82,10 @@ async function ensureCalls(trx, sale, { userId = null } = {}) {
   const start = isoDay(sale.signed_at || sale.reserved_at) || isoDay(new Date());
   // Étapes déjà déclarées par la Direction pour ce lot : appelées aussitôt
   const siteStage = await require('./chantiersSuivi').declaredStageFor(trx, lot);
-  await emitCalls(trx, sale, stage => stage === 'signature' || (siteStage && SITE_STAGES.indexOf(stage) <= SITE_STAGES.indexOf(siteStage)), { date: start, userId, notify: false });
+  // La VEFA concerne les bâtiments ; pour un lotissement, seules les étapes communes du plan comptent (rang dans la liste du projet)
+  const category = (await trx('projects').where({ id: lot.project_id }).first('category'))?.category || null;
+  const reached = stage => siteStageIndex(category, stage) >= 0 && siteStageIndex(category, stage) <= siteStageIndex(category, siteStage);
+  await emitCalls(trx, sale, stage => stage === 'signature' || (siteStage && reached(stage)), { date: start, userId, notify: false });
 }
 
 /** Dossiers VEFA actifs concernés par un point de chantier ou un constat (projet, îlot, bâtiment ou lot). */

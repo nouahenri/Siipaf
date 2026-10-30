@@ -6,7 +6,7 @@
  */
 const { HttpError, json, isoDay, isoTime } = require('../lib/http');
 const {
-  WORKSITE_STATUSES, WORKSITE_OPEN, WORKSITE_ZONES, TASK_STATUSES, PHASE_STATES, SITE_STAGES, SITE_STAGE_LABELS,
+  WORKSITE_STATUSES, WORKSITE_OPEN, WORKSITE_ZONES, TASK_STATUSES, PHASE_STATES, siteStagesFor, siteStageLabel, siteStageError,
   lotInZone, phaseState, worksiteProgress, phaseRefusal, CHANTIER_SETTINGS, budgetAlertLevel, TMA_STATUSES, NEED_STATUSES, SAV_CATEGORIES,
 } = require('../lib/domain');
 const { computePayslip } = require('../lib/paie');
@@ -30,11 +30,12 @@ async function nextReference(trx, date) {
 }
 
 const worksiteQuery = db => db('worksites as w').join('projects as p', 'p.id', 'w.project_id').leftJoin('users as u', 'u.id', 'w.manager_id')
-  .select('w.*', 'p.name as project_name', 'u.name as manager_name');
+  .select('w.*', 'p.name as project_name', 'p.category as project_category', 'u.name as manager_name');
 
-const serializePhase = (p, day = today()) => {
+// Les étapes d'un chantier sont celles de son projet (bâtiments ou lotissement) : `category` = catégorie du projet
+const serializePhase = (p, day = today(), category = null) => {
   const row = {
-    id: p.id, worksite_id: p.worksite_id, stage: p.stage || null, stage_label: p.stage ? SITE_STAGE_LABELS[p.stage] : null, label: p.label,
+    id: p.id, worksite_id: p.worksite_id, stage: p.stage || null, stage_label: p.stage ? siteStageLabel(category, p.stage) : null, label: p.label,
     planned_start: isoDay(p.planned_start), planned_end: isoDay(p.planned_end), actual_start: isoDay(p.actual_start), actual_end: isoDay(p.actual_end),
     progress_pct: p.actual_end ? 100 : Number(p.progress_pct) || 0, depends_on_id: p.depends_on_id || null, sort: p.sort, notes: p.notes || null,
   };
@@ -68,7 +69,7 @@ function zoneLabel(w, buildings = []) {
 }
 
 function serializeWorksite(w, { phases = [], budget = 0, buildings = [] } = {}) {
-  const ph = phases.map(p => (p.state ? p : serializePhase(p)));
+  const ph = phases.map(p => (p.state ? p : serializePhase(p, today(), w.project_category)));
   const late = ph.filter(p => p.state === 'en_retard');
   return {
     id: w.id, reference: w.reference, project_id: w.project_id, project_name: w.project_name, name: w.name,
@@ -118,7 +119,7 @@ async function list(db, v, { status = 'ouverts', projectId = null, q = '' } = {}
   const day = today();
   return rows.map(w => {
     const out = serializeWorksite(w, {
-      phases: phases.filter(p => p.worksite_id === w.id).map(p => serializePhase(p, day)),
+      phases: phases.filter(p => p.worksite_id === w.id).map(p => serializePhase(p, day, w.project_category)),
       budget: Number(budgets.find(b => b.worksite_id === w.id)?.total || 0), buildings,
     });
     out.spent_fcfa = spent[w.id] || 0;
@@ -146,7 +147,7 @@ async function detail(db, w, v) {
     zoneLots(db, w),
     listItems(db, 'poste', { all: true }),
   ]);
-  const ph = phases.map(p => serializePhase(p, day));
+  const ph = phases.map(p => serializePhase(p, day, w.project_category));
   const labels = Object.fromEntries(postes.map(p => [p.code, p.label]));
   const lines = budget.map(b => serializeBudget(b, labels));
   // Postes de la liste réglable (Chantiers › Réglages), dans son ordre ; un poste désactivé reste s'il est utilisé
@@ -202,8 +203,13 @@ async function announceManager(db, w, userId) {
 }
 
 async function create(db, data, user) {
-  const project = await db('projects').where({ id: data.project_id }).first('id');
+  const project = await db('projects').where({ id: data.project_id }).first('id', 'category');
   if (!project) throw new HttpError(400, 'Programme introuvable.');
+  // Phases de départ : étapes du projet (un lotissement n'a pas les étapes d'un bâtiment, et inversement)
+  for (const s of data.stages || []) {
+    const refusal = siteStageError(project.category, s);
+    if (refusal) throw new HttpError(400, refusal);
+  }
   checkDates(data);
   const zone = await checkZone(db, data.project_id, data.zone_kind || 'programme', data.zone);
   const id = await db.transaction(async trx => {
@@ -215,8 +221,9 @@ async function create(db, data, user) {
     });
     const wid = insertedId(row);
     // Phases de départ : étapes du journal de chantier choisies dans le formulaire
-    const stages = (data.stages || []).filter(s => SITE_STAGES.includes(s)).sort((a, b) => SITE_STAGES.indexOf(a) - SITE_STAGES.indexOf(b));
-    if (stages.length) await trx('worksite_phases').insert(stages.map((stage, i) => ({ worksite_id: wid, stage, label: SITE_STAGE_LABELS[stage], sort: i + 1 })));
+    const { keys } = siteStagesFor(project.category);
+    const stages = [...new Set(data.stages || [])].sort((a, b) => keys.indexOf(a) - keys.indexOf(b));
+    if (stages.length) await trx('worksite_phases').insert(stages.map((stage, i) => ({ worksite_id: wid, stage, label: siteStageLabel(project.category, stage), sort: i + 1 })));
     return wid;
   });
   const w = await loadWorksite(db, id);
@@ -260,8 +267,11 @@ async function savePhase(db, w, data, phaseId = null) {
     current = await db('worksite_phases').where({ id: phaseId, worksite_id: w.id }).first();
     if (!current) throw new HttpError(404, 'Phase introuvable.');
   }
-  const p = { ...(current ? serializePhase(current) : {}), ...data, id: phaseId };
-  if (p.stage && !SITE_STAGES.includes(p.stage)) throw new HttpError(400, 'Étape de chantier inconnue.');
+  const p = { ...(current ? serializePhase(current, today(), w.project_category) : {}), ...data, id: phaseId };
+  if (data.stage && data.stage !== current?.stage) {
+    const refusal = siteStageError(w.project_category, data.stage);
+    if (refusal) throw new HttpError(400, refusal);
+  }
   const refusal = phaseRefusal(p, others.filter(o => o.id !== phaseId));
   if (refusal) throw new HttpError(400, refusal);
   // 100 % sans fin réelle : la phase se termine aujourd'hui ; une fin réelle vaut 100 %
@@ -274,7 +284,7 @@ async function savePhase(db, w, data, phaseId = null) {
     return phaseId;
   }
   const sort = others.reduce((m, o) => Math.max(m, o.sort), 0) + 1;
-  const [r] = await db('worksite_phases').insert({ worksite_id: w.id, label: data.label || SITE_STAGE_LABELS[data.stage], sort, ...row });
+  const [r] = await db('worksite_phases').insert({ worksite_id: w.id, label: data.label || siteStageLabel(w.project_category, data.stage), sort, ...row });
   return insertedId(r);
 }
 
@@ -565,7 +575,7 @@ async function reorderList(db, kind, ids) {
 async function refs(db) {
   const [projects, users, employees, suppliers, postes, meteo, unites, articles] = await Promise.all([
     // (articles : catalogue Achats & stocks, proposé pour les besoins en matériaux)
-    db('projects').orderBy('name').select('id', 'name'),
+    db('projects').orderBy('name').select('id', 'name', 'category'),
     db('users').where({ active: true }).orderBy('name').select('id', 'name', 'role'),
     db('employees').where({ active: true }).orderBy(['last_name', 'first_name']).select('id', 'last_name', 'first_name', 'job_title'),
     db('suppliers').where({ active: true }).orderBy('name').select('id', 'name', 'kind'),
@@ -580,7 +590,9 @@ async function refs(db) {
     units: Object.fromEntries(unites.filter(p => p.active).map(p => [p.code, p.label])), unit_labels: Object.fromEntries(unites.map(p => [p.code, p.label])),
     articles, tma_statuses: TMA_STATUSES, need_statuses: NEED_STATUSES, sav_categories: SAV_CATEGORIES,
     lists: { poste: postes, meteo, unite: unites },
-    stages: SITE_STAGES.map(k => ({ key: k, label: SITE_STAGE_LABELS[k] })), projects, users,
+    // `stages` : étapes d'un programme immobilier ; chaque projet porte les siennes (`projects[].stages`, lotissement ou bâtiments)
+    stages: siteStagesFor(null).list.map(({ key, label }) => ({ key, label })),
+    projects: projects.map(p => ({ ...p, stages: siteStagesFor(p.category).list.map(({ key, label }) => ({ key, label })) })), users,
     employees: employees.map(e => ({ id: e.id, label: `${e.last_name} ${e.first_name}`, job_title: e.job_title || null })), suppliers,
   };
 }

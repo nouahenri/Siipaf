@@ -130,6 +130,7 @@ module.exports = function salesRoutes(db) {
       notes: z.string().max(2000).nullable(),
     }).partial(), req.body);
     const before = await saleInScope(db, id, req.user);
+    if (data.vefa && !before.vefa) await require('../services/sales').assertVefaAllowed(db, (await db('lots').where({ id: before.lot_id }).first('project_id')).project_id);
     const { signed_at: _signed, ...saleFields } = data;
     if (Object.keys(saleFields).length && !req.can('sales:edit')) throw new HttpError(403, 'Modifier le dossier demande le droit correspondant.');
     if ('signed_at' in data && (isoDay(data.signed_at) || null) !== (isoDay(before.signed_at) || null) && !req.can('juridique:write')) {

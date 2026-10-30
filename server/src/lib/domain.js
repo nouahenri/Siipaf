@@ -237,6 +237,47 @@ const SITE_STAGE_LABELS = {
   livraison: 'Livraison',
 };
 
+/**
+ * Étapes d'un lotissement (terrains nus), validées par le client : ce ne sont pas celles d'un programme immobilier
+ * (fondations, gros œuvre, toiture… n'ont pas de sens pour un terrain). Un projet est un lotissement quand sa catégorie
+ * vaut « lotissement ». Les clés communes (etudes, terrassement, livraison) gardent la même clé, avec un libellé propre
+ * au lotissement ; les clés des bâtiments restent valides (données existantes), seules les clés de l'autre type sont refusées.
+ */
+const LOTISSEMENT_STAGES = ['etudes', 'bornage', 'terrassement', 'voirie', 'reseaux', 'assainissement', 'eclairage', 'attribution_lots', 'livraison'];
+const LOTISSEMENT_STAGE_LABELS = {
+  etudes: 'Études et approbation du lotissement',
+  bornage: 'Bornage et implantation',
+  terrassement: 'Défrichage et terrassement',
+  voirie: 'Voirie',
+  reseaux: 'Réseaux (eau, électricité)',
+  assainissement: 'Assainissement et drainage',
+  eclairage: 'Éclairage public et finitions',
+  attribution_lots: 'Attribution des lots',
+  livraison: 'Livraison (ACD, titre)',
+};
+// Toutes les clés valides (validation des formulaires) ; le contrôle selon le projet est fait par siteStageError
+const ALL_SITE_STAGES = [...new Set([...SITE_STAGES, ...LOTISSEMENT_STAGES])];
+
+/** Étapes d'un projet d'après sa catégorie : { keys (ordonnées), labels, list [{ id, key, label }] }. */
+function siteStagesFor(category) {
+  const keys = category === 'lotissement' ? LOTISSEMENT_STAGES : SITE_STAGES;
+  const labels = category === 'lotissement' ? LOTISSEMENT_STAGE_LABELS : SITE_STAGE_LABELS;
+  return { keys, labels, list: keys.map(k => ({ id: k, key: k, label: labels[k] })) };
+}
+/** Libellé d'une étape pour un projet ; une étape de l'autre type (donnée ancienne) garde son libellé d'origine. */
+const siteStageLabel = (category, key) => siteStagesFor(category).labels[key] || SITE_STAGE_LABELS[key] || LOTISSEMENT_STAGE_LABELS[key] || key || null;
+/** Rang de l'étape dans la liste du projet (-1 si elle n'en fait pas partie). */
+const siteStageIndex = (category, key) => siteStagesFor(category).keys.indexOf(key);
+/** Message de refus (400) si l'étape n'est pas celle du projet, sinon null. */
+function siteStageError(category, key) {
+  if (!ALL_SITE_STAGES.includes(key)) return 'Étape de chantier inconnue.';
+  if (siteStageIndex(category, key) >= 0) return null;
+  const lot = category === 'lotissement';
+  const label = siteStageLabel(lot ? null : 'lotissement', key);
+  const own = (lot ? LOTISSEMENT_STAGES : SITE_STAGES).map(k => (lot ? LOTISSEMENT_STAGE_LABELS : SITE_STAGE_LABELS)[k]).join(', ');
+  return `L’étape « ${label} » ne concerne pas ${lot ? 'un lotissement' : 'un programme immobilier'}. Étapes ${lot ? 'd’un lotissement' : 'd’un programme immobilier'} : ${own}.`;
+}
+
 const MESSAGE_SENDERS = ['client', 'equipe'];
 const CLIENT_PASSWORD_MIN = 10;
 const CLIENT_RESET_HOURS = 1;
@@ -1704,6 +1745,7 @@ module.exports = {
   SALE_STATUSES, PAYMENT_METHODS, DOCUMENT_STATUSES, DOCUMENT_TYPES, DEFAULT_DOCUMENTS,
   PERMISSION_CATALOG, PERMISSION_IDS,
   FINANCING_PLANS, FINANCINGS, saleTerms, financingLabel, SCHEDULE_KINDS, INSTALLMENT_STATUS_LABELS, SITE_STAGES, SITE_STAGE_LABELS,
+  LOTISSEMENT_STAGES, LOTISSEMENT_STAGE_LABELS, ALL_SITE_STAGES, siteStagesFor, siteStageLabel, siteStageIndex, siteStageError,
   MESSAGE_SENDERS, CLIENT_PASSWORD_MIN, CLIENT_RESET_HOURS, CLIENT_VISIBLE_SALE_STATUSES,
   addMonths, buildSchedule, allocatePayments, phoneKey, looksLikeClientCode, PROTECTED_ROLES, DELETABLE_LOT_STATUSES, NEW_LOT_STATUSES, PROJECT_CATEGORIES,
   REF_KINDS, FEATURE_KINDS, SITE_FIGURE_ICONS, siteFigures, VIABILISATION_STATES, APP_SETTINGS, THEMES, categoryForProjectType, monthChoices, paymentTerms, monthlyFor,

@@ -87,7 +87,14 @@ function Progress({ projectId }) {
   const [f, setF] = useState({ scope: 'projet', ilot: '', building_id: '', stage: 'fondations', date: new Date().toISOString().slice(0, 10) });
   const [result, setResult] = useState(null);
   const [error, setError] = useState(null);
-  const label = s => meta?.site_stages.find(x => x.id === s)?.label || '—';
+  // Étapes du projet (bâtiments ou lotissement) : l'étape déclarée est choisie dans sa liste
+  const stages = meta?.project_stages?.[projectId] || meta?.site_stages || [];
+  // Étape ancienne hors de la liste du projet : son libellé de bâtiment
+  const label = s => stages.find(x => x.id === s)?.label || meta?.site_stages?.find(x => x.id === s)?.label || '—';
+  // L'étape par défaut doit exister dans la liste du projet (un lotissement n'a pas « Fondations »)
+  useEffect(() => {
+    if (stages.length && !stages.some(s => s.id === f.stage)) setF(x => ({ ...x, stage: (stages.find(s => s.id === 'fondations') || stages[0]).id }));
+  }, [meta, projectId]); // eslint-disable-line react-hooks/exhaustive-deps
   const p = progress.data;
 
   const record = async e => {
@@ -147,7 +154,7 @@ function Progress({ projectId }) {
               )}
               <Field label="Étape achevée">
                 <select className="select" value={f.stage} onChange={e => setF(x => ({ ...x, stage: e.target.value }))}>
-                  {meta?.site_stages.map(s => <option key={s.id} value={s.id}>{s.label}</option>)}
+                  {stages.map(s => <option key={s.id} value={s.id}>{s.label}</option>)}
                 </select>
               </Field>
               <Field label="Date du constat"><input className="input" type="date" required value={f.date} onChange={e => setF(x => ({ ...x, date: e.target.value }))} /></Field>

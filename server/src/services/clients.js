@@ -8,7 +8,7 @@ const { HttpError, isoDay, isoTime, toDate, json } = require('../lib/http');
 const { hashPassword } = require('../auth');
 const { sendMail } = require('../lib/mailer');
 const { clientAppUrl } = require('../config');
-const { CLIENT_RESET_HOURS, CLIENT_VISIBLE_SALE_STATUSES, SITE_STAGE_LABELS, PAYMENT_METHODS, phoneKey, looksLikeClientCode } = require('../lib/domain');
+const { CLIENT_RESET_HOURS, CLIENT_VISIBLE_SALE_STATUSES, siteStageLabel, siteStagesFor, PAYMENT_METHODS, phoneKey, looksLikeClientCode } = require('../lib/domain');
 const { totals } = require('./sales');
 const { scheduleStatus } = require('./schedule');
 
@@ -165,7 +165,9 @@ async function progressIndex(db) {
     .select('project_id', 'ilot', 'lot_id', 'stage', 'progress_pct');
   const byProject = {};
   for (const u of rows) (byProject[u.project_id] ||= []).push(u);
-  const pick = u => (u ? { progress_pct: u.progress_pct, stage: u.stage, stage_label: SITE_STAGE_LABELS[u.stage] } : null);
+  // Libellé de l'étape selon le projet : bâtiments ou lotissement
+  const categories = Object.fromEntries((await db('projects').select('id', 'category')).map(p => [p.id, p.category]));
+  const pick = u => (u ? { progress_pct: u.progress_pct, stage: u.stage, stage_label: siteStageLabel(categories[u.project_id], u.stage) } : null);
   const lot = l => pick((byProject[l.project_id] || []).find(u => u.lot_id === l.id || (u.lot_id == null && (u.ilot == null || u.ilot === l.ilot))));
   const project = id => pick((byProject[id] || []).find(u => u.lot_id == null && u.ilot == null));
   return {
@@ -199,9 +201,11 @@ async function clientsProgress(db, leadIds) {
   return Object.fromEntries(leads.map(l => [l.id, progress.client(sales.filter(s => s.lead_id === l.id), l.project_id)]));
 }
 
-async function serializeUpdate(db, u) {
+/** `category` : catégorie du projet du point (étapes du lotissement ou des bâtiments) ; cherchée si non fournie. */
+async function serializeUpdate(db, u, category) {
+  if (category === undefined) category = (await db('projects').where({ id: u.project_id }).first('category'))?.category || null;
   return {
-    id: u.id, stage: u.stage, stage_label: SITE_STAGE_LABELS[u.stage], progress_pct: u.progress_pct,
+    id: u.id, stage: u.stage, stage_label: siteStageLabel(category, u.stage), progress_pct: u.progress_pct,
     title: u.title, body: u.body, scope: u.lot_id ? 'lot' : u.ilot ? 'ilot' : 'projet', ilot: u.ilot,
     published_at: isoTime(u.published_at), media: await mediaList(db, u.media),
   };
@@ -217,12 +221,15 @@ async function ownSale(db, leadId, saleId) {
 async function saleContext(db, sale) {
   const lot = await db('lots').where({ id: sale.lot_id }).first();
   const [project, offer] = await Promise.all([
-    db('projects').where({ id: lot.project_id }).select('id', 'name', 'slug', 'city', 'location', 'delivery', 'cover_media_id').first(),
+    db('projects').where({ id: lot.project_id }).select('id', 'name', 'slug', 'category', 'city', 'location', 'delivery', 'cover_media_id').first(),
     lot.offer_id ? db('project_offers').where({ id: lot.offer_id }).select('label', 'surface').first() : null,
   ]);
   const cover = project.cover_media_id ? await db('media').where({ id: project.cover_media_id }).select('filename').first() : null;
   return {
     lot,
+    // Étapes du chantier de ce projet (frise de l'espace client)
+    stages: siteStagesFor(project.category).list.map(({ id, label }) => ({ id, label })),
+    category: project.category || null,
     property: {
       lot_code: lot.code, ilot: lot.ilot, surface_m2: lot.surface_m2 == null ? null : Number(lot.surface_m2),
       type: offer ? offer.label : null, type_surface: offer ? offer.surface : null,
@@ -233,7 +240,7 @@ async function saleContext(db, sale) {
 
 /** Résumé d'un dossier pour l'accueil de l'espace client. */
 async function saleSummary(db, sale) {
-  const { lot, property } = await saleContext(db, sale);
+  const { lot, property, category } = await saleContext(db, sale);
   const t = await totals(db, sale);
   const schedule = await scheduleStatus(db, sale, t);
   const latest = await siteUpdatesQuery(db, lot).first();
@@ -242,7 +249,7 @@ async function saleSummary(db, sale) {
     financing_label: schedule.financing_label, reserved_at: isoDay(sale.reserved_at), signed_at: isoDay(sale.signed_at),
     ...t, overdue_fcfa: schedule.overdue_fcfa, overdue_count: schedule.overdue_count, next_due: schedule.next_due,
     property,
-    progress: latest ? { stage: latest.stage, stage_label: SITE_STAGE_LABELS[latest.stage], progress_pct: latest.progress_pct, updated_at: isoTime(latest.published_at) } : null,
+    progress: latest ? { stage: latest.stage, stage_label: siteStageLabel(category, latest.stage), progress_pct: latest.progress_pct, updated_at: isoTime(latest.published_at) } : null,
   };
 }
 

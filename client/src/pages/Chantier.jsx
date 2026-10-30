@@ -3,16 +3,17 @@ import { Camera, Check, Play } from 'lucide-react';
 import { useSession, useResource } from '../lib/session';
 import { api } from '../lib/api';
 import { dayLabel, monthYear } from '../lib/format';
-import { SITE_STAGES, SCOPE_LABELS, stageIndex } from '../lib/domain';
+import { SCOPE_LABELS } from '../lib/domain';
 import { Badge, Empty, ErrorState, Lightbox, PageHead, PageSkeleton, PayBar, Ring, SectionHead } from '../components/ui';
 import { NoDossier } from './Home';
 import Livraison from '../components/Livraison';
 
-function Stages({ current }) {
-  const idx = stageIndex(current);
+// `stages` : étapes du projet du client (lotissement ou programme immobilier), envoyées par le serveur
+function Stages({ stages, current }) {
+  const idx = stages.findIndex(s => s.id === current);
   return (
     <ol className="stages horizontal" aria-label="Étapes du chantier">
-      {SITE_STAGES.map((s, i) => {
+      {stages.map((s, i) => {
         const state = idx < 0 ? 'todo' : i < idx ? 'done' : i === idx ? 'current' : 'todo';
         return (
           <li key={s.id} className={`stage ${state}`} aria-current={state === 'current' ? 'step' : undefined}>
@@ -70,7 +71,7 @@ export default function Chantier() {
             {latest && <div className="muted" style={{ fontSize: 13, marginTop: 2 }}>Mis à jour {dayLabel(latest.published_at).toLowerCase()}</div>}
           </div>
         </div>
-        <Stages current={latest?.stage} />
+        <Stages stages={data.stages} current={latest?.stage} />
       </section>
 
       <section className="section">

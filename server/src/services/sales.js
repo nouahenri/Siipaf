@@ -51,11 +51,18 @@ async function refreshSaleStatus(trx, saleId) {
  * `projectTerms` : le dossier fige l'acompte et le délai de solde du projet (formule Diaspora) ; faux pour un
  * dossier repris de l'ancienne plateforme, qui garde la formule d'origine.
  */
+/** La VEFA (appels de fonds à l'avancement) concerne les bâtiments : refusée sur un lotissement (choix du client du 30/10). */
+async function assertVefaAllowed(db, projectId) {
+  const p = await db('projects').where({ id: projectId }).first('category');
+  if (p?.category === 'lotissement') throw new HttpError(400, 'Un lotissement ne se vend pas en VEFA : choisissez un financement (comptant, apport, mensualités).');
+}
+
 async function openSale(db, { lotId, leadId, leadData, price_fcfa, financing, notes, reserved_at, signed_at, vefa = false, user, projectTerms = true }) {
   return db.transaction(async trx => {
     const lot = await trx('lots').where({ id: lotId }).first();
     if (!lot) throw new HttpError(404, 'Lot introuvable.');
     if (lot.status === 'bloque') throw new HttpError(409, 'Ce lot n’est pas commercialisé.');
+    if (vefa) await assertVefaAllowed(trx, lot.project_id);
     if (await trx('sales').where({ lot_id: lot.id }).whereIn('status', ACTIVE).first()) {
       throw new HttpError(409, 'Ce lot a déjà un dossier d’acquisition actif.');
     }
@@ -112,4 +119,4 @@ async function openSale(db, { lotId, leadId, leadData, price_fcfa, financing, no
   });
 }
 
-module.exports = { openSale, refreshSaleStatus, totals, nextClientCode, ACTIVE, EARLY_STAGES };
+module.exports = { assertVefaAllowed, openSale, refreshSaleStatus, totals, nextClientCode, ACTIVE, EARLY_STAGES };

@@ -11,7 +11,7 @@ const multer = require('multer');
 const { HttpError, json, isoDay, isoTime } = require('../lib/http');
 const { uploadsDir } = require('../config');
 const {
-  SITE_STAGES, SITE_STAGE_LABELS, DECLARATION_STATUSES, lotInZone, deliveryForecast, deliveryDelay, phaseState, addDays,
+  siteStageLabel, siteStageIndex, siteStageError, DECLARATION_STATUSES, lotInZone, deliveryForecast, deliveryDelay, phaseState, addDays,
 } = require('../lib/domain');
 const { notify, usersWith, inform, resolve } = require('./notifications');
 
@@ -20,6 +20,13 @@ const today = () => new Date().toISOString().slice(0, 10);
 const fr = d => (d ? d.split('-').reverse().join('/') : '');
 const money = n => `${Number(n || 0).toLocaleString('fr-FR').replace(/[  ]/g, ' ')} FCFA`;
 const ACTIVE = ['en_cours', 'solde'];
+
+// Les étapes sont celles du projet (bâtiments ou lotissement) : catégorie du projet, pour libeller, contrôler et ordonner
+const categoryOf = async (db, projectId) => (await db('projects').where({ id: projectId }).first('category'))?.category || null;
+function checkStage(category, stage) {
+  const refusal = siteStageError(category, stage);
+  if (refusal) throw new HttpError(400, refusal);
+}
 
 // ─── Fichiers : photos du journal et pièces des déclarations (privées) ─────
 const filesDir = path.join(uploadsDir, 'private', 'chantiers');
@@ -105,7 +112,7 @@ async function progressPoints(db, w) {
   const ids = new Set(lots.map(l => l.id));
   const media = await db('media').whereIn('id', [...new Set(rows.flatMap(r => json(r.media, []) || []))]).select('id', 'filename', 'mime');
   return rows.filter(r => (!r.ilot && !r.lot_id) || (r.lot_id ? ids.has(r.lot_id) : ilots.includes(String(r.ilot)))).map(r => ({
-    id: r.id, stage: r.stage, stage_label: SITE_STAGE_LABELS[r.stage], progress_pct: r.progress_pct, title: r.title, body: r.body,
+    id: r.id, stage: r.stage, stage_label: siteStageLabel(w.project_category, r.stage), progress_pct: r.progress_pct, title: r.title, body: r.body,
     scope_label: r.lot_id ? `Lot ${r.lot_code}` : r.ilot ? `Îlot ${r.ilot}` : 'Tout le programme', visible_client: !!r.visible_client,
     published_at: isoTime(r.published_at), created_by_name: r.created_by_name,
     photos: (json(r.media, []) || []).map(id => media.find(m => m.id === id)).filter(Boolean).map(m => ({ id: m.id, url: `/uploads/${m.filename}`, kind: String(m.mime || '').startsWith('video/') ? 'video' : 'image' })),
@@ -118,6 +125,7 @@ async function progressPoints(db, w) {
  * appel de fonds : seule la Direction déclare une étape atteinte.
  */
 async function publishProgress(db, w, data, { files = [], userId }) {
+  try { checkStage(w.project_category, data.stage); } catch (e) { await removeFiles(files); throw e; }
   const lots = await require('./chantiers').zoneLots(db, w);
   const zone = json(w.zone, []) || [];
   let targets;
@@ -150,11 +158,11 @@ async function publishProgress(db, w, data, { files = [], userId }) {
 
 const declQuery = db => db('stage_declarations as d').join('projects as p', 'p.id', 'd.project_id').leftJoin('worksites as w', 'w.id', 'd.worksite_id')
   .leftJoin('users as r', 'r.id', 'd.reported_by').leftJoin('users as x', 'x.id', 'd.declared_by').leftJoin('lots as l', 'l.id', 'd.lot_id').leftJoin('buildings as b', 'b.id', 'd.building_id')
-  .select('d.*', 'p.name as project_name', 'w.reference as worksite_reference', 'w.name as worksite_name', 'r.name as reported_by_name', 'x.name as declared_by_name',
+  .select('d.*', 'p.name as project_name', 'p.category as project_category', 'w.reference as worksite_reference', 'w.name as worksite_name', 'r.name as reported_by_name', 'x.name as declared_by_name',
     'l.code as lot_code', 'b.code as building_code');
 
 const serializeDecl = d => ({
-  id: d.id, project_id: d.project_id, project_name: d.project_name, worksite_id: d.worksite_id, stage: d.stage, stage_label: SITE_STAGE_LABELS[d.stage],
+  id: d.id, project_id: d.project_id, project_name: d.project_name, worksite_id: d.worksite_id, stage: d.stage, stage_label: siteStageLabel(d.project_category, d.stage),
   // Une étape d'un seul lot (réception du lot, lot 5) peut porter aussi son chantier : le lot prime
   scope_label: d.lot_id ? `Lot ${d.lot_code}${d.worksite_id ? ` — ${d.worksite_reference}` : ''}` : d.worksite_id ? `${d.worksite_reference} — ${d.worksite_name}` : d.building_id ? d.building_code : d.ilot ? `Îlot ${d.ilot}` : 'Tout le programme',
   reached_on: isoDay(d.reached_on), status: d.status, status_label: DECLARATION_STATUSES[d.status], note: d.note, refusal_reason: d.refusal_reason,
@@ -213,7 +221,7 @@ async function declarationSales(trx, d) {
 
 /** Signalement par le conducteur : la Direction est prévenue et déclare (ou refuse). */
 async function signal(db, w, data, { file, userId }) {
-  if (!SITE_STAGES.includes(data.stage)) throw new HttpError(400, 'Étape de chantier inconnue.');
+  checkStage(w.project_category, data.stage);
   if (data.reached_on > today()) throw new HttpError(400, 'Une étape ne se signale pas à l’avance.');
   if (await db('stage_declarations').where({ worksite_id: w.id, stage: data.stage }).whereNull('lot_id').whereIn('status', ['signalee', 'declaree']).first()) {
     throw new HttpError(409, 'Cette étape est déjà signalée ou déclarée pour ce chantier.');
@@ -226,7 +234,7 @@ async function signal(db, w, data, { file, userId }) {
   // Les comptes qui déclarent (chantiers:direction) et les services du circuit (Direction générale, exploitation)
   await inform(db, 'chantier.etape_signalee', {
     direct: await usersWith(db, 'chantiers:direction'), except: userId,
-    title: `Étape à déclarer : ${SITE_STAGE_LABELS[data.stage]} — ${w.reference}`, body: `${w.name} — atteinte le ${fr(data.reached_on)}. Sa déclaration émettra les appels de fonds VEFA.`,
+    title: `Étape à déclarer : ${siteStageLabel(w.project_category, data.stage)} — ${w.reference}`, body: `${w.name} — atteinte le ${fr(data.reached_on)}. Sa déclaration émettra les appels de fonds VEFA.`,
     link: `/chantiers/${w.id}?onglet=etapes&etape=${id}`, key: `etape:${id}:signalee`,
   });
   return id;
@@ -246,10 +254,11 @@ async function declare(db, { id = null, worksite = null, projectId = null, ilot 
     if (d.status !== 'signalee') throw new HttpError(409, 'Cette étape n’est plus à déclarer.');
     reached_on = reached_on || isoDay(d.reached_on);
   } else {
-    if (!SITE_STAGES.includes(stage)) throw new HttpError(400, 'Étape de chantier inconnue.');
+    checkStage(await categoryOf(db, worksite ? worksite.project_id : projectId), stage);
     if (worksite && await db('stage_declarations').where({ worksite_id: worksite.id, stage }).whereNull('lot_id').where('status', 'declaree').first()) throw new HttpError(409, 'Cette étape est déjà déclarée pour ce chantier.');
   }
   if (reached_on > today()) throw new HttpError(400, 'Une étape ne se déclare pas à l’avance.');
+  let category = null;
   const result = await db.transaction(async trx => {
     if (!id) {
       const [r] = await trx('stage_declarations').insert({
@@ -259,11 +268,12 @@ async function declare(db, { id = null, worksite = null, projectId = null, ilot 
       });
       d = await trx('stage_declarations').where({ id: insertedId(r) }).first();
     }
-    const upTo = SITE_STAGES.indexOf(d.stage);
+    category = await categoryOf(trx, d.project_id);
+    const upTo = siteStageIndex(category, d.stage);
     const sales = await declarationSales(trx, d);
     const calls = [];
     for (const sale of sales) {
-      const emitted = await vefa.emitCalls(trx, sale, s => s !== 'signature' && SITE_STAGES.indexOf(s) <= upTo, { date: reached_on, userId, declarationId: d.id });
+      const emitted = await vefa.emitCalls(trx, sale, s => s !== 'signature' && siteStageIndex(category, s) >= 0 && siteStageIndex(category, s) <= upTo, { date: reached_on, userId, declarationId: d.id });
       calls.push(...emitted.map(c => ({ ...c, sale_id: sale.id })));
     }
     const amount = calls.reduce((t, c) => t + Number(c.amount_fcfa), 0);
@@ -280,7 +290,7 @@ async function declare(db, { id = null, worksite = null, projectId = null, ilot 
     return { declaration_id: d.id, sales: sales.length, calls: calls.length, amount_fcfa: amount, sale_ids: [...new Set(calls.map(c => c.sale_id))] };
   });
   // Prévenir : le conducteur (signalement), les commerciaux des acquéreurs appelés, le comptable
-  const label = SITE_STAGE_LABELS[d.stage];
+  const label = siteStageLabel(category, d.stage);
   const link = d.worksite_id ? `/chantiers/${d.worksite_id}?onglet=etapes&etape=${d.id}` : '/commercial/vefa';
   // Le conducteur qui l'a signalée et les services du circuit (Direction générale, exploitation, Comptabilité par défaut)
   const scope = d.worksite_id ? (await db('worksites').where({ id: d.worksite_id }).first('reference', 'name')) : null;
@@ -306,7 +316,7 @@ async function refuse(db, id, reason, userId) {
   await resolve(db, `etape:${id}:signalee`);
   {
     await inform(db, 'chantier.etape_refusee', {
-      direct: d.reported_by ? [d.reported_by] : [], priority: 'action', except: userId, title: `Étape refusée : ${SITE_STAGE_LABELS[d.stage]}`, body: reason,
+      direct: d.reported_by ? [d.reported_by] : [], priority: 'action', except: userId, title: `Étape refusée : ${siteStageLabel(await categoryOf(db, d.project_id), d.stage)}`, body: reason,
       link: d.worksite_id ? `/chantiers/${d.worksite_id}?onglet=etapes&etape=${id}` : '/chantiers/liste', key: `etape:${id}:refusee`,
     });
   }
@@ -314,6 +324,7 @@ async function refuse(db, id, reason, userId) {
 
 /** Étape la plus avancée déclarée pour un lot (zone d'un chantier qui le couvre, programme, îlot, bâtiment, lot). */
 async function declaredStageFor(trx, lot) {
+  const category = await categoryOf(trx, lot.project_id);
   const rows = await trx('stage_declarations as d').leftJoin('worksites as w', 'w.id', 'd.worksite_id').where('d.project_id', lot.project_id).where('d.status', 'declaree')
     .select('d.stage', 'd.worksite_id', 'd.ilot', 'd.building_id', 'd.lot_id', 'w.zone_kind', 'w.zone', 'w.project_id as w_project_id');
   const covers = d => {
@@ -324,7 +335,7 @@ async function declaredStageFor(trx, lot) {
     if (d.ilot) return String(d.ilot) === String(lot.ilot ?? '');
     return true;
   };
-  return rows.filter(covers).map(d => d.stage).sort((a, b) => SITE_STAGES.indexOf(b) - SITE_STAGES.indexOf(a))[0] || null;
+  return rows.filter(covers).map(d => d.stage).sort((a, b) => siteStageIndex(category, b) - siteStageIndex(category, a))[0] || null;
 }
 
 // ─── Livraisons promises et retards ───────────────────────────────────────

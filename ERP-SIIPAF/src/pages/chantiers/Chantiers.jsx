@@ -113,9 +113,14 @@ export function WorksiteForm({ worksite: w, refs, initialProject = '', onClose, 
     project_id: w?.project_id || (refs.projects.some(p => String(p.id) === String(initialProject)) ? initialProject : ''), name: w?.name || '', zone_kind: w?.zone_kind || 'programme', zone: w?.zone || [],
     manager_id: w?.manager_id || '', status: w?.status || 'preparation', planned_start: w?.planned_start || '', planned_end: w?.planned_end || '',
     actual_start: w?.actual_start || '', actual_end: w?.actual_end || '', description: w?.description || '',
-    stages: w ? [] : refs.stages.map(s => s.key),
+    stages: [],
   });
+  // Étapes du projet choisi : un lotissement n'a pas celles d'un programme immobilier
+  const stagesOf = id => refs.projects.find(p => String(p.id) === String(id))?.stages || refs.stages;
   const prog = useResource(f.project_id ? `${CH}/programmes/${f.project_id}` : null);
+  const stages = stagesOf(f.project_id);
+  // Création : toutes les étapes du projet sont cochées au départ (et à chaque changement de projet)
+  useEffect(() => { if (!w) setF(x => ({ ...x, stages: stagesOf(x.project_id).map(s => s.key) })); }, [f.project_id]); // eslint-disable-line react-hooks/exhaustive-deps
   const [error, setError] = useState(null);
   const [busy, setBusy] = useState(false);
   const set = k => e => setF(x => ({ ...x, [k]: e.target.value }));
@@ -177,7 +182,7 @@ export function WorksiteForm({ worksite: w, refs, initialProject = '', onClose, 
         {!w && (
           <Field label="Phases de départ" hint="Étapes du journal de chantier ; vous pourrez en retirer, en ajouter et les dater" className="full">
             <div className="chip-pick" role="group" aria-label="Phases de départ">
-              {refs.stages.map(s => { const on = f.stages.includes(s.key); return <button type="button" key={s.key} className={`chip-opt ${on ? 'on' : ''}`} aria-pressed={on} onClick={() => toggle('stages', s.key)}>{s.label}</button>; })}
+              {stages.map(s => { const on = f.stages.includes(s.key); return <button type="button" key={s.key} className={`chip-opt ${on ? 'on' : ''}`} aria-pressed={on} onClick={() => toggle('stages', s.key)}>{s.label}</button>; })}
             </div>
           </Field>
         )}

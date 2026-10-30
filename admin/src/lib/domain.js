@@ -114,18 +114,7 @@ export const ROLE_LABELS = {
   resp_exploitation: 'Responsable des exploitations',
 };
 
-// Espace client (alignés sur server/src/lib/domain.js)
-export const SITE_STAGES = [
-  { id: 'etudes', label: 'Études et autorisations' },
-  { id: 'terrassement', label: 'Terrassement' },
-  { id: 'vrd', label: 'Voirie et réseaux (VRD)' },
-  { id: 'fondations', label: 'Fondations' },
-  { id: 'gros_oeuvre', label: 'Gros œuvre' },
-  { id: 'toiture', label: 'Toiture' },
-  { id: 'second_oeuvre', label: 'Second œuvre' },
-  { id: 'finitions', label: 'Finitions' },
-  { id: 'livraison', label: 'Livraison' },
-];
+// Espace client (alignés sur server/src/lib/domain.js) ; les étapes du chantier viennent du serveur, selon le projet
 export const INSTALLMENT_STATUS = {
   payee: { label: 'Payée', tone: 'ok' },
   partielle: { label: 'Partielle', tone: 'warn' },

@@ -101,9 +101,9 @@ module.exports = function clientRoutes(db) {
 
   r.get('/dossiers/:id/chantier', authed, ah(async (req, res) => {
     const sale = await ownSale(db, req.client.lead_id, idParam(req));
-    const { lot, property } = await saleContext(db, sale);
+    const { lot, property, stages, category } = await saleContext(db, sale);
     const updates = await siteUpdatesQuery(db, lot).limit(100);
-    res.json({ property, updates: await Promise.all(updates.map(u => serializeUpdate(db, u))) });
+    res.json({ property, stages, updates: await Promise.all(updates.map(u => serializeUpdate(db, u, category))) });
   }));
 
   // ─── Travaux modificatifs (TMA) et livraison du lot ──────

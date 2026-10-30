@@ -3,7 +3,7 @@ const express = require('express');
 const { z } = require('zod');
 const { ah, parse, idParam, HttpError } = require('../../lib/http');
 const { requirePermission } = require('../../auth');
-const { WORKSITE_STATUSES, WORKSITE_ZONES, TASK_STATUSES, SITE_STAGES, CHANTIER_SETTINGS, DECLARATION_STATUSES } = require('../../lib/domain');
+const { WORKSITE_STATUSES, WORKSITE_ZONES, TASK_STATUSES, ALL_SITE_STAGES, CHANTIER_SETTINGS, DECLARATION_STATUSES } = require('../../lib/domain');
 const chantiers = require('../../services/chantiers');
 const suivi = require('../../services/chantiersSuivi');
 const sousTraitance = require('../../services/chantiersSousTraitance');
@@ -21,7 +21,7 @@ const journalSchema = z.object({
   work_done: mOpt(z.string().trim().max(4000)), incidents: mOpt(z.string().trim().max(4000)), notes: mOpt(z.string().trim().max(4000)),
 });
 const progressSchema = z.object({
-  stage: z.enum(SITE_STAGES), progress_pct: z.preprocess(v => Number(v), z.number().int().min(0).max(100)), title: z.string().trim().min(3).max(160),
+  stage: z.enum(ALL_SITE_STAGES), progress_pct: z.preprocess(v => Number(v), z.number().int().min(0).max(100)), title: z.string().trim().min(3).max(160),
   body: mOpt(z.string().trim().max(4000)), ilot: mOpt(z.string().trim().max(40)), lot_id: mNum(z.number().int().positive()),
   visible_client: z.preprocess(v => !(v === false || v === 'false' || v === '0'), z.boolean()).optional(), published_at: mOpt(day),
 });
@@ -29,7 +29,7 @@ const progressSchema = z.object({
 const situationSchema = z.object({
   period_end: day, cumulative_pct: mNum(z.number().min(0).max(100)), cumulative_amount: mNum(z.number().int().min(0)), note: mOpt(z.string().trim().max(2000)),
 });
-const stageSchema = z.object({ stage: z.enum(SITE_STAGES), reached_on: day, note: mOpt(z.string().trim().max(2000)) });
+const stageSchema = z.object({ stage: z.enum(ALL_SITE_STAGES), reached_on: day, note: mOpt(z.string().trim().max(2000)) });
 
 // Lot 5 : TMA, besoins en matériaux, réception des lots et des marchés
 const tmaSchema = z.object({ sale_id: z.number().int().positive(), title: z.string().trim().min(3).max(200), description: z.string().trim().max(4000).nullable().optional() });
@@ -62,10 +62,10 @@ const worksiteSchema = z.object({
   zone_kind: z.enum(Object.keys(WORKSITE_ZONES)).optional(), zone: z.array(z.union([z.string().max(40), z.number().int().positive()])).max(2000).optional(),
   manager_id: optId, status: z.enum(Object.keys(WORKSITE_STATUSES)).optional(),
   planned_start: optDay, planned_end: optDay, actual_start: optDay, actual_end: optDay, description: optText(4000),
-  stages: z.array(z.enum(SITE_STAGES)).optional(), // phases de départ (création seulement)
+  stages: z.array(z.enum(ALL_SITE_STAGES)).optional(), // phases de départ (création seulement)
 });
 const phaseSchema = z.object({
-  stage: z.enum(SITE_STAGES).nullable().optional(), label: z.string().trim().min(2).max(160),
+  stage: z.enum(ALL_SITE_STAGES).nullable().optional(), label: z.string().trim().min(2).max(160),
   planned_start: optDay, planned_end: optDay, actual_start: optDay, actual_end: optDay,
   progress_pct: z.number().int().min(0).max(100).optional(), depends_on_id: optId, notes: optText(2000),
 });

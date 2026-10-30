@@ -1,18 +1,4 @@
-/** Libellés côté client — reflet de server/src/lib/domain.js (même ordre des étapes). */
-
-export const SITE_STAGES = [
-  ['etudes', 'Études et autorisations', 'Études'],
-  ['terrassement', 'Terrassement', 'Terrassement'],
-  ['vrd', 'Voirie et réseaux (VRD)', 'VRD'],
-  ['fondations', 'Fondations', 'Fondations'],
-  ['gros_oeuvre', 'Gros œuvre', 'Gros œuvre'],
-  ['toiture', 'Toiture', 'Toiture'],
-  ['second_oeuvre', 'Second œuvre', 'Second œuvre'],
-  ['finitions', 'Finitions', 'Finitions'],
-  ['livraison', 'Livraison', 'Livraison'],
-].map(([id, label, short]) => ({ id, label, short }));
-
-export const stageIndex = id => SITE_STAGES.findIndex(s => s.id === id);
+/** Libellés côté client — reflet de server/src/lib/domain.js. Les étapes du chantier (frise) viennent du serveur, selon le projet : bâtiments ou lotissement. */
 
 export const INSTALLMENT_STATUS = {
   payee: { label: 'Payée', tone: 'ok' },

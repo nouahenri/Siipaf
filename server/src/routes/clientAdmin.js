@@ -8,7 +8,7 @@ const { ah, parse, idParam, HttpError, json, isoTime } = require('../lib/http');
 const { requirePermission } = require('../auth');
 const { sendMail } = require('../lib/mailer');
 const { clientAppUrl } = require('../config');
-const { SITE_STAGES } = require('../lib/domain');
+const { ALL_SITE_STAGES, siteStagesFor, siteStageError } = require('../lib/domain');
 const { grantAccess, accessStatus, siteUpdatesQuery, serializeUpdate, progressIndex } = require('../services/clients');
 const { totals } = require('../services/sales');
 const { scheduleStatus } = require('../services/schedule');
@@ -104,7 +104,7 @@ module.exports = function clientAdminRoutes(db) {
   const updateFields = {
     ilot: z.string().trim().max(40).nullable(),
     lot_id: z.number().int().positive().nullable(),
-    stage: z.enum(SITE_STAGES),
+    stage: z.enum(ALL_SITE_STAGES), // l'étape doit être celle du projet (lotissement ou bâtiments) : contrôlée par checkStage
     progress_pct: z.number().int().min(0).max(100),
     title: z.string().trim().min(2).max(160),
     body: z.string().trim().max(5000).nullable(),
@@ -125,10 +125,17 @@ module.exports = function clientAdminRoutes(db) {
     }
   }
 
+  // Étapes d'un lotissement ou d'un programme immobilier : l'étape de l'autre type est refusée
+  const categoryOf = async projectId => (await db('projects').where({ id: projectId }).first('category'))?.category || null;
+  function checkStage(category, stage) {
+    const refusal = stage === undefined ? null : siteStageError(category, stage);
+    if (refusal) throw new HttpError(400, refusal);
+  }
+
   const toRow = data => ({ ...data, ...(data.media ? { media: JSON.stringify(data.media) } : {}) });
 
-  async function adminUpdate(u) {
-    const base = await serializeUpdate(db, u);
+  async function adminUpdate(u, category) {
+    const base = await serializeUpdate(db, u, category);
     const lot = u.lot_id ? await db('lots').where({ id: u.lot_id }).select('code').first() : null;
     return { ...base, project_id: u.project_id, lot_id: u.lot_id, lot_code: lot ? lot.code : null, visible_client: !!u.visible_client, media_ids: json(u.media, []) };
   }
@@ -136,7 +143,15 @@ module.exports = function clientAdminRoutes(db) {
   r.get('/projects/:id/site-updates', requirePermission('projects:read'), ah(async (req, res) => {
     const rows = await db('site_updates').where({ project_id: idParam(req) })
       .orderBy([{ column: 'published_at', order: 'desc' }, { column: 'id', order: 'desc' }]).limit(200);
-    res.json(await Promise.all(rows.map(adminUpdate)));
+    const category = await categoryOf(idParam(req));
+    res.json(await Promise.all(rows.map(u => adminUpdate(u, category))));
+  }));
+
+  // Étapes proposées pour publier un point sur ce projet : celles du lotissement ou des bâtiments
+  r.get('/projects/:id/site-stages', requirePermission('projects:read', 'site_updates:write'), ah(async (req, res) => {
+    const project = await db('projects').where({ id: idParam(req) }).first('category');
+    if (!project) throw new HttpError(404, 'Projet introuvable.');
+    res.json(siteStagesFor(project.category).list.map(({ id, label }) => ({ id, label })));
   }));
 
   // Ce que voit l'acquéreur d'un lot (projet + îlot + lot), points masqués compris
@@ -144,18 +159,21 @@ module.exports = function clientAdminRoutes(db) {
     const lot = await db('lots').where({ id: idParam(req) }).first();
     if (!lot) throw new HttpError(404, 'Lot introuvable.');
     const rows = await siteUpdatesQuery(db, lot, { onlyVisible: false }).limit(200);
-    res.json(await Promise.all(rows.map(adminUpdate)));
+    const category = await categoryOf(lot.project_id);
+    res.json(await Promise.all(rows.map(u => adminUpdate(u, category))));
   }));
 
   r.post('/projects/:id/site-updates', requirePermission('site_updates:write'), ah(async (req, res) => {
     const projectId = idParam(req);
-    if (!(await db('projects').where({ id: projectId }).first())) throw new HttpError(404, 'Projet introuvable.');
+    const project = await db('projects').where({ id: projectId }).first('id', 'category');
+    if (!project) throw new HttpError(404, 'Projet introuvable.');
     const data = parse(z.object(updateFields).partial({ ilot: true, lot_id: true, body: true, media: true, visible_client: true, published_at: true }), req.body);
+    checkStage(project.category, data.stage);
     await checkScope(projectId, data);
     const [id] = await db('site_updates').insert({ ...toRow(data), project_id: projectId, created_by: req.user.id });
     // Information de l'acquéreur seulement : les appels de fonds partent de l'étape déclarée par la Direction (ERP › Chantiers)
     const update = await db('site_updates').where({ id }).first();
-    res.status(201).json(await adminUpdate(update));
+    res.status(201).json(await adminUpdate(update, project.category));
   }));
 
   r.patch('/site-updates/:id', requirePermission('site_updates:write'), ah(async (req, res) => {
@@ -163,9 +181,11 @@ module.exports = function clientAdminRoutes(db) {
     const u = await db('site_updates').where({ id }).first();
     if (!u) throw new HttpError(404, 'Point d’avancement introuvable.');
     const data = parse(z.object(updateFields).partial(), req.body);
+    const category = await categoryOf(u.project_id);
+    if (data.stage !== u.stage) checkStage(category, data.stage);
     await checkScope(u.project_id, data);
     await db('site_updates').where({ id }).update({ ...toRow(data), updated_at: new Date() });
-    res.json(await adminUpdate(await db('site_updates').where({ id }).first()));
+    res.json(await adminUpdate(await db('site_updates').where({ id }).first(), category));
   }));
 
   r.delete('/site-updates/:id', requirePermission('site_updates:write'), ah(async (req, res) => {

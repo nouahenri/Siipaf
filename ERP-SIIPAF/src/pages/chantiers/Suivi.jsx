@@ -145,9 +145,11 @@ export function Progress({ w, refs }) {
 
 function ProgressForm({ w, refs, onClose, onSaved }) {
   const saved = useSaved();
+  // Étapes du projet du chantier : lotissement (terrains) ou programme immobilier (bâtiments)
+  const stages = refs.projects.find(p => p.id === w.project_id)?.stages || refs.stages;
   const prog = useResource(`${CH}/programmes/${w.project_id}`);
   const zoneIlots = w.zone_kind === 'ilots' ? w.zone : null;
-  const [f, setF] = useState({ scope: '', stage: w.phases.find(p => p.state === 'en_cours')?.stage || 'gros_oeuvre', progress_pct: String(w.progress_pct), title: '', body: '', visible_client: true, published_at: today() });
+  const [f, setF] = useState({ scope: '', stage: w.phases.find(p => p.state === 'en_cours' && stages.some(s => s.key === p.stage))?.stage || (stages.some(s => s.key === 'gros_oeuvre') ? 'gros_oeuvre' : stages[0].key), progress_pct: String(w.progress_pct), title: '', body: '', visible_client: true, published_at: today() });
   const [files, setFiles] = useState([]);
   const [error, setError] = useState(null);
   const [busy, setBusy] = useState(false);
@@ -178,7 +180,7 @@ function ProgressForm({ w, refs, onClose, onSaved }) {
             {lots.map(l => <option key={l.id} value={`lot:${l.id}`}>Lot {l.code}</option>)}
           </select>
         </Field>
-        <Field label="Étape en cours"><select className="select" value={f.stage} onChange={set('stage')}>{refs.stages.map(s => <option key={s.key} value={s.key}>{s.label}</option>)}</select></Field>
+        <Field label="Étape en cours"><select className="select" value={f.stage} onChange={set('stage')}>{stages.map(s => <option key={s.key} value={s.key}>{s.label}</option>)}</select></Field>
         <Field label="Avancement (%)"><input className="input" type="number" min="0" max="100" required value={f.progress_pct} onChange={set('progress_pct')} /></Field>
         <Field label="Titre" className="full"><input className="input" required minLength={3} maxLength={160} value={f.title} onChange={set('title')} placeholder="Élévation des murs de l’îlot A…" /></Field>
         <Field label="Message aux acquéreurs" className="full"><textarea className="textarea" rows={3} maxLength={4000} value={f.body} onChange={set('body')} /></Field>
@@ -305,7 +307,9 @@ function StageDetail({ id, direction, onClose, onDeclare, onRefuse }) {
 
 function StageForm({ w, refs, direction, preset, onClose, onSaved }) {
   const saved = useSaved();
-  const next = w.phases.find(p => p.stage && p.state !== 'termine')?.stage || 'fondations';
+  // Étapes du projet du chantier : lotissement (terrains) ou programme immobilier (bâtiments)
+  const stages = refs.projects.find(p => p.id === w.project_id)?.stages || refs.stages;
+  const next = w.phases.find(p => p.stage && p.state !== 'termine' && stages.some(s => s.key === p.stage))?.stage || (stages.some(s => s.key === 'fondations') ? 'fondations' : stages[0].key);
   const [f, setF] = useState({ stage: next, reached_on: today(), note: '', declare: !!preset.declare });
   const [file, setFile] = useState(null);
   const [error, setError] = useState(null);
@@ -326,7 +330,7 @@ function StageForm({ w, refs, direction, preset, onClose, onSaved }) {
       footer={<><button className="btn btn-ghost" onClick={onClose}>Annuler</button><button className="btn btn-primary" form="stage-form" disabled={busy}><Check />{f.declare ? 'Déclarer et émettre les appels' : 'Signaler à la Direction'}</button></>}>
       <form id="stage-form" className="form-grid" onSubmit={save}>
         <div className="full"><ErrorBox error={error} /></div>
-        <Field label="Étape atteinte" hint="L’étape et les précédentes sont achevées"><select className="select" value={f.stage} onChange={set('stage')}>{refs.stages.map(s => <option key={s.key} value={s.key}>{s.label}</option>)}</select></Field>
+        <Field label="Étape atteinte" hint="L’étape et les précédentes sont achevées"><select className="select" value={f.stage} onChange={set('stage')}>{stages.map(s => <option key={s.key} value={s.key}>{s.label}</option>)}</select></Field>
         <Field label="Atteinte le"><input className="input" type="date" required max={today()} value={f.reached_on} onChange={set('reached_on')} /></Field>
         <Field label="Observations" className="full"><textarea className="textarea" rows={2} maxLength={2000} value={f.note} onChange={set('note')} placeholder="PV du bureau de contrôle, attestation du maître d’œuvre…" /></Field>
         <Field label="Pièce" hint="PDF ou photo, 20 Mo au plus" className="full">

@@ -6,7 +6,6 @@
  * Administration générale (courrier, contrats.upcoming, parc.deadlines, documents et demandes internes), achats et stocks (appro.dashboard).
  */
 const { toDate, isoDay, isoTime } = require('../lib/http');
-const { SITE_STAGE_LABELS } = require('../lib/domain');
 
 // La vue Direction voit toute l'entreprise, quel que soit le compte qui l'ouvre
 const EVERYONE = { id: 0, permissions: ['*'] };
@@ -62,7 +61,7 @@ async function projectsPart(db, now) {
       id: p.id, name: p.name, category: p.category,
       lots: mine.length, by_status: byStatus, dossiers: sold.length, vefa: sold.filter(s => s.vefa).length,
       ca_fcfa: ca, encaisse_fcfa: paid, reste_fcfa: Math.max(0, ca - paid),
-      progress_pct: project?.progress_pct ?? null, stage_label: project ? SITE_STAGE_LABELS[project.stage] : null,
+      progress_pct: project?.progress_pct ?? null, stage_label: project ? project.stage_label : null,
       dossiers_progress_pct: each.length ? Math.round(each.reduce((t, x) => t + x, 0) / each.length) : null,
       ilots, last_update_at: last ? isoTime(last.at) : null, stale: !last || last.at.getTime() < staleBefore,
     };

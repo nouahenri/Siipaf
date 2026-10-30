@@ -139,6 +139,8 @@ function Planning({ w, refs, onChange }) {
 
 function PhaseForm({ w, phase: p, refs, onClose, onSaved }) {
   const saved = useSaved();
+  // Étapes du projet du chantier : lotissement (terrains) ou programme immobilier (bâtiments)
+  const stages = refs.projects.find(p => p.id === w.project_id)?.stages || refs.stages;
   const [f, setF] = useState({
     stage: p?.stage || '', label: p?.label || '', planned_start: p?.planned_start || '', planned_end: p?.planned_end || '',
     actual_start: p?.actual_start || '', actual_end: p?.actual_end || '', progress_pct: p?.progress_pct ?? 0, depends_on_id: p?.depends_on_id || '', notes: p?.notes || '',
@@ -148,8 +150,8 @@ function PhaseForm({ w, phase: p, refs, onClose, onSaved }) {
   const set = k => e => setF(x => ({ ...x, [k]: e.target.value }));
   const pickStage = e => {
     const stage = e.target.value;
-    const label = refs.stages.find(s => s.key === stage)?.label;
-    setF(x => ({ ...x, stage, label: !x.label || refs.stages.some(s => s.label === x.label) ? label || x.label : x.label }));
+    const label = stages.find(s => s.key === stage)?.label;
+    setF(x => ({ ...x, stage, label: !x.label || refs.projects.some(pr => pr.stages.some(s => s.label === x.label)) || refs.stages.some(s => s.label === x.label) ? label || x.label : x.label }));
   };
   // Phase précédente suggérée : sa fin + 1 jour devient le début prévu si rien n'est daté
   const pickAfter = e => {
@@ -184,7 +186,7 @@ function PhaseForm({ w, phase: p, refs, onClose, onSaved }) {
       </>}>
       <form id="phase-form" className="form-grid" onSubmit={save}>
         <div className="full"><ErrorBox error={error} /></div>
-        <Field label="Étape du journal de chantier" hint="Vide : phase propre à ce chantier"><select className="select" value={f.stage} onChange={pickStage}><option value="">— Phase libre —</option>{refs.stages.map(s => <option key={s.key} value={s.key}>{s.label}</option>)}</select></Field>
+        <Field label="Étape du journal de chantier" hint="Vide : phase propre à ce chantier"><select className="select" value={f.stage} onChange={pickStage}><option value="">— Phase libre —</option>{stages.map(s => <option key={s.key} value={s.key}>{s.label}</option>)}{f.stage && !stages.some(s => s.key === f.stage) && <option value={f.stage}>{p?.stage_label || f.stage} (étape d’origine)</option>}</select></Field>
         <Field label="Libellé"><input className="input" required minLength={2} maxLength={160} value={f.label} onChange={set('label')} /></Field>
         <Field label="Après la phase" hint="Enchaînement du planning" className="full">
           <select className="select" value={f.depends_on_id} onChange={pickAfter}><option value="">— Aucune —</option>{w.phases.filter(x => x.id !== p?.id).map(x => <option key={x.id} value={x.id}>{x.label}</option>)}</select>

@@ -10,7 +10,7 @@
  * Règles dans lib/domain.js (TMA_STATUSES, TMA_BILLED, NEED_STATUSES).
  */
 const { HttpError, isoDay, isoTime } = require('../lib/http');
-const { TMA_STATUSES, TMA_BILLED, NEED_STATUSES, SAV_CATEGORIES, SITE_STAGE_LABELS, addDays, warrantyDates } = require('../lib/domain');
+const { TMA_STATUSES, TMA_BILLED, NEED_STATUSES, SAV_CATEGORIES, siteStageLabel, addDays, warrantyDates } = require('../lib/domain');
 const { notify, usersWith, inform, resolve } = require('./notifications');
 
 const insertedId = r => (typeof r === 'object' ? r.id : r);
@@ -331,7 +331,7 @@ async function handover(db, w, saleId, { handed_on, client_signed = true, attend
     declarationId = insertedId(r);
     await inform(db, 'chantier.etape_signalee', {
       direct: await usersWith(db, 'chantiers:direction'), except: userId, key: `etape:${declarationId}:signalee`,
-      title: `Étape à déclarer : ${SITE_STAGE_LABELS.livraison} du lot ${lot.code} — ${w.reference}`,
+      title: `Étape à déclarer : ${siteStageLabel(w.project_category, 'livraison')} du lot ${lot.code} — ${w.reference}`,
       body: `${info.client_name} · réceptionné le ${fr(handed_on)}. Sa déclaration émettra le dernier appel de fonds VEFA (${money(pendingCall.amount_fcfa)}).`,
       link: `/chantiers/${w.id}?onglet=etapes&etape=${declarationId}`,
     });

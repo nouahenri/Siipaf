@@ -8,7 +8,7 @@ const { ah, parse, idParam, HttpError, isoDay, isoTime } = require('../../lib/ht
 const { requirePermission } = require('../../auth');
 const {
   LEAD_STAGES, PIPELINE_STAGES, BOARD_STAGES, STAGE_PROBABILITY, LOST_REASONS, ACTIVITY_KINDS, LEAD_KINDS, BUILDING_KINDS,
-  TARGET_METRICS, LOT_STATUSES, LOT_STATUS_LABELS, SITE_STAGES, SITE_STAGE_LABELS, VEFA_LEGAL_CAPS, DEFAULT_VEFA_PLAN, FINANCING_PLANS,
+  TARGET_METRICS, LOT_STATUSES, LOT_STATUS_LABELS, SITE_STAGES, SITE_STAGE_LABELS, ALL_SITE_STAGES, siteStagesFor, siteStageError, VEFA_LEGAL_CAPS, DEFAULT_VEFA_PLAN, FINANCING_PLANS,
 } = require('../../lib/domain');
 const cm = require('../../services/commercial');
 const vefa = require('../../services/vefa');
@@ -37,17 +37,20 @@ module.exports = function commercialRoutes(db) {
 
   // ─── Référentiels ─────────────────────────────────────────
   r.get('/meta', vefaRead, ah(async (req, res) => {
+    // Même ordre que le dashboard (Biens & disponibilités)
+    const projects = await db('projects').orderBy(['sort', 'name']).select('id', 'name', 'category');
     res.json({
       stages: LEAD_STAGES.map(s => ({ id: s, label: cm.STAGE_LABELS[s], probability: STAGE_PROBABILITY[s] })),
       pipeline_stages: PIPELINE_STAGES, board_stages: BOARD_STAGES, lost_reasons: LOST_REASONS, activity_kinds: ACTIVITY_KINDS, lead_kinds: LEAD_KINDS,
       building_kinds: BUILDING_KINDS, target_metrics: TARGET_METRICS,
       lot_statuses: LOT_STATUSES.map(s => ({ id: s, label: LOT_STATUS_LABELS[s] })),
+      // Plans d'appels de fonds VEFA : étapes des bâtiments ; `project_stages` : étapes de chaque projet (lotissement ou bâtiments), pour déclarer une étape
       site_stages: SITE_STAGES.map(s => ({ id: s, label: SITE_STAGE_LABELS[s] })),
+      project_stages: Object.fromEntries(projects.map(p => [p.id, siteStagesFor(p.category).list.map(({ id, label }) => ({ id, label }))])),
       vefa_caps: VEFA_LEGAL_CAPS, vefa_default: DEFAULT_VEFA_PLAN,
       financings: Object.fromEntries(Object.entries(FINANCING_PLANS).map(([k, p]) => [k, p.label])),
       sellers: await cm.sellers(db),
-      // Même ordre que le dashboard (Biens & disponibilités)
-      projects: await db('projects').orderBy(['sort', 'name']).select('id', 'name', 'category'),
+      projects,
     });
   }));
 
@@ -394,6 +397,7 @@ module.exports = function commercialRoutes(db) {
   r.put('/vefa/plans/:id', requirePermission('vefa:write'), ah(async (req, res) => {
     const projectId = idParam(req);
     if (!(await db('projects').where({ id: projectId }).first())) throw new HttpError(404, 'Projet introuvable.');
+    await require('../../services/sales').assertVefaAllowed(db, projectId);
     const data = parse(z.object({
       milestones: z.array(z.object({
         stage: z.enum(['signature', ...SITE_STAGES]), label: z.string().trim().min(2).max(160), pct: z.number().positive().max(100),
@@ -443,10 +447,13 @@ module.exports = function commercialRoutes(db) {
   // Étape atteinte déclarée par la Direction seule (choix du client du 24/10) : projet entier, un îlot, un bâtiment ou un lot
   r.post('/vefa/milestones', requirePermission('chantiers:direction'), ah(async (req, res) => {
     const data = parse(z.object({
-      project_id: z.number().int().positive(), stage: z.enum(SITE_STAGES), date: day,
+      project_id: z.number().int().positive(), stage: z.enum(ALL_SITE_STAGES), date: day,
       ilot: optText(40), building_id: z.number().int().positive().optional().nullable(), lot_id: z.number().int().positive().optional().nullable(),
     }), req.body);
-    if (!(await db('projects').where({ id: data.project_id }).first())) throw new HttpError(404, 'Projet introuvable.');
+    const project = await db('projects').where({ id: data.project_id }).first('id', 'category');
+    if (!project) throw new HttpError(404, 'Projet introuvable.');
+    const refusal = siteStageError(project.category, data.stage);
+    if (refusal) throw new HttpError(400, refusal);
     res.json(await vefa.recordMilestone(db, {
       projectId: data.project_id, ilot: data.ilot, buildingId: data.building_id, lotId: data.lot_id, stage: data.stage, date: data.date, userId: req.user.id,
     }));

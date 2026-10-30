@@ -8,13 +8,12 @@ import { api } from '../lib/api';
 import { useAuth, useResource, useToast } from '../lib/app-context';
 import { Card, Field, Badge, Skeleton, ErrorBox, Empty } from './ui';
 import { MediaPicker } from './MediaLibrary';
-import { INSTALLMENT_STATUS, SITE_STAGES, FINANCING } from '../lib/domain';
+import { INSTALLMENT_STATUS, FINANCING } from '../lib/domain';
 import { MediaThumbs } from './MediaViewer';
 import { fcfa, date, dateTime } from '../lib/format';
 
 /** Adresse de l'espace client vue depuis le dashboard (admin.siipaf.com → client.siipaf.com). */
 export const clientSpaceUrl = () => window.location.origin.replace('://admin.localhost', '://localhost').replace('://admin.', '://client.');
-const stageLabel = id => SITE_STAGES.find(s => s.id === id)?.label || id;
 
 // ─── Échéancier ─────────────────────────────────────────────
 export function ScheduleTab({ sale, onChange }) {
@@ -229,19 +228,24 @@ export function SiteTab({ lot }) {
 
 function SiteUpdateForm({ lot, onDone, onCancel }) {
   const today = new Date().toISOString().slice(0, 10);
-  const [f, setF] = useState({ scope: 'lot', stage: 'gros_oeuvre', progress_pct: '', title: '', body: '', visible_client: true, published_at: today });
+  // Étapes du projet du lot : lotissement (terrains) ou programme immobilier (bâtiments)
+  const stages = useResource(`/admin/projects/${lot.project_id}/site-stages`);
+  const [f, setF] = useState({ scope: 'lot', stage: '', progress_pct: '', title: '', body: '', visible_client: true, published_at: today });
   const [media, setMedia] = useState([]);
   const [picker, setPicker] = useState(null); // 'image' | 'video'
   const [error, setError] = useState(null);
   const [busy, setBusy] = useState(false);
   const set = k => e => setF(x => ({ ...x, [k]: e.target.type === 'checkbox' ? e.target.checked : e.target.value }));
+  // Étape choisie, sinon la plus avancée proposée par défaut (gros œuvre d'un bâtiment, sinon la première de la liste)
+  const choices = stages.data || [];
+  const stage = choices.some(s => s.id === f.stage) ? f.stage : (choices.find(s => s.id === 'gros_oeuvre') || choices[0])?.id;
 
   const submit = async () => {
     setError(null);
     setBusy(true);
     try {
       await api.post(`/admin/projects/${lot.project_id}/site-updates`, {
-        stage: f.stage, progress_pct: Math.min(100, Math.max(0, Number(f.progress_pct) || 0)), title: f.title.trim(),
+        stage, progress_pct: Math.min(100, Math.max(0, Number(f.progress_pct) || 0)), title: f.title.trim(),
         body: f.body.trim() || null, visible_client: f.visible_client, published_at: f.published_at, media: media.map(m => m.id),
         ...(f.scope === 'lot' ? { lot_id: lot.id } : f.scope === 'ilot' ? { ilot: lot.ilot } : {}),
       });
@@ -262,7 +266,7 @@ function SiteUpdateForm({ lot, onDone, onCancel }) {
             <option value="projet">Tout le projet</option>
           </select>
         </Field>
-        <Field label="Étape"><select className="select" value={f.stage} onChange={set('stage')}>{SITE_STAGES.map(s => <option key={s.id} value={s.id}>{s.label}</option>)}</select></Field>
+        <Field label="Étape"><select className="select" value={stage || ''} onChange={set('stage')}>{choices.map(s => <option key={s.id} value={s.id}>{s.label}</option>)}</select></Field>
         <Field label="Avancement (%)"><input className="input tabular" inputMode="numeric" value={f.progress_pct} onChange={set('progress_pct')} placeholder="45" /></Field>
         <Field label="Date"><input className="input" type="date" value={f.published_at} onChange={set('published_at')} /></Field>
         <Field label="Titre" className="full"><input className="input" value={f.title} onChange={set('title')} placeholder="Ex. : Élévation des murs terminée" /></Field>
@@ -280,7 +284,7 @@ function SiteUpdateForm({ lot, onDone, onCancel }) {
       </div>
       <div className="row-between" style={{ marginTop: 12 }}>
         <label className="checkbox small"><input type="checkbox" checked={f.visible_client} onChange={set('visible_client')} />Visible par les clients</label>
-        <button className="btn btn-primary btn-sm" onClick={submit} disabled={busy || f.title.trim().length < 2}><Plus />Publier</button>
+        <button className="btn btn-primary btn-sm" onClick={submit} disabled={busy || !stage || f.title.trim().length < 2}><Plus />Publier</button>
       </div>
       {picker && <MediaPicker type={picker} onPick={m => setMedia(x => (x.some(y => y.id === m.id) ? x : [...x, m]))} onClose={() => setPicker(null)} />}
       <p className="small muted" style={{ marginTop: 8 }}>Photos JPG / PNG / WebP, vidéos MP4, MOV (iPhone) ou WebM jusqu’à 200 Mo. Dans la fenêtre qui s’ouvre, déposez le fichier puis cliquez dessus pour l’ajouter.</p>
