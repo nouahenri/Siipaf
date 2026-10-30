@@ -27,7 +27,7 @@ module.exports = function commercialRoutes(db) {
   const r = express.Router();
   const read = requirePermission('commercial:read');
   // Les appels de fonds se consultent avec le module ou avec le droit de les gérer (conducteur de travaux)
-  const vefaRead = (req, res, next) => (req.can('commercial:read') || req.can('vefa:write') || req.can('sales:read') ? next() : next(new HttpError(403, 'Droits insuffisants.')));
+  const vefaRead = (req, res, next) => (req.can('commercial:read') || req.can('vefa:read') || req.can('vefa:write') || req.can('sales:read') ? next() : next(new HttpError(403, 'Droits insuffisants.')));
 
   const ownLead = (req, id = idParam(req)) => cm.leadInScope(db, id, req.user);
   // Une activité ne se confie à un collègue qu'avec la portée « toute l'équipe »
@@ -266,7 +266,7 @@ module.exports = function commercialRoutes(db) {
     kind: z.enum(Object.keys(BUILDING_KINDS)).optional(), floors: z.number().int().min(0).max(60).optional(), notes: optText(500),
   });
 
-  r.post('/projects/:id/buildings', read, requirePermission('property:write'), ah(async (req, res) => {
+  r.post('/projects/:id/buildings', read, requirePermission('property:buildings'), ah(async (req, res) => {
     const projectId = idParam(req);
     if (!(await db('projects').where({ id: projectId }).first())) throw new HttpError(404, 'Projet introuvable.');
     const data = parse(buildingSchema, req.body);
@@ -275,7 +275,7 @@ module.exports = function commercialRoutes(db) {
     res.status(201).json(await db('buildings').where({ id: insertedId(id) }).first());
   }));
 
-  r.patch('/buildings/:id', read, requirePermission('property:write'), ah(async (req, res) => {
+  r.patch('/buildings/:id', read, requirePermission('property:buildings'), ah(async (req, res) => {
     const b = await db('buildings').where({ id: idParam(req) }).first();
     if (!b) throw new HttpError(404, 'Bâtiment introuvable.');
     const data = parse(buildingSchema.partial(), req.body);
@@ -287,7 +287,7 @@ module.exports = function commercialRoutes(db) {
   }));
 
   // Supprimer un bâtiment ne supprime aucun lot : ils redeviennent « sans bâtiment »
-  r.delete('/buildings/:id', read, requirePermission('property:write'), ah(async (req, res) => {
+  r.delete('/buildings/:id', read, requirePermission('property:buildings'), ah(async (req, res) => {
     const b = await db('buildings').where({ id: idParam(req) }).first();
     if (!b) throw new HttpError(404, 'Bâtiment introuvable.');
     await db.transaction(async trx => {
@@ -313,7 +313,7 @@ module.exports = function commercialRoutes(db) {
     if (b.ilot && data.ilot === undefined) data.ilot = b.ilot;
   }
 
-  r.patch('/lots/:id', read, requirePermission('property:write'), ah(async (req, res) => {
+  r.patch('/lots/:id', read, requirePermission('property:lots'), ah(async (req, res) => {
     const lot = await db('lots').where({ id: idParam(req) }).first();
     if (!lot) throw new HttpError(404, 'Lot introuvable.');
     const data = parse(lotPropertySchema, req.body);
@@ -329,7 +329,7 @@ module.exports = function commercialRoutes(db) {
   }));
 
   // Affectation groupée : plusieurs lots dans un bâtiment / à un étage / d'un même type
-  r.post('/lots/bulk', read, requirePermission('property:write'), ah(async (req, res) => {
+  r.post('/lots/bulk', read, requirePermission('property:lots'), ah(async (req, res) => {
     const { lot_ids, ...data } = parse(lotPropertySchema.pick({ property_type_id: true, building_id: true, floor: true }).extend({
       lot_ids: z.array(z.number().int().positive()).min(1).max(500),
     }), req.body);
@@ -417,7 +417,7 @@ module.exports = function commercialRoutes(db) {
   r.get('/vefa/calls', vefaRead, ah(async (req, res) => {
     const named = req.can('sales:read');
     const q = salesQuery().where('s.vefa', true).whereIn('s.status', ['en_cours', 'solde']);
-    if (named && !req.can('vefa:write')) cm.scopeLeads(q, req.user);
+    if (named && !req.can('vefa:read')) cm.scopeLeads(q, req.user);
     if (req.query.project_id) q.where('l.project_id', Number(req.query.project_id));
     const sales = await q.orderBy('s.id');
     const rows = [];
@@ -451,7 +451,7 @@ module.exports = function commercialRoutes(db) {
   }));
 
   // Étape atteinte déclarée par la Direction seule (choix du client du 24/10) : projet entier, un îlot, un bâtiment ou un lot
-  r.post('/vefa/milestones', requirePermission('chantiers:direction'), ah(async (req, res) => {
+  r.post('/vefa/milestones', requirePermission('chantiers:stages'), ah(async (req, res) => {
     const data = parse(z.object({
       project_id: z.number().int().positive(), stage: z.enum(ALL_SITE_STAGES), date: day,
       ilot: optText(40), building_id: z.number().int().positive().optional().nullable(), lot_id: z.number().int().positive().optional().nullable(),

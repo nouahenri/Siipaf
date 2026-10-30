@@ -18,12 +18,14 @@ const insertedId = r => (typeof r === 'object' ? r.id : r);
 module.exports = function competencesRoutes(db) {
   const r = express.Router();
   const read = requirePermission('rh:read');
-  const write = requirePermission('formation:write');
+  const skillsRight = requirePermission('formation:skills');
+  const plan = requirePermission('formation:plan');
+  const complete = requirePermission('formation:complete');
 
   /** Le service RH, ou l'employé pour son propre CV et ses compétences. */
   async function editable(req, employeeId) {
     const e = await rh.getEmployee(db, employeeId);
-    const level = await rh.accessLevel(db, req, e, 'formation:write');
+    const level = await rh.accessLevel(db, req, e, 'formation:skills');
     if (level === 'manager') throw new HttpError(403, 'Seuls l’employé et le service RH modifient ce profil.');
     return e;
   }
@@ -33,13 +35,13 @@ module.exports = function competencesRoutes(db) {
     const [types, skills] = await Promise.all([db('hr_skill_types').orderBy('name'), db('hr_skills').orderBy('name')]);
     res.json(types.map(t => ({ ...t, levels: json(t.levels, []), skills: skills.filter(s => s.type_id === t.id) })));
   }));
-  r.post('/skill-types', write, ah(async (req, res) => {
+  r.post('/skill-types', skillsRight, ah(async (req, res) => {
     const data = parse(z.object({ name: z.string().trim().min(2).max(80), levels: z.array(z.string().trim().min(1).max(40)).min(2).max(8) }), req.body);
     if (await db('hr_skill_types').where({ name: data.name }).first()) throw new HttpError(409, 'Ce type existe déjà.');
     const [id] = await db('hr_skill_types').insert({ name: data.name, levels: JSON.stringify(data.levels) });
     res.status(201).json({ id: insertedId(id), ...data, skills: [] });
   }));
-  r.patch('/skill-types/:id', write, ah(async (req, res) => {
+  r.patch('/skill-types/:id', skillsRight, ah(async (req, res) => {
     const data = parse(z.object({ name: z.string().trim().min(2).max(80), levels: z.array(z.string().trim().min(1).max(40)).min(2).max(8) }).partial(), req.body);
     const t = await db('hr_skill_types').where({ id: idParam(req) }).first();
     if (!t) throw new HttpError(404, 'Type introuvable.');
@@ -50,13 +52,13 @@ module.exports = function competencesRoutes(db) {
     await db('hr_skill_types').where({ id: t.id }).update({ ...data, ...(data.levels ? { levels: JSON.stringify(data.levels) } : {}) });
     res.json({ ok: true });
   }));
-  r.post('/skills', write, ah(async (req, res) => {
+  r.post('/skills', skillsRight, ah(async (req, res) => {
     const data = parse(z.object({ type_id: z.number().int().positive(), name: z.string().trim().min(2).max(80) }), req.body);
     if (await db('hr_skills').where(data).first()) throw new HttpError(409, 'Cette compétence existe déjà.');
     const [id] = await db('hr_skills').insert(data);
     res.status(201).json({ id: insertedId(id), ...data });
   }));
-  r.delete('/skills/:id', write, ah(async (req, res) => {
+  r.delete('/skills/:id', skillsRight, ah(async (req, res) => {
     if (await db('hr_employee_skills').where({ skill_id: idParam(req) }).first()) throw new HttpError(409, 'Compétence attribuée à des employés : retirez-la d’abord de leur profil.');
     await db('hr_skills').where({ id: idParam(req) }).del();
     res.json({ ok: true });
@@ -144,13 +146,13 @@ module.exports = function competencesRoutes(db) {
     const mine = await db('hr_training_participants').where({ employee_id: me.id }).pluck('training_id');
     res.json((await trainingRows()).filter(t => mine.includes(t.id)));
   }));
-  r.post('/trainings', write, ah(async (req, res) => {
+  r.post('/trainings', plan, ah(async (req, res) => {
     const data = parse(trainingSchema, req.body);
     if (data.end_date < data.start_date) throw new HttpError(400, 'La fin précède le début.');
     const [id] = await db('hr_trainings').insert(data);
     res.status(201).json((await trainingRows({ 't.id': insertedId(id) }))[0]);
   }));
-  r.patch('/trainings/:id', write, ah(async (req, res) => {
+  r.patch('/trainings/:id', plan, ah(async (req, res) => {
     const t = await db('hr_trainings').where({ id: idParam(req) }).first();
     if (!t) throw new HttpError(404, 'Formation introuvable.');
     if (t.status === 'realisee') throw new HttpError(409, 'Formation réalisée : elle figure déjà aux dossiers.');
@@ -158,7 +160,7 @@ module.exports = function competencesRoutes(db) {
     await db('hr_trainings').where({ id: t.id }).update({ ...data, updated_at: new Date() });
     res.json((await trainingRows({ 't.id': t.id }))[0]);
   }));
-  r.put('/trainings/:id/participants', write, ah(async (req, res) => {
+  r.put('/trainings/:id/participants', plan, ah(async (req, res) => {
     const t = await db('hr_trainings').where({ id: idParam(req) }).first();
     if (!t) throw new HttpError(404, 'Formation introuvable.');
     if (t.status === 'realisee') throw new HttpError(409, 'Formation réalisée.');
@@ -175,7 +177,7 @@ module.exports = function competencesRoutes(db) {
    * Clôture : présence de chaque participant ; pour les présents, ligne au CV, événement « Formation » au
    * dossier et compétence visée ajoutée (niveau de départ) si elle manque.
    */
-  r.post('/trainings/:id/complete', write, ah(async (req, res) => {
+  r.post('/trainings/:id/complete', complete, ah(async (req, res) => {
     const t = await db('hr_trainings').where({ id: idParam(req) }).first();
     if (!t) throw new HttpError(404, 'Formation introuvable.');
     if (t.status !== 'planifiee') throw new HttpError(409, 'Formation déjà close.');
@@ -196,7 +198,7 @@ module.exports = function competencesRoutes(db) {
     });
     res.json((await trainingRows({ 't.id': t.id }))[0]);
   }));
-  r.post('/trainings/:id/cancel', write, ah(async (req, res) => {
+  r.post('/trainings/:id/cancel', plan, ah(async (req, res) => {
     const n = await db('hr_trainings').where({ id: idParam(req), status: 'planifiee' }).update({ status: 'annulee', updated_at: new Date() });
     if (!n) throw new HttpError(409, 'Seule une formation planifiée s’annule.');
     res.json({ ok: true });

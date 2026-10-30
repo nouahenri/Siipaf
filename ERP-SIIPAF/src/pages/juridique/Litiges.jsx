@@ -28,7 +28,7 @@ export default function Litiges() {
   const [form, setForm] = useState(preset ? { litigation: null, preset } : null);
   const setOpen = id => setParams(id ? { fiche: String(id) } : {}, { replace: true });
   useEffect(() => { const t = setTimeout(() => setQ(text.trim()), 300); return () => clearTimeout(t); }, [text]);
-  const write = can('juridique:write');
+  const write = can('juridique:litigation');
 
   return (
     <div className="stack">
@@ -87,7 +87,7 @@ function LitigationDrawer({ id, refs, onClose, onChange, onEdit }) {
   const [step, setStep] = useState(null);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState(null);
-  const write = can('juridique:write');
+  const write = can('juridique:litigation');
   const reopen = async () => {
     setBusy(true);
     try { x.setData(await api.post(`${JUR}/litiges/${id}/reopen`)); onChange(); saved('Litige rouvert'); } catch (e) { setError(e); } finally { setBusy(false); }

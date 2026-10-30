@@ -18,7 +18,7 @@ const override = (userId, permission, granted) => db('user_permissions').insert(
 
 before(async () => {
   ({ db, app } = await setup()); admin = await login(app);
-  for (const [role, permissions] of Object.entries({ circuit_observer: ['sav:handle', 'appro:read'], circuit_blind: ['appro:direction', 'direction:read'], circuit_finance: ['compta:entries'] })) {
+  for (const [role, permissions] of Object.entries({ circuit_observer: ['sav:edit', 'appro:read'], circuit_blind: ['appro:direction', 'direction:read'], circuit_finance: ['compta:entries'] })) {
     await db('roles').insert({ id: role, label: role });
     await db('role_permissions').insert(permissions.map(permission => ({ role, permission })));
   }
@@ -122,7 +122,7 @@ test('mouvements validés : entrée, sortie, transfert ; aucun envoi pour un bro
 
 test('réception : privilège individuel accordé/retiré, compte inactif, créateur sans accès et préférences respectés', async () => {
   await saveInfoRoutes(db, { 'appro.reception': ['sav', 'achats', 'compta'] });
-  await override(ids.commercial, 'sav:handle', true); await override(ids.commercial, 'appro:read', true);
+  await override(ids.commercial, 'sav:edit', true); await override(ids.commercial, 'appro:read', true);
   const o = await order(); await submit(o, ids.conducteur_travaux); ok(await conducteur.post(`${A}/orders/${o.id}/approve`));
   const receive = quantity => conducteur.post(`${A}/orders/${o.id}/receive`).send({ date, lines: [{ order_line_id: o.lines[0].id, quantity }] });
   ok(await receive(1));

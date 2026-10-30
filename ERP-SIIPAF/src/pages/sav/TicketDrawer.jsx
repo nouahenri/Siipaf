@@ -21,7 +21,7 @@ export default function TicketDrawer({ id, onClose, onChange }) {
   const t = useResource(`/admin/erp/sav/tickets/${id}`);
   const [error, setError] = useState(null);
   const [busy, setBusy] = useState(false);
-  const write = can('sav:handle');
+  const write = can('sav:status'); // statut ; commenter : sav:comment ; modifier la fiche : sav:edit
 
   const run = async (fn, okMessage) => {
     setBusy(true); setError(null);
@@ -78,15 +78,15 @@ export default function TicketDrawer({ id, onClose, onChange }) {
             </dl>
           </section>
 
-          {can('sav:assign') && (
+          {(can('sav:assign') || can('sav:edit')) && (
             <div className="form-grid">
-              <Field label="Responsable">
+              {can('sav:assign') && <Field label="Responsable">
                 <select className="select" value={d.assigned_to || ''} disabled={busy} onChange={e => patch({ assigned_to: Number(e.target.value) || null })}>
                   <option value="">— Personne —</option>
                   {meta?.technicians.map(u => <option key={u.id} value={u.id}>{u.name}</option>)}
                 </select>
-              </Field>
-              <Field label="Priorité" hint={meta ? `Délai de traitement : ${meta.priorities[d.priority].hours} h` : undefined}>
+              </Field>}
+              {can('sav:edit') && <><Field label="Priorité" hint={meta ? `Délai de traitement : ${meta.priorities[d.priority].hours} h` : undefined}>
                 <select className="select" value={d.priority} disabled={busy} onChange={e => patch({ priority: e.target.value })}>
                   {meta && Object.entries(meta.priorities).map(([k, p]) => <option key={k} value={k}>{p.label}</option>)}
                 </select>
@@ -101,7 +101,7 @@ export default function TicketDrawer({ id, onClose, onChange }) {
                   <option value="">— À déterminer —</option>
                   {Object.entries(WARRANTY_SHORT).map(([k, l]) => <option key={k} value={k}>{l}</option>)}
                 </select>
-              </Field>
+              </Field></>}
             </div>
           )}
 
@@ -130,7 +130,7 @@ export default function TicketDrawer({ id, onClose, onChange }) {
                 </li>
               ))}
             </ol>
-            {write && <Reply ticket={d} onSent={out => { t.setData(out); onChange?.(); }} />}
+            {can('sav:comment') && <Reply ticket={d} onSent={out => { t.setData(out); onChange?.(); }} />}
           </section>
         </div>
       )}

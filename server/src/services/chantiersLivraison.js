@@ -106,7 +106,7 @@ async function createChange(db, { sale_id, title, description = null }, { userId
   // Le conducteur chiffre ; le commercial suit la demande de son client (s'il ne l'a pas saisie lui-même)
   const direct = [w?.manager_id, t.assigned_to].filter(Boolean);
   await inform(db, 'tma.demandee', {
-    direct: direct.length ? direct : await usersWith(db, 'chantiers:write'), except: userId, key: `tma:${id}:demandee`,
+    direct: direct.length ? direct : await usersWith(db, 'chantiers:tma'), except: userId, key: `tma:${id}:demandee`,
     title: `TMA à chiffrer : ${title} — lot ${t.lot_code}`, body: `${t.client_name} · ${t.project_name}${source === 'client' ? ' · demandée dans l’espace client' : ''}`,
     link: w ? `/chantiers/${w.id}?onglet=tma` : '/chantiers/liste',
   });
@@ -230,7 +230,7 @@ async function checkNeed(db, w, data, current = null) {
 }
 
 // Les Achats reçoivent les besoins exprimés par les chantiers.
-const buyers = db => usersWith(db, 'appro:write');
+const buyers = db => usersWith(db, 'appro:needs');
 
 async function createNeed(db, w, data, { userId }) {
   await checkNeed(db, w, data);
@@ -332,7 +332,7 @@ async function handover(db, w, saleId, { handed_on, client_signed = true, attend
     });
     declarationId = insertedId(r);
     await inform(db, 'chantier.etape_signalee', {
-      direct: await usersWith(db, 'chantiers:direction'), except: userId, key: `etape:${declarationId}:signalee`,
+      direct: await usersWith(db, 'chantiers:stages'), except: userId, key: `etape:${declarationId}:signalee`,
       title: `Étape à déclarer : ${siteStageLabel(w.project_category, 'livraison')} du lot ${lot.code} — ${w.reference}`,
       body: `${info.client_name} · réceptionné le ${fr(handed_on)}. Sa déclaration émettra le dernier appel de fonds VEFA (${money(pendingCall.amount_fcfa)}).`,
       link: `/chantiers/${w.id}?onglet=etapes&etape=${declarationId}`,

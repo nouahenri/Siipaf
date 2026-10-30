@@ -19,7 +19,7 @@ const URL = '/admin/erp/demandes';
  */
 export default function Demandes() {
   const { can } = useAuth();
-  const handle = can('demandes:handle');
+  const handle = can('demandes:handle'), viewAll = can('demandes:view_all');
   const [params, setParams] = useSearchParams();
   const deciding = can(['appro:validate', 'appro:direction']); // bons de commande soumis par les Achats
   const [scope, setScope] = useState(handle ? 'handle' : 'approve');
@@ -27,7 +27,7 @@ export default function Demandes() {
   const refs = useResource(`${URL}/refs`);
   const open = Number(params.get('fiche')) || null;
   const setOpen = id => setParams(id ? { fiche: String(id) } : {}, { replace: true });
-  const tabs = [handle && ['handle', 'À traiter'], ['approve', 'À valider par moi'], deciding && ['commandes', 'Commandes à valider (Achats)'], (handle || can('demandes:dg')) && ['all', 'Toutes']].filter(Boolean);
+  const tabs = [handle && ['handle', 'À traiter'], ['approve', 'À valider par moi'], deciding && ['commandes', 'Commandes à valider (Achats)'], (viewAll || can('demandes:dg')) && ['all', 'Toutes']].filter(Boolean);
   return (
     <div className="stack">
       <div className="row-between">
@@ -117,15 +117,17 @@ export function RequestDrawer({ id, refs, onClose, onChange }) {
 }
 
 function ClosePanel({ r, refs, busy, onCancel, onSubmit }) {
-  const [f, setF] = useState({ outcome: 'traitee', note: '', invoice: r.purchase, supplier_id: '', amount_ttc: r.estimated_amount || '', vat_rate: 0, expense_account: '', date: today() });
+  const { can } = useAuth();
+  const canInvoice = r.purchase && can('demandes:invoice') && can('achats:write'); // facture d'achat : Comptabilité (« Saisir les achats ») et « Facture d’achat à la clôture »
+  const [f, setF] = useState({ outcome: 'traitee', note: '', invoice: canInvoice, supplier_id: '', amount_ttc: r.estimated_amount || '', vat_rate: 0, expense_account: '', date: today() });
   const set = k => e => setF(x => ({ ...x, [k]: e.target.type === 'checkbox' ? e.target.checked : e.target.value }));
-  const invoice = f.outcome === 'traitee' && r.purchase && f.invoice;
+  const invoice = f.outcome === 'traitee' && canInvoice && f.invoice;
   const ready = f.outcome === 'refusee' ? f.note.trim() : !invoice || (f.supplier_id && f.amount_ttc);
   return (
     <div className="erp-panel form-grid">
       <Field label="Issue"><select className="select" value={f.outcome} onChange={set('outcome')}><option value="traitee">Traitée</option><option value="refusee">Refusée</option></select></Field>
       <Field label={f.outcome === 'refusee' ? 'Motif' : 'Réponse au demandeur'}><input className="input" maxLength={500} value={f.note} onChange={set('note')} /></Field>
-      {f.outcome === 'traitee' && r.purchase && <label className="full row" style={{ gap: 6 }}><input type="checkbox" checked={f.invoice} onChange={set('invoice')} />Préparer la facture d’achat (brouillon en Comptabilité)</label>}
+      {f.outcome === 'traitee' && canInvoice && <label className="full row" style={{ gap: 6 }}><input type="checkbox" checked={f.invoice} onChange={set('invoice')} />Préparer la facture d’achat (brouillon en Comptabilité)</label>}
       {invoice && (
         <>
           <Field label="Fournisseur"><select className="select" value={f.supplier_id} onChange={set('supplier_id')}><option value="">—</option>{refs.suppliers.map(s => <option key={s.id} value={s.id}>{s.name}</option>)}</select></Field>

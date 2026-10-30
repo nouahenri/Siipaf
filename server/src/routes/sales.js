@@ -104,7 +104,7 @@ module.exports = function salesRoutes(db) {
     const { lead_id, name, phone, email, ...rest } = data;
     if (lead_id) await leadInScope(db, lead_id, req.user);
     // L'acte se date dans ERP › Juridique (ou avec le droit Juridique)
-    if (rest.signed_at && !req.can('juridique:write')) throw new HttpError(403, 'La date de signature de l’acte se saisit dans ERP › Juridique.');
+    if (rest.signed_at && !req.can('juridique:deeds')) throw new HttpError(403, 'La date de signature de l’acte se saisit dans ERP › Juridique.');
     const sale = await openSale(db, { lotId: idParam(req), leadId: lead_id, leadData: { name, phone, email }, ...rest, user: req.user });
     // Circuit d'information : Direction générale, exploitation, Comptabilité, Juridique (réglable dans l'ERP)
     const info = await db('sales as s').join('lots as l', 'l.id', 's.lot_id').join('projects as p', 'p.id', 'l.project_id').join('leads as c', 'c.id', 's.lead_id')
@@ -117,7 +117,7 @@ module.exports = function salesRoutes(db) {
     res.status(201).json(await saleDetail(sale));
   }));
 
-  r.patch('/sales/:id', requirePermission('sales:edit', 'juridique:write'), ah(async (req, res) => {
+  r.patch('/sales/:id', requirePermission('sales:edit', 'juridique:deeds'), ah(async (req, res) => {
     const id = idParam(req);
     const data = parse(z.object({
       price_fcfa: z.number().int().positive(),
@@ -133,7 +133,7 @@ module.exports = function salesRoutes(db) {
     if (data.vefa && !before.vefa) await require('../services/sales').assertVefaAllowed(db, (await db('lots').where({ id: before.lot_id }).first('project_id')).project_id);
     const { signed_at: _signed, ...saleFields } = data;
     if (Object.keys(saleFields).length && !req.can('sales:edit')) throw new HttpError(403, 'Modifier le dossier demande le droit correspondant.');
-    if ('signed_at' in data && (isoDay(data.signed_at) || null) !== (isoDay(before.signed_at) || null) && !req.can('juridique:write')) {
+    if ('signed_at' in data && (isoDay(data.signed_at) || null) !== (isoDay(before.signed_at) || null) && !req.can('juridique:deeds')) {
       throw new HttpError(403, 'La date de signature de l’acte se saisit dans ERP › Juridique.');
     }
     // Acte signé saisi ici plutôt que dans ERP › Juridique : mêmes effets (lot vendu, pièce signée, annonces)
@@ -152,7 +152,7 @@ module.exports = function salesRoutes(db) {
   }));
 
   // ─── Échéancier (comptable) ───────────────────────────────
-  r.post('/sales/:id/schedule/generate', requirePermission('schedule:write'), ah(async (req, res) => {
+  r.post('/sales/:id/schedule/generate', requirePermission('schedule:generate'), ah(async (req, res) => {
     const id = idParam(req);
     const opts = parse(z.object({
       start_date: day.optional(),
@@ -170,7 +170,7 @@ module.exports = function salesRoutes(db) {
     res.json(await saleDetail(sale));
   }));
 
-  r.put('/sales/:id/schedule', requirePermission('schedule:write'), ah(async (req, res) => {
+  r.put('/sales/:id/schedule', requirePermission('schedule:edit'), ah(async (req, res) => {
     const id = idParam(req);
     const lines = parse(z.array(z.object({
       kind: z.enum(SCHEDULE_KINDS),

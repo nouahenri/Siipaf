@@ -17,7 +17,7 @@ export default function Reserves() {
   const [projectId, setProjectId] = useState('');
   const [pv, setPv] = useState(false);
   const list = useResource(`/admin/erp/sav/reserves?status=${status}${projectId ? `&project_id=${projectId}` : ''}`);
-  const write = can('sav:reserves');
+  const write = can('sav:reserves'), delivery = can('sav:delivery');
 
   const act = async (fn, msg) => {
     try { await fn(); toast(msg); list.reload(); } catch (e) { toast(e.message, 'err'); }
@@ -37,7 +37,7 @@ export default function Reserves() {
             {meta?.projects.map(p => <option key={p.id} value={p.id}>{p.name}</option>)}
           </select>
         </div>
-        {write && <button className="btn btn-primary" onClick={() => setPv(true)}><FilePlus2 />Procès-verbal de livraison</button>}
+        {(write || delivery) && <button className="btn btn-primary" onClick={() => setPv(true)}><FilePlus2 />Procès-verbal de livraison</button>}
       </div>
       <ErrorBox error={list.error} />
       <Card bodyClass="">
@@ -76,6 +76,7 @@ export default function Reserves() {
 
 /** PV de livraison d'un dossier : date (départ des garanties) et réserves relevées. */
 function DeliveryReport({ onClose }) {
+  const { can } = useAuth();
   const toast = useToast();
   const saved = useSaved();
   const meta = useSavMeta();
@@ -117,9 +118,9 @@ function DeliveryReport({ onClose }) {
           <>
             <div className="row" style={{ alignItems: 'flex-end' }}>
               <Field label="Date de livraison (PV signé)">
-                <input className="input" type="date" value={deliveredAt} onChange={e => setDeliveredAt(e.target.value)} />
+                <input className="input" type="date" value={deliveredAt} disabled={!can('sav:delivery')} onChange={e => setDeliveredAt(e.target.value)} />
               </Field>
-              <button className="btn" disabled={busy || deliveredAt === day(d.delivered_at)} onClick={saveDate}>Enregistrer la date</button>
+              {can('sav:delivery') && <button className="btn" disabled={busy || deliveredAt === day(d.delivered_at)} onClick={saveDate}>Enregistrer la date</button>}
             </div>
             {d.warranty_ends && (
               <p className="small muted">
@@ -140,7 +141,7 @@ function DeliveryReport({ onClose }) {
                 </ul>
               )}
             </section>
-            <form className="erp-panel stack" style={{ gap: 12 }} onSubmit={addReserve}>
+            {can('sav:reserves') && <form className="erp-panel stack" style={{ gap: 12 }} onSubmit={addReserve}>
               <b>Ajouter une réserve</b>
               <div className="form-grid">
                 <Field label="Réserve" className="full"><input className="input" required minLength={2} maxLength={255} value={form.label} onChange={e => setForm(f => ({ ...f, label: e.target.value }))} placeholder="Ex. Carreau fêlé devant la douche" /></Field>
@@ -155,7 +156,7 @@ function DeliveryReport({ onClose }) {
               </div>
               <PhotoPicker value={photos} onChange={setPhotos} leadId={sale.lead_id} />
               <div><button className="btn btn-primary btn-sm" disabled={busy}><Plus />Ajouter</button></div>
-            </form>
+            </form>}
           </>
         )}
       </div>

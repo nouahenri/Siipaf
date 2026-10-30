@@ -22,7 +22,8 @@ export default function Property() {
   const [editBuilding, setEditBuilding] = useState(null);
   const [bulk, setBulk] = useState(false);
   const data = useResource(projectId ? `/admin/erp/commercial/property?project_id=${projectId}` : null);
-  const write = can('property:write');
+  const writeBuildings = can('property:buildings');
+  const writeLots = can('property:lots');
 
   useEffect(() => {
     if (!projectId && meta?.projects.length) setParams({ project_id: String(meta.projects[0].id) }, { replace: true });
@@ -43,7 +44,7 @@ export default function Property() {
         <select className="select" style={{ width: 'auto' }} value={projectId} onChange={e => setParams({ project_id: e.target.value })} aria-label="Programme">
           {meta?.projects.map(p => <option key={p.id} value={p.id}>{p.name}</option>)}
         </select>
-        {write && <button className="btn" onClick={() => setEditBuilding({ ilot })}><Plus />Bâtiment</button>}
+        {writeBuildings && <button className="btn" onClick={() => setEditBuilding({ ilot })}><Plus />Bâtiment</button>}
       </div>
       <ErrorBox error={data.error} />
       {!d ? <Skeleton h={300} /> : (
@@ -75,7 +76,7 @@ export default function Property() {
 
             <div className="stack" style={{ minWidth: 0 }}>
               {building && (
-                <Card title={`${building.code}${building.name ? ` — ${building.name}` : ''}`} actions={write && (
+                <Card title={`${building.code}${building.name ? ` — ${building.name}` : ''}`} actions={writeBuildings && (
                   <span className="row" style={{ gap: 6 }}>
                     <button className="btn btn-sm btn-ghost btn-icon" onClick={() => setEditBuilding(building)} aria-label="Modifier le bâtiment"><Pencil /></button>
                     <DeleteBuilding building={building} onDone={() => { setBuildingId(''); data.reload(); }} />
@@ -103,17 +104,17 @@ export default function Property() {
                 </Card>
               )}
 
-              <Card bodyClass="" title={`${shown.length} lot(s)`} actions={write && selected.length > 0 && <button className="btn btn-sm btn-primary" onClick={() => setBulk(true)}>Affecter {selected.length} lot(s)</button>}>
+              <Card bodyClass="" title={`${shown.length} lot(s)`} actions={writeLots && selected.length > 0 && <button className="btn btn-sm btn-primary" onClick={() => setBulk(true)}>Affecter {selected.length} lot(s)</button>}>
                 {!shown.length ? <div className="card-body"><Empty icon={LandPlot}>Aucun lot ici.</Empty></div> : (
                   <div className="table-wrap"><table className="table">
                     <thead><tr>
-                      {write && <th><input type="checkbox" aria-label="Tout sélectionner" checked={selected.length === shown.length} onChange={e => setSelected(e.target.checked ? shown.map(l => l.id) : [])} /></th>}
+                      {writeLots && <th><input type="checkbox" aria-label="Tout sélectionner" checked={selected.length === shown.length} onChange={e => setSelected(e.target.checked ? shown.map(l => l.id) : [])} /></th>}
                       <th>Lot</th><th>Îlot</th><th>Type</th><th>Bâtiment · étage</th><th className="right">Pièces</th><th className="right">Surface</th><th className="right">Prix</th><th>Statut</th><th>Acquéreur / option</th><th className="right">Payé</th>
                     </tr></thead>
                     <tbody>
                       {shown.map(l => (
                         <tr key={l.id} className="clickable" onClick={() => setEditLot(l)}>
-                          {write && <td onClick={e => e.stopPropagation()}><input type="checkbox" aria-label={`Sélectionner le lot ${l.code}`} checked={selected.includes(l.id)} onChange={e => setSelected(s => (e.target.checked ? [...s, l.id] : s.filter(x => x !== l.id)))} /></td>}
+                          {writeLots && <td onClick={e => e.stopPropagation()}><input type="checkbox" aria-label={`Sélectionner le lot ${l.code}`} checked={selected.includes(l.id)} onChange={e => setSelected(s => (e.target.checked ? [...s, l.id] : s.filter(x => x !== l.id)))} /></td>}
                           <td><strong>{l.code}</strong></td>
                           <td>{l.ilot || '—'}</td>
                           <td className="small">{l.property_type || <span className="muted">—</span>}</td>
@@ -134,7 +135,7 @@ export default function Property() {
           </div>
         </>
       )}
-      {editLot && <LotEditor lot={editLot} buildings={d?.buildings || []} types={d?.project.property_types || []} write={write} onClose={() => setEditLot(null)} onSaved={() => { setEditLot(null); data.reload(); }} />}
+      {editLot && <LotEditor lot={editLot} buildings={d?.buildings || []} types={d?.project.property_types || []} write={writeLots} onClose={() => setEditLot(null)} onSaved={() => { setEditLot(null); data.reload(); }} />}
       {editBuilding && <BuildingModal projectId={projectId} building={editBuilding} ilots={ilots} onClose={() => setEditBuilding(null)} onSaved={() => { setEditBuilding(null); data.reload(); }} />}
       {bulk && <BulkModal lotIds={selected} buildings={d?.buildings || []} types={d?.project.property_types || []} onClose={() => setBulk(false)} onSaved={() => { setBulk(false); setSelected([]); data.reload(); }} />}
     </div>
@@ -206,7 +207,9 @@ function LotEditor({ lot, buildings, types, write, onClose, onSaved }) {
     try {
       await api.patch(`/admin/erp/commercial/lots/${lot.id}`, {
         property_type_id: n(f.property_type_id), building_id: n(f.building_id), floor: f.building_id ? n(f.floor) : null, rooms: n(f.rooms),
-        surface_m2: n(f.surface_m2), price_fcfa: n(f.price_fcfa), title_number: f.title_number || null, tantiemes: n(f.tantiemes),
+        title_number: f.title_number || null, tantiemes: n(f.tantiemes),
+        // Prix et surface sont ceux du plan de masse : « Créer et modifier les lots » en plus
+        ...(can('plans:lots') ? { surface_m2: n(f.surface_m2), price_fcfa: n(f.price_fcfa) } : {}),
       });
       saved("Lot enregistré"); onSaved();
     } catch (err) { setError(err); }
@@ -240,8 +243,8 @@ function LotEditor({ lot, buildings, types, write, onClose, onSaved }) {
                 {b && Array.from({ length: b.floors + 1 }, (_, k) => k).map(k => <option key={k} value={k}>{floorLabel(k)}</option>)}
               </select>
             </Field>
-            <Field label="Surface (m²)"><input className="input" type="number" min="0" step="0.01" value={f.surface_m2} onChange={set('surface_m2')} /></Field>
-            <Field label="Prix catalogue (FCFA)" hint={f.price_fcfa ? fcfa(f.price_fcfa) : undefined}><input className="input" type="number" min="0" step="1000" value={f.price_fcfa} onChange={set('price_fcfa')} /></Field>
+            <Field label="Surface (m²)"><input className="input" disabled={!can('plans:lots')} type="number" min="0" step="0.01" value={f.surface_m2} onChange={set('surface_m2')} /></Field>
+            <Field label="Prix catalogue (FCFA)" hint={f.price_fcfa ? fcfa(f.price_fcfa) : undefined}><input className="input" disabled={!can('plans:lots')} type="number" min="0" step="1000" value={f.price_fcfa} onChange={set('price_fcfa')} /></Field>
             <Field label="Titre foncier / ACD"><input className="input" maxLength={80} value={f.title_number} onChange={set('title_number')} placeholder="TF n° …" /></Field>
             <Field label="Tantièmes" hint="Copropriété : quote-part des parties communes"><input className="input" type="number" min="0" value={f.tantiemes} onChange={set('tantiemes')} /></Field>
           </fieldset>

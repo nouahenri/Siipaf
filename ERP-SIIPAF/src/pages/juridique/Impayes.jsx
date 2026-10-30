@@ -28,7 +28,7 @@ export default function Impayes() {
           <button className={!all ? 'active' : ''} onClick={() => setAll(false)}>Transmis au Juridique</button>
           <button className={all ? 'active' : ''} onClick={() => setAll(true)}>Tous les retards</button>
         </div>
-        {d && <span className="small muted">Transmis à partir de {d.threshold} jours de retard {can('juridique:write') && <>· <Link to="/juridique/reglages">régler le seuil</Link></>}</span>}
+        {d && <span className="small muted">Transmis à partir de {d.threshold} jours de retard {can('juridique:settings') && <>· <Link to="/juridique/reglages">régler le seuil</Link></>}</span>}
       </div>
       <Card bodyClass="">
         <ErrorBox error={res.error} />
@@ -45,7 +45,7 @@ export default function Impayes() {
                 <td className="right tabular">{fcfa(u.overdue_fcfa)}<div className="small muted">{u.overdue_count} échéance(s)</div></td>
                 <td className="small nowrap">{date(u.oldest_due)}<div><Badge tone={u.transmitted ? 'danger' : 'warn'}>{u.days_late} jours</Badge></div></td>
                 <td>{u.litigation ? <Link to={`/juridique/litiges?fiche=${u.litigation.id}`}>{u.litigation.reference}</Link>
-                  : can('juridique:write') ? <button className="btn btn-sm" onClick={() => litigate(u)}><Scale />Ouvrir un litige</button> : '—'}</td>
+                  : can('juridique:litigation') ? <button className="btn btn-sm" onClick={() => litigate(u)}><Scale />Ouvrir un litige</button> : '—'}</td>
               </tr>
             ))}</tbody>
           </table></div>

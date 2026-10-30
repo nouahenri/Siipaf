@@ -28,7 +28,7 @@ before(async () => {
 });
 after(() => db.destroy());
 
-test('référentiel : indicateurs repris, droit kpi:write, doublons et niveaux contrôlés', async () => {
+test('référentiel : indicateurs repris, droits kpi:indicators, kpi:templates et kpi:department, doublons et niveaux contrôlés', async () => {
   let res = await commercial.get(`${R}/kpis`);
   assert.equal(res.status, 200, 'lecture ouverte (formulaires des responsables)');
   kpis = res.body.kpis;

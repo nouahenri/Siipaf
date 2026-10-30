@@ -25,16 +25,18 @@ const page = req => ({
 module.exports = function savRoutes(db) {
   const r = express.Router();
   const read = requirePermission('sav:read');
-  // Actions du SAV (Rôles & privilèges) : créer, traiter, attribuer, réserves, interventions
+  // Actions du SAV (Rôles & privilèges) : créer, modifier, statut, commenter, attribuer, livraison, réserves, interventions
   const create = requirePermission('sav:create');
-  const handle = requirePermission('sav:handle');
+  const statusRight = requirePermission('sav:status');
+  const commentRight = requirePermission('sav:comment');
+  const deliveryRight = requirePermission('sav:delivery');
   const reservesRight = requirePermission('sav:reserves');
   const interventionsRight = requirePermission('sav:interventions');
-  const anyWrite = requirePermission('sav:create', 'sav:handle', 'sav:reserves', 'sav:interventions');
+  const anyWrite = requirePermission('sav:create', 'sav:edit', 'sav:status', 'sav:comment', 'sav:reserves', 'sav:interventions');
 
   // Référentiels utiles aux écrans (libellés, passages de statut, techniciens)
   r.get('/meta', read, ah(async (req, res) => {
-    const techs = db('role_permissions').whereIn('permission', ['sav:handle', 'sav:interventions']).select('role');
+    const techs = db('role_permissions').whereIn('permission', ['sav:edit', 'sav:status', 'sav:comment', 'sav:interventions']).select('role');
     const users = await db('users').where({ active: true })
       .where(q => q.whereIn('role', techs).orWhere('role', 'super_admin')).orderBy('name').select('id', 'name', 'role');
     res.json({
@@ -109,7 +111,7 @@ module.exports = function savRoutes(db) {
     res.json(await sav.ticketDetail(db, idParam(req)));
   }));
 
-  r.patch('/tickets/:id', requirePermission('sav:handle', 'sav:assign'), ah(async (req, res) => {
+  r.patch('/tickets/:id', requirePermission('sav:edit', 'sav:assign'), ah(async (req, res) => {
     const id = idParam(req);
     await sav.ticketInScope(db, id, req.user);
     const data = parse(z.object({
@@ -122,7 +124,7 @@ module.exports = function savRoutes(db) {
     const t = await db('sav_tickets').where({ id }).first();
     if (!t) throw new HttpError(404, 'Réclamation introuvable.');
     if (data.assigned_to !== undefined && data.assigned_to !== t.assigned_to && !req.can('sav:assign')) throw new HttpError(403, 'Attribuer une réclamation demande le droit « Attribuer les réclamations ».');
-    if (Object.keys(data).some(k => k !== 'assigned_to') && !req.can('sav:handle')) throw new HttpError(403, 'Modifier une réclamation demande le droit « Traiter les réclamations ».');
+    if (Object.keys(data).some(k => k !== 'assigned_to') && !req.can('sav:edit')) throw new HttpError(403, 'Modifier une réclamation demande le droit « Modifier la réclamation ».');
     const patch = { ...data, updated_at: new Date() };
     // Un changement de priorité recalcule l'échéance depuis la date de dépôt
     if (data.priority && data.priority !== t.priority) patch.due_at = await sav.dueFrom(db, data.priority, new Date(t.created_at));
@@ -147,14 +149,14 @@ module.exports = function savRoutes(db) {
     res.json(await sav.ticketDetail(db, id));
   }));
 
-  r.post('/tickets/:id/status', handle, ah(async (req, res) => {
+  r.post('/tickets/:id/status', statusRight, ah(async (req, res) => {
     const { status, note } = parse(z.object({ status: z.enum(SAV_STATUSES), note: optText(1000) }), req.body);
     await sav.ticketInScope(db, idParam(req), req.user);
     await sav.changeStatus(db, idParam(req), status, { userId: req.user.id, note });
     res.json(await sav.ticketDetail(db, idParam(req)));
   }));
 
-  r.post('/tickets/:id/comments', handle, ah(async (req, res) => {
+  r.post('/tickets/:id/comments', commentRight, ah(async (req, res) => {
     const data = parse(z.object({
       body: z.string().trim().min(1, 'Message vide.').max(4000), internal: z.boolean().default(false), media_ids: ids,
     }), req.body);
@@ -202,7 +204,7 @@ module.exports = function savRoutes(db) {
   }));
 
   // Date du procès-verbal de livraison : point de départ des garanties
-  r.patch('/sales/:id/delivery', reservesRight, ah(async (req, res) => {
+  r.patch('/sales/:id/delivery', deliveryRight, ah(async (req, res) => {
     const { delivered_at } = parse(z.object({ delivered_at: day.nullable() }), req.body);
     await sav.saleInScope(db, idParam(req), req.user);
     const n = await db('sales').where({ id: idParam(req) }).update({ delivered_at, updated_at: new Date() });

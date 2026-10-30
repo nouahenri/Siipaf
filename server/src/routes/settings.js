@@ -37,7 +37,7 @@ module.exports = function settingsRoutes(db) {
     });
   }));
 
-  r.post('/refs', requirePermission('settings:write'), ah(async (req, res) => {
+  r.post('/refs', requirePermission('settings:refs'), ah(async (req, res) => {
     const data = parse(z.object({
       kind: z.enum(Object.keys(REF_KINDS)),
       label: z.string().trim().min(1, 'Libellé requis').max(120),
@@ -57,7 +57,7 @@ module.exports = function settingsRoutes(db) {
     res.status(201).json(await db('ref_items').where({ id }).first());
   }));
 
-  r.patch('/refs/:id', requirePermission('settings:write'), ah(async (req, res) => {
+  r.patch('/refs/:id', requirePermission('settings:refs'), ah(async (req, res) => {
     const id = idParam(req);
     const item = await db('ref_items').where({ id }).first();
     if (!item) throw new HttpError(404, 'Valeur introuvable.');
@@ -109,7 +109,7 @@ module.exports = function settingsRoutes(db) {
   }));
 
   // Ordre d'affichage d'une liste
-  r.put('/refs/order', requirePermission('settings:write'), ah(async (req, res) => {
+  r.put('/refs/order', requirePermission('settings:refs'), ah(async (req, res) => {
     const { ids } = parse(z.object({ ids: z.array(z.number().int().positive()).max(1000) }), req.body);
     await db.transaction(async trx => {
       for (const [sort, id] of ids.entries()) await trx('ref_items').where({ id }).update({ sort });
@@ -117,7 +117,7 @@ module.exports = function settingsRoutes(db) {
     res.json({ ok: true });
   }));
 
-  r.delete('/refs/:id', requirePermission('settings:write'), ah(async (req, res) => {
+  r.delete('/refs/:id', requirePermission('settings:refs'), ah(async (req, res) => {
     const id = idParam(req);
     const item = await db('ref_items').where({ id }).first();
     if (!item) throw new HttpError(404, 'Valeur introuvable.');
@@ -130,7 +130,7 @@ module.exports = function settingsRoutes(db) {
   }));
 
   // Libellés des états d'une liste à états (viabilisation, documents du bien) ; vide = libellé d'origine
-  r.put('/refs/states/:kind', requirePermission('settings:write'), ah(async (req, res) => {
+  r.put('/refs/states/:kind', requirePermission('settings:refs'), ah(async (req, res) => {
     const kind = req.params.kind;
     if (!REF_KINDS[kind]?.states) throw new HttpError(404, 'Cette liste n’a pas d’états.');
     const values = parse(z.object(Object.fromEntries(STATE_KEYS.map(s => [s, z.string().trim().max(40).optional()]))), req.body);
@@ -148,7 +148,7 @@ module.exports = function settingsRoutes(db) {
     res.json({ values: await getSettings(db), fields: APP_SETTINGS });
   }));
 
-  r.put('/settings', requirePermission('settings:write'), ah(async (req, res) => {
+  r.put('/settings', requirePermission('settings:general'), ah(async (req, res) => {
     // Réglage en liste : « 6, 12, 24 » (au moins une durée valable) ; les autres sont des entiers bornés
     const listOf = (k, f) => z.string().max(200).refine(t => monthChoices(t).length > 0, `${f.label} : au moins une durée entre ${f.min} et ${f.max} mois.`)
       .transform(t => monthChoices(t).join(', '));

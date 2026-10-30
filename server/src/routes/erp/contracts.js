@@ -38,7 +38,7 @@ module.exports = function contractRoutes(db) {
   r.get('/badges', ah(async (req, res) => res.json(await contracts.badges(db, v(req)))));
 
   r.get('/refs', ah(async (req, res) => {
-    const can = req.can('contrats:write');
+    const can = ['contrats:write', 'contrats:close', 'contrats:documents'].some(p => req.can(p));
     const [suppliers, projects, users] = can ? await Promise.all([
       db('suppliers').where({ active: true }).orderBy('name').select('id', 'name', 'kind'),
       db('projects').orderBy('name').select('id', 'name'),
@@ -56,7 +56,7 @@ module.exports = function contractRoutes(db) {
 
   r.get('/', ah(async (req, res) => {
     const q = contracts.query(db).orderBy('c.reference', 'desc');
-    if (!req.can('contrats:read') && !req.can('contrats:write')) q.where('c.owner_id', req.user.id);
+    if (!req.can('contrats:read') && !['contrats:write', 'contrats:close', 'contrats:documents'].some(p => req.can(p))) q.where('c.owner_id', req.user.id);
     if (req.query.status) q.whereIn('c.status', String(req.query.status).split(','));
     if (req.query.kind) q.where('c.kind', String(req.query.kind));
     if (req.query.supplier_id) q.where('c.supplier_id', Number(req.query.supplier_id));
@@ -85,13 +85,13 @@ module.exports = function contractRoutes(db) {
     await contracts.update(db, c, clean(parse(contractSchema.partial(), req.body)), { file: req.file });
     res.json(await contracts.detail(db, c.id));
   }));
-  r.post('/:id/close', write, ah(async (req, res) => {
+  r.post('/:id/close', requirePermission('contrats:close'), ah(async (req, res) => {
     const c = await contracts.load(db, idParam(req));
     const data = parse(z.object({ status: z.enum(['resilie', 'termine']), date: day, reason: z.string().trim().max(255).optional() }), req.body);
     await contracts.close(db, c, data);
     res.json(await contracts.detail(db, c.id));
   }));
-  r.post('/:id/reopen', write, ah(async (req, res) => {
+  r.post('/:id/reopen', requirePermission('contrats:close'), ah(async (req, res) => {
     const c = await contracts.load(db, idParam(req));
     await contracts.reopen(db, c);
     res.json(await contracts.detail(db, c.id));
@@ -104,7 +104,7 @@ module.exports = function contractRoutes(db) {
   }));
 
   // ─── Pièces à renouveler ──────────────────────────────────
-  r.post('/:id/documents', write, contracts.fileUpload(), guarded(async (req, res) => {
+  r.post('/:id/documents', requirePermission('contrats:documents'), contracts.fileUpload(), guarded(async (req, res) => {
     const c = await contracts.load(db, idParam(req));
     await contracts.addDocument(db, c, parse(docSchema, req.body), { file: req.file, userId: req.user.id });
     res.status(201).json(await contracts.detail(db, c.id));
@@ -114,12 +114,12 @@ module.exports = function contractRoutes(db) {
     if (!d) throw new HttpError(404, 'Pièce introuvable.');
     return d;
   }
-  r.patch('/documents/:id', write, contracts.fileUpload(), guarded(async (req, res) => {
+  r.patch('/documents/:id', requirePermission('contrats:documents'), contracts.fileUpload(), guarded(async (req, res) => {
     const d = await loadDoc(req);
     await contracts.updateDocument(db, d, parse(docSchema.partial(), req.body), { file: req.file });
     res.json(await contracts.detail(db, d.contract_id));
   }));
-  r.delete('/documents/:id', write, ah(async (req, res) => {
+  r.delete('/documents/:id', requirePermission('contrats:documents'), ah(async (req, res) => {
     const d = await loadDoc(req);
     await contracts.deleteDocument(db, d);
     res.json(await contracts.detail(db, d.contract_id));

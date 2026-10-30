@@ -109,7 +109,7 @@ function ExpenseDrawer({ id, onClose, onChange }) {
               <button className="btn btn-primary" disabled={busy} onClick={() => act('post', d.paid_by === 'societe' ? { journal } : {})}><BookOpen />Comptabiliser</button>
             </div>
           )}
-          {d.status === 'comptabilisee' && can('frais:post') && (
+          {d.status === 'comptabilisee' && can('frais:reimburse') && (
             <div className="erp-panel form-grid">
               <Field label="Remboursé par"><select className="select" value={payJournal} onChange={e => setPayJournal(e.target.value)}>{Object.entries(JOURNALS).map(([k, v]) => <option key={k} value={k}>{v}</option>)}</select></Field>
               <Field label="Date"><input className="input" type="date" value={payDate} onChange={e => setPayDate(e.target.value)} /></Field>

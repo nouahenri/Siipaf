@@ -18,7 +18,7 @@ const HINTS = {
 
 export default function JuridiqueSettings() {
   const { can } = useAuth();
-  const write = can('juridique:write');
+  const write = can('juridique:settings');
   const saved = useSaved();
   const toast = useToast();
   const refs = useResource(`${JUR}/refs`);

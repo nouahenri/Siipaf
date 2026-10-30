@@ -123,7 +123,7 @@ function Progress({ projectId }) {
           </div>
         )}
       </Card>
-      {can('chantiers:direction') ? (
+      {can('chantiers:stages') ? (
         <Card title="Déclarer une étape atteinte (Direction)">
           <form className="stack" style={{ gap: 12 }} onSubmit={record}>
             <ErrorBox error={error} />

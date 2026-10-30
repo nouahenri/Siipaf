@@ -23,7 +23,7 @@ module.exports = function requestRoutes(db) {
       kinds: REQUEST_KINDS, statuses: REQUEST_STATUSES, services: Object.fromEntries(Object.entries(REQUEST_SERVICES).map(([k, s]) => [k, s.label])), threshold: await getSetting(db, 'request_dg_threshold'),
       departments: DEPARTMENTS, my_departments: req.depts,
       projects: await db('projects').orderBy('name').select('id', 'name'),
-      suppliers: handle ? await db('suppliers').where({ active: true }).orderBy('name').select('id', 'name') : [],
+      suppliers: handle && req.can('demandes:invoice') ? await db('suppliers').where({ active: true }).orderBy('name').select('id', 'name') : [],
     });
   }));
   r.get('/badges', ah(async (req, res) => res.json(await requests.badges(db, v(req)))));

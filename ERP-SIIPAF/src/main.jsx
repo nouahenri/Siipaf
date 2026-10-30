@@ -92,8 +92,8 @@ function AdminHome() {
   const { can } = useAuth();
   if (can('direction:read')) return <Direction />;
   const first = [
-    [['courrier:read', 'courrier:write', 'courrier:assign'], '/administration/courrier'], [['contrats:read', 'contrats:write'], '/administration/contrats'],
-    [['parc:read', 'parc:write'], '/administration/parc'], [['demandes:handle', 'demandes:dg', 'appro:validate', 'appro:direction'], '/administration/demandes'], [['docs:publish'], '/administration/documents'], [['lieux:write'], '/administration/lieux'],
+    [['courrier:read', 'courrier:write', 'courrier:assign'], '/administration/courrier'], [['contrats:read', 'contrats:write', 'contrats:close', 'contrats:documents'], '/administration/contrats'],
+    [['parc:read', 'parc:write', 'parc:maintenance', 'parc:costs', 'parc:reservations'], '/administration/parc'], [['demandes:handle', 'demandes:view_all', 'demandes:dg', 'appro:validate', 'appro:direction'], '/administration/demandes'], [['docs:publish'], '/administration/documents'], [['lieux:write'], '/administration/lieux'],
     [['circuit:write'], '/administration/circuit'],
   ].find(([perms]) => perms.some(can));
   return <Navigate to={first ? first[1] : '/administration/courrier'} replace />;
@@ -133,7 +133,7 @@ function App() {
         <Route path="commercial/parc" element={<Guard perm="commercial:read"><Guard perm="lots:read"><Property /></Guard></Guard>} />
         <Route path="commercial/ventes" element={<Guard perm="commercial:read"><Guard perm="sales:read"><Sales /></Guard></Guard>} />
         {['compta', 'sav', 'administration'].map(m => <Route key={`${m}-ventes`} path={`${m}/ventes`} element={<Guard perm="sales:read"><Sales /></Guard>} />)}
-        <Route path="commercial/vefa" element={<Guard perm={['commercial:read', 'vefa:write']}><Vefa /></Guard>} />
+        <Route path="commercial/vefa" element={<Guard perm={['commercial:read', 'vefa:read', 'vefa:write']}><Vefa /></Guard>} />
         <Route path="commercial/objectifs" element={<Guard perm="commercial:read"><Targets /></Guard>} />
         <Route path="commercial/reglages" element={<ModuleSettings module="commercial" />} />
         <Route path="compta" element={<Guard perm="compta:read"><ComptaDashboard /></Guard>} />
@@ -155,8 +155,8 @@ function App() {
         <Route path="rh/personnel" element={<Guard perm="rh:read"><Staff /></Guard>} />
         <Route path="rh/personnel/:id" element={<EmployeeFile />} />
         <Route path="rh/conges" element={<Leaves />} />
-        <Route path="rh/presences" element={<Guard perm={['rh:read', 'presence:write']}><Attendance /></Guard>} />
-        <Route path="rh/borne" element={<Guard perm="presence:write"><Kiosk /></Guard>} />
+        <Route path="rh/presences" element={<Guard perm={['rh:read', 'presence:sheets', 'presence:kiosk', 'presence:correct']}><Attendance /></Guard>} />
+        <Route path="rh/borne" element={<Guard perm="presence:kiosk"><Kiosk /></Guard>} />
         <Route path="rh/frais" element={<Expenses />} />
         <Route path="rh/recrutement" element={<Guard perm="rh:read"><Recruitment /></Guard>} />
         <Route path="rh/competences" element={<Guard perm="rh:read"><Skills /></Guard>} />
@@ -168,7 +168,7 @@ function App() {
         <Route path="administration" element={<AdminHome />} />
         <Route path="administration/courrier" element={<Courrier />} />
         <Route path="administration/contrats" element={<Contrats />} />
-        <Route path="administration/parc" element={<Guard perm={['parc:read', 'parc:write']}><Parc /></Guard>} />
+        <Route path="administration/parc" element={<Guard perm={['parc:read', 'parc:write', 'parc:maintenance', 'parc:costs', 'parc:reservations']}><Parc /></Guard>} />
         <Route path="administration/documents" element={<Documents />} />
         <Route path="administration/demandes" element={<Demandes />} />
         <Route path="administration/lieux" element={<Guard perm={['lieux:write', 'direction:read']}><Lieux /></Guard>} />
@@ -185,7 +185,7 @@ function App() {
         <Route path="juridique/acces" element={<Guard perm="users:read"><ModuleAccess module="juridique" label="Juridique" /></Guard>} />
         <Route path="chantiers" element={<Navigate to="/chantiers/liste" replace />} />
         <Route path="chantiers/liste" element={<Chantiers />} />
-        <Route path="chantiers/reglages" element={<Settings module="chantiers" perm={['chantiers:read', 'chantiers:write', 'chantiers:direction', 'direction:read']} who="les gestionnaires des chantiers"><ChantiersSettings /></Settings>} />
+        <Route path="chantiers/reglages" element={<Settings module="chantiers" perm={['chantiers:read', 'chantiers:create', 'chantiers:plan', 'chantiers:budget', 'chantiers:settings', 'chantiers:tma', 'chantiers:stages', 'chantiers:situations', 'direction:read']} who="les gestionnaires des chantiers"><ChantiersSettings /></Settings>} />
         <Route path="chantiers/:id" element={<Chantier />} />
         <Route path="chantiers/acces" element={<Guard perm="users:read"><ModuleAccess module="chantiers" label="Chantiers" /></Guard>} />
         <Route path="compta/acces" element={<Guard perm="users:read"><ModuleAccess module="compta" label="Comptabilité et paie" /></Guard>} />

@@ -31,9 +31,9 @@ function DueBadge({ item }) {
  */
 export default function Parc() {
   const { can } = useAuth();
-  const write = can('parc:write');
+  const write = can('parc:write'), reservations = can('parc:reservations');
   // Onglets de la Comptabilité (choix du client du 23/10) : dépenses à valider, cartes carburant, immobilisations
-  const compta = can('achats:write') || can('compta:read');
+  const compta = can('achats:write') || can('achats:validate') || can('compta:read');
   const [params, setParams] = useSearchParams();
   const [tab, setTab] = useState(params.get('onglet') || 'biens');
   const [kind, setKind] = useState('');
@@ -95,7 +95,7 @@ export default function Parc() {
         </Card>
       )}
       {tab === 'echeances' && <Deadlines onOpen={setOpen} />}
-      {tab === 'reservations' && <Reservations write={write} onChange={badges.reload} />}
+      {tab === 'reservations' && <Reservations write={reservations} onChange={badges.reload} />}
       {tab === 'couts' && <Costs />}
       {compta && tab === 'valider' && <CostsToValidate onOpen={setOpen} onChange={badges.reload} />}
       {compta && tab === 'cartes' && <FuelCards />}
@@ -250,6 +250,7 @@ function Costs() {
 }
 
 function AssetDrawer({ id, refs, write, onClose, onChange, onEdit }) {
+  const { can: allowed } = useAuth();
   const toast = useToast();
   const x = useResource(`${URL}/assets/${id}`);
   const a = x.data;
@@ -281,13 +282,13 @@ function AssetDrawer({ id, refs, write, onClose, onChange, onEdit }) {
           </div>
           {a.notes && <p className="small" style={{ whiteSpace: 'pre-wrap', margin: 0 }}>{a.notes}</p>}
 
-          {write && a.status !== 'reforme' && (
+          {(write || allowed('parc:costs')) && a.status !== 'reforme' && (
             <div className="row" style={{ gap: 8, flexWrap: 'wrap' }}>
-              {a.status === 'affecte' ? <button className="btn" onClick={() => setPanel('release')}><Undo2 />{a.project_id ? 'Retour au dépôt' : 'Restitution'}</button>
-                : <button className="btn btn-primary" onClick={() => setPanel('assign')}><UserRound />Affecter</button>}
-              {a.status === 'affecte' && <button className="btn btn-ghost" onClick={() => setPanel('assign')}><HardHat />Réaffecter</button>}
-              <button className="btn" onClick={() => setPanel('cost')}><Fuel />Dépense ou plein</button>
-              <button className="btn btn-ghost" onClick={() => onEdit(a)}><Pencil />Modifier</button>
+              {write && (a.status === 'affecte' ? <button className="btn" onClick={() => setPanel('release')}><Undo2 />{a.project_id ? 'Retour au dépôt' : 'Restitution'}</button>
+                : <button className="btn btn-primary" onClick={() => setPanel('assign')}><UserRound />Affecter</button>)}
+              {write && a.status === 'affecte' && <button className="btn btn-ghost" onClick={() => setPanel('assign')}><HardHat />Réaffecter</button>}
+              {allowed('parc:costs') && <button className="btn" onClick={() => setPanel('cost')}><Fuel />Dépense ou plein</button>}
+              {write && <button className="btn btn-ghost" onClick={() => onEdit(a)}><Pencil />Modifier</button>}
             </div>
           )}
           {panel === 'assign' && <AssignPanel a={a} refs={refs} onCancel={() => setPanel(null)} onSubmit={body => call('post', `/assets/${a.id}/assign`, body, 'Affectation enregistrée')} />}
@@ -311,7 +312,7 @@ function AssetDrawer({ id, refs, write, onClose, onChange, onEdit }) {
           </div>
 
           <div className="erp-panel">
-            <div className="row-between"><b>Entretien</b>{write && <button className="btn btn-ghost btn-sm" onClick={() => setPanel(panel === 'plan' ? null : 'plan')}><Plus />Plan d’entretien</button>}</div>
+            <div className="row-between"><b>Entretien</b>{allowed('parc:maintenance') && <button className="btn btn-ghost btn-sm" onClick={() => setPanel(panel === 'plan' ? null : 'plan')}><Plus />Plan d’entretien</button>}</div>
             {panel === 'plan' && <PlanForm a={a} onCancel={() => setPanel(null)} onSubmit={body => call('post', `/assets/${a.id}/plans`, body, 'Plan d’entretien ajouté')} />}
             {!a.plans.length ? <p className="small muted" style={{ margin: '6px 0 0' }}>Vidange tous les 10 000 km ou 6 mois, révision toutes les 250 heures…</p> : a.plans.map(p => (
               <div key={p.id} className="kv">
@@ -319,7 +320,7 @@ function AssetDrawer({ id, refs, write, onClose, onChange, onEdit }) {
                 <b className="row" style={{ gap: 6, justifyContent: 'flex-end', flexWrap: 'wrap', textAlign: 'right' }}>
                   <span>{[p.next_date && date(p.next_date), p.next_meter != null && meter(p.next_meter, a.meter)].filter(Boolean).join(' ou ')}</span>
                   <Badge tone={STATE[p.state][0]}>{STATE[p.state][1]}</Badge>
-                  {write && <button className="btn btn-ghost btn-icon" onClick={() => remove(`/plans/${p.id}`, p.label)} aria-label={`Retirer ${p.label}`}><Trash2 /></button>}
+                  {allowed('parc:maintenance') && <button className="btn btn-ghost btn-icon" onClick={() => remove(`/plans/${p.id}`, p.label)} aria-label={`Retirer ${p.label}`}><Trash2 /></button>}
                 </b>
               </div>
             ))}

@@ -144,7 +144,7 @@ function AllLeaves() {
           <select className="select" style={{ width: 'auto' }} value={type} onChange={e => setType(e.target.value)} aria-label="Type"><option value="">Tous les types</option>{meta && Object.entries(meta.leave_types).map(([k, t]) => <option key={k} value={k}>{t.label}</option>)}</select>
           {meta?.employees.length > 0 && <select className="select" style={{ width: 'auto' }} value={employee} onChange={e => setEmployee(e.target.value)} aria-label="Employé"><option value="">Tout le personnel</option>{meta.employees.map(e => <option key={e.id} value={e.id}>{e.last_name} {e.first_name}</option>)}</select>}
         </div>
-        {can('conges:manage') && meta?.employees.length > 0 && (
+        {can('conges:enter') && meta?.employees.length > 0 && (
           <select className="select" style={{ width: 'auto' }} value="" onChange={e => setCreating(meta.employees.find(x => x.id === Number(e.target.value)))} aria-label="Saisir une absence pour">
             <option value="">+ Saisir une absence pour…</option>{meta.employees.map(e => <option key={e.id} value={e.id}>{e.last_name} {e.first_name}</option>)}
           </select>
@@ -164,7 +164,7 @@ function AllLeaves() {
                   <td className="right tabular">{l.days}</td>
                   <td><LeaveBadge leave={l} meta={meta} /></td>
                   <td className="small muted">{l.decided_by_name || l.manager_name || '—'}{l.decision_note && <div className="prewrap">{l.decision_note}</div>}</td>
-                  <td className="right">{can('conges:manage') && ['en_attente', 'approuve_manager', 'approuvee'].includes(l.status) && <button className="btn btn-ghost btn-sm" onClick={() => setCancelling(l)}>Annuler</button>}</td>
+                  <td className="right">{can('conges:cancel') && ['en_attente', 'approuve_manager', 'approuvee'].includes(l.status) && <button className="btn btn-ghost btn-sm" onClick={() => setCancelling(l)}>Annuler</button>}</td>
                 </tr>
               ))}
             </tbody>

@@ -2,7 +2,7 @@
  * Fiche employé : un seul formulaire et une seule règle d'enregistrement pour Ressources humaines et Comptabilité
  * (demande du client du 29/10). Chaque groupe de champs reste au droit qui le gouverne :
  * identité, contrat, responsable → « Gérer les dossiers du personnel » (rh:files) ou « Gérer les fiches salariés » (paie:employees) ;
- * salaire, indemnités, paiement, parts fiscales, expatriation → paie:employees ; solde de congés repris → conges:manage.
+ * salaire, indemnités, paiement, parts fiscales, expatriation → paie:salary ; solde de congés repris → conges:adjust.
  */
 const { z } = require('zod');
 const { HttpError } = require('../lib/http');
@@ -35,7 +35,7 @@ const employeeSchema = z.object({
   leave_opening_days: z.number().min(-60).max(200).optional().nullable(), leave_opening_date: day.optional().nullable(),
 });
 
-/** Champs de la paie : réservés au droit « Gérer les fiches salariés ». */
+/** Champs de la paie : réservés au droit « Salaire et paiement » (paie:salary). */
 const PAY_FIELDS = ['base_salary', 'housing_allowance', 'transport_allowance', 'other_allowance', 'site_hourly_rate', 'accident_rate', 'pay_method', 'bank_account', 'tax_parts', 'expatriate'];
 const LEAVE_FIELDS = ['leave_opening_days', 'leave_opening_date'];
 
@@ -67,8 +67,8 @@ async function guardUserLink(db, userId, { user, can }) {
 async function update(db, id, data, { user, can }) {
   const superAdmin = user.role === 'super_admin';
   if (!can('rh:files') && !can('paie:employees')) throw new HttpError(403, 'Droits insuffisants.');
-  if (PAY_FIELDS.some(k => k in data) && !can('paie:employees')) throw new HttpError(403, 'Salaire, indemnités et paiement se règlent avec le droit « Gérer les fiches salariés » (Comptabilité).');
-  if (LEAVE_FIELDS.some(k => k in data) && !can('conges:manage')) throw new HttpError(403, 'Le solde d’ouverture des congés se règle avec le droit « Gérer les absences ».');
+  if (PAY_FIELDS.some(k => k in data) && !can('paie:salary')) throw new HttpError(403, 'Salaire, indemnités et paiement se règlent avec le droit « Salaire et paiement » (Comptabilité).');
+  if (LEAVE_FIELDS.some(k => k in data) && !can('conges:adjust')) throw new HttpError(403, 'Le solde d’ouverture des congés se règle avec le droit « Ajuster les soldes ».');
   const before = await db('employees').where({ id }).first();
   if (!before) throw new HttpError(404, 'Employé introuvable.');
   if (before.user_id === user.id && !superAdmin) throw new HttpError(403, 'Votre propre fiche se modifie par le service RH ou la Comptabilité (vos coordonnées : Mon espace).');

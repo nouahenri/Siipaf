@@ -1,5 +1,5 @@
 /**
- * ERP · Administration générale › Parc auto et matériel. Les services généraux gèrent (parc:write) : biens,
+ * ERP · Administration générale › Parc auto et matériel. Les services généraux gèrent (parc:write, parc:maintenance, parc:costs, parc:reservations) : biens,
  * affectations à un employé ou à un chantier, échéances administratives, plans d'entretien, dépenses (carburant,
  * entretien, réparations…) imputées au chantier ; l'employé demande un véhicule depuis Mon espace (self:vehicule).
  * Alertes 30 puis 7 jours avant au responsable du bien et au responsable d'exploitation. Règles dans lib/domain.js.
@@ -201,7 +201,7 @@ async function setStatus(db, a, status) {
   // Bien immobilisé réformé : le comptable passe sa sortie de l'actif (Comptabilité › Parc › Immobilisations)
   if (status === 'reforme' && a.fixed_value && !a.disposal_entry_id) {
     await notify(db, {
-      to: await usersWith(db, 'compta:entries'), module: 'compta', event: 'parc.reforme', title: `Bien réformé à sortir de l’actif : ${a.code} ${a.name}`,
+      to: await usersWith(db, 'compta:assets'), module: 'compta', event: 'parc.reforme', title: `Bien réformé à sortir de l’actif : ${a.code} ${a.name}`,
       link: '/compta/parc?onglet=immobilisations', priority: 'action', key: `parc_reforme:${a.id}`,
     });
   }
@@ -343,7 +343,7 @@ async function request(db, data, { user }) {
   const id = insertedId(i);
   // Lien RH (Mon espace) → services généraux
   await notify(db, {
-    to: await usersWith(db, 'parc:write'), except: user.id, module: 'administration', event: 'vehicule.demande',
+    to: await usersWith(db, 'parc:reservations'), except: user.id, module: 'administration', event: 'vehicule.demande',
     title: `Demande de véhicule de ${user.name}${data.department ? ` pour le service ${require('../lib/paie').DEPARTMENTS[data.department]}` : ''}`, body: `Du ${fr(data.start_at.slice(0, 10))} ${data.start_at.slice(11)} au ${fr(data.end_at.slice(0, 10))} ${data.end_at.slice(11)} — ${data.purpose}`,
     link: '/administration/parc?onglet=reservations', priority: 'action', key: `vehicule:${id}:demande`,
   });
@@ -444,12 +444,12 @@ async function tick(db, day = today()) {
 }
 
 async function badges(db, { can, userId }) {
-  const manage = can('parc:read') || can('parc:write');
+  const manage = ['parc:read', 'parc:write', 'parc:maintenance', 'parc:costs', 'parc:reservations'].some(p => can(p));
   const items = manage ? await deadlines(db, { days: 30 }) : [];
-  const requests = can('parc:write') ? Number((await db('asset_reservations').where({ status: 'demandee' }).count({ n: '*' }).first()).n || 0) : 0;
+  const requests = can('parc:reservations') ? Number((await db('asset_reservations').where({ status: 'demandee' }).count({ n: '*' }).first()).n || 0) : 0;
   const mine = Number((await db('asset_reservations').where({ requested_by: userId }).whereIn('status', ['demandee', 'accordee']).count({ n: '*' }).first()).n || 0);
   // Dépenses à valider par la Comptabilité (pastille de l'onglet « À valider »)
-  const costs = can('achats:write') || can('compta:read') ? (await require('./parcCompta').pendingCosts(db)).length : 0;
+  const costs = can('achats:write') || can('achats:validate') || can('compta:read') ? (await require('./parcCompta').pendingCosts(db)).length : 0;
   return { due: items.length, late: items.filter(x => x.state === 'du').length, requests, my_reservations: mine, costs_to_validate: costs };
 }
 

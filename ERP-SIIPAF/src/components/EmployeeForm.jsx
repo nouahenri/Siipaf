@@ -34,7 +34,7 @@ export default function EmployeeForm({ employee, onClose, onSaved }) {
   const staff = useResource('/admin/erp/paie/employees?active=1');
   const isNew = !employee.id;
   // Salaire inconnu (fiche lue sans le droit paie) : jamais renvoyé, pour ne pas l'écraser
-  const seePay = isNew || employee.base_salary !== undefined, canPay = can('paie:employees') && seePay, canLeave = can('conges:manage'), canLink = isNew || can('users:edit'); // changer le compte d'une fiche existante : « Modifier un compte »
+  const seePay = isNew || employee.base_salary !== undefined, canPay = can('paie:salary') && seePay, canLeave = can('conges:adjust'), canLink = isNew || can('users:edit'); // changer le compte d'une fiche existante : « Modifier un compte »
   // Fiche existante : poste et service changent par « Changer de poste » (date d'effet, motif, historique) quand on tient les dossiers RH
   const viaChange = !isNew && can('rh:files');
   const [initial] = useState(() => Object.fromEntries(Object.entries(BLANK).map(([k, v]) => [k, employee[k] ?? v])));
@@ -65,7 +65,7 @@ export default function EmployeeForm({ employee, onClose, onSaved }) {
   };
   const users = (meta?.users || []).filter(u => !u.employee_id || u.employee_id === employee.id);
   const options = obj => obj && Object.entries(obj).map(([k, v]) => <option key={k} value={k}>{v}</option>);
-  const payHint = canPay ? undefined : 'Réservé au droit « Gérer les fiches salariés » (Comptabilité)';
+  const payHint = canPay ? undefined : 'Réservé au droit « Salaire et paiement » (Comptabilité)';
   return (
     <Modal title={isNew ? 'Nouvel employé' : `${employee.last_name} ${employee.first_name} · ${employee.matricule}`} onClose={onClose} footer={<><button className="btn btn-ghost" onClick={onClose}>Annuler</button><button className="btn btn-primary" form="emp-form">Enregistrer</button></>}>
       <form id="emp-form" className="stack wide-form" style={{ gap: 14 }} onSubmit={save}>

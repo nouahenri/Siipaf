@@ -22,6 +22,8 @@ const insertedId = r => (typeof r === 'object' ? r.id : r);
 const seesAllLeads = user => (user.permissions || []).some(p => p === '*' || p === 'leads:all');
 /** Attribuer, transférer, valider les demandes de transfert (responsable commercial). */
 const canAssignLeads = user => (user.permissions || []).some(p => p === '*' || p === 'leads:assign');
+/** Décide des demandes de transfert (valider, refuser, voir toutes les demandes) : « Valider ou refuser les demandes de transfert ». */
+const canDecideTransfers = user => (user.permissions || []).some(p => p === '*' || p === 'leads:transfer_decide');
 
 /**
  * Sans la portée « toute l'équipe », un commercial ne voit et ne traite que ses prospects et clients : les non attribués
@@ -292,4 +294,4 @@ async function dashboard(db, user, now = new Date()) {
   };
 }
 
-module.exports = { STAGE_LABELS, plannedFor, assertSeller, seesAllLeads, canAssignLeads, scopeLeads, leadInScope, saleInScope, logActivity, changeStage, serializeActivity, leadHistory, pipeline, achieved, sellers, targetsReport, dashboard, monthKey, monthRange, isoDay };
+module.exports = { STAGE_LABELS, plannedFor, assertSeller, seesAllLeads, canAssignLeads, canDecideTransfers, scopeLeads, leadInScope, saleInScope, logActivity, changeStage, serializeActivity, leadHistory, pipeline, achieved, sellers, targetsReport, dashboard, monthKey, monthRange, isoDay };

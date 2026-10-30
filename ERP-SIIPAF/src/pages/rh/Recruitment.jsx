@@ -44,7 +44,7 @@ export default function Recruitment() {
 
   return (
     <div className="recruit-layout">
-      <Card title="Postes" actions={can('recrutement:write') && <button className="btn btn-sm btn-primary" onClick={() => setJobForm({})}><Plus />Poste</button>} bodyClass="">
+      <Card title="Postes" actions={can('recrutement:jobs') && <button className="btn btn-sm btn-primary" onClick={() => setJobForm({})}><Plus />Poste</button>} bodyClass="">
         {!jobs.data ? <div className="card-body"><Skeleton h={160} /></div> : (
           <div className="tree">
             <button className={`tree-item ${job === '' ? 'on' : ''}`} onClick={() => setJob('')}><Briefcase />Toutes les candidatures</button>
@@ -55,8 +55,8 @@ export default function Recruitment() {
                   <span style={{ minWidth: 0 }}><span className="ellipsis">{j.title}</span><small className="muted" style={{ display: 'block', fontWeight: 400 }}>{meta?.job_statuses[j.status]}{j.published ? ' · sur le site' : ''} · {j.hired}/{j.openings} pourvu(s)</small></span>
                   <span className="muted">{j.applicants}</span>
                 </button>
-                {can('recrutement:write') && <button className="btn btn-ghost btn-icon btn-sm" onClick={() => setJobForm(j)} aria-label={`Modifier ${j.title}`} title="Modifier"><Pencil /></button>}
-                {can('recrutement:write') && <button className="btn btn-ghost btn-icon btn-sm" onClick={() => removeJob(j)} aria-label={`Supprimer ${j.title}`} title="Supprimer"><Trash2 /></button>}
+                {can('recrutement:jobs') && <button className="btn btn-ghost btn-icon btn-sm" onClick={() => setJobForm(j)} aria-label={`Modifier ${j.title}`} title="Modifier"><Pencil /></button>}
+                {can('recrutement:delete') && <button className="btn btn-ghost btn-icon btn-sm" onClick={() => removeJob(j)} aria-label={`Supprimer ${j.title}`} title="Supprimer"><Trash2 /></button>}
               </div>
             ))}
           </div>
@@ -70,7 +70,7 @@ export default function Recruitment() {
             <label className="search"><Search aria-hidden="true" /><input className="input" type="search" placeholder="Nom, e-mail…" value={q} onChange={e => setQ(e.target.value)} aria-label="Rechercher" /></label>
             <label className="checkbox small"><input type="checkbox" checked={refused} onChange={e => setRefused(e.target.checked)} />Candidatures refusées</label>
           </div>
-          {can('recrutement:write') && <button className="btn btn-primary" onClick={() => setCreating(true)}><Plus />Candidature</button>}
+          {can('recrutement:applicants') && <button className="btn btn-primary" onClick={() => setCreating(true)}><Plus />Candidature</button>}
         </div>
         <ErrorBox error={list.error} />
         {refused ? (
@@ -88,7 +88,7 @@ export default function Recruitment() {
                   <div className="pipe-list">
                     {!list.data && <Skeleton h={60} />}
                     {col.map(a => (
-                      <div key={a.id} className="pipe-card" draggable={can('recrutement:write') && !a.employee_id} onDragStart={e => e.dataTransfer.setData('text/plain', String(a.id))} onClick={() => setOpen(a.id)} role="button" tabIndex={0} onKeyDown={e => e.key === 'Enter' && setOpen(a.id)}>
+                      <div key={a.id} className="pipe-card" draggable={can('recrutement:applicants') && !a.employee_id} onDragStart={e => e.dataTransfer.setData('text/plain', String(a.id))} onClick={() => setOpen(a.id)} role="button" tabIndex={0} onKeyDown={e => e.key === 'Enter' && setOpen(a.id)}>
                         <div className="row-between" style={{ gap: 6 }}><b className="ellipsis">{a.name}</b>{a.rating > 0 && <span className="stars">{[1, 2, 3].map(n => <Star key={n} className={n <= a.rating ? 'on' : ''} style={{ width: 12, height: 12 }} aria-hidden="true" />)}</span>}</div>
                         <div className="meta">{a.job_title || 'Candidature spontanée'}</div>
                         <div className="row-between" style={{ marginTop: 6, gap: 6 }}><span className="small muted">{a.source_label}</span>{a.interview_at && <span className="small">{dateTime(a.interview_at)}</span>}{a.cv_url && <FileText className="ico" aria-label="CV joint" />}</div>
@@ -103,7 +103,7 @@ export default function Recruitment() {
       </div>
 
       {open && <ApplicantDrawer id={open} onClose={() => setOpen(null)} onChange={() => { list.reload(); jobs.reload(); }} />}
-      {jobForm && <JobForm job={jobForm} onClose={() => setJobForm(null)} onSaved={() => { setJobForm(null); jobs.reload(); }} onDelete={() => removeJob(jobForm)} />}
+      {jobForm && <JobForm job={jobForm} onClose={() => setJobForm(null)} onSaved={() => { setJobForm(null); jobs.reload(); }} onDelete={can('recrutement:delete') ? () => removeJob(jobForm) : null} />}
       {creating && <ApplicantForm jobs={jobs.data || []} jobId={job && job !== 'none' ? job : ''} onClose={() => setCreating(false)} onSaved={a => { setCreating(false); list.reload(); jobs.reload(); setOpen(a.id); }} />}
     </div>
   );
@@ -124,7 +124,7 @@ function JobForm({ job, onClose, onSaved, onDelete }) {
   };
   return (
     <Modal title={job.id ? job.title : 'Nouveau poste'} onClose={onClose} footer={<>
-      {job.id && <button className="btn btn-ghost" style={{ color: 'var(--danger)', marginRight: 'auto' }} onClick={onDelete}><Trash2 />Supprimer</button>}
+      {job.id && onDelete && <button className="btn btn-ghost" style={{ color: 'var(--danger)', marginRight: 'auto' }} onClick={onDelete}><Trash2 />Supprimer</button>}
       <button className="btn btn-ghost" onClick={onClose}>Annuler</button><button className="btn btn-primary" form="job">Enregistrer</button>
     </>}>
       <form id="job" className="form-grid wide-form" onSubmit={save}>
@@ -178,7 +178,7 @@ function ApplicantDrawer({ id, onClose, onChange }) {
   const [refuse, setRefuse] = useState('');
   const [hiring, setHiring] = useState(false);
   const [interview, setInterview] = useState(null);
-  const write = can('recrutement:write');
+  const write = can('recrutement:applicants');
   const post = async body => { try { a.setData(await api.post(`${RH}/applicants/${id}/move`, body)); onChange(); setNote(''); setRefuse(''); } catch (e) { toast(e.message, 'err'); } };
   const patch = async body => { try { a.setData(await api.patch(`${RH}/applicants/${id}`, formData(body))); onChange(); } catch (e) { toast(e.message, 'err'); } };
   const d = a.data;
@@ -212,7 +212,7 @@ function ApplicantDrawer({ id, onClose, onChange }) {
           )}
           {write && !d.employee_id && !d.refuse_reason && (
             <div className="row" style={{ gap: 8 }}>
-              {d.stage === 'proposition' && <button className="btn btn-primary" onClick={() => setHiring(true)}><UserPlus />Embaucher</button>}
+              {d.stage === 'proposition' && can('recrutement:hire') && <button className="btn btn-primary" onClick={() => setHiring(true)}><UserPlus />Embaucher</button>}
               <select className="select" style={{ width: 'auto' }} value={refuse} onChange={e => setRefuse(e.target.value)} aria-label="Motif de refus"><option value="">Refuser : motif…</option>{meta && Object.entries(meta.refuse_reasons).map(([k, v]) => <option key={k} value={k}>{v}</option>)}</select>
               {refuse && <button className="btn" onClick={() => post({ refuse_reason: refuse, note: note || null })}><Ban />Refuser</button>}
             </div>
@@ -241,7 +241,7 @@ function ApplicantDrawer({ id, onClose, onChange }) {
 function HireForm({ applicant, onClose, onDone }) {
   const { meta } = useRhMeta();
   const { can } = useAuth();
-  const canPay = can('paie:employees'); // salaire de la fiche : Paie
+  const canPay = can('paie:salary'); // salaire de la fiche : Paie
   const toast = useToast();
   const saved = useSaved();
   const [f, setF] = useState({ hire_date: applicant.available_from || today(), base_salary: applicant.proposed_salary || applicant.expected_salary || '', trial_end_date: '', contract_type: '', job_title: applicant.job_title || '' });

@@ -24,10 +24,10 @@ test('un rôle créé dans le dashboard est proposé aux postes de l’ERP, et i
   res = await resp.post('/api/admin/erp/rh/positions').send({ title: 'Secrétaire de direction', department: 'administratif', default_role: res.body.id });
   assert.equal(res.status, 201, JSON.stringify(res.body));
   // Créé depuis l'ERP (DRH) : visible dans Dashboard › Rôles et privilèges et attribuable à un compte
-  res = await drh.post('/api/admin/permissions/roles').send({ label: 'Assistant RH', permissions: ['rh:read', 'conges:manage'] });
+  res = await drh.post('/api/admin/permissions/roles').send({ label: 'Assistant RH', permissions: ['rh:read', 'conges:enter'] });
   assert.equal(res.status, 201, JSON.stringify(res.body));
   roles = (await admin.get('/api/admin/permissions')).body.roles;
-  assert.deepEqual(roles.find(r => r.id === res.body.id).permissions.sort(), ['conges:manage', 'rh:read']);
+  assert.deepEqual(roles.find(r => r.id === res.body.id).permissions.sort(), ['conges:enter', 'rh:read']);
   const created = await admin.post('/api/admin/users').send({ name: 'Ines Bamba', email: 'ines@test.ci', role: res.body.id });
   assert.equal(created.status, 201, JSON.stringify(created.body));
 });

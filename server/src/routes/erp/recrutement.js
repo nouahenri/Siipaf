@@ -16,15 +16,18 @@ const insertedId = r => (typeof r === 'object' ? r.id : r);
 
 module.exports = function recrutementRoutes(db) {
   const r = express.Router();
-  // Prétentions et salaire proposé : visibles du recruteur (recrutement:write) et de la Paie, pas de « Voir le personnel » seul
+  // Prétentions et salaire proposé : visibles du recruteur (recrutement:jobs, recrutement:applicants, recrutement:hire) et de la Paie, pas de « Voir le personnel » seul
   const SALARY_KEYS = ['expected_salary', 'proposed_salary'];
   const strip = v => (Array.isArray(v) ? v.map(strip) : v && typeof v === 'object' ? Object.fromEntries(Object.entries(v).map(([k, x]) => [k, SALARY_KEYS.includes(k) ? null : strip(x)])) : v);
   r.use((req, res, next) => {
-    if (!req.can('recrutement:write') && !req.can('paie:read')) { const send = res.json.bind(res); res.json = body => send(strip(body)); }
+    if (!['recrutement:jobs', 'recrutement:applicants', 'recrutement:hire'].some(p => req.can(p)) && !req.can('paie:read')) { const send = res.json.bind(res); res.json = body => send(strip(body)); }
     next();
   });
   const read = requirePermission('rh:read');
-  const write = requirePermission('recrutement:write');
+  const jobs = requirePermission('recrutement:jobs');
+  const applicants = requirePermission('recrutement:applicants');
+  const hire = requirePermission('recrutement:hire');
+  const remove = requirePermission('recrutement:delete');
   const cleanup = req => req.file && fs.promises.unlink(req.file.path).catch(() => {});
 
   // ─── Postes ───────────────────────────────────────────────
@@ -35,18 +38,18 @@ module.exports = function recrutementRoutes(db) {
     closing_date: day.optional().nullable(),
   });
   r.get('/jobs', read, ah(async (req, res) => res.json(await recrutement.jobs(db, { all: req.query.all === '1' }))));
-  r.post('/jobs', write, ah(async (req, res) => {
+  r.post('/jobs', jobs, ah(async (req, res) => {
     const [id] = await db('hr_jobs').insert(parse(jobSchema, req.body));
     res.status(201).json(recrutement.serializeJob(await db('hr_jobs').where({ id: insertedId(id) }).first()));
   }));
-  r.patch('/jobs/:id', write, ah(async (req, res) => {
+  r.patch('/jobs/:id', jobs, ah(async (req, res) => {
     const data = parse(jobSchema.partial(), req.body);
     if (data.status && data.status !== 'ouvert') data.published = false;
     if (!(await db('hr_jobs').where({ id: idParam(req) }).update({ ...data, updated_at: new Date() }))) throw new HttpError(404, 'Poste introuvable.');
     res.json(recrutement.serializeJob(await db('hr_jobs').where({ id: idParam(req) }).first()));
   }));
   /** Suppression d'un poste sans candidature ; avec des candidatures, on le ferme pour garder l'historique des candidats. */
-  r.delete('/jobs/:id', write, ah(async (req, res) => {
+  r.delete('/jobs/:id', remove, ah(async (req, res) => {
     const job = await db('hr_jobs').where({ id: idParam(req) }).first();
     if (!job) throw new HttpError(404, 'Poste introuvable.');
     const n = Number((await db('hr_applicants').where({ job_id: job.id }).count({ n: '*' }).first()).n || 0);
@@ -75,14 +78,14 @@ module.exports = function recrutementRoutes(db) {
     interviewer_id: z.preprocess(v => (v === '' || v == null || v === 'null' ? null : Number(v)), z.number().int().positive().nullable()).optional(),
     interview_at: z.string().optional().nullable().transform(v => (v ? new Date(v) : null)),
   });
-  r.post('/applicants', write, recrutement.cvUpload(), ah(async (req, res) => {
+  r.post('/applicants', applicants, recrutement.cvUpload(), ah(async (req, res) => {
     try {
       const id = await recrutement.createApplicant(db, parse(applicantSchema, req.body), { file: req.file, userId: req.user.id });
       res.status(201).json(await recrutement.applicant(db, id));
     } catch (e) { await cleanup(req); throw e; }
   }));
   r.get('/applicants/:id', read, ah(async (req, res) => res.json(await recrutement.applicant(db, idParam(req)))));
-  r.patch('/applicants/:id', write, recrutement.cvUpload(), ah(async (req, res) => {
+  r.patch('/applicants/:id', applicants, recrutement.cvUpload(), ah(async (req, res) => {
     try {
       const a = await db('hr_applicants').where({ id: idParam(req) }).first();
       if (!a) throw new HttpError(404, 'Candidature introuvable.');
@@ -99,26 +102,26 @@ module.exports = function recrutementRoutes(db) {
       res.json(await recrutement.applicant(db, a.id));
     } catch (e) { await cleanup(req); throw e; }
   }));
-  r.post('/applicants/:id/move', write, ah(async (req, res) => {
+  r.post('/applicants/:id/move', applicants, ah(async (req, res) => {
     const data = parse(z.object({
       stage: z.enum(Object.keys(RECRUIT_STAGES)).optional(), refuse_reason: z.enum(Object.keys(REFUSE_REASONS)).optional(), note: optText(2000),
     }).refine(v => v.stage || v.refuse_reason || v.note, 'Étape, motif de refus ou note attendu.'), req.body);
     res.json(await recrutement.move(db, idParam(req), data, req.user.id));
   }));
-  r.post('/applicants/:id/hire', write, ah(async (req, res) => {
+  r.post('/applicants/:id/hire', hire, ah(async (req, res) => {
     const data = parse(z.object({
       hire_date: day, base_salary: z.number().int().min(0).optional(), trial_end_date: day.optional().nullable(),
       contract_type: z.enum(Object.keys(CONTRACT_TYPES)).optional(), job_title: z.string().trim().min(2).max(120).optional(),
     }), req.body);
     // Le salaire de la fiche relève de la Paie : sans ce droit, la fiche est créée à 0 et la Comptabilité le fixe
-    if (!req.can('paie:employees')) {
-      if (data.base_salary != null) throw new HttpError(403, 'Le salaire se fixe avec le droit « Gérer les fiches salariés » (Comptabilité › Employés).');
+    if (!req.can('paie:salary')) {
+      if (data.base_salary != null) throw new HttpError(403, 'Le salaire se fixe avec le droit « Salaire et paiement » (Comptabilité › Employés).');
       data.base_salary = 0;
     }
     const employeeId = await recrutement.hire(db, idParam(req), data, req.user.id);
     res.status(201).json({ employee_id: employeeId, applicant: await recrutement.applicant(db, idParam(req)) });
   }));
-  r.delete('/applicants/:id', write, ah(async (req, res) => {
+  r.delete('/applicants/:id', remove, ah(async (req, res) => {
     const a = await db('hr_applicants').where({ id: idParam(req) }).first();
     if (!a) throw new HttpError(404, 'Candidature introuvable.');
     if (a.employee_id) throw new HttpError(409, 'Candidat embauché : la candidature reste au dossier.');

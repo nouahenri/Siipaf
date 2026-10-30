@@ -31,7 +31,7 @@ export default function SousTraitance({ w, refs, onChange }) {
   const contractRefs = useResource(can('contrats:write') ? '/admin/erp/contrats/refs' : null);
   const [marketForm, setMarketForm] = useState(false);
   const [sit, setSit] = useState(null); // { market, situation? }
-  const direction = can('chantiers:direction');
+  const direction = can('chantiers:situations');
   const done = (data, msg) => { res.setData(data); if (msg) saved(msg); onChange?.(); };
   const act = async (s, action, body, msg) => {
     try { done(await api.post(`${CH}/${w.id}/situations/${s.id}/${action}`, body || {}), msg); } catch (e) { toast(e.message, 'err'); }

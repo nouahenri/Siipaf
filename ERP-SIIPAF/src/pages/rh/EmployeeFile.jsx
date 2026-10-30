@@ -49,9 +49,9 @@ export default function EmployeeFile() {
       {tab === 'dossier' && !e.active && (can('rh:read') || can('direction:read')) && <Departure employeeId={e.id} />}
       {tab === 'dossier' && <Identity d={d} hr={hr} onSaved={file.reload} />}
       {tab === 'conges' && <LeaveTab d={d} hr={hr} onChange={file.reload} />}
-      {tab === 'documents' && <Documents d={d} hr={hr} onChange={file.reload} />}
-      {tab === 'carriere' && <Career d={d} hr={hr} onChange={file.reload} />}
-      {tab === 'competences' && <Profile employeeId={e.id} editable={can('formation:write') || d.access === 'self'} />}
+      {tab === 'documents' && <Documents d={d} hr={can('rh:documents_write')} onChange={file.reload} />}
+      {tab === 'carriere' && <Career d={d} hr={can('rh:career')} onChange={file.reload} />}
+      {tab === 'competences' && <Profile employeeId={e.id} editable={can('formation:skills') || d.access === 'self'} />}
       {tab === 'objectifs' && <div className="stack"><Indicators employeeId={e.id} /><PerformanceCurves employeeId={e.id} /><ObjectivesPanel employee={e} /></div>}
       {tab === 'presences' && <EmployeeAttendance employeeId={e.id} />}
     </div>
@@ -106,7 +106,7 @@ function Identity({ d, hr, onSaved }) {
         <Row label="N° CNPS">{e.cnps_number}</Row>
         <Row label="Compte du dashboard">{d.user && `${d.user.name} (${d.user.email})`}</Row>
       </Card>
-      <Card title="Contrat" actions={hr && <div className="row" style={{ gap: 6 }}>{e.active && <ChangePositionButton onClick={() => setChange(true)} />}<button className="btn btn-sm" onClick={() => setPin(true)}><KeyRound />Code de pointage</button></div>}>
+      <Card title="Contrat" actions={(hr || can('rh:career') || can('rh:pin')) && <div className="row" style={{ gap: 6 }}>{e.active && can('rh:career') && <ChangePositionButton onClick={() => setChange(true)} />}{can('rh:pin') && <button className="btn btn-sm" onClick={() => setPin(true)}><KeyRound />Code de pointage</button>}</div>}>
         <Row label="Poste">{e.job_title}</Row>
         <Row label="Service">{meta?.departments[e.department]}</Row>
         <Row label="Catégorie">{e.category}</Row>
@@ -146,7 +146,8 @@ function HrPin({ employee, onClose, onSaved }) {
 function LeaveTab({ d, hr: _hr, onChange }) {
   // Ajuster le solde, saisir une absence : droit « Gérer les absences » (pas seulement « Gérer les dossiers »)
   const { can } = useAuth();
-  const hr = can('conges:manage') && d.access !== 'self';
+  const canEnter = can('conges:enter') && d.access !== 'self', canAdjust = can('conges:adjust') && d.access !== 'self';
+  const hr = canEnter || canAdjust;
   const { meta } = useRhMeta();
   const toast = useToast();
   const [form, setForm] = useState(false);
@@ -161,7 +162,7 @@ function LeaveTab({ d, hr: _hr, onChange }) {
         <div className="card kpi"><span className="kpi-label">Pris</span><span className="kpi-value">{b.taken.toLocaleString('fr-FR')}</span><span className="kpi-foot">{b.pending ? `${b.pending} j en attente d’accord` : 'aucune demande en attente'}</span></div>
         <div className="card kpi"><span className="kpi-label">Droit annuel</span><span className="kpi-value">{b.entitlement.total}</span><span className="kpi-foot">{b.entitlement.base} j de base{b.entitlement.seniority ? ` + ${b.entitlement.seniority} ancienneté` : ''}{b.entitlement.children ? ` + ${b.entitlement.children} enfants` : ''}</span></div>
       </div>
-      <Card title="Absences" actions={hr && <div className="row" style={{ gap: 8 }}><button className="btn btn-sm" onClick={() => setAdjust(true)}><Plus />Ajuster le solde</button><button className="btn btn-sm btn-primary" onClick={() => setForm(true)}><CalendarPlus />Saisir une absence</button></div>} bodyClass="">
+      <Card title="Absences" actions={hr && <div className="row" style={{ gap: 8 }}>{canAdjust && <button className="btn btn-sm" onClick={() => setAdjust(true)}><Plus />Ajuster le solde</button>}{canEnter && <button className="btn btn-sm btn-primary" onClick={() => setForm(true)}><CalendarPlus />Saisir une absence</button>}</div>} bodyClass="">
         {!d.leaves.length ? <div className="card-body"><Empty>Aucune absence.</Empty></div> : (
           <div className="table-wrap"><table className="table">
             <thead><tr><th>Type</th><th>Période</th><th className="right">Jours</th><th>Statut</th><th>Décision</th></tr></thead>

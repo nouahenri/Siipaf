@@ -29,7 +29,7 @@ test('postes : un intitulé saisi rejoint la liste (sans doublon de casse) ; RH 
   assert.equal(commercial.length, 1, 'un seul poste « Commercial »');
   assert.equal(commercial[0].employees, 2);
   const vendeur = await login(app, 'commercial@test.ci', 'motdepasse-test-123');
-  assert.equal((await vendeur.post(`${RH}/positions`).send({ title: 'Responsable commercial', department: 'commercial' })).status, 403, 'droit rh:settings');
+  assert.equal((await vendeur.post(`${RH}/positions`).send({ title: 'Responsable commercial', department: 'commercial' })).status, 403, 'droit rh:positions');
   res = await resp.post(`${RH}/positions`).send({ title: 'Responsable commercial', department: 'commercial', category: 'Cadre', default_role: 'resp_exploitation' });
   assert.equal(res.status, 201, JSON.stringify(res.body));
   assert.equal((await resp.post(`${RH}/positions`).send({ title: 'responsable COMMERCIAL', department: 'commercial' })).status, 409);
@@ -49,7 +49,7 @@ test('postes : un intitulé saisi rejoint la liste (sans doublon de casse) ; RH 
 test('changement de poste immédiat : poste, service, catégorie, salaire, équipe, rôle du compte, carrière datée', async () => {
   const post = await db('hr_positions').where({ title: 'Responsable commercial' }).first();
   const body = { position_id: post.id, effective_date: day(0), reason: 'promotion', category: 'Cadre', base_salary: 600000, team_ids: [emp.paul], role: 'resp_exploitation', note: 'Nomination du 23/10' };
-  assert.equal((await resp.post(`${RH}/employees/${emp.awa}/position`).send(body)).status, 403, 'salaire : droit paie:employees');
+  assert.equal((await resp.post(`${RH}/employees/${emp.awa}/position`).send(body)).status, 403, 'salaire : droit paie:salary');
   let res = await resp.post(`${RH}/employees/${emp.awa}/position`).send({ ...body, base_salary: undefined, role: undefined });
   assert.equal(res.status, 201, JSON.stringify(res.body));
   assert.equal(res.body.status, 'applique');

@@ -204,7 +204,7 @@ export function Stages({ w, refs, onChange }) {
   const [params, setParams] = useSearchParams();
   const open = Number(params.get('etape')) || null;
   const setOpen = id => setParams(p => { const n = new URLSearchParams(p); if (id) n.set('etape', id); else n.delete('etape'); return n; }, { replace: true });
-  const direction = can('chantiers:direction');
+  const direction = can('chantiers:stages');
   const reload = () => { res.reload(); onChange?.(); };
   const declare = async d => {
     if (!window.confirm(`Déclarer « ${d.stage_label} » atteinte le ${date(d.reached_on)} ? Les appels de fonds VEFA des lots de la zone seront émis et les acquéreurs prévenus.`)) return;

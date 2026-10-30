@@ -82,7 +82,7 @@ export default function Chantier() {
       {tab === 'budget' && <Budget w={w} refs={refs} onChange={update} />}
 
       {editing && <WorksiteForm worksite={w} refs={refs} onClose={() => setEditing(false)} onSaved={data => { setEditing(false); update(data); }} />}
-      {can('chantiers:write') && <DeleteWorksite w={w} onDeleted={() => navigate('/chantiers/liste')} />}
+      {can('chantiers:create') && <DeleteWorksite w={w} onDeleted={() => navigate('/chantiers/liste')} />}
     </div>
   );
 }
@@ -348,10 +348,10 @@ function Budget({ w, refs, onChange }) {
         </p>
       </Card>
 
-      <Card title="Budget prévu" actions={w.can_manage && <button className="btn btn-primary" onClick={() => setLine({})}><Plus />Ajouter une ligne</button>} bodyClass="">
-        {!w.budget_lines.length ? <div className="card-body"><Empty icon={Wallet}>Aucune ligne de budget.{w.can_manage ? ' Ajoutez les postes prévus (matériaux, main-d’œuvre, sous-traitance…).' : ''}</Empty></div> : (
+      <Card title="Budget prévu" actions={w.can_budget && <button className="btn btn-primary" onClick={() => setLine({})}><Plus />Ajouter une ligne</button>} bodyClass="">
+        {!w.budget_lines.length ? <div className="card-body"><Empty icon={Wallet}>Aucune ligne de budget.{w.can_budget ? ' Ajoutez les postes prévus (matériaux, main-d’œuvre, sous-traitance…).' : ''}</Empty></div> : (
           <div className="table-wrap"><table className="table">
-            <thead><tr><th>Poste</th><th>Ligne</th><th>Phase</th><th className="right">Montant prévu</th>{w.can_manage && <th />}</tr></thead>
+            <thead><tr><th>Poste</th><th>Ligne</th><th>Phase</th><th className="right">Montant prévu</th>{w.can_budget && <th />}</tr></thead>
             <tbody>
               {w.budget_by_category.filter(x => x.amount_fcfa > 0).flatMap(x => w.budget_lines.filter(l => l.category === x.category).map((l, i, arr) => (
                 <tr key={l.id}>
@@ -359,7 +359,7 @@ function Budget({ w, refs, onChange }) {
                   <td>{l.label}{l.notes && <div className="small muted">{l.notes}</div>}</td>
                   <td className="small">{w.phases.find(p => p.id === l.phase_id)?.label || '—'}</td>
                   <td className="right tabular">{fcfa(l.amount_fcfa)}</td>
-                  {w.can_manage && <td className="right"><button className="btn btn-ghost btn-icon" onClick={() => setLine(l)} aria-label={`Modifier ${l.label}`}><Pencil /></button></td>}
+                  {w.can_budget && <td className="right"><button className="btn btn-ghost btn-icon" onClick={() => setLine(l)} aria-label={`Modifier ${l.label}`}><Pencil /></button></td>}
                 </tr>
               )))}
             </tbody>

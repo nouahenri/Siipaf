@@ -22,6 +22,7 @@ const departures = require('../../services/departures');
 const positions = require('../../services/positions');
 const employees = require('../../services/employees');
 const { listRoles } = require('../../services/roles');
+const { PRESENCE_ACTIONS: PRESENCE, RH_SETTINGS_ACTIONS: RH_SETTINGS } = require('../../lib/domain');
 
 const day = z.string().regex(/^\d{4}-\d{2}-\d{2}$/, 'Date attendue au format AAAA-MM-JJ');
 const optText = max => z.string().trim().max(max).optional().nullable().transform(v => v || null);
@@ -51,14 +52,14 @@ module.exports = function rhRoutes(db) {
   const canSeeDocuments = (req, e) => req.can('rh:documents') || (!!e.user_id && e.user_id === req.user.id);
 
   // Règles des congés qu'un employé doit connaître (Mon espace) ; le reste des réglages RH (barèmes des heures supplémentaires,
-  // comptes de charge, validation…) n'est montré qu'à rh:read et rh:settings (audit du 30/10)
+  // comptes de charge, validation…) n'est montré qu'à rh:read et aux réglages RH (rh:rules, rh:positions, rh:heads, rh:holidays) (audit du 30/10)
   const employeeRules = s => ({
     ...Object.fromEntries(['accrual_per_month', 'min_months_before_leave', 'allow_negative', 'min_continuous_days', 'working_days', 'permission_min_months', 'permission_max_days', 'geolocation', 'round_up'].map(k => [k, s[k]])),
     expense_categories: Object.fromEntries(Object.entries(s.expense_categories || {}).map(([k, c]) => [k, { label: c.label }])),
   });
   r.get('/meta', ah(async (req, res) => {
     const me = await rh.employeeOf(db, req.user.id);
-    const settingsRight = req.can('rh:read') || req.can('rh:settings');
+    const settingsRight = req.can('rh:read') || RH_SETTINGS.some(p => req.can(p));
     const team = me ? await db('employees').where({ manager_id: me.id, active: true }).count({ n: '*' }).first() : { n: 0 };
     res.json({
       leave_types: LEAVE_TYPES, events: PERMISSION_EVENTS, statuses: LEAVE_STATUSES, document_kinds: DOCUMENT_KINDS, career_events: CAREER_EVENTS,
@@ -70,7 +71,7 @@ module.exports = function rhRoutes(db) {
       me: me ? { id: me.id, name: `${me.last_name} ${me.first_name}`, matricule: me.matricule } : null,
       team_size: Number(team?.n || 0),
       projects: await db('projects').orderBy('name').select('id', 'name'),
-      employees: req.can('rh:read') || req.can('presence:write') ? await db('employees').where({ active: true }).orderBy(['last_name', 'first_name']).select('id', 'matricule', 'last_name', 'first_name', 'department', 'user_id') : [],
+      employees: req.can('rh:read') || PRESENCE.some(p => req.can(p)) ? (await db('employees').where({ active: true }).orderBy(['last_name', 'first_name']).select('id', 'matricule', 'last_name', 'first_name', 'department', 'user_id')).map(e => (req.can('rh:read') ? e : { ...e, user_id: undefined })) : [],
     });
   }));
 
@@ -79,7 +80,7 @@ module.exports = function rhRoutes(db) {
   // ─── Postes (RH › Réglages) ────────────────────────────────
   /** Liste des postes : pour les formulaires (fiche, compte, paie) et les réglages ; rôles proposables joints. */
   r.get('/positions', ah(async (req, res) => {
-    if (!['rh:read', 'rh:files', 'paie:read', 'paie:employees', 'users:read', 'users:edit'].some(p => req.can(p))) throw new HttpError(403, 'Droits insuffisants.');
+    if (!['rh:read', 'rh:files', 'paie:read', 'paie:employees', 'paie:salary', 'users:read', 'users:edit'].some(p => req.can(p))) throw new HttpError(403, 'Droits insuffisants.');
     // Super administrateur : droits fixes, proposable pour un poste par un super administrateur seulement (choix du client du 25/10)
     const roles = (await listRoles(db)).map(x => ({ id: x.id, label: x.label, reserved: x.id === 'super_admin' }));
     res.json({ positions: await positions.list(db, { all: req.query.all === '1' }), roles, reasons: POSITION_CHANGE_REASONS });
@@ -95,23 +96,23 @@ module.exports = function rhRoutes(db) {
     if (!req.can('rh:read')) for (const h of Object.values(heads)) delete h.user_id;
     res.json(heads);
   }));
-  r.put('/department-heads/:department', requirePermission('rh:settings'), ah(async (req, res) => {
+  r.put('/department-heads/:department', requirePermission('rh:heads'), ah(async (req, res) => {
     const { employee_id } = parse(z.object({ employee_id: z.number().int().positive().nullable() }), req.body);
     res.json(await require('../../services/departments').setHead(db, req.params.department, employee_id, { userId: req.user.id }));
   }));
 
-  r.post('/positions', requirePermission('rh:settings'), ah(async (req, res) => {
+  r.post('/positions', requirePermission('rh:positions'), ah(async (req, res) => {
     const id = await positions.create(db, parse(positionSchema, req.body), req.user);
     res.status(201).json(await db('hr_positions').where({ id }).first());
   }));
-  r.patch('/positions/:id', requirePermission('rh:settings'), ah(async (req, res) => {
+  r.patch('/positions/:id', requirePermission('rh:positions'), ah(async (req, res) => {
     const p = await db('hr_positions').where({ id: idParam(req) }).first();
     if (!p) throw new HttpError(404, 'Poste introuvable.');
     await positions.update(db, p, parse(positionSchema.partial(), req.body), req.user);
     res.json(await db('hr_positions').where({ id: p.id }).first());
   }));
 
-  r.post('/positions/:id/merge', requirePermission('rh:settings'), ah(async (req, res) => {
+  r.post('/positions/:id/merge', requirePermission('rh:positions'), ah(async (req, res) => {
     const { into } = parse(z.object({ into: z.number().int().positive() }), req.body);
     const [from, target] = await Promise.all([db('hr_positions').where({ id: idParam(req) }).first(), db('hr_positions').where({ id: into }).first()]);
     if (!from || !target) throw new HttpError(404, 'Poste introuvable.');
@@ -120,7 +121,7 @@ module.exports = function rhRoutes(db) {
   }));
 
   /** Changement de poste daté (promotion, mutation…) : appliqué à la date d'effet. */
-  r.post('/employees/:id/position', requirePermission('rh:files'), ah(async (req, res) => {
+  r.post('/employees/:id/position', requirePermission('rh:career'), ah(async (req, res) => {
     const e = await rh.getEmployee(db, idParam(req));
     const data = parse(z.object({
       position_id: z.number().int().positive(), department: z.enum(Object.keys(DEPARTMENTS)).optional(), effective_date: day,
@@ -138,7 +139,7 @@ module.exports = function rhRoutes(db) {
     const rows = await positions.changesOf(db, idParam(req));
     res.json(req.can('paie:read') ? rows : rows.map(c => ({ ...c, base_salary: null })));
   }));
-  r.delete('/position-changes/:id', requirePermission('rh:files'), ah(async (req, res) => {
+  r.delete('/position-changes/:id', requirePermission('rh:career'), ah(async (req, res) => {
     const c = await db('hr_position_changes').where({ id: idParam(req) }).first();
     if (!c) throw new HttpError(404, 'Changement introuvable.');
     await positions.cancel(db, c);
@@ -154,7 +155,8 @@ module.exports = function rhRoutes(db) {
       ? (await db('hr_expenses as x').join('employees as e', 'e.id', 'x.employee_id').where('x.status', 'soumise')
         .modify(q => { if (!req.can('frais:approve')) q.where('e.manager_id', me.id); }).where(w => w.whereNull('e.user_id').orWhereNot('e.user_id', req.user.id)).count({ n: '*' }).first()).n
       : 0;
-    const toPost = req.can('frais:post') ? Number((await db('hr_expenses').whereIn('status', ['approuvee', 'comptabilisee']).count({ n: '*' }).first()).n) : 0;
+    const postStatuses = [...(req.can('frais:post') ? ['approuvee'] : []), ...(req.can('frais:reimburse') ? ['comptabilisee'] : [])];
+    const toPost = postStatuses.length ? Number((await db('hr_expenses').whereIn('status', postStatuses).count({ n: '*' }).first()).n) : 0;
     res.json({ has_employee: !!me, team_size: team, approvals, expenses: Number(expenses || 0) + toPost });
   }));
 
@@ -247,11 +249,11 @@ module.exports = function rhRoutes(db) {
     res.json({ month, from, to, holidays: await rh.holidays(db, from, to), employees: await people, leaves });
   }));
 
-  r.post('/leaves/preview', requirePermission('conges:manage'), ah(async (req, res) => {
+  r.post('/leaves/preview', requirePermission('conges:enter'), ah(async (req, res) => {
     const { employee_id, ...data } = parse(leaveSchema.extend({ employee_id: z.number().int().positive() }), req.body);
     res.json(await rh.checkLeave(db, await rh.getEmployee(db, employee_id), data, { asHr: true }));
   }));
-  r.post('/leaves', requirePermission('conges:manage'), ah(async (req, res) => {
+  r.post('/leaves', requirePermission('conges:enter'), ah(async (req, res) => {
     const { employee_id, approve, ...data } = parse(leaveSchema.extend({ employee_id: z.number().int().positive(), approve: z.boolean().optional() }), req.body);
     const e = await rh.getEmployee(db, employee_id);
     if (approve && !req.can('conges:approve')) throw new HttpError(403, 'Saisir une absence déjà approuvée demande le droit « Approuver les congés ».');
@@ -313,14 +315,14 @@ module.exports = function rhRoutes(db) {
     res.json(paie.serializeEmployee(after, { withPay: req.can('paie:read') }));
   }));
 
-  r.post('/employees/:id/adjustments', requirePermission('conges:manage'), ah(async (req, res) => {
+  r.post('/employees/:id/adjustments', requirePermission('conges:adjust'), ah(async (req, res) => {
     const e = await rh.getEmployee(db, idParam(req));
     if (e.user_id === req.user.id && req.user.role !== 'super_admin') throw new HttpError(403, 'Personne n’ajuste son propre solde de congés.');
     const data = parse(z.object({ date: day, days: z.number().min(-100).max(100).refine(v => v !== 0, 'Nombre de jours non nul'), label: z.string().trim().min(3).max(200) }), req.body);
     await db('hr_leave_adjustments').insert({ ...data, employee_id: e.id, created_by: req.user.id });
     res.status(201).json(await rh.balanceOf(db, e));
   }));
-  r.delete('/adjustments/:id', requirePermission('conges:manage'), ah(async (req, res) => {
+  r.delete('/adjustments/:id', requirePermission('conges:adjust'), ah(async (req, res) => {
     const adj = await db('hr_leave_adjustments as a').join('employees as e', 'e.id', 'a.employee_id').where('a.id', idParam(req)).first('a.id', 'e.user_id');
     if (!adj) throw new HttpError(404, 'Ajustement introuvable.');
     if (adj.user_id === req.user.id && req.user.role !== 'super_admin') throw new HttpError(403, 'Personne n’ajuste son propre solde de congés.');
@@ -328,13 +330,13 @@ module.exports = function rhRoutes(db) {
     res.json({ ok: true });
   }));
 
-  r.post('/employees/:id/career', requirePermission('rh:files'), ah(async (req, res) => {
+  r.post('/employees/:id/career', requirePermission('rh:career'), ah(async (req, res) => {
     const e = await rh.getEmployee(db, idParam(req));
     const data = parse(z.object({ date: day, kind: z.enum(Object.keys(CAREER_EVENTS)), label: z.string().trim().min(3).max(255) }), req.body);
     const [id] = await db('hr_career_events').insert({ ...data, employee_id: e.id, details: JSON.stringify({}), created_by: req.user.id });
     res.status(201).json(await db('hr_career_events').where({ id: insertedId(id) }).first());
   }));
-  r.delete('/career/:id', requirePermission('rh:files'), ah(async (req, res) => {
+  r.delete('/career/:id', requirePermission('rh:career'), ah(async (req, res) => {
     if (!(await db('hr_career_events').where({ id: idParam(req) }).del())) throw new HttpError(404, 'Événement introuvable.');
     res.json({ ok: true });
   }));
@@ -356,7 +358,7 @@ module.exports = function rhRoutes(db) {
     } catch (err) { await drop(); throw err; }
   }
 
-  r.post('/employees/:id/documents', requirePermission('rh:files'), rh.documentUpload(), ah(async (req, res) => {
+  r.post('/employees/:id/documents', requirePermission('rh:documents_write'), rh.documentUpload(), ah(async (req, res) => {
     const e = await rh.getEmployee(db, idParam(req)).catch(err => { if (req.file) fs.promises.unlink(req.file.path).catch(() => {}); throw err; });
     res.status(201).json(await saveDocument(req, e.id));
   }));
@@ -373,7 +375,7 @@ module.exports = function rhRoutes(db) {
     res.sendFile(path.join(rh.hrFilesDir, path.basename(d.filename)), err => err && !res.headersSent && res.sendStatus(404));
   }));
 
-  r.delete('/documents/:id', requirePermission('rh:files'), ah(async (req, res) => {
+  r.delete('/documents/:id', requirePermission('rh:documents_write'), ah(async (req, res) => {
     const d = await db('hr_documents').where({ id: idParam(req) }).first();
     if (!d) throw new HttpError(404, 'Document introuvable.');
     await db('hr_documents').where({ id: d.id }).del();
@@ -382,10 +384,10 @@ module.exports = function rhRoutes(db) {
   }));
 
   // ─── Objectifs et entretiens annuels ──────────────────────
-  async function canCoach(req, e) {
+  async function canCoach(req, e, perm) {
     // Pas d'auto-évaluation par ce biais (audit du 30/10) : ses propres objectifs et son entretien sont fixés par son responsable ou le RH
     if (e.user_id && e.user_id === req.user.id && req.user.role !== 'super_admin') throw new HttpError(403, 'Vos objectifs et votre entretien sont fixés par votre responsable direct ou le service RH.');
-    if (req.can('evaluation:write')) return true;
+    if (req.can(perm)) return true;
     if (await rh.isManagerOf(db, req.user.id, e)) return true;
     throw new HttpError(403, 'Seuls le responsable direct et le service RH fixent les objectifs.');
   }
@@ -473,7 +475,7 @@ module.exports = function rhRoutes(db) {
 
   r.post('/employees/:id/objectives', ah(async (req, res) => {
     const e = await rh.getEmployee(db, idParam(req));
-    await canCoach(req, e);
+    await canCoach(req, e, 'evaluation:objectives');
     const data = parse(objectiveSchema, req.body);
     // Indicateur du référentiel (ou, pour un appel qui ne donne que le calcul, l'indicateur de ce calcul)
     if (!data.kpi_id && data.metric && data.metric !== 'manuel') data.kpi_id = (await db('hr_kpis').where({ metric: data.metric }).first('id'))?.id || null;
@@ -492,7 +494,7 @@ module.exports = function rhRoutes(db) {
   r.patch('/objectives/:id', ah(async (req, res) => {
     const o = await db('hr_objectives').where({ id: idParam(req) }).first();
     if (!o) throw new HttpError(404, 'Objectif introuvable.');
-    await canCoach(req, await rh.getEmployee(db, o.employee_id));
+    await canCoach(req, await rh.getEmployee(db, o.employee_id), 'evaluation:objectives');
     // Indicateur et période fixés à la création ; cible ou poids changés à la main : l'objectif n'est plus repris par le modèle
     const data = parse(objectiveSchema.partial().omit({ year: true, kpi_id: true, metric: true, period: true, period_index: true }), req.body);
     const changed = (data.target_value !== undefined && (data.target_value ?? null) !== (o.target_value == null ? null : Number(o.target_value))) || (data.weight !== undefined && data.weight !== o.weight);
@@ -515,14 +517,14 @@ module.exports = function rhRoutes(db) {
   r.delete('/objectives/:id', ah(async (req, res) => {
     const o = await db('hr_objectives').where({ id: idParam(req) }).first();
     if (!o) throw new HttpError(404, 'Objectif introuvable.');
-    await canCoach(req, await rh.getEmployee(db, o.employee_id));
+    await canCoach(req, await rh.getEmployee(db, o.employee_id), 'evaluation:objectives');
     await db('hr_objectives').where({ id: o.id }).del();
     res.json({ ok: true });
   }));
 
   r.put('/employees/:id/reviews/:year', ah(async (req, res) => {
     const e = await rh.getEmployee(db, idParam(req));
-    await canCoach(req, e);
+    await canCoach(req, e, 'evaluation:reviews');
     const year = yearOf(req.params.year);
     const data = parse(z.object({
       rating: z.number().int().min(1).max(5).optional().nullable(), manager_comment: z.string().trim().max(5000).optional().nullable(),
@@ -544,23 +546,23 @@ module.exports = function rhRoutes(db) {
     const year = yearOf(req.query.year);
     res.json(await rh.holidays(db, `${year}-01-01`, `${year}-12-31`));
   }));
-  r.post('/holidays', requirePermission('rh:settings'), ah(async (req, res) => {
+  r.post('/holidays', requirePermission('rh:holidays'), ah(async (req, res) => {
     const data = parse(z.object({ date: day, label: z.string().trim().min(2).max(80) }), req.body);
     if ((await rh.holidays(db)).some(h => h.date === data.date)) throw new HttpError(409, 'Ce jour est déjà férié.');
     const [id] = await db('hr_holidays').insert(data);
     res.status(201).json({ id: insertedId(id), ...data });
   }));
-  r.post('/holidays/seed', requirePermission('rh:settings'), ah(async (req, res) => {
+  r.post('/holidays/seed', requirePermission('rh:holidays'), ah(async (req, res) => {
     const { year } = parse(z.object({ year: z.number().int().min(2000).max(2100) }), req.body);
     res.json({ created: await rh.seedHolidays(db, year) });
   }));
-  r.delete('/holidays/:id', requirePermission('rh:settings'), ah(async (req, res) => {
+  r.delete('/holidays/:id', requirePermission('rh:holidays'), ah(async (req, res) => {
     if (!(await db('hr_holidays').where({ id: idParam(req) }).del())) throw new HttpError(404, 'Jour férié introuvable.');
     res.json({ ok: true });
   }));
 
   r.get('/settings', read, ah(async (req, res) => res.json(await rh.getSettings(db))));
-  r.put('/settings', requirePermission('rh:settings'), ah(async (req, res) => {
+  r.put('/settings', requirePermission('rh:rules'), ah(async (req, res) => {
     const data = parse(z.object({
       accrual_per_month: z.number().min(0.1).max(5), seniority_bonus: z.array(z.tuple([z.number().int().min(1).max(50), z.number().min(0).max(30)])).max(12),
       child_bonus_days: z.number().min(0).max(5), child_bonus_young_age: z.number().int().min(0).max(30), child_bonus_from_child: z.number().int().min(1).max(10),

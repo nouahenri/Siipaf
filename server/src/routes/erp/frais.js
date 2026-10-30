@@ -58,7 +58,7 @@ module.exports = function fraisRoutes(db) {
       const out = [];
       for (const x of rows) {
         if (x.status === 'soumise' && await frais.canApprove(db, x, ctx(req))) out.push(x);
-        else if (['approuvee', 'comptabilisee'].includes(x.status) && req.can('frais:post')) out.push(x);
+        else if ((x.status === 'approuvee' && req.can('frais:post')) || (x.status === 'comptabilisee' && req.can('frais:reimburse'))) out.push(x);
       }
       rows = out;
     }
@@ -100,7 +100,7 @@ module.exports = function fraisRoutes(db) {
     const data = parse(z.object({ note: z.string().trim().max(500).optional(), journal: z.enum(['BQ', 'CA', 'MM']).optional() }), req.body || {});
     res.json(await frais.transition(db, idParam(req), req.params.action, { ...ctx(req), note: data.note || null, journal: data.journal || null }));
   }));
-  r.post('/expenses/reimburse', requirePermission('frais:post'), ah(async (req, res) => {
+  r.post('/expenses/reimburse', requirePermission('frais:reimburse'), ah(async (req, res) => {
     const data = parse(z.object({ ids: z.array(z.number().int().positive()).min(1).max(100), journal: z.enum(['BQ', 'CA', 'MM']), date: day }), req.body);
     res.json(await frais.reimburse(db, data.ids, { ...data, user: req.user }));
   }));

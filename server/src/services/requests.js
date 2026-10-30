@@ -59,7 +59,7 @@ function rights(r, { userId, can, superAdmin, depts }) {
     cancel: author && ['attente_responsable', 'attente_dg', 'attente_sg'].includes(r.status),
   };
 }
-const canSee = (r, v) => r.requested_by === v.userId || r.manager_user_id === v.userId || v.can('demandes:handle') || v.can('demandes:dg') || v.superAdmin
+const canSee = (r, v) => r.requested_by === v.userId || r.manager_user_id === v.userId || v.can('demandes:handle') || v.can('demandes:view_all') || v.can('demandes:dg') || v.superAdmin
   || (r.kind === 'service' && servesFor(r.service, v))
   || (!!r.department && inDepartment(r.department, v))
   || (REQUEST_KINDS[r.kind]?.purchase && v.can('appro:read'));
@@ -169,8 +169,8 @@ async function close(db, r, data, v) {
     await db.transaction(async trx => {
       if (data.invoice) {
         if (!REQUEST_KINDS[r.kind]?.purchase) throw new HttpError(400, 'Seul un achat devient une facture d’achat.');
-        // Une facture d'achat relève de la Comptabilité (droit « Gérer les achats »)
-        if (!v.can('achats:write')) throw new HttpError(403, 'Préparer la facture d’achat demande le droit « Gérer les achats » : clôturez sans facture, la Comptabilité la saisira.');
+        // Une facture d'achat relève de la Comptabilité (droit « Saisir les achats ») et du traitement (« Facture d’achat à la clôture »)
+        if (!v.can('demandes:invoice') || !v.can('achats:write')) throw new HttpError(403, 'Préparer la facture d’achat demande les droits « Facture d’achat à la clôture » et « Saisir les achats » : clôturez sans facture, la Comptabilité la saisira.');
         if (!data.supplier_id || !data.amount_ttc) throw new HttpError(400, 'Facture : fournisseur et montant TTC.');
         const s = await trx('suppliers').where({ id: data.supplier_id }).first();
         if (!s) throw new HttpError(404, 'Fournisseur introuvable.');
@@ -217,7 +217,7 @@ async function list(db, v, { scope = 'mine', status = null, service = null, depa
   const q = query(db).orderBy('r.created_at', 'desc').limit(1000);
   if (scope === 'mine') q.where('r.requested_by', v.userId);
   else if (scope === 'department') {
-    if (!DEPARTMENTS[department] || !(inDepartment(department, v) || v.can('demandes:handle') || v.superAdmin)) throw new HttpError(403, 'Droits insuffisants.');
+    if (!DEPARTMENTS[department] || !(inDepartment(department, v) || v.can('demandes:view_all') || v.superAdmin)) throw new HttpError(403, 'Droits insuffisants.');
     q.where('r.department', department);
   } else if (scope === 'approve') {
     q.where(w => {
@@ -230,7 +230,7 @@ async function list(db, v, { scope = 'mine', status = null, service = null, depa
   } else if (scope === 'handle') {
     if (!v.can('demandes:handle')) throw new HttpError(403, 'Droits insuffisants.');
     q.whereIn('r.status', ['attente_sg', 'en_cours']);
-  } else if (!v.can('demandes:handle') && !v.can('demandes:dg') && !v.superAdmin) {
+  } else if (!v.can('demandes:view_all') && !v.can('demandes:dg') && !v.superAdmin) {
     q.where(w => w.where('r.requested_by', v.userId).orWhere('r.manager_user_id', v.userId));
   }
   if (status) q.whereIn('r.status', String(status).split(','));

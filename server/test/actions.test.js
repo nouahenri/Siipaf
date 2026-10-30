@@ -28,7 +28,7 @@ test('SAV par action : le conducteur crée et traite mais n’attribue pas sans 
   const other = await db('users').where({ email: 'comptable@test.ci' }).first();
   assert.equal((await conducteur.patch(`/api/admin/erp/sav/tickets/${id}`).send({ assigned_to: other.id })).status, 403);
   assert.equal((await conducteur.patch(`/api/admin/erp/sav/tickets/${id}`).send({ location: 'Salon' })).status, 200);
-  await setRole('conducteur_travaux', ['sav:assign'], ['sav:handle']);
+  await setRole('conducteur_travaux', ['sav:assign'], ['sav:edit', 'sav:status', 'sav:comment']);
   assert.equal((await conducteur.patch(`/api/admin/erp/sav/tickets/${id}`).send({ assigned_to: other.id })).status, 200, 'attribuer sans traiter');
   assert.equal((await conducteur.patch(`/api/admin/erp/sav/tickets/${id}`).send({ location: 'Cuisine' })).status, 403, 'modifier demande « Traiter »');
 });

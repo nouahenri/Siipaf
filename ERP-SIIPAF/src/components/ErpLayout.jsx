@@ -17,11 +17,11 @@ import { MODULE_DEPARTMENT } from '../lib/departments';
 import NotificationCenter from './NotificationCenter';
 
 const COURRIER = ['courrier:read', 'courrier:write', 'courrier:assign'];
-const CONTRATS = ['contrats:read', 'contrats:write'];
-const PARC = ['parc:read', 'parc:write'];
-const DEMANDES = ['demandes:handle', 'demandes:dg', 'appro:validate', 'appro:direction'];
+const CONTRATS = ['contrats:read', 'contrats:write', 'contrats:close', 'contrats:documents'];
+const PARC = ['parc:read', 'parc:write', 'parc:maintenance', 'parc:costs', 'parc:reservations'];
+const DEMANDES = ['demandes:handle', 'demandes:view_all', 'demandes:dg', 'appro:validate', 'appro:direction'];
 export const ADMIN_SHOW = b => b?.mine > 0 || b?.contracts_owned > 0 || !!b?.docs_can_publish || b?.requests_to_approve > 0;
-export const JURIDIQUE = ['juridique:read', 'juridique:write', 'direction:read'];
+export const JURIDIQUE = ['juridique:read', 'juridique:deeds', 'juridique:litigation', 'juridique:guarantees', 'juridique:settings', 'direction:read'];
 export const JURIDIQUE_SHOW = b => b?.litigations_mine > 0;
 
 // Navigation de chaque module ; les modules suivants (comptabilité, RH…) viendront s'ajouter ici
@@ -41,7 +41,7 @@ const MODULES = {
     ],
   },
   commercial: {
-    label: 'Service commercial', icon: Briefcase, perm: ['commercial:read', 'vefa:write'],
+    label: 'Service commercial', icon: Briefcase, perm: ['commercial:read', 'vefa:read', 'vefa:write'],
     items: [
       { to: '/commercial', label: 'Tableau de bord', icon: LayoutDashboard, end: true, perm: 'commercial:read' },
       { to: '/commercial/pipeline', label: 'Pipeline', icon: Columns3, perm: 'leads:read' },
@@ -50,7 +50,7 @@ const MODULES = {
       // also : droits exigés en plus par le serveur (il réserve le Service commercial à commercial:read)
       { to: '/commercial/parc', label: 'Parc immobilier', icon: Building2, perm: 'lots:read', also: 'commercial:read' },
       { to: '/commercial/ventes', label: 'Dossiers de vente', icon: FileSignature, perm: 'sales:read', also: 'commercial:read' },
-      { to: '/commercial/vefa', label: 'Appels de fonds VEFA', icon: Landmark, perm: ['commercial:read', 'vefa:write'] },
+      { to: '/commercial/vefa', label: 'Appels de fonds VEFA', icon: Landmark, perm: ['commercial:read', 'vefa:read', 'vefa:write'] },
       { to: '/commercial/objectifs', label: 'Objectifs et performance', icon: Target, perm: 'commercial:read' },
       // Réglages : « Mes notifications » pour tout compte du module, paramètres pour ceux qui y ont droit
       { to: '/commercial/reglages', label: 'Réglages', icon: Settings2 },
@@ -80,7 +80,7 @@ const MODULES = {
       { to: '/rh', label: 'Tableau de bord', icon: LayoutDashboard, end: true, perm: 'rh:read' },
       { to: '/rh/personnel', label: 'Personnel', icon: Contact, perm: 'rh:read' },
       { to: '/rh/conges', label: 'Congés et absences', icon: Palmtree, badge: 'approvals', perm: 'rh:read', show: b => b?.team_size > 0 || b?.approvals > 0 },
-      { to: '/rh/presences', label: 'Présences', icon: Fingerprint, perm: ['rh:read', 'presence:write'] },
+      { to: '/rh/presences', label: 'Présences', icon: Fingerprint, perm: ['rh:read', 'presence:sheets', 'presence:kiosk', 'presence:correct'] },
       { to: '/rh/frais', label: 'Notes de frais', icon: Receipt, badge: 'expenses', perm: ['rh:read', 'compta:read'], show: b => b?.team_size > 0 || b?.expenses > 0 },
       { to: '/rh/recrutement', label: 'Recrutement', icon: UserPlus, perm: 'rh:read' },
       { to: '/rh/competences', label: 'Compétences et formations', icon: GraduationCap, perm: 'rh:read' },

@@ -26,7 +26,7 @@ export function PositionSelect({ value, onPick, required = true, positions }) {
         {value && !known && <option value={`__${value}`}>{value} (hors liste)</option>}
         {list.map(p => <option key={p.id} value={p.title}>{p.title} · {p.department_label}</option>)}
       </select>
-      {can('rh:settings') && <span className="small muted">Liste gérée dans <Link className="link" to="/rh/reglages">RH › Réglages</Link></span>}
+      {can('rh:positions') && <span className="small muted">Liste gérée dans <Link className="link" to="/rh/reglages">RH › Réglages</Link></span>}
     </>
   );
 }
@@ -94,7 +94,7 @@ export function ChangePositionModal({ d, onClose, onSaved }) {
           <Field label="Motif"><select className="select" value={f.reason} onChange={set('reason')}>{Object.entries(pos.data.reasons).map(([k, r]) => <option key={k} value={k}>{r.label}</option>)}</select></Field>
           <Field label="Date d’effet" hint={future ? 'Appliqué automatiquement ce jour-là' : 'Appliqué dès l’enregistrement'}><input className="input" type="date" required value={f.effective_date} onChange={set('effective_date')} /></Field>
           <Field label="Catégorie professionnelle"><input className="input" maxLength={40} value={f.category} onChange={set('category')} /></Field>
-          {can('paie:employees') ? (
+          {can('paie:salary') ? (
             <Field label="Nouveau salaire de base (FCFA)" hint={e.base_salary != null ? `Actuel : ${fcfa(e.base_salary)} ; vide = inchangé` : 'Vide = inchangé'}><input className="input" type="number" min="0" value={f.base_salary} onChange={set('base_salary')} /></Field>
           ) : <p className="small muted" style={{ alignSelf: 'end' }}>Le salaire se révise dans Comptabilité › Employés (droit paie).</p>}
           <label className="full row" style={{ gap: 6 }}><input type="checkbox" checked={f.change_manager} onChange={set('change_manager')} />Changer son responsable direct</label>

@@ -12,7 +12,7 @@ import { RequestDrawer } from '../pages/admin/Demandes';
 import { REQUEST_TONES } from './MyRequests';
 
 const URL = '/admin/erp/demandes';
-export const SERVICE_PERMS = { rh: ['rh:files'], commercial: ['leads:assign'], sav: ['sav:handle'], compta: ['compta:entries', 'achats:write'], juridique: ['juridique:write'] };
+export const SERVICE_PERMS = { rh: ['rh:files'], commercial: ['leads:assign', 'leads:transfer_decide'], sav: ['sav:edit', 'sav:status', 'sav:comment'], compta: ['compta:entries', 'achats:write'], juridique: ['juridique:deeds', 'juridique:litigation', 'juridique:guarantees', 'juridique:settings'] };
 
 export default function ServiceRequests({ service }) {
   const { can } = useAuth();

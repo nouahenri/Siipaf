@@ -2,7 +2,7 @@
  * ERP · Chantiers, lot 4 (choix du client du 24/10) : marchés de sous-traitance et situations de travaux.
  * Le marché est un contrat de sorte « sous-traitance » rattaché au chantier (même liste que l'Administration et le
  * Juridique ; retenue de garantie par défaut réglée dans Chantiers › Réglages). Une situation est saisie par le conducteur,
- * vérifiée par lui, puis validée par la Direction (chantiers:direction) : elle devient une facture d'achat en brouillon
+ * vérifiée par lui, puis validée par la Direction (chantiers:situations) : elle devient une facture d'achat en brouillon
  * (poste « sous-traitance » du chantier, comptée dans les coûts réels) et sa retenue s'ajoute à la retenue de garantie du
  * marché dans Juridique › Cautions. Règles dans lib/domain.js (SITUATION_STATUSES, situationAmounts).
  */
@@ -132,9 +132,9 @@ async function verify(db, w, id, userId) {
   if (s.status !== 'brouillon') throw new HttpError(409, 'Cette situation n’est plus en brouillon.');
   await db('worksite_situations').where({ id }).update({ status: 'verifiee', verified_by: userId, verified_at: new Date(), updated_at: new Date() });
   const c = await db('contracts').where({ id: s.contract_id }).first('reference', 'title');
-  // Les comptes qui valident (chantiers:direction) et les services du circuit (Direction générale, exploitation)
+  // Les comptes qui valident (chantiers:situations) et les services du circuit (Direction générale, exploitation)
   await inform(db, 'chantier.situation_verifiee', {
-    direct: await usersWith(db, 'chantiers:direction'), except: userId,
+    direct: await usersWith(db, 'chantiers:situations'), except: userId,
     title: `Situation n° ${s.number} à valider — ${c.reference}`, body: `${c.title} · ${w.reference} — ${money(s.amount_ttc)} TTC, retenue ${money(s.retention_amount)}.`,
     link: `/chantiers/${w.id}?onglet=sous-traitants`, key: `situation:${id}:verifiee`,
   });

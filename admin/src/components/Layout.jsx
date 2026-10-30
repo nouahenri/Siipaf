@@ -38,7 +38,7 @@ const NAV = [
 
 // L'ERP (erp.siipaf.com, erp.localhost en local) partage la base du dashboard : mêmes prospects, clients, lots et ventes
 const erpUrl = () => `${window.location.protocol}//${window.location.host.replace(/^admin\./, 'erp.')}/`;
-const ERP_PERMS = ['commercial:read', 'vefa:write', 'sav:read'];
+const ERP_PERMS = ['commercial:read', 'vefa:read', 'vefa:write', 'sav:read'];
 
 const TITLES = {
   '/': 'Tableau de bord', '/prospects': 'Prospects', '/clients': 'Clients', '/rendez-vous': 'Rendez-vous', '/lots': 'Biens & disponibilités',

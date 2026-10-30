@@ -408,6 +408,12 @@ const PARC_ACTIONS = ['parc:read', 'parc:write'];
 const DOCS_ACTIONS = ['docs:publish'];
 const REQUEST_ACTIONS = ['demandes:handle'];
 const LEGAL_ACTIONS = ['juridique:read', 'juridique:write'];
+// Actions découpées (30/10), pour les listes « l'un de ces droits » (voir PERMISSION_SPLITS)
+const PRESENCE_ACTIONS = ['presence:sheets', 'presence:kiosk', 'presence:correct'];
+const RH_SETTINGS_ACTIONS = ['rh:rules', 'rh:positions', 'rh:heads', 'rh:holidays'];
+const RECRUIT_ACTIONS = ['recrutement:jobs', 'recrutement:applicants', 'recrutement:hire', 'recrutement:delete'];
+const KPI_ACTIONS = ['kpi:indicators', 'kpi:templates', 'kpi:department'];
+const FORMATION_ACTIONS = ['formation:skills', 'formation:plan', 'formation:complete'];
 const RH_ACTIONS = ['rh:files', 'rh:documents', 'conges:approve', 'conges:manage', 'rh:overtime', 'frais:approve', 'recrutement:write', 'formation:write', 'evaluation:write', 'rh:settings'];
 
 
@@ -437,6 +443,48 @@ const PERMISSION_SPLITS = {
   'documents:write': ['documents:status', 'documents:files', 'documents:visibility'],
   'client_access:write': ['client_access:open', 'client_access:disable'],
   'client_messages': ['client_messages', 'client_messages:group'],
+  // ERP, action par action (30/10) : Service commercial
+  'leads:assign': ['leads:assign', 'leads:transfer_decide'],
+  'property:write': ['property:buildings', 'property:lots'],
+  'vefa:write': ['vefa:read', 'vefa:write'],
+  // Achats & stocks
+  'appro:write': ['appro:locations', 'appro:needs', 'appro:quotes', 'appro:orders'],
+  'appro:stock': ['appro:stock', 'appro:receive', 'appro:minimum'],
+  // Comptabilité
+  'compta:entries': ['compta:entries', 'compta:sync', 'compta:import', 'compta:assets'],
+  'compta:validate': ['compta:validate', 'compta:reverse'],
+  'achats:write': ['suppliers:write', 'achats:write', 'achats:validate'],
+  'achats:pay': ['achats:pay', 'achats:advance'],
+  'frais:post': ['frais:post', 'frais:reimburse'],
+  'compta:close': ['compta:years', 'compta:lock', 'compta:opening', 'compta:close'],
+  'compta:settings': ['compta:plan', 'compta:settings'],
+  // Paie
+  'paie:employees': ['paie:employees', 'paie:salary'],
+  'paie:prepare': ['paie:prepare', 'paie:inputs'],
+  // Ressources humaines
+  'rh:files': ['rh:files', 'rh:documents_write', 'rh:career', 'rh:pin'],
+  'conges:manage': ['conges:enter', 'conges:adjust', 'conges:cancel'],
+  'presence:write': ['presence:sheets', 'presence:kiosk', 'presence:correct'],
+  'recrutement:write': ['recrutement:jobs', 'recrutement:applicants', 'recrutement:hire', 'recrutement:delete'],
+  'formation:write': ['formation:skills', 'formation:plan', 'formation:complete'],
+  'evaluation:write': ['evaluation:objectives', 'evaluation:reviews'],
+  'kpi:write': ['kpi:indicators', 'kpi:templates', 'kpi:department'],
+  'rh:settings': ['rh:rules', 'rh:positions', 'rh:heads', 'rh:holidays'],
+  // Client & SAV
+  'sav:handle': ['sav:edit', 'sav:status', 'sav:comment'],
+  'sav:reserves': ['sav:delivery', 'sav:reserves'],
+  // Administration générale
+  'contrats:write': ['contrats:write', 'contrats:close', 'contrats:documents'],
+  'parc:write': ['parc:write', 'parc:maintenance', 'parc:costs', 'parc:reservations'],
+  'demandes:handle': ['demandes:handle', 'demandes:view_all', 'demandes:invoice'],
+  // Juridique
+  'juridique:write': ['juridique:deeds', 'juridique:litigation', 'juridique:guarantees', 'juridique:settings'],
+  // Chantiers
+  'chantiers:write': ['chantiers:create', 'chantiers:plan', 'chantiers:budget', 'chantiers:settings', 'chantiers:tma'],
+  'chantiers:direction': ['chantiers:stages', 'chantiers:situations'],
+  // Dashboard : paramètres et échéanciers
+  'settings:write': ['settings:refs', 'settings:general'],
+  'schedule:write': ['schedule:generate', 'schedule:edit'],
 };
 // Découpage répété jusqu'aux actions finales (un privilège découpé peut l'être à nouveau)
 function splitPermissions(list) {
@@ -495,7 +543,8 @@ const PERMISSION_CATALOG = [
   { group: 'Ventes', items: [
     ['leads:read', 'Voir les prospects', 'Liste, fiches et export CSV des prospects'],
     ['leads:all', 'Portée : toute l’équipe (responsable, services support)', 'Prospects, clients, rendez-vous, dossiers, versements et messages de tous les commerciaux, et ceux non attribués. Sans ce droit, un commercial ne voit et ne traite que les siens'],
-    ['leads:assign', 'Attribuer et transférer (responsable)', 'Attribuer les prospects non attribués, changer le commercial d’un prospect ou d’un client, valider ou refuser les demandes de transfert des commerciaux'],
+    ['leads:assign', 'Attribuer et changer de commercial (responsable)', 'Attribuer les prospects non attribués, changer le commercial d’un prospect ou d’un client, répartir en lot', 'Attribution et transferts'],
+    ['leads:transfer_decide', 'Valider ou refuser les demandes de transfert', 'Décision du responsable sur les demandes de transfert des commerciaux (pour un client, avec l’accord de l’administrateur général)', 'Attribution et transferts'],
     ['leads:create', 'Créer un prospect', 'Nouveau prospect saisi au dashboard ou dans l’ERP ; il est attribué à son auteur', 'Gérer ses prospects'],
     ['leads:edit', 'Modifier la fiche', 'Nom, coordonnées, programme, financement, priorité, montant attendu', 'Gérer ses prospects'],
     ['leads:stage', 'Faire avancer dans le circuit', 'Changer l’étape, marquer perdu (motif) ou reprendre un prospect perdu', 'Gérer ses prospects'],
@@ -534,39 +583,60 @@ const PERMISSION_CATALOG = [
     ['client_messages', 'Lire et répondre', 'Messages de ses clients (de tous les clients avec la portée « toute l’équipe »)', 'Messagerie clients'],
     ['client_messages:group', 'Écrire à plusieurs clients', 'Même message dans la conversation de chaque client choisi', 'Messagerie clients'],
     ['site_updates:write', 'Publier l’avancement du chantier', 'Étapes, pourcentages, photos et vidéos pour les acquéreurs ; n’émet pas d’appel de fonds (déclaration de la Direction)'],
-    ['schedule:write', 'Gérer les échéanciers', 'Générer et modifier les échéances de paiement'],
+    ['schedule:generate', 'Générer l’échéancier', 'Recalculer l’échéancier type d’un dossier selon son financement (les versements enregistrés sont réimputés)', 'Échéanciers'],
+    ['schedule:edit', 'Modifier les échéances', 'Remplacer les échéances d’un dossier (dates et montants)', 'Échéanciers'],
   ] },
   { group: 'ERP · Service commercial', items: [
     ['commercial:read', 'Ouvrir le Service commercial', 'Tableau de bord, pipeline, activités, parc, ventes, appels de fonds, objectifs'],
     ['targets:write', 'Fixer les objectifs commerciaux', 'Objectifs mensuels par commercial'],
-    ['property:write', 'Structurer le parc immobilier', 'Bâtiments, étages et caractéristiques des lots'],
-    ['vefa:write', 'Gérer les appels de fonds VEFA', 'Plans d’appels de fonds par programme (les étapes atteintes sont déclarées par la Direction)'],
+    ['property:buildings', 'Bâtiments et étages', 'Créer, modifier et supprimer les bâtiments d’un programme (supprimer un bâtiment ne supprime aucun lot)', 'Parc immobilier'],
+    ['property:lots', 'Caractéristiques des lots', 'Type de bien, bâtiment, étage, pièces, titre foncier, tantièmes, affectation groupée ; le prix, la surface et l’îlot demandent aussi « Créer et modifier les lots »', 'Parc immobilier'],
+    ['vefa:read', 'Consulter les appels de fonds VEFA', 'Plans et appels de fonds de tous les programmes et de tous les dossiers VEFA (le service commercial ne voit que les siens)', 'Appels de fonds VEFA'],
+    ['vefa:write', 'Établir les plans d’appels de fonds', 'Plans d’appels de fonds par programme, délai de paiement (les étapes atteintes sont déclarées par la Direction)', 'Appels de fonds VEFA'],
   ] },
   { group: 'ERP · Achats & stocks', items: [
     ['appro:read', 'Consulter les achats et stocks', 'Besoins, demandes de prix, commandes, réceptions et stocks par emplacement'],
-    ['appro:write', 'Préparer les achats', 'Emplacements, demandes de prix et bons de commande ; traiter les besoins des chantiers'],
+    ['appro:locations', 'Créer les emplacements de stock', 'Un emplacement par dépôt, lieu ou chantier', 'Préparer les achats'],
+    ['appro:needs', 'Traiter les besoins', 'Besoins des chantiers et demandes d’achat des services : préparer le bon de commande ou refuser avec un motif', 'Préparer les achats'],
+    ['appro:quotes', 'Demandes de prix', 'Créer, modifier et annuler une demande de prix ; enregistrer le devis reçu', 'Préparer les achats'],
+    ['appro:orders', 'Bons de commande', 'Créer, modifier, soumettre au validateur, reprendre en brouillon et annuler ; transformer un devis reçu en commande (avec « Demandes de prix »)', 'Préparer les achats'],
     ['appro:articles', 'Gérer le catalogue des articles', 'Créer, modifier, désactiver et importer (CSV) les articles ; rattacher un besoin hors catalogue'],
     ['appro:validate', 'Valider les commandes', 'Peut être désigné validateur des commandes sous le plafond (jamais de ses propres commandes)'],
     ['appro:direction', 'Valider à partir du plafond', 'Validation ou refus des commandes à partir du plafond ; peut se substituer au validateur désigné'],
-    ['appro:stock', 'Gérer les mouvements et réceptions', 'Entrées, sorties, transferts et réceptions ; aucun stock négatif'],
+    ['appro:stock', 'Mouvements de stock', 'Entrées, sorties et transferts : créer, modifier, valider, annuler ; aucun stock négatif', 'Stocks et réceptions'],
+    ['appro:receive', 'Réceptionner une commande', 'Réception partielle ou complète d’un bon de commande confirmé (entrée en stock)', 'Stocks et réceptions'],
+    ['appro:minimum', 'Fixer le stock minimum', 'Seuil d’alerte par article et par emplacement ; reçoit les alertes de stock bas', 'Stocks et réceptions'],
     ['appro:settings', 'Régler les achats et stocks', 'Plafond de validation par la Direction'],
   ] },
   { group: 'ERP · Comptabilité', items: [
     ['compta:read', 'Consulter la comptabilité', 'Écritures, états, trésorerie, achats, tableau de bord'],
-    ['compta:entries', 'Saisir des écritures', 'Écritures manuelles en brouillon, modification et suppression des brouillons, synchronisation des ventes et versements'],
-    ['compta:validate', 'Valider les écritures', 'Numérotation définitive, contrepassation d’une écriture validée'],
-    ['achats:write', 'Gérer les achats', 'Fournisseurs, factures d’achat en brouillon, cartes carburant'],
-    ['achats:validate', 'Valider les factures d’achat et les dépenses du Parc', 'Validation d’une facture d’achat (numéro définitif, écriture) ; validation ou rejet des dépenses du Parc auto et matériel'],
-    ['achats:pay', 'Régler les fournisseurs', 'Enregistrer les paiements des factures d’achat'],
-    ['frais:post', 'Comptabiliser les notes de frais', 'Passer les notes approuvées en comptabilité et rembourser les employés'],
-    ['compta:close', 'Exercices et clôture', 'Créer les exercices, verrouiller une période, clôturer, à-nouveaux, soldes d’ouverture'],
-    ['compta:settings', 'Paramétrer la comptabilité', 'Plan comptable, journaux, modes de chiffre d’affaires, TVA, comptes utilisés'],
+    ['compta:entries', 'Saisir des écritures', 'Écritures manuelles en brouillon, modification et suppression des brouillons', 'Écritures'],
+    ['compta:sync', 'Synchroniser les ventes et versements', 'Écritures automatiques des ventes, versements et appels de fonds', 'Écritures'],
+    ['compta:import', 'Importer des écritures Sage', 'Journal d’écritures (fichier CSV, TXT ou Excel) : simulation, puis import', 'Écritures'],
+    ['compta:assets', 'Immobilisations du parc', 'Compléter la fiche d’immobilisation, passer les dotations aux amortissements, sortir un bien de l’actif', 'Écritures'],
+    ['compta:validate', 'Valider les écritures', 'Numérotation définitive des brouillons', 'Validation'],
+    ['compta:reverse', 'Contrepasser une écriture validée', 'Écriture inverse d’une écriture définitive', 'Validation'],
+    ['suppliers:write', 'Gérer les fournisseurs', 'Créer et modifier les fournisseurs', 'Achats et fournisseurs'],
+    ['achats:write', 'Saisir les achats', 'Factures d’achat en brouillon (modifier, supprimer), cartes carburant', 'Achats et fournisseurs'],
+    ['achats:validate', 'Valider les factures d’achat et les dépenses du Parc', 'Validation d’une facture d’achat (numéro définitif, écriture) ; validation ou rejet des dépenses du Parc auto et matériel', 'Achats et fournisseurs'],
+    ['achats:pay', 'Régler les fournisseurs', 'Enregistrer les paiements des factures d’achat et les recharges de cartes carburant', 'Règlements fournisseurs'],
+    ['achats:advance', 'Verser un acompte sur commande', 'Acompte au fournisseur sur un bon de commande confirmé (Achats & stocks)', 'Règlements fournisseurs'],
+    ['frais:post', 'Comptabiliser les notes de frais', 'Passer les notes approuvées en comptabilité', 'Notes de frais'],
+    ['frais:reimburse', 'Rembourser les employés', 'Enregistrer le remboursement des notes comptabilisées', 'Notes de frais'],
+    ['compta:years', 'Créer les exercices', 'Nouvel exercice comptable', 'Exercices et clôture'],
+    ['compta:lock', 'Verrouiller une période', 'Plus aucune écriture jusqu’à la date de verrouillage (après une déclaration de TVA)', 'Exercices et clôture'],
+    ['compta:opening', 'Soldes d’ouverture et à-nouveaux', 'Saisie ou import des soldes d’ouverture, à-nouveaux générés depuis l’exercice clôturé', 'Exercices et clôture'],
+    ['compta:close', 'Clôturer un exercice', 'Clôture définitive : plus aucune écriture sur l’exercice', 'Exercices et clôture'],
+    ['compta:plan', 'Plan comptable et journaux', 'Créer et modifier les comptes et les journaux ; importer le plan Sage ; créer les comptes manquants à l’import', 'Paramétrage'],
+    ['compta:settings', 'Régler la comptabilité', 'Modes de chiffre d’affaires, TVA, comptes utilisés, jour de clôture, durées d’amortissement, format Sage', 'Paramétrage'],
     ['compta:export', 'Exporter vers Sage', 'Fichier des écritures validées'],
   ] },
   { group: 'ERP · Paie', items: [
     ['paie:read', 'Consulter la paie', 'Salaires, bulletins, livre de paie, déclarations'],
-    ['paie:employees', 'Gérer les fiches salariés', 'Création des fiches, contrat, salaire et indemnités, moyen de paiement'],
-    ['paie:prepare', 'Préparer la paie', 'Créer la paie du mois, éléments variables, recalcul, suppression d’un brouillon'],
+    ['paie:employees', 'Gérer les fiches salariés', 'Création des fiches, identité, contrat, responsable (sans le salaire)', 'Fiches salariés'],
+    ['paie:salary', 'Salaire et paiement', 'Salaire de base, indemnités, parts fiscales, moyen de paiement et compte bancaire', 'Fiches salariés'],
+    ['paie:prepare', 'Préparer la paie', 'Créer la paie du mois, recalcul, suppression d’un brouillon', 'Préparation de la paie'],
+    ['paie:inputs', 'Saisir les éléments variables', 'Jours travaillés, heures supplémentaires, primes et avances des bulletins en brouillon', 'Préparation de la paie'],
     ['paie:validate', 'Valider la paie', 'Bulletins définitifs et écriture de paie'],
     ['paie:pay', 'Payer les salaires', 'Écritures de paiement (banque, caisse, Mobile Money)'],
     ['paie:settings', 'Régler le barème de paie', 'Taux CNPS, ITS, CMU, taxes, comptes de paie'],
@@ -574,20 +644,38 @@ const PERMISSION_CATALOG = [
   { group: 'ERP · Ressources humaines', items: [
     ['rh:read', 'Voir le personnel', 'Annuaire, dossiers, absences, présences, recrutement, formations, performance (sans les salaires)'],
     ['rh:documents', 'Voir les pièces du dossier du personnel', 'CNI, certificats, courriers disciplinaires, contrats : liste et téléchargement (service RH ; l’employé garde l’accès à ses propres pièces)'],
-    ['rh:files', 'Gérer les dossiers du personnel', 'Identité, contrat, responsable direct, documents, carrière, code de pointage'],
+    ['rh:files', 'Identité, contrat et responsable', 'Fiche de l’employé : identité, contrat, service, responsable direct, compte relié', 'Dossiers du personnel'],
+    ['rh:documents_write', 'Joindre et supprimer des pièces', 'Ajouter ou retirer une pièce du dossier (sans pouvoir la consulter : voir « Voir les pièces du dossier »)', 'Dossiers du personnel'],
+    ['rh:career', 'Carrière', 'Changement de poste daté (promotion, mutation) et événements de carrière', 'Dossiers du personnel'],
+    ['rh:pin', 'Code de pointage', 'Définir ou réinitialiser le code personnel de la borne de pointage', 'Dossiers du personnel'],
     ['conges:approve', 'Approuver les congés', 'Approbation finale ou refus des demandes de tout le personnel'],
-    ['conges:manage', 'Gérer les absences', 'Saisir une absence pour un employé, ajuster les soldes, annuler une absence commencée'],
-    ['presence:write', 'Pointer le personnel', 'Feuilles de présence de chantier, borne de pointage, corrections des pointages'],
+    ['conges:enter', 'Saisir une absence', 'Enregistrer une absence pour un employé', 'Absences'],
+    ['conges:adjust', 'Ajuster les soldes', 'Ajustements de solde et solde d’ouverture des congés repris', 'Absences'],
+    ['conges:cancel', 'Annuler une absence commencée', 'Un employé annule lui-même sa demande tant qu’elle n’a pas commencé', 'Absences'],
+    ['presence:sheets', 'Feuilles de présence', 'Feuille de présence d’un chantier ou d’un lieu', 'Présences'],
+    ['presence:kiosk', 'Borne de pointage', 'Ouvrir la borne de pointage (tablette de chantier)', 'Présences'],
+    ['presence:correct', 'Corriger les pointages', 'Saisir, modifier ou supprimer un pointage (motif obligatoire ; jamais le sien)', 'Présences'],
     ['rh:overtime', 'Arrêter les heures supplémentaires', 'Envoi des heures supplémentaires du mois en paie'],
     ['frais:approve', 'Approuver les notes de frais', 'Notes de frais de tout le personnel (le responsable direct approuve celles de son équipe)'],
-    ['recrutement:write', 'Gérer le recrutement', 'Postes, publication sur le site, candidatures, entretiens, embauche'],
-    ['formation:write', 'Gérer les compétences et formations', 'Référentiel, profils, plan de formation, participants, clôture'],
-    ['evaluation:write', 'Évaluer le personnel', 'Objectifs et entretiens de tout le personnel (le responsable direct évalue son équipe)'],
-    ['kpi:write', 'Gérer le référentiel KPI', 'Indicateurs, modèles d’objectifs par service et par poste, objectifs collectifs des services, calcul du score des services'],
-    ['rh:settings', 'Régler les RH', 'Règles des congés, heures supplémentaires, catégories de frais, jours fériés'],
+    ['recrutement:jobs', 'Postes à pourvoir', 'Créer, modifier, publier sur le site et fermer un poste ; prétentions salariales', 'Recrutement'],
+    ['recrutement:applicants', 'Candidatures et entretiens', 'Saisir une candidature, la faire avancer, noter les entretiens', 'Recrutement'],
+    ['recrutement:hire', 'Embaucher', 'Transformer une candidature en fiche d’employé', 'Recrutement'],
+    ['recrutement:delete', 'Supprimer postes et candidatures', 'Suppression d’un poste sans candidature ou d’une candidature (effacement)', 'Recrutement'],
+    ['formation:skills', 'Référentiel et profils de compétences', 'Types de compétences, compétences, profils et CV du personnel', 'Compétences et formations'],
+    ['formation:plan', 'Plan de formation', 'Sessions, participants, annulation', 'Compétences et formations'],
+    ['formation:complete', 'Clôturer une formation', 'Constater la formation réalisée : niveaux de compétences mis à jour', 'Compétences et formations'],
+    ['evaluation:objectives', 'Objectifs du personnel', 'Fixer, modifier et supprimer les objectifs de tout le personnel (le responsable direct fixe ceux de son équipe ; jamais les siens)', 'Évaluations'],
+    ['evaluation:reviews', 'Entretiens annuels', 'Mener et finaliser l’entretien de tout le personnel (le responsable direct mène ceux de son équipe ; jamais le sien)', 'Évaluations'],
+    ['kpi:indicators', 'Indicateurs', 'Créer et régler les indicateurs de performance', 'Référentiel KPI'],
+    ['kpi:templates', 'Modèles d’objectifs', 'Modèles par service et par poste, application aux employés', 'Référentiel KPI'],
+    ['kpi:department', 'Objectifs collectifs des services', 'Objectifs collectifs des services, calcul du score des services', 'Référentiel KPI'],
+    ['rh:rules', 'Règles des congés et des frais', 'Congés, heures supplémentaires, catégories de frais, géolocalisation du pointage', 'Réglages RH'],
+    ['rh:positions', 'Postes et grille', 'Postes, salaires de référence, fusion, rôle du compte', 'Réglages RH'],
+    ['rh:heads', 'Chefs de service', 'Désigner le chef de chaque service', 'Réglages RH'],
+    ['rh:holidays', 'Jours fériés', 'Calendrier des jours fériés', 'Réglages RH'],
   ] },
   { group: 'ERP · Espace employé', items: [
-    ['self:conges', 'Demander des congés', 'Mon espace : demandes de congé et d’absence, justificatifs, auto-évaluation'],
+    ['self:conges', 'Mon espace RH : congés, justificatifs, auto-évaluation', 'Demandes de congé et d’absence, justificatifs et auto-évaluation annuelle'],
     ['self:pointage', 'Pointer en ligne', 'Mon espace : arrivée et départ, code de la borne de pointage'],
     ['self:frais', 'Saisir des notes de frais', 'Mon espace : dépenses avec reçu, soumission'],
     ['self:vehicule', 'Demander un véhicule', 'Mon espace : réservation d’un véhicule de service, accordée par les services généraux'],
@@ -599,31 +687,49 @@ const PERMISSION_CATALOG = [
     ['courrier:write', 'Enregistrer le courrier (secrétariat)', 'Arrivée et départ, scan joint, correction d’un enregistrement'],
     ['courrier:assign', 'Affecter le courrier (direction)', 'Destinataire, suite à donner et délai ; voit les courriers confidentiels ; relances'],
     ['contrats:read', 'Consulter les contrats et échéances', 'Contrats, pièces, échéances et factures préparées'],
-    ['contrats:write', 'Gérer les contrats (services généraux, juridique)', 'Saisir, modifier, résilier ; pièces à renouveler ; reçoit toutes les alertes'],
+    ['contrats:write', 'Saisir et modifier les contrats (services généraux, juridique)', 'Créer un contrat, ses paiements et ses échéances ; reçoit toutes les alertes', 'Contrats'],
+    ['contrats:close', 'Résilier et rouvrir un contrat', null, 'Contrats'],
+    ['contrats:documents', 'Pièces des contrats', 'Ajouter, remplacer et supprimer les pièces, pièces à renouveler', 'Contrats'],
     ['parc:read', 'Consulter le parc auto et matériel', 'Biens, affectations, échéances, entretien, carburant, coûts par chantier'],
-    ['parc:write', 'Gérer le parc (services généraux)', 'Biens, affectations, échéances, entretien, dépenses, réservations de véhicules'],
+    ['parc:write', 'Gérer les biens du parc (services généraux)', 'Créer et modifier les biens, affectations, statuts, pièces et échéances', 'Parc auto et matériel'],
+    ['parc:maintenance', 'Plans d’entretien', 'Entretiens datés ou au kilométrage / aux heures moteur', 'Parc auto et matériel'],
+    ['parc:costs', 'Dépenses du parc', 'Saisir ou supprimer une dépense (carburant, entretien, assurance) ; la validation relève de la Comptabilité', 'Parc auto et matériel'],
+    ['parc:reservations', 'Réservations de véhicules', 'Voir toutes les demandes, les accorder ou les refuser, choisir le véhicule', 'Parc auto et matériel'],
     ['docs:publish', 'Publier les documents internes (direction, services généraux)', 'Notes de service, procédures, PV, modèles pour tout le personnel ; suivi des lectures (un chef de service publie pour son service sans ce droit)'],
-    ['demandes:handle', 'Traiter les demandes internes (services généraux)', 'Voir toutes les demandes, les prendre en charge, les clôturer ; un achat traité devient une facture d’achat en brouillon'],
+    ['demandes:handle', 'Traiter les demandes internes (services généraux)', 'Les prendre en charge et les clôturer', 'Demandes internes'],
+    ['demandes:view_all', 'Voir toutes les demandes internes', 'Toutes les demandes de tous les services', 'Demandes internes'],
+    ['demandes:invoice', 'Facture d’achat à la clôture', 'Un achat traité devient une facture d’achat en brouillon (avec « Saisir les achats »)', 'Demandes internes'],
     ['lieux:write', 'Gérer les lieux (siège, bureaux, dépôts)', 'Liste des lieux hors programmes, choisis comme imputation des achats, dépenses, frais, pointages et contrats ; axe analytique de la Comptabilité'],
     ['circuit:write', 'Régler le circuit d’information', 'Services prévenus pour chaque événement (Administration générale › Circuit d’information)'],
     ['demandes:dg', 'Valider en direction générale', 'Demandes d’achat dont le montant atteint le plafond réglé dans Paramètres › Général'],
   ] },
   { group: 'ERP · Juridique', items: [
     ['juridique:read', 'Consulter le Juridique', 'Circuit des ventes jusqu’à l’acte, litiges, cautions et retenues de garantie, impayés transmis'],
-    ['juridique:write', 'Gérer le Juridique (juriste)', 'Dater les étapes jusqu’à l’acte, notaire ; ouvrir et suivre les litiges ; cautions et retenues ; réglages du module'],
+    ['juridique:deeds', 'Actes et étapes jusqu’à l’acte', 'Dater les étapes du circuit jusqu’à l’acte notarié, notaire, date de signature de l’acte', 'Gérer le Juridique'],
+    ['juridique:litigation', 'Litiges', 'Ouvrir, suivre, clore et rouvrir un litige ; étapes et pièces', 'Gérer le Juridique'],
+    ['juridique:guarantees', 'Cautions et retenues de garantie', 'Saisir, modifier, libérer et rouvrir', 'Gérer le Juridique'],
+    ['juridique:settings', 'Réglages du Juridique', 'Rappels, sortes de litiges et de cautions', 'Gérer le Juridique'],
   ] },
   { group: 'ERP · Chantiers', items: [
     ['chantiers:read', 'Consulter les chantiers', 'Planning, phases, tâches, budget et coûts de tous les chantiers (le conducteur nommé voit et gère le sien sans autre droit)'],
-    ['chantiers:write', 'Gérer les chantiers (conducteur de travaux)', 'Créer un chantier, ses phases, ses tâches et son budget ; nommer le conducteur'],
-    ['chantiers:direction', 'Valider en direction (chantiers)', 'Déclarer une étape de chantier atteinte (elle émet les appels de fonds VEFA) et valider les situations des sous-traitants'],
+    ['chantiers:create', 'Ouvrir et supprimer un chantier, nommer le conducteur', 'Nouveau chantier d’un programme, suppression, choix du conducteur de travaux', 'Gérer les chantiers (conducteur de travaux)'],
+    ['chantiers:plan', 'Planning de tous les chantiers', 'Fiche, phases, tâches, journal, avancement, besoins, sous-traitants, réceptions de tous les chantiers (le conducteur nommé gère le sien sans ce droit)', 'Gérer les chantiers (conducteur de travaux)'],
+    ['chantiers:budget', 'Budget de tous les chantiers', 'Lignes de budget par poste (le conducteur nommé gère celui de son chantier sans ce droit)', 'Gérer les chantiers (conducteur de travaux)'],
+    ['chantiers:settings', 'Régler les chantiers', 'Postes du budget, météo du journal, seuils et rappels', 'Gérer les chantiers (conducteur de travaux)'],
+    ['chantiers:tma', 'Travaux modificatifs (TMA)', 'Demander, chiffrer, annuler et clore les travaux modificatifs de tous les chantiers', 'Gérer les chantiers (conducteur de travaux)'],
+    ['chantiers:stages', 'Déclarer une étape atteinte', 'Déclarer une étape de chantier atteinte (elle émet les appels de fonds VEFA) ou refuser un signalement', 'Valider en direction (chantiers)'],
+    ['chantiers:situations', 'Valider les situations des sous-traitants', 'Valider ou refuser une situation de travaux (facture d’achat et retenue de garantie)', 'Valider en direction (chantiers)'],
   ] },
   { group: 'ERP · Client & SAV', items: [
     ['sav:read', 'Voir le SAV', 'Réclamations, réserves à la livraison, interventions, indicateurs'],
     ['sav:all', 'Portée : tout le SAV', 'Réclamations, réserves, interventions, clients et photos de tous les dossiers. Sans ce droit, on ne voit que ses clients et ce qui nous est confié (réclamation attribuée, intervention dont on est le technicien)'],
     ['sav:create', 'Créer des réclamations', 'Ouvrir une réclamation pour un client, à partir d’une réserve'],
-    ['sav:handle', 'Traiter les réclamations', 'Modifier, changer de statut, commenter, joindre des photos'],
+    ['sav:edit', 'Modifier la réclamation', 'Priorité, type de problème, garantie applicable, titre et description', 'Traiter les réclamations'],
+    ['sav:status', 'Changer le statut', 'Qualifier, planifier, résoudre, clore, rejeter ou rouvrir', 'Traiter les réclamations'],
+    ['sav:comment', 'Commenter et joindre des photos', 'Réponse au client ou note interne', 'Traiter les réclamations'],
     ['sav:assign', 'Attribuer les réclamations', 'Choisir le technicien ou le responsable du dossier'],
-    ['sav:reserves', 'Gérer les réserves de livraison', 'Date de livraison, saisie et levée des réserves'],
+    ['sav:delivery', 'Date de livraison (procès-verbal)', 'Date de livraison d’un dossier : départ des garanties', 'Livraison et réserves'],
+    ['sav:reserves', 'Saisir et lever les réserves', 'Réserves relevées à la livraison', 'Livraison et réserves'],
     ['sav:interventions', 'Planifier les interventions', 'Créer, déplacer, clore les interventions'],
   ] },
   { group: 'Catalogue', items: [
@@ -636,7 +742,8 @@ const PERMISSION_CATALOG = [
     ['plans:edit', 'Dessiner et importer les plans', 'Plans de masse, import DWG/DXF, publication des plans', 'Plans de masse et lots'],
     ['plans:lots', 'Créer et modifier les lots', 'Code, îlot, surface, prix, forme sur le plan', 'Plans de masse et lots'],
     ['plans:lots_delete', 'Supprimer un lot', 'Seulement un lot disponible ou non commercialisé, sans historique de vente', 'Plans de masse et lots'],
-    ['settings:write', 'Gérer les paramètres', 'Villes, localisations, équipements, commodités, viabilisation, réglages généraux'],
+    ['settings:refs', 'Listes de référence', 'Villes, localisations, équipements, commodités, viabilisation, types de biens : ajouter, renommer, ordonner, archiver, supprimer', 'Paramètres'],
+    ['settings:general', 'Réglages généraux', 'Acompte, délais de solde proposés et autres réglages de la plateforme', 'Paramètres'],
   ] },
   { group: 'Site web', items: [
     ['content:home', 'Diaporama, bandeau et chiffres clés', 'Page d’accueil du site', 'Contenu du site'],
@@ -1268,10 +1375,10 @@ const REQUEST_KINDS = {
  */
 const REQUEST_SERVICES = {
   rh: { label: 'Ressources humaines', perms: ['rh:files'], module: 'rh', link: '/rh' },
-  commercial: { label: 'Service commercial', perms: ['leads:assign'], module: 'commercial', link: '/commercial' },
-  sav: { label: 'Client & SAV', perms: ['sav:handle'], module: 'sav', link: '/sav' },
+  commercial: { label: 'Service commercial', perms: ['leads:assign', 'leads:transfer_decide'], module: 'commercial', link: '/commercial' },
+  sav: { label: 'Client & SAV', perms: ['sav:edit', 'sav:status', 'sav:comment'], module: 'sav', link: '/sav' },
   compta: { label: 'Comptabilité', perms: ['compta:entries', 'achats:write'], module: 'compta', link: '/compta' },
-  juridique: { label: 'Juridique', perms: ['juridique:write'], module: 'juridique', link: '/juridique' },
+  juridique: { label: 'Juridique', perms: ['juridique:deeds', 'juridique:litigation', 'juridique:guarantees', 'juridique:settings'], module: 'juridique', link: '/juridique' },
   administration: { label: 'Administration générale (services généraux)', perms: ['demandes:handle'], module: 'administration', link: '/administration/demandes' },
 };
 const REQUEST_STATUSES = {
@@ -1419,7 +1526,7 @@ const PLACE_KINDS = { siege: 'Siège social', annexe: 'Bureau annexe / agence', 
  * (tout le programme, des îlots, des bâtiments ou des lots), son conducteur de travaux, ses phases (Gantt), ses
  * tâches (Kanban) et son budget par poste. Les phases reprennent les étapes du journal de chantier (SITE_STAGES).
  */
-const CHANTIER_ACTIONS = ['chantiers:read', 'chantiers:write', 'chantiers:direction'];
+const CHANTIER_ACTIONS = ['chantiers:read', 'chantiers:create', 'chantiers:plan', 'chantiers:budget', 'chantiers:settings', 'chantiers:tma', 'chantiers:stages', 'chantiers:situations'];
 const WORKSITE_STATUSES = { preparation: 'En préparation', en_cours: 'En cours', suspendu: 'Suspendu', receptionne: 'Réceptionné', clos: 'Clos' };
 const WORKSITE_OPEN = ['preparation', 'en_cours', 'suspendu'];
 const WORKSITE_ZONES = { programme: 'Tout le programme', ilots: 'Des îlots', batiments: 'Des bâtiments', lots: 'Des lots' };
@@ -1515,16 +1622,16 @@ function deliveryDelay(promised, forecast, deliveredAt = null) {
  * aussi le super administrateur.
  */
 const INFO_AUDIENCES = {
-  commercial_resp: { label: 'Responsables commerciaux', hint: 'Comptes qui attribuent les prospects et valident les transferts', perms: ['leads:assign'], module: 'commercial' },
-  achats: { label: 'Achats & stocks', hint: 'Comptes qui préparent les achats, valident les commandes ou gèrent les stocks', perms: ['appro:write', 'appro:validate', 'appro:direction', 'appro:stock'], module: 'achats' },
-  dg: { label: 'Direction générale', hint: 'Super administrateur et comptes qui valident en direction (demandes, chantiers)', perms: ['demandes:dg', 'chantiers:direction'], superAdmin: true },
+  commercial_resp: { label: 'Responsables commerciaux', hint: 'Comptes qui attribuent les prospects et valident les transferts', perms: ['leads:assign', 'leads:transfer_decide'], module: 'commercial' },
+  achats: { label: 'Achats & stocks', hint: 'Comptes qui préparent les achats, valident les commandes ou gèrent les stocks', perms: ['appro:locations', 'appro:needs', 'appro:quotes', 'appro:orders', 'appro:validate', 'appro:direction', 'appro:stock', 'appro:receive', 'appro:minimum'], module: 'achats' },
+  dg: { label: 'Direction générale', hint: 'Super administrateur et comptes qui valident en direction (demandes, chantiers)', perms: ['demandes:dg', 'chantiers:stages', 'chantiers:situations'], superAdmin: true },
   exploitation: { label: 'Direction des exploitations', hint: 'Comptes qui ouvrent la Vue Direction', perms: ['direction:read'] },
   compta: { label: 'Comptabilité', hint: 'Comptes qui saisissent les écritures ou les achats', perms: ['compta:entries', 'achats:write', 'achats:validate'], module: 'compta' },
-  juridique: { label: 'Juridique', hint: 'Comptes qui gèrent le Juridique', perms: ['juridique:write'], module: 'juridique' },
-  sav: { label: 'Client & SAV', hint: 'Comptes qui traitent les réclamations', perms: ['sav:handle'], module: 'sav' },
-  chantiers: { label: 'Chantiers', hint: 'Gestionnaires des chantiers', perms: ['chantiers:write'], module: 'chantiers' },
+  juridique: { label: 'Juridique', hint: 'Comptes qui gèrent le Juridique', perms: ['juridique:deeds', 'juridique:litigation', 'juridique:guarantees', 'juridique:settings'], module: 'juridique' },
+  sav: { label: 'Client & SAV', hint: 'Comptes qui traitent les réclamations', perms: ['sav:edit', 'sav:status', 'sav:comment'], module: 'sav' },
+  chantiers: { label: 'Chantiers', hint: 'Gestionnaires des chantiers', perms: ['chantiers:create', 'chantiers:plan', 'chantiers:budget', 'chantiers:settings', 'chantiers:tma'], module: 'chantiers' },
   rh: { label: 'Ressources humaines', hint: 'Comptes qui tiennent les dossiers du personnel', perms: ['rh:files'], module: 'rh' },
-  services_generaux: { label: 'Services généraux', hint: 'Comptes qui traitent les demandes internes ou gèrent le parc', perms: ['demandes:handle', 'parc:write'], module: 'administration' },
+  services_generaux: { label: 'Services généraux', hint: 'Comptes qui traitent les demandes internes ou gèrent le parc', perms: ['demandes:handle', 'parc:write', 'parc:reservations'], module: 'administration' },
 };
 const INFO_EVENTS = {
   'devis.recu': { module: 'achats', label: 'Devis fournisseur reçu', audiences: ['achats'], requiredPerms: ['appro:read'], recipient_hint: 'Accès à Achats & stocks requis.' },
@@ -1586,12 +1693,12 @@ const MODULE_SETTINGS = {
     sav_hours_basse: { group: 'Délais de traitement des réclamations', label: 'Priorité basse (heures)', hint: 'Échéance de traitement calculée à l’ouverture de la réclamation', default: 240, min: 1, max: 2160, perm: 'sav:assign', who: 'le responsable du SAV' },
   },
   administration: {
-    admin_alert_first_days: { group: 'Rappels d’échéances (contrats et parc)', label: 'Premier rappel (jours avant l’échéance)', hint: 'Fin de contrat, préavis, révision, pièce à renouveler, assurance, visite technique, entretien daté', default: 30, min: 2, max: 120, perm: ['contrats:write', 'parc:write'], who: 'les services généraux' },
+    admin_alert_first_days: { group: 'Rappels d’échéances (contrats et parc)', label: 'Premier rappel (jours avant l’échéance)', hint: 'Fin de contrat, préavis, révision, pièce à renouveler, assurance, visite technique, entretien daté', default: 30, min: 2, max: 120, perm: ['contrats:write', 'contrats:close', 'contrats:documents', 'parc:write', 'parc:maintenance', 'parc:costs', 'parc:reservations'], who: 'les services généraux' },
     admin_alert_second_days: { group: 'Rappels d’échéances (contrats et parc)', label: 'Second rappel (jours avant l’échéance)', hint: 'Doit rester inférieur au premier rappel', default: 7, min: 1, max: 60, perm: ['contrats:write', 'parc:write'], who: 'les services généraux' },
-    contract_invoice_lead_days: { group: 'Contrats', label: 'Facture d’achat préparée (jours avant chaque paiement)', hint: 'Brouillon créé dans Comptabilité › Achats pour chaque échéance de paiement d’un contrat', default: 7, min: 0, max: 60, perm: 'contrats:write', who: 'les services généraux' },
-    parc_soon_days: { group: 'Parc : entretien « bientôt »', label: 'Entretien signalé bientôt dû à (jours)', hint: 'Entretien daté affiché « bientôt » dans la fiche du bien', default: 7, min: 1, max: 60, perm: 'parc:write', who: 'le gestionnaire du parc' },
-    parc_soon_km: { group: 'Parc : entretien « bientôt »', label: 'Véhicules : entretien bientôt dû à (km)', hint: 'Kilomètres restants avant l’entretien suivant', default: 500, min: 50, max: 10000, perm: 'parc:write', who: 'le gestionnaire du parc' },
-    parc_soon_h: { group: 'Parc : entretien « bientôt »', label: 'Engins : entretien bientôt dû à (heures moteur)', hint: 'Heures restantes avant l’entretien suivant', default: 20, min: 1, max: 500, perm: 'parc:write', who: 'le gestionnaire du parc' },
+    contract_invoice_lead_days: { group: 'Contrats', label: 'Facture d’achat préparée (jours avant chaque paiement)', hint: 'Brouillon créé dans Comptabilité › Achats pour chaque échéance de paiement d’un contrat', default: 7, min: 0, max: 60, perm: ['contrats:write', 'contrats:close', 'contrats:documents'], who: 'les services généraux' },
+    parc_soon_days: { group: 'Parc : entretien « bientôt »', label: 'Entretien signalé bientôt dû à (jours)', hint: 'Entretien daté affiché « bientôt » dans la fiche du bien', default: 7, min: 1, max: 60, perm: ['parc:write', 'parc:maintenance'], who: 'le gestionnaire du parc' },
+    parc_soon_km: { group: 'Parc : entretien « bientôt »', label: 'Véhicules : entretien bientôt dû à (km)', hint: 'Kilomètres restants avant l’entretien suivant', default: 500, min: 50, max: 10000, perm: ['parc:write', 'parc:maintenance'], who: 'le gestionnaire du parc' },
+    parc_soon_h: { group: 'Parc : entretien « bientôt »', label: 'Engins : entretien bientôt dû à (heures moteur)', hint: 'Heures restantes avant l’entretien suivant', default: 20, min: 1, max: 500, perm: ['parc:write', 'parc:maintenance'], who: 'le gestionnaire du parc' },
   },
 };
 
@@ -1743,11 +1850,11 @@ module.exports = {
   MODULE_SETTINGS, TMA_STATUSES, TMA_BILLED, NEED_STATUSES, CONTRACT_KINDS, CONTRACT_FREQUENCIES, CONTRACT_STATUSES, CONTRACT_DOC_KINDS, CONTRACT_ALERT_STAGES, CONTRACT_INVOICE_LEAD_DAYS, CONTRACT_ACTIONS,
   contractDeadlines, contractAlertStage, renewedEnd, contractPaymentsDue, daysBetween,
   PORTFOLIO_EVENTS, PORTFOLIO_REASONS, portfolioState, replayPortfolio, portfolioDiff, portfolioCounts, conversionRate,
-  SELF_SERVICE, SAV_ACTIONS, COURRIER_ACTIONS, COMPTA_ACTIONS, PAIE_ACTIONS, RH_ACTIONS,
+  SELF_SERVICE, SAV_ACTIONS, PRESENCE_ACTIONS, RH_SETTINGS_ACTIONS, RECRUIT_ACTIONS, KPI_ACTIONS, FORMATION_ACTIONS, COURRIER_ACTIONS, COMPTA_ACTIONS, PAIE_ACTIONS, RH_ACTIONS,
   LOT_STATUSES, LOT_STATUS_LABELS, SELLABLE_STATUSES, LOT_TRANSITIONS,
   LEAD_STAGES, CLIENT_STAGES, PUBLIC_LEAD_SOURCES, leadAlert, ROLES, ROLE_LABELS, PERMISSIONS, roleKey, can, checkLotTransition,
   SALE_STATUSES, PAYMENT_METHODS, DOCUMENT_STATUSES, DOCUMENT_TYPES, DEFAULT_DOCUMENTS,
-  PERMISSION_CATALOG, PERMISSION_IDS,
+  PERMISSION_CATALOG, PERMISSION_IDS, PERMISSION_SPLITS, splitPermissions,
   FINANCING_PLANS, FINANCINGS, saleTerms, financingLabel, SCHEDULE_KINDS, INSTALLMENT_STATUS_LABELS, SITE_STAGES, SITE_STAGE_LABELS,
   LOTISSEMENT_STAGES, LOTISSEMENT_STAGE_LABELS, ALL_SITE_STAGES, siteStagesFor, siteStageLabel, siteStageIndex, siteStageError,
   MESSAGE_SENDERS, CLIENT_PASSWORD_MIN, CLIENT_RESET_HOURS, CLIENT_VISIBLE_SALE_STATUSES,

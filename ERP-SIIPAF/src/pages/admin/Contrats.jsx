@@ -130,8 +130,8 @@ function ContractDrawer({ id, refs, onClose, onChange, onEdit }) {
   const [busy, setBusy] = useState(false);
   const [closing, setClosing] = useState(null); // { status, date, reason }
   const [doc, setDoc] = useState(null); // {} nouvelle pièce, { doc } renouvellement
-  const write = can('contrats:write');
-  const canGuarantees = ['juridique:read', 'juridique:write', 'direction:read', 'compta:read'].some(can);
+  const write = can('contrats:write'), canClose = can('contrats:close'), canDocs = can('contrats:documents');
+  const canGuarantees = ['juridique:read', 'juridique:deeds', 'juridique:litigation', 'juridique:guarantees', 'juridique:settings', 'direction:read', 'compta:read'].some(can);
   const act = async (path, body, message) => {
     setBusy(true);
     try { x.setData(await api.post(`${URL}/${id}/${path}`, body)); onChange(); toast(message); setClosing(null); } catch (e) { toast(e.message, 'err'); } finally { setBusy(false); }
@@ -174,15 +174,15 @@ function ContractDrawer({ id, refs, onClose, onChange, onEdit }) {
           )}
 
           <div className="erp-panel">
-            <div className="row-between"><b>Pièces à renouveler</b>{write && c.status === 'actif' && <button className="btn btn-ghost" onClick={() => setDoc({})}><Plus />Ajouter</button>}</div>
+            <div className="row-between"><b>Pièces à renouveler</b>{canDocs && c.status === 'actif' && <button className="btn btn-ghost" onClick={() => setDoc({})}><Plus />Ajouter</button>}</div>
             {!c.documents.length ? <p className="small muted" style={{ margin: '6px 0 0' }}>Aucune pièce suivie (attestation d’assurance, caution, attestations fiscale et CNPS…).</p> : c.documents.map(d => (
               <div key={d.id} className="kv">
                 <span style={{ flexShrink: 1 }}>{d.label}<div className="small muted">{d.kind_label}</div></span>
                 <b className="row" style={{ gap: 6, justifyContent: 'flex-end', flexWrap: 'wrap' }}>
                   {d.expires_on ? <>expire le {date(d.expires_on)}</> : 'sans échéance'}
                   {d.file_url && <a className="btn btn-ghost btn-icon" href={d.file_url} target="_blank" rel="noreferrer" aria-label={`Ouvrir ${d.label}`}><FileText /></a>}
-                  {write && <button className="btn btn-ghost btn-icon" onClick={() => setDoc({ doc: d })} aria-label={`Renouveler ${d.label}`} title="Renouveler"><RefreshCw /></button>}
-                  {write && <button className="btn btn-ghost btn-icon" onClick={() => removeDoc(d)} aria-label={`Retirer ${d.label}`}><Trash2 /></button>}
+                  {canDocs && <button className="btn btn-ghost btn-icon" onClick={() => setDoc({ doc: d })} aria-label={`Renouveler ${d.label}`} title="Renouveler"><RefreshCw /></button>}
+                  {canDocs && <button className="btn btn-ghost btn-icon" onClick={() => removeDoc(d)} aria-label={`Retirer ${d.label}`}><Trash2 /></button>}
                 </b>
               </div>
             ))}
@@ -211,11 +211,11 @@ function ContractDrawer({ id, refs, onClose, onChange, onEdit }) {
             </div>
           )}
 
-          {write && (
+          {(write || canClose) && (
             <div className="row" style={{ gap: 8, flexWrap: 'wrap' }}>
-              {c.status === 'actif' && <button className="btn" onClick={() => onEdit(c)}><Pencil />Modifier</button>}
-              {c.status === 'actif' && <button className="btn btn-ghost" onClick={() => setClosing({ status: 'resilie', date: today(), reason: '' })}><Ban />Résilier ou terminer</button>}
-              {c.status !== 'actif' && <button className="btn btn-ghost" disabled={busy} onClick={() => act('reopen', {}, 'Contrat remis en cours')}><Undo2 />Remettre en cours</button>}
+              {write && c.status === 'actif' && <button className="btn" onClick={() => onEdit(c)}><Pencil />Modifier</button>}
+              {canClose && c.status === 'actif' && <button className="btn btn-ghost" onClick={() => setClosing({ status: 'resilie', date: today(), reason: '' })}><Ban />Résilier ou terminer</button>}
+              {canClose && c.status !== 'actif' && <button className="btn btn-ghost" disabled={busy} onClick={() => act('reopen', {}, 'Contrat remis en cours')}><Undo2 />Remettre en cours</button>}
             </div>
           )}
           {closing && (

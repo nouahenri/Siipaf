@@ -51,7 +51,7 @@ export default function Cautions() {
             <input className="input" style={{ paddingLeft: 32, width: 220 }} type="search" placeholder="Référence, tiers, banque, contrat…" value={text} onChange={e => setText(e.target.value)} aria-label="Rechercher" />
           </label>
         </div>
-        {can('juridique:write') && <button className="btn btn-primary" onClick={() => setForm({})}><Plus />Nouvelle caution</button>}
+        {can('juridique:guarantees') && <button className="btn btn-primary" onClick={() => setForm({})}><Plus />Nouvelle caution</button>}
       </div>
 
       <Card bodyClass="">
@@ -92,7 +92,7 @@ function GuaranteeDrawer({ id, onClose, onChange, onEdit }) {
   const [closing, setClosing] = useState(null);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState(null);
-  const write = can('juridique:write');
+  const write = can('juridique:guarantees');
   const act = async (path, body, message) => {
     setBusy(true); setError(null);
     try { x.setData(await api.post(`${JUR}/cautions/${id}/${path}`, body)); onChange(); saved(message); setClosing(null); } catch (e) { setError(e); } finally { setBusy(false); }

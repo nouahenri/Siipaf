@@ -20,7 +20,7 @@ export function ScheduleTab({ sale, onChange }) {
   const { can } = useAuth();
   const toast = useToast();
   const s = sale.schedule || { lines: [] };
-  const editable = can('schedule:write') && sale.status !== 'desiste';
+  const editable = can('schedule:generate') && sale.status !== 'desiste';
   const [open, setOpen] = useState(false);
   const [f, setF] = useState({ start_date: '', months: '', deposit_pct: '', deposit_fcfa: '' });
   const [error, setError] = useState(null);

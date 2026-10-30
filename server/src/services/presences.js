@@ -185,15 +185,55 @@ async function approveOvertime(db, period, employeeIds, userId) {
 }
 
 /** Présents et absents du jour (tableau de bord, borne). */
-async function today(db, now = new Date()) {
+async function today(db, now = new Date(), scope = null) {
   const day = now.toISOString().slice(0, 10);
   const from = new Date(`${day}T00:00:00Z`);
-  const rows = (await query(db).where('a.check_in', '>=', from)).map(serialize);
-  const leaves = (await rh.leaveQuery(db).where('l.status', 'approuvee')).map(rh.serializeLeave).filter(l => l.start_date <= day && l.end_date >= day);
+  const rows = (await query(db).where('a.check_in', '>=', from).modify(q => applyScope(q, scope))).map(serialize);
+  const team = scope ? await scopedEmployeeIds(db, scope) : null;
+  const leaves = (await rh.leaveQuery(db).where('l.status', 'approuvee')).map(rh.serializeLeave).filter(l => l.start_date <= day && l.end_date >= day && (!team || team.includes(l.employee_id)));
   return {
     present: rows.filter(a => !a.check_out), done: rows.filter(a => a.check_out),
     on_leave: leaves.map(l => ({ employee_id: l.employee_id, employee_name: l.employee_name, label: LEAVE_TYPES[l.type]?.label })),
   };
 }
 
-module.exports = { serialize, query, openOf, toggle, kiosk, resetKioskLocks, setPin, saveSheet, upsertManual, overtimeReport, approveOvertime, today, monthAttendances, lastDay };
+/**
+ * Périmètre des pointages d'un compte qui pointe sans « Voir le personnel » ni arrêt des heures supplémentaires (point 10 de l'audit
+ * du 30/10) : les chantiers qu'il conduit (worksites.manager_id), les pointages d'un programme dont il conduit un chantier quand
+ * le pointage n'a pas de chantier, son équipe (employees.manager_id) et ses propres pointages. null = tout le personnel.
+ */
+async function scopeOf(db, req) {
+  if (req.user.role === 'super_admin' || req.can('rh:read') || req.can('rh:overtime')) return null;
+  const worksites = await db('worksites').where({ manager_id: req.user.id }).select('id', 'project_id');
+  return { me: await rh.employeeOf(db, req.user.id), worksiteIds: worksites.map(w => w.id), projectIds: [...new Set(worksites.map(w => w.project_id).filter(Boolean))] };
+}
+/** Restreint une requête sur les pointages (alias « a » et « e », voir query) au périmètre. */
+function applyScope(q, scope) {
+  if (!scope) return q;
+  return q.where(w => {
+    w.whereIn('a.worksite_id', scope.worksiteIds).orWhere(x => x.whereNull('a.worksite_id').whereIn('a.project_id', scope.projectIds));
+    if (scope.me) w.orWhere('e.manager_id', scope.me.id).orWhere('e.id', scope.me.id);
+  });
+}
+/** Employés du périmètre : l'équipe, soi-même et qui a pointé dans ses chantiers (pour les heures supplémentaires et les absences). */
+async function scopedEmployeeIds(db, scope) {
+  const ids = new Set();
+  if (scope.me) {
+    ids.add(scope.me.id);
+    for (const e of await db('employees').where({ manager_id: scope.me.id }).pluck('id')) ids.add(e);
+  }
+  const q = db('hr_attendances as a').join('employees as e', 'e.id', 'a.employee_id').distinct('a.employee_id');
+  applyScope(q, { ...scope, me: null });
+  for (const r of await q) ids.add(r.employee_id);
+  return [...ids];
+}
+/** Le pointage (ou la feuille) visé est-il dans le périmètre ? Chantier / programme conduit, ou employés de l'équipe. */
+async function inScope(db, scope, { worksite_id = null, project_id = null }, employeeIds) {
+  if (!scope) return true;
+  if (worksite_id ? scope.worksiteIds.includes(worksite_id) : !!project_id && scope.projectIds.includes(project_id)) return true;
+  const ids = [...new Set([].concat(employeeIds))];
+  if (!scope.me || !ids.length) return false;
+  return Number((await db('employees').whereIn('id', ids).where({ manager_id: scope.me.id }).count({ n: '*' }).first()).n) === ids.length;
+}
+
+module.exports = { scopeOf, applyScope, scopedEmployeeIds, inScope, serialize, query, openOf, toggle, kiosk, resetKioskLocks, setPin, saveSheet, upsertManual, overtimeReport, approveOvertime, today, monthAttendances, lastDay };

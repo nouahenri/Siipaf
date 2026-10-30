@@ -66,7 +66,7 @@ module.exports = function comptaRoutes(db) {
     res.json((await q.limit(2000)).map(a => ({ ...a, active: !!a.active, system: !!a.system })));
   }));
 
-  r.post('/accounts', requirePermission('compta:settings'), ah(async (req, res) => {
+  r.post('/accounts', requirePermission('compta:plan'), ah(async (req, res) => {
     const data = parse(z.object({ code: z.string().trim().regex(/^[1-9]\d{1,11}$/, 'Numéro de compte : chiffres uniquement, classe 1 à 9.'), label: z.string().trim().min(2).max(160) }), req.body);
     if (await db('acc_accounts').where({ code: data.code }).first()) throw new HttpError(409, 'Ce numéro de compte existe déjà.');
     const parent = await db('acc_accounts').whereIn('code', [...Array(data.code.length - 1).keys()].map(i => data.code.slice(0, i + 1))).orderBy('code', 'desc').first();
@@ -75,7 +75,7 @@ module.exports = function comptaRoutes(db) {
     res.status(201).json(await db('acc_accounts').where({ id: insertedId(id) }).first());
   }));
 
-  r.patch('/accounts/:id', requirePermission('compta:settings'), ah(async (req, res) => {
+  r.patch('/accounts/:id', requirePermission('compta:plan'), ah(async (req, res) => {
     const data = parse(z.object({ label: z.string().trim().min(2).max(160), active: z.boolean() }).partial(), req.body);
     const n = await db('acc_accounts').where({ id: idParam(req) }).update({ ...data, updated_at: new Date() });
     if (!n) throw new HttpError(404, 'Compte introuvable.');
@@ -83,7 +83,7 @@ module.exports = function comptaRoutes(db) {
   }));
 
   // ─── Journaux et exercices ────────────────────────────────
-  r.post('/journals', requirePermission('compta:settings'), ah(async (req, res) => {
+  r.post('/journals', requirePermission('compta:plan'), ah(async (req, res) => {
     const data = parse(z.object({
       code: z.string().trim().toUpperCase().regex(/^[A-Z0-9]{2,6}$/, 'Code de 2 à 6 lettres ou chiffres.'), label: z.string().trim().min(2).max(120),
       kind: z.enum(Object.keys(JOURNAL_KINDS)), account: z.string().trim().max(12).optional().nullable(),
@@ -95,14 +95,14 @@ module.exports = function comptaRoutes(db) {
     res.status(201).json(await db('acc_journals').where({ id: insertedId(id) }).first());
   }));
 
-  r.patch('/journals/:id', requirePermission('compta:settings'), ah(async (req, res) => {
+  r.patch('/journals/:id', requirePermission('compta:plan'), ah(async (req, res) => {
     const data = parse(z.object({ label: z.string().trim().min(2).max(120), active: z.boolean() }).partial(), req.body);
     const n = await db('acc_journals').where({ id: idParam(req) }).update({ ...data, updated_at: new Date() });
     if (!n) throw new HttpError(404, 'Journal introuvable.');
     res.json(await db('acc_journals').where({ id: idParam(req) }).first());
   }));
 
-  r.post('/fiscal-years', requirePermission('compta:close'), ah(async (req, res) => {
+  r.post('/fiscal-years', requirePermission('compta:years'), ah(async (req, res) => {
     const data = parse(z.object({ label: z.string().trim().min(2).max(40), start_date: day, end_date: day }), req.body);
     if (data.end_date <= data.start_date) throw new HttpError(400, 'La fin de l’exercice doit suivre son début.');
     const overlap = await db('acc_fiscal_years').where('start_date', '<=', data.end_date).where('end_date', '>=', data.start_date).first();
@@ -112,7 +112,7 @@ module.exports = function comptaRoutes(db) {
   }));
 
   // Verrouillage d'une période (ex. après déclaration de TVA) : plus aucune écriture jusqu'à cette date
-  r.patch('/fiscal-years/:id', requirePermission('compta:close'), ah(async (req, res) => {
+  r.patch('/fiscal-years/:id', requirePermission('compta:lock'), ah(async (req, res) => {
     const { lock_date } = parse(z.object({ lock_date: day.nullable() }), req.body);
     const fy = await db('acc_fiscal_years').where({ id: idParam(req) }).first();
     if (!fy) throw new HttpError(404, 'Exercice introuvable.');
@@ -139,13 +139,13 @@ module.exports = function comptaRoutes(db) {
     res.json(await db('acc_fiscal_years').where({ id: fy.id }).first());
   }));
 
-  r.post('/fiscal-years/:id/opening-from/:from', requirePermission('compta:close'), ah(async (req, res) => {
+  r.post('/fiscal-years/:id/opening-from/:from', requirePermission('compta:opening'), ah(async (req, res) => {
     const e = await ct.openingFromPrevious(db, { fromYearId: Number(req.params.from), toYearId: idParam(req), userId: req.user.id });
     res.status(201).json(await ct.entryDetail(db, e.id));
   }));
 
   // Soldes d'ouverture saisis ou collés depuis l'ancienne comptabilité (journal AN)
-  r.post('/opening', requirePermission('compta:close'), ah(async (req, res) => {
+  r.post('/opening', requirePermission('compta:opening'), ah(async (req, res) => {
     const data = parse(z.object({ fiscal_year_id: z.number().int().positive(), lines: z.array(lineSchema).min(2).max(2000) }), req.body);
     const fy = await db('acc_fiscal_years').where({ id: data.fiscal_year_id }).first();
     if (!fy) throw new HttpError(404, 'Exercice introuvable.');
@@ -219,14 +219,14 @@ module.exports = function comptaRoutes(db) {
     res.json({ validated: done, errors });
   }));
 
-  r.post('/entries/:id/reverse', requirePermission('compta:validate'), ah(async (req, res) => {
+  r.post('/entries/:id/reverse', requirePermission('compta:reverse'), ah(async (req, res) => {
     const { date } = parse(z.object({ date: day.optional() }), req.body || {});
     const e = await db.transaction(trx => ct.reverseEntry(trx, idParam(req), { date, userId: req.user.id }));
     res.status(201).json(await ct.entryDetail(db, e.id));
   }));
 
   // Écritures automatiques à partir des versements, appels de fonds et ventes (dashboard et ERP)
-  r.post('/sync', requirePermission('compta:entries'), ah(async (req, res) => res.json(await ct.syncAutoEntries(db, req.user.id))));
+  r.post('/sync', requirePermission('compta:sync'), ah(async (req, res) => res.json(await ct.syncAutoEntries(db, req.user.id))));
 
   // ─── Fournisseurs et achats ───────────────────────────────
   const supplierSchema = z.object({
@@ -251,13 +251,13 @@ module.exports = function comptaRoutes(db) {
     res.json(rows.map(s => ({ ...s, active: !!s.active, balance: -(balances[s.id] || 0) })));
   }));
 
-  r.post('/suppliers', requirePermission('achats:write'), ah(async (req, res) => {
+  r.post('/suppliers', requirePermission('suppliers:write'), ah(async (req, res) => {
     const data = await supplierRow(parse(supplierSchema, req.body));
     const [id] = await db('suppliers').insert(data);
     res.status(201).json(await db('suppliers').where({ id: insertedId(id) }).first());
   }));
 
-  r.patch('/suppliers/:id', requirePermission('achats:write'), ah(async (req, res) => {
+  r.patch('/suppliers/:id', requirePermission('suppliers:write'), ah(async (req, res) => {
     const data = await supplierRow(parse(supplierSchema.partial().extend({ active: z.boolean().optional() }), req.body));
     const n = await db('suppliers').where({ id: idParam(req) }).update({ ...data, updated_at: new Date() });
     if (!n) throw new HttpError(404, 'Fournisseur introuvable.');
@@ -422,7 +422,7 @@ module.exports = function comptaRoutes(db) {
     fiscal_years: await db('acc_fiscal_years').orderBy('start_date', 'desc').select('id', 'label', 'status'),
   })));
   // Corps jusqu'à 25 Mo, lu seulement une fois le compte authentifié et le droit vérifié (app.js ne lit pas cette route)
-  r.post('/import/sage', requirePermission('compta:entries', 'compta:settings', 'compta:close'), express.json({ limit: '25mb' }), ah(async (req, res) => {
+  r.post('/import/sage', requirePermission('compta:import', 'compta:plan', 'compta:opening'), express.json({ limit: '25mb' }), ah(async (req, res) => {
     const data = parse(z.object({
       kind: z.enum(Object.keys(sage.KINDS)), dry_run: z.boolean().default(true),
       rows: z.array(z.object({ line: z.number().int().positive(), cells: z.array(z.union([z.string().max(500), z.number(), z.null()])).max(60) })).min(1).max(100000),
@@ -434,8 +434,8 @@ module.exports = function comptaRoutes(db) {
       }).default({}),
     }), req.body);
     // Créer des comptes ou des journaux modifie le plan comptable : c'est le réglage de la comptabilité, pas la saisie
-    if ((data.options.create_accounts || data.options.create_journals) && !req.can('compta:settings')) {
-      throw new HttpError(403, 'Créer les comptes ou les journaux manquants demande le droit « Paramétrer la comptabilité ».');
+    if ((data.options.create_accounts || data.options.create_journals) && !req.can('compta:plan')) {
+      throw new HttpError(403, 'Créer les comptes ou les journaux manquants demande le droit « Plan comptable et journaux ».');
     }
     const out = await sage.run(db, { kind: data.kind, rows: data.rows, mapping: data.mapping, options: data.options, dryRun: data.dry_run, user: req.user, can: p => req.can(p) });
     // Correspondance retenue (par intitulé de colonne) et format : proposés au prochain import du même type

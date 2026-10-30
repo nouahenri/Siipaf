@@ -51,7 +51,7 @@ async function nextReference(trx, table, prefix, date) {
 }
 
 /** Droits de lecture : juriste et Direction partout. */
-const isLegal = v => v.can('juridique:read') || v.can('juridique:write') || v.can('direction:read');
+const isLegal = v => ['juridique:read', 'juridique:deeds', 'juridique:litigation', 'juridique:guarantees', 'juridique:settings', 'direction:read'].some(p => v.can(p));
 
 // ─── Réglages ─────────────────────────────────────────────────────────────
 
@@ -534,7 +534,7 @@ async function badges(db, user, can) {
  */
 async function tick(db, day = today()) {
   const stats = { litigations: 0, guarantees: 0, unpaid_commercial: 0, unpaid_legal: 0 };
-  const jurists = await usersWith(db, 'juridique:write');
+  const jurists = await usersWith(db, ['juridique:deeds', 'juridique:litigation', 'juridique:guarantees']);
   const legal = await settings(db); // rappels des cautions (Juridique › Réglages)
 
   for (const raw of await litigationQuery(db).where('g.status', 'ouvert').whereNotNull('g.next_date')) {

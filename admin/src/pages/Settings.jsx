@@ -53,8 +53,8 @@ export default function Settings() {
         <button aria-current={section === 'affichage'} onClick={() => go('affichage')}><Palette aria-hidden="true" />Affichage</button>
       </nav>
       <div className="stack">
-        {kinds[section] && <RefList kind={section} data={refs.data} editable={can('settings:write')} reload={refs.reload} />}
-        {section === 'general' && <General editable={can('settings:write')} />}
+        {kinds[section] && <RefList kind={section} data={refs.data} editable={can('settings:refs')} reload={refs.reload} />}
+        {section === 'general' && <General editable={can('settings:general')} />}
         {section === 'affichage' && <Display />}
       </div>
     </div>

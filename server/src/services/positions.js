@@ -1,6 +1,6 @@
 /**
  * ERP · RH › Postes (RH › Réglages) et changement de poste daté. Un changement porte le nouveau poste et son service,
- * la catégorie, le salaire de base (droit paie:employees), le responsable direct, l'équipe rattachée et le rôle du
+ * la catégorie, le salaire de base (droit paie:salary), le responsable direct, l'équipe rattachée et le rôle du
  * compte (droit users:write) ; il s'applique à sa date d'effet (tout de suite, ou par la tâche horaire si elle est
  * future) et laisse un événement daté dans la carrière.
  */
@@ -75,7 +75,7 @@ const changeRow = c => ({
 
 /**
  * Enregistre un changement de poste ; appliqué tout de suite si la date d'effet est atteinte, sinon le jour venu.
- * `can` : droits du compte qui saisit (salaire : paie:employees ; rôle : users:write).
+ * `can` : droits du compte qui saisit (salaire : paie:salary ; rôle : users:write).
  */
 async function changePosition(db, e, data, { user, can }) {
   if (!e.active) throw new HttpError(409, 'Employé sorti des effectifs.');
@@ -84,7 +84,7 @@ async function changePosition(db, e, data, { user, can }) {
   if (!p) throw new HttpError(404, 'Poste introuvable.');
   const department = data.department || p.department;
   if (!DEPARTMENTS[department]) throw new HttpError(400, 'Service inconnu.');
-  if (data.base_salary != null && !can('paie:employees')) throw new HttpError(403, 'Le salaire se modifie avec le droit « Gérer les fiches salariés ».');
+  if (data.base_salary != null && !can('paie:salary')) throw new HttpError(403, 'Le salaire se modifie avec le droit « Salaire et paiement ».');
   if (data.role) {
     if (!can('users:role')) throw new HttpError(403, 'Changer le rôle du compte demande le droit « Changer le rôle d’un compte ».');
     if (!e.user_id) throw new HttpError(400, 'Cet employé n’a pas de compte : aucun rôle à changer.');

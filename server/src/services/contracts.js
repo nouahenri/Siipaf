@@ -88,7 +88,8 @@ async function load(db, id) {
 }
 
 /** Voit un contrat : droits contrats:read / contrats:write, ou son responsable. */
-const canSee = (c, { userId, can }) => can('contrats:read') || can('contrats:write') || c.owner_id === userId;
+const manages = can => ['contrats:write', 'contrats:close', 'contrats:documents'].some(p => can(p));
+const canSee = (c, { userId, can }) => can('contrats:read') || manages(can) || c.owner_id === userId;
 
 async function detail(db, id) {
   const c = await load(db, id);
@@ -177,7 +178,7 @@ async function reopen(db, c) {
 /** Échéances de tous les contrats visibles, de la plus proche à la plus lointaine (dépassées d'abord). */
 async function upcoming(db, v, { days = 60 } = {}) {
   const q = query(db).where('c.status', 'actif');
-  if (!v.can('contrats:read') && !v.can('contrats:write')) q.where('c.owner_id', v.userId);
+  if (!v.can('contrats:read') && !manages(v.can)) q.where('c.owner_id', v.userId);
   const rows = await q;
   const docs = await docsByContract(db, rows.map(c => c.id));
   const out = [];

@@ -43,10 +43,14 @@ module.exports = function paieRoutes(db) {
   const checkUser = (userId, selfId) => employees.checkUser(db, userId, selfId);
 
   r.post('/employees', requirePermission('paie:employees'), ah(async (req, res) => {
-    const data = parse(employeeSchema, req.body);
-    // Solde de congés repris : « Gérer les absences » (le compte relié à une nouvelle fiche reste libre : l'embauche ne reprend la
+    const data = parse(employeeSchema.extend({ base_salary: employeeSchema.shape.base_salary.default(0) }), req.body);
+    // Salaire, indemnités et paiement : « Salaire et paiement » (paie:salary) ; sans ce droit, la fiche est créée à 0 et la Paie le fixe
+    if (employees.PAY_FIELDS.some(k => data[k] != null && data[k] !== 0 && data[k] !== false) && !req.can('paie:salary')) {
+      throw new HttpError(403, 'Salaire, indemnités et paiement se règlent avec le droit « Salaire et paiement ».');
+    }
+    // Solde de congés repris : « Ajuster les soldes » (le compte relié à une nouvelle fiche reste libre : l'embauche ne reprend la
     // fiche de personne ; changer le compte d'une fiche existante demande « Modifier un compte », voir services/employees.js)
-    if (employees.LEAVE_FIELDS.some(k => data[k] != null) && !req.can('conges:manage')) throw new HttpError(403, 'Le solde d’ouverture des congés se règle avec le droit « Gérer les absences ».');
+    if (employees.LEAVE_FIELDS.some(k => data[k] != null) && !req.can('conges:adjust')) throw new HttpError(403, 'Le solde d’ouverture des congés se règle avec le droit « Ajuster les soldes ».');
     await checkUser(data.user_id);
     const id = await db.transaction(async trx => {
       Object.assign(data, await positions.resolve(trx, data));
@@ -117,7 +121,7 @@ module.exports = function paieRoutes(db) {
     res.json({ ok: true });
   }));
 
-  r.patch('/payslips/:id', requirePermission('paie:prepare'), ah(async (req, res) => {
+  r.patch('/payslips/:id', requirePermission('paie:inputs'), ah(async (req, res) => {
     const inputs = parse(z.object({
       days_worked: z.number().min(0).max(30), overtime: money, bonus: money, non_taxable: money, advance: money,
     }).partial(), req.body);

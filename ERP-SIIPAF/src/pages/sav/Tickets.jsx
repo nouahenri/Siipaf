@@ -142,7 +142,7 @@ export default function Tickets() {
                 <div className="pipe-list">
                   {!list.data && <Skeleton h={60} />}
                   {col.map(t => (
-                    <div key={t.id} className="pipe-card" draggable={can('sav:handle')} onDragStart={e => e.dataTransfer.setData('text/plain', String(t.id))}
+                    <div key={t.id} className="pipe-card" draggable={can('sav:status')} onDragStart={e => e.dataTransfer.setData('text/plain', String(t.id))}
                       onClick={() => openTicket(t.id)} role="button" tabIndex={0} onKeyDown={e => e.key === 'Enter' && openTicket(t.id)}>
                       <b>{t.title}</b>
                       <div className="meta">{t.ref} · {t.client_name || '—'}{t.lot_code ? ` · ${t.lot_code}` : ''}</div>

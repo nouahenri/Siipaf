@@ -214,7 +214,7 @@ async function decideLeave(db, leaveId, { action, note = null }, { user, can }) 
   if (!l.id) throw new HttpError(404, 'Demande introuvable.');
   const e = await getEmployee(db, l.employee_id);
   const s = await getSettings(db);
-  // Droits : « Approuver les congés » (statuer sur toutes les demandes), « Gérer les absences » (annuler une absence commencée)
+  // Droits : « Approuver les congés » (statuer sur toutes les demandes), « Annuler une absence commencée » (conges:cancel)
   const hr = can('conges:approve');
   const manager = await isManagerOf(db, user.id, e);
   const own = e.user_id === user.id;
@@ -223,7 +223,7 @@ async function decideLeave(db, leaveId, { action, note = null }, { user, can }) 
 
   if (action === 'cancel') {
     if (['refusee', 'annulee'].includes(l.status)) throw new HttpError(409, 'Demande déjà close.');
-    if (!can('conges:manage') && !(own && (l.status !== 'approuvee' || l.start_date > today()))) throw new HttpError(403, 'Seul le service RH annule une absence déjà commencée.');
+    if (!can('conges:cancel') && !(own && (l.status !== 'approuvee' || l.start_date > today()))) throw new HttpError(403, 'Seul le service RH annule une absence déjà commencée.');
     Object.assign(patch, { status: 'annulee', decision_note: note || l.decision_note, decided_by: user.id, decided_at: new Date() });
   } else {
     if (!['en_attente', 'approuve_manager'].includes(l.status)) throw new HttpError(409, 'Cette demande n’est plus à approuver.');

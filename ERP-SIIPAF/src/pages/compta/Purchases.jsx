@@ -206,7 +206,7 @@ function Suppliers() {
     <>
       <div className="row-between">
         <span className="small muted">{rows.length} fournisseur(s) · dettes : <b>{fcfa(rows.reduce((t, s) => t + Math.max(0, s.balance), 0))}</b></span>
-        {can('achats:write') && <button className="btn btn-primary" onClick={() => setEdit({})}><Plus />Fournisseur</button>}
+        {can('suppliers:write') && <button className="btn btn-primary" onClick={() => setEdit({})}><Plus />Fournisseur</button>}
       </div>
       <Card bodyClass="">
         {!list.data ? <div className="card-body"><Skeleton h={200} /></div> : !rows.length ? <div className="card-body"><Empty icon={Truck}>Aucun fournisseur. Ajoutez vos fournisseurs de matériaux, sous-traitants et prestataires (architectes, notaires…).</Empty></div> : (
@@ -214,7 +214,7 @@ function Suppliers() {
             <thead><tr><th>Nom</th><th>Type</th><th>Contact</th><th>NCC · RCCM</th><th>Charge habituelle</th><th className="right">Solde dû</th></tr></thead>
             <tbody>
               {rows.map(s => (
-                <tr key={s.id} className={can('achats:write') ? 'clickable' : ''} onClick={() => can('achats:write') && setEdit(s)} style={{ opacity: s.active ? 1 : 0.5 }}>
+                <tr key={s.id} className={can('suppliers:write') ? 'clickable' : ''} onClick={() => can('suppliers:write') && setEdit(s)} style={{ opacity: s.active ? 1 : 0.5 }}>
                   <td><b>{s.name}</b></td>
                   <td className="small">{KINDS[s.kind]}</td>
                   <td className="small">{s.phone || '—'}{s.email && <div className="muted">{s.email}</div>}</td>

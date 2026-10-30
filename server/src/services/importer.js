@@ -12,7 +12,8 @@ const { findOrCreateLead } = require('./lots');
 const { openSale, refreshSaleStatus, totals, nextClientCode, EARLY_STAGES } = require('./sales');
 const { generatePassword } = require('./clients');
 const { hashPassword } = require('../auth');
-const { syncLead, createImport, seesAllLeads } = require('./portfolio');
+const { syncLead, createImport } = require('./portfolio');
+const { canAssignLeads } = require('./commercial');
 
 const ROLLBACK = Symbol('simulation');
 const text = v => (v == null ? '' : String(v).trim());
@@ -76,7 +77,11 @@ async function importLead(trx, row, ctx) {
     name, email, phone: phoneCell(row.phone) || null, country: text(row.country) || null,
     is_diaspora: yes(row.diaspora) || fin === 'diaspora', source: ctx.source || 'import', financing: fin, created_by: ctx.user?.id || null,
     project_id: project?.id || null, message: text(row.notes) || null,
-  });
+  }, { actor: ctx.user });
+  // Un import ne modifie pas la fiche d'un collègue (ni une fiche à attribuer) sans la portée « toute l'équipe » ; la ligne est refusée
+  if (lead.protected) {
+    throw new HttpError(409, lead.assigned_to ? 'Cette personne est déjà suivie par un autre commercial : demandez son transfert au responsable.' : 'Cette personne est déjà suivie : demandez son attribution au responsable.');
+  }
   const stage = fold(row.stage);
   if (stage && LEAD_STAGES.includes(stage) && lead.created) await trx('leads').where({ id: lead.id }).update({ stage });
   // Un nouveau prospect est attribué au commercial choisi pour la liste ; une personne déjà connue garde le sien
@@ -181,8 +186,9 @@ function clientAction(lead, lot, dryRun) {
 
 /**
  * `list` : liste de prospects (un fichier = une liste) — { id } pour les paquets suivants d'un même fichier, sinon
- * { name, filename, assigned_to } pour la créer au premier paquet enregistré. Un commercial sans le droit « voir les
- * prospects de toute l'équipe » s'attribue toujours ses propres nouveaux prospects.
+ * { name, filename, assigned_to } pour la créer au premier paquet enregistré. Sans le droit leads:assign (« Attribuer et changer de
+ * commercial »), un compte s'attribue toujours ses propres nouveaux prospects (le commercial choisi est ignoré), et sans la portée
+ * « toute l'équipe » (leads:all) l'import ne complète pas la fiche d'un collègue : la ligne est refusée (audit du 30/10, B15).
  */
 async function runImport(db, { mode, rows, dryRun, createLots, openAccess: withAccess, user, list = null }) {
   const projects = await db('projects').select('id', 'name', 'slug');
@@ -192,7 +198,10 @@ async function runImport(db, { mode, rows, dryRun, createLots, openAccess: withA
     const existing = await db('lead_imports').where({ id: importId }).first();
     if (!existing || existing.created_by !== user.id) throw new HttpError(404, 'Liste d’import introuvable.');
     assignTo = existing.assigned_to;
-  } else if (!seesAllLeads(user)) assignTo = user.id;
+  } else if (!canAssignLeads(user)) {
+    // Confier la liste à un autre commercial : « Attribuer et changer de commercial » (leads:assign) ; sinon le choix est ignoré, la liste est la sienne
+    assignTo = user.id;
+  }
   if (assignTo) await require('./commercial').assertSeller(db, assignTo, 'Commercial introuvable ou désactivé.');
   if (!dryRun && !importId && list) {
     importId = await createImport(db, { name: list.name || list.filename || `Import du ${new Date().toLocaleDateString('fr-FR')}`, filename: list.filename, mode, assigned_to: assignTo, user });
@@ -241,7 +250,7 @@ async function runImport(db, { mode, rows, dryRun, createLots, openAccess: withA
 async function createClient(db, row, user) {
   const projects = await db('projects').select('id', 'name', 'slug');
   return db.transaction(async trx => {
-    const { lead, project } = await importLead(trx, row, { projects, user, source: 'admin', assignTo: seesAllLeads(user) ? null : user.id });
+    const { lead, project } = await importLead(trx, row, { projects, user, source: 'admin', assignTo: canAssignLeads(user) ? null : user.id });
     if (lead.client_code) throw new HttpError(409, `${lead.name} est déjà client (${lead.client_code}).`);
     const out = (await importClientWithoutSale(trx, lead, project, row)).lead;
     await syncLead(trx, lead.id, { by: user.id, reason: 'creation' });

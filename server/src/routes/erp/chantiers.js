@@ -86,7 +86,7 @@ module.exports = function chantiersRoutes(db) {
   const juridiqueIsLegal = req => require('../../services/juridique').isLegal({ can: p => req.can(p) });
   // Conducteur nommé d'au moins un chantier (éventuellement d'un programme donné)
   const isConductor = async (req, projectId = null) => !!(await db('worksites').where({ manager_id: req.user.id }).modify(q => { if (projectId) q.where({ project_id: projectId }); }).first('id'));
-  const managed = req => chantiers.managedWorksite(db, idParam(req), viewer(req));
+  const managed = (req, perm = 'chantiers:plan') => chantiers.managedWorksite(db, idParam(req), viewer(req), perm);
   const sendDetail = async (req, res, w, status = 200) => res.status(status).json(await chantiers.detail(db, await chantiers.loadWorksite(db, w.id), viewer(req)));
   const sendFile = (res, row, fallback) => {
     res.set('Cache-Control', 'private, no-store');
@@ -115,27 +115,27 @@ module.exports = function chantiersRoutes(db) {
   }));
   // Listes réglables : postes du budget, météo du journal
   const listKind = z.enum(Object.keys(chantiers.LIST_KINDS));
-  r.post('/reglages/listes', requirePermission('chantiers:write'), ah(async (req, res) => {
+  r.post('/reglages/listes', requirePermission('chantiers:settings'), ah(async (req, res) => {
     const { kind, label } = parse(z.object({ kind: listKind, label: z.string().trim().min(2).max(120) }), req.body);
     await chantiers.addListItem(db, kind, label);
     res.status(201).json(await chantiers.listItems(db, kind, { all: true }));
   }));
-  r.put('/reglages/listes/:kind/ordre', requirePermission('chantiers:write'), ah(async (req, res) => {
+  r.put('/reglages/listes/:kind/ordre', requirePermission('chantiers:settings'), ah(async (req, res) => {
     const kind = parse(listKind, req.params.kind);
     await chantiers.reorderList(db, kind, parse(z.object({ ids: z.array(z.number().int().positive()) }), req.body).ids);
     res.json(await chantiers.listItems(db, kind, { all: true }));
   }));
-  r.patch('/reglages/listes/:itemId', requirePermission('chantiers:write'), ah(async (req, res) => {
+  r.patch('/reglages/listes/:itemId', requirePermission('chantiers:settings'), ah(async (req, res) => {
     const kind = await chantiers.updateListItem(db, childId(req, 'itemId'), parse(z.object({ label: z.string().trim().min(2).max(120), active: z.boolean() }).partial(), req.body));
     res.json(await chantiers.listItems(db, kind, { all: true }));
   }));
-  r.delete('/reglages/listes/:itemId', requirePermission('chantiers:write'), ah(async (req, res) => {
+  r.delete('/reglages/listes/:itemId', requirePermission('chantiers:settings'), ah(async (req, res) => {
     const kind = await chantiers.removeListItem(db, childId(req, 'itemId'));
     res.json(await chantiers.listItems(db, kind, { all: true }));
   }));
   /** Programmes et chantiers non clos : listes « Lieu / chantier » des pointages, du Parc et des achats. */
   r.get('/lieux', ah(async (req, res) => res.json(await chantiers.places(db))));
-  r.put('/reglages', requirePermission('chantiers:write'), ah(async (req, res) => {
+  r.put('/reglages', requirePermission('chantiers:settings'), ah(async (req, res) => {
     const shape = Object.fromEntries(Object.entries(CHANTIER_SETTINGS).map(([k, x]) => [k, x.options ? z.enum(Object.keys(x.options)) : z.number().int().min(x.min).max(x.max)]));
     res.json(await chantiers.saveSettings(db, parse(z.object(shape).partial(), req.body)));
   }));
@@ -145,16 +145,17 @@ module.exports = function chantiersRoutes(db) {
   }));
 
   // ─── Étapes déclarées : vue de la Direction, fichiers (avant les routes /:id) ──
-  const direction = requirePermission('chantiers:direction');
+  const stages = requirePermission('chantiers:stages');
+  const situations = requirePermission('chantiers:situations');
   r.get('/etapes', ah(async (req, res) => {
     if (!chantiers.seesAll(viewer(req))) throw new HttpError(403, 'Accès refusé.');
     res.json(await suivi.declarations(db, { status: req.query.status || null, projectId: Number(req.query.project_id) || null }));
   }));
-  r.post('/etapes/:declId/declarer', direction, ah(async (req, res) => {
+  r.post('/etapes/:declId/declarer', stages, ah(async (req, res) => {
     const data = parse(z.object({ reached_on: day.optional(), note: z.string().trim().max(2000).nullable().optional() }), req.body);
     res.json(await suivi.declare(db, { id: childId(req, 'declId'), reached_on: data.reached_on, note: data.note || null }, { userId: req.user.id }));
   }));
-  r.post('/etapes/:declId/refuser', direction, ah(async (req, res) => {
+  r.post('/etapes/:declId/refuser', stages, ah(async (req, res) => {
     const { reason } = parse(z.object({ reason: z.string().trim().min(3, 'Motif du refus obligatoire').max(500) }), req.body);
     await suivi.refuse(db, childId(req, 'declId'), reason, req.user.id);
     res.json({ ok: true });
@@ -181,7 +182,7 @@ module.exports = function chantiersRoutes(db) {
   // portée « toute l'équipe » et le Juridique voient tout
   const tmaWide = req => chantiers.seesAll(viewer(req)) || cm.seesAllLeads(req.user) || juridiqueIsLegal(req);
   const canTma = (req, t, action) => {
-    const manage = req.can('chantiers:write') || Number(t.manager_id) === Number(req.user.id);
+    const manage = req.can('chantiers:tma') || Number(t.manager_id) === Number(req.user.id);
     if (action === 'annulee' ? manage || (req.can('sales:edit') && (tmaWide(req) || t.assigned_to === req.user.id)) : manage) return;
     throw new HttpError(403, action === 'devis' ? 'Le devis est établi par le conducteur du chantier ou un gestionnaire des chantiers.' : 'Accès refusé.');
   };
@@ -196,9 +197,9 @@ module.exports = function chantiersRoutes(db) {
     const lot = sale && await db('lots').where({ id: sale.lot_id }).first();
     const w = lot && await livraison.worksiteForLot(db, lot);
     const conductor = !!w && Number(w.manager_id) === Number(req.user.id);
-    if (!req.can('sales:edit') && !req.can('chantiers:write') && !conductor) throw new HttpError(403, 'Demande réservée au commercial, au conducteur du chantier et aux gestionnaires.');
+    if (!req.can('sales:edit') && !req.can('chantiers:tma') && !conductor) throw new HttpError(403, 'Demande réservée au commercial, au conducteur du chantier et aux gestionnaires.');
     // Le commercial ne demande des travaux modificatifs que pour le dossier de son client
-    if (!req.can('chantiers:write') && !conductor && !tmaWide(req)) await cm.saleInScope(db, data.sale_id, req.user);
+    if (!req.can('chantiers:tma') && !conductor && !tmaWide(req)) await cm.saleInScope(db, data.sale_id, req.user);
     res.status(201).json(await livraison.createChange(db, data, { userId: req.user.id, source: 'equipe' }));
   }));
   r.post('/tma/:tmaId/devis', multipart(suivi.declarationUpload()), guarded(async (req, res) => {
@@ -227,7 +228,7 @@ module.exports = function chantiersRoutes(db) {
   }));
 
   // Situations vérifiées, à valider par la Direction (encart de la liste) ; pièce jointe d'une situation
-  r.get('/situations', direction, ah(async (req, res) => res.json(await sousTraitance.toValidate(db))));
+  r.get('/situations', situations, ah(async (req, res) => res.json(await sousTraitance.toValidate(db))));
   r.get('/situations/:sitId/fichier', ah(async (req, res) => {
     const s = await db('worksite_situations').where({ id: childId(req, 'sitId') }).first();
     if (!s) throw new HttpError(404, 'Pièce introuvable.');
@@ -244,7 +245,7 @@ module.exports = function chantiersRoutes(db) {
   r.get('/', ah(async (req, res) => {
     res.json(await chantiers.list(db, viewer(req), { status: req.query.status ?? 'ouverts', projectId: Number(req.query.project_id) || null, q: String(req.query.q || '').trim() }));
   }));
-  r.post('/', requirePermission('chantiers:write'), ah(async (req, res) => {
+  r.post('/', requirePermission('chantiers:create'), ah(async (req, res) => {
     const w = await chantiers.create(db, parse(worksiteSchema, req.body), req.user);
     await sendDetail(req, res, w, 201);
   }));
@@ -253,12 +254,12 @@ module.exports = function chantiersRoutes(db) {
     const w = await managed(req);
     const data = parse(worksiteSchema.omit({ stages: true, project_id: true }).partial(), req.body);
     // Seul un gestionnaire des chantiers change le conducteur (le conducteur ne se désigne pas un remplaçant)
-    if (data.manager_id !== undefined && Number(data.manager_id || 0) !== Number(w.manager_id || 0) && !req.can('chantiers:write')) {
+    if (data.manager_id !== undefined && Number(data.manager_id || 0) !== Number(w.manager_id || 0) && !req.can('chantiers:create')) {
       throw new HttpError(403, 'Seul un gestionnaire des chantiers change le conducteur.');
     }
     await sendDetail(req, res, await chantiers.update(db, w, data, req.user));
   }));
-  r.delete('/:id', requirePermission('chantiers:write'), ah(async (req, res) => {
+  r.delete('/:id', requirePermission('chantiers:create'), ah(async (req, res) => {
     await chantiers.remove(db, await managed(req));
     res.status(204).end();
   }));
@@ -304,17 +305,17 @@ module.exports = function chantiersRoutes(db) {
 
   // ─── Budget ───────────────────────────────────────────────
   r.post('/:id/budget', ah(async (req, res) => {
-    const w = await managed(req);
+    const w = await managed(req, 'chantiers:budget');
     await chantiers.saveBudgetLine(db, w, parse(budgetSchema, req.body));
     await sendDetail(req, res, w, 201);
   }));
   r.patch('/:id/budget/:lineId', ah(async (req, res) => {
-    const w = await managed(req);
+    const w = await managed(req, 'chantiers:budget');
     await chantiers.saveBudgetLine(db, w, parse(budgetSchema.partial(), req.body), childId(req, 'lineId'));
     await sendDetail(req, res, w);
   }));
   r.delete('/:id/budget/:lineId', ah(async (req, res) => {
-    const w = await managed(req);
+    const w = await managed(req, 'chantiers:budget');
     await chantiers.deleteBudgetLine(db, w, childId(req, 'lineId'));
     await sendDetail(req, res, w);
   }));
@@ -350,7 +351,7 @@ module.exports = function chantiersRoutes(db) {
     const data = parse(stageSchema.extend({ declare: z.preprocess(v => v === true || v === 'true' || v === '1', z.boolean()).optional() }), req.body);
     // La Direction déclare directement ; le conducteur signale
     if (data.declare) {
-      if (!req.can('chantiers:direction')) throw new HttpError(403, 'Seule la Direction déclare une étape atteinte.');
+      if (!req.can('chantiers:stages')) throw new HttpError(403, 'Seule la Direction déclare une étape atteinte.');
       res.status(201).json(await suivi.declare(db, { worksite: w, stage: data.stage, reached_on: data.reached_on, note: data.note || null }, { file: req.file, userId: req.user.id }));
       return;
     }
@@ -383,16 +384,16 @@ module.exports = function chantiersRoutes(db) {
   }));
   r.post('/:id/situations/:sitId/brouillon', ah(async (req, res) => {
     const w = await chantiers.visibleWorksite(db, idParam(req), viewer(req));
-    if (!chantiers.canManage(w, viewer(req)) && !req.can('chantiers:direction')) throw new HttpError(403, 'Accès refusé.');
+    if (!chantiers.canManage(w, viewer(req)) && !req.can('chantiers:situations')) throw new HttpError(403, 'Accès refusé.');
     await sousTraitance.toDraft(db, w, childId(req, 'sitId'));
     await situationDone(req, res, w);
   }));
-  r.post('/:id/situations/:sitId/valider', direction, ah(async (req, res) => {
+  r.post('/:id/situations/:sitId/valider', situations, ah(async (req, res) => {
     const w = await chantiers.loadWorksite(db, idParam(req));
     await sousTraitance.validate(db, w, childId(req, 'sitId'), req.user.id);
     await situationDone(req, res, w);
   }));
-  r.post('/:id/situations/:sitId/refuser', direction, ah(async (req, res) => {
+  r.post('/:id/situations/:sitId/refuser', situations, ah(async (req, res) => {
     const w = await chantiers.loadWorksite(db, idParam(req));
     const { reason } = parse(z.object({ reason: z.string().trim().min(3, 'Motif du refus obligatoire').max(500) }), req.body);
     await sousTraitance.refuse(db, w, childId(req, 'sitId'), reason, req.user.id);
@@ -420,7 +421,7 @@ module.exports = function chantiersRoutes(db) {
       // Le chantier exprime et peut annuler ; la commande, le refus et la livraison relèvent des Achats.
       status: z.enum(['annule']),
     }), req.body);
-    if (!chantiers.canManage(w, viewer(req)) && !req.can('appro:write')) throw new HttpError(403, 'Seul le chantier qui l’a exprimé annule ce besoin.');
+    if (!chantiers.canManage(w, viewer(req)) && !req.can('appro:needs')) throw new HttpError(403, 'Seul le chantier qui l’a exprimé annule ce besoin.');
     res.json(await livraison.moveNeed(db, w, await livraison.loadNeed(db, w, childId(req, 'needId')), data, { userId: req.user.id }));
   }));
 

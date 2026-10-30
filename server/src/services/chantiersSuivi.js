@@ -231,9 +231,9 @@ async function signal(db, w, data, { file, userId }) {
     reported_by: userId, reported_at: new Date(), ...fileFields(file),
   });
   const id = insertedId(r);
-  // Les comptes qui déclarent (chantiers:direction) et les services du circuit (Direction générale, exploitation)
+  // Les comptes qui déclarent (chantiers:stages) et les services du circuit (Direction générale, exploitation)
   await inform(db, 'chantier.etape_signalee', {
-    direct: await usersWith(db, 'chantiers:direction'), except: userId,
+    direct: await usersWith(db, 'chantiers:stages'), except: userId,
     title: `Étape à déclarer : ${siteStageLabel(w.project_category, data.stage)} — ${w.reference}`, body: `${w.name} — atteinte le ${fr(data.reached_on)}. Sa déclaration émettra les appels de fonds VEFA.`,
     link: `/chantiers/${w.id}?onglet=etapes&etape=${id}`, key: `etape:${id}:signalee`,
   });

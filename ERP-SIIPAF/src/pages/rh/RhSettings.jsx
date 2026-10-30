@@ -17,7 +17,7 @@ export default function RhSettings() {
   const saved = useSaved();
   const [s, setS] = useState(null);
   const [error, setError] = useState(null);
-  const write = can('rh:settings');
+  const write = can('rh:rules');
   const cur = s || meta?.settings;
   if (!cur) return <Skeleton h={300} />;
   const set = (k, v) => setS({ ...cur, [k]: v });
@@ -134,7 +134,7 @@ function DepartmentHeads() {
   const toast = useToast();
   const heads = useResource(`${RH}/department-heads`);
   const staff = useResource(`${RH}/employees`);
-  const write = can('rh:settings');
+  const write = can('rh:heads');
   const change = async (department, value) => {
     try { await api.put(`${RH}/department-heads/${department}`, { employee_id: value ? Number(value) : null }); toast(value ? 'Chef de service désigné : il est prévenu' : 'Chef de service retiré'); heads.reload(); } catch (e) { toast(e.message, 'err'); }
   };
@@ -178,7 +178,7 @@ function Positions() {
   const [f, setF] = useState(blank);
   const [open, setOpen] = useState(null); // null : formulaire replié ; 'new' : nouveau poste ; id : poste modifié
   const [newRole, setNewRole] = useState(false);
-  const write = can('rh:settings');
+  const write = can('rh:positions');
   const roles = list.data?.roles || [];
   // Super administrateur : proposé ou retiré par un super administrateur seulement (le serveur le contrôle aussi)
   const superAdmin = user?.role === 'super_admin', lockedRole = roles.find(r => r.id === f.default_role)?.reserved && !superAdmin;
@@ -261,7 +261,7 @@ function Holidays() {
   const [year, setYear] = useState(thisYear);
   const list = useResource(`${RH}/holidays?year=${year}`);
   const [f, setF] = useState({ date: '', label: '' });
-  const write = can('rh:settings');
+  const write = can('rh:holidays');
   const seed = async () => { try { const r = await api.post(`${RH}/holidays/seed`, { year }); toast(`${r.created} jour(s) férié(s) ajouté(s)`); list.reload(); } catch (e) { toast(e.message, 'err'); } };
   const add = async e => { e.preventDefault(); try { await api.post(`${RH}/holidays`, f); setF({ date: '', label: '' }); list.reload(); } catch (err) { toast(err.message, 'err'); } };
   const del = async h => { try { await api.del(`${RH}/holidays/${h.id}`); list.reload(); } catch (e) { toast(e.message, 'err'); } };

@@ -1,5 +1,5 @@
 /**
- * Circuit d'une vente jusqu'à l'acte (six étapes datées, choix du client du 23/10). Le juriste (juridique:write) date
+ * Circuit d'une vente jusqu'à l'acte (six étapes datées, choix du client du 23/10). Le juriste (juridique:deeds) date
  * chaque étape, choisit le notaire et note le n° d'acte ; le commercial et la Direction voient l'avancement.
  * L'acte signé fait passer le lot « vendu » et prévient le commercial, le comptable, la Direction et le client.
  */
@@ -14,7 +14,7 @@ import { today } from '../lib/rh';
 
 export default function DeedSteps({ saleId, notaries = null, onChange }) {
   const { can } = useAuth();
-  const write = can('juridique:write');
+  const write = can('juridique:deeds');
   const x = useResource(`${JUR}/actes/${saleId}`);
   // Ouvert ailleurs que dans Juridique › Ventes et actes : la liste des notaires est chargée ici
   const refs = useResource(write && !notaries ? `${JUR}/refs` : null);

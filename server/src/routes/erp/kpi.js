@@ -1,7 +1,7 @@
 /**
  * ERP · RH › Performance et entretiens › Référentiel KPI (demande du client du 27/10) : indicateurs, modèles d'objectifs
  * par service et par poste et leur application, objectifs collectifs des services, part des objectifs collectifs dans le
- * score d'un service. Gestion réservée au droit « kpi:write » (service RH et Direction) ; lecture du référentiel par
+ * score d'un service. Gestion réservée au droits « kpi:indicators », « kpi:templates » et « kpi:department » (service RH et Direction) ; lecture du référentiel par
  * tout compte de l'ERP (formulaires d'objectifs des responsables).
  */
 const express = require('express');
@@ -39,8 +39,10 @@ const collectiveSchema = z.object({
 
 module.exports = function kpiRoutes(db) {
   const r = express.Router();
-  const write = requirePermission('kpi:write');
-  const canSee = (req, res, next) => (['kpi:write', 'rh:read'].some(p => req.can(p)) ? next() : next(new HttpError(403, 'Droits insuffisants.')));
+  const indicators = requirePermission('kpi:indicators');
+  const templates = requirePermission('kpi:templates');
+  const department = requirePermission('kpi:department');
+  const canSee = (req, res, next) => (['kpi:indicators', 'kpi:templates', 'kpi:department', 'rh:read'].some(p => req.can(p)) ? next() : next(new HttpError(403, 'Droits insuffisants.')));
 
   // ─── Indicateurs ──────────────────────────────────────────
   r.get('/kpis', ah(async (req, res) => {
@@ -50,14 +52,14 @@ module.exports = function kpiRoutes(db) {
       metrics: Object.fromEntries(Object.entries(OBJECTIVE_METRICS).filter(([k]) => k !== 'manuel').map(([k, m]) => [k, { label: m.label, group: m.group, unit: m.unit, service_only: m.level === 'service' }])),
     });
   }));
-  r.post('/kpis', write, ah(async (req, res) => res.status(201).json(kpi.serializeKpi(await kpi.createKpi(db, parse(kpiSchema, req.body))))));
-  r.patch('/kpis/:id', write, ah(async (req, res) => {
+  r.post('/kpis', indicators, ah(async (req, res) => res.status(201).json(kpi.serializeKpi(await kpi.createKpi(db, parse(kpiSchema, req.body))))));
+  r.patch('/kpis/:id', indicators, ah(async (req, res) => {
     const k = await kpi.getKpi(db, idParam(req));
     res.json(kpi.serializeKpi(await kpi.updateKpi(db, k, parse(kpiSchema.partial(), req.body))));
   }));
 
   /** Part des objectifs collectifs dans le score d'un service (le reste : moyenne des employés). */
-  r.put('/kpi-settings', write, ah(async (req, res) => {
+  r.put('/kpi-settings', indicators, ah(async (req, res) => {
     const { service_collective_pct } = parse(z.object({ service_collective_pct: pctField }), req.body);
     const s = await rh.saveSettings(db, { service_collective_pct });
     res.json({ collective_pct: s.service_collective_pct });
@@ -65,7 +67,7 @@ module.exports = function kpiRoutes(db) {
 
   // ─── Modèles d'objectifs ──────────────────────────────────
   r.get('/kpi-templates', canSee, ah(async (req, res) => res.json(await kpi.listTemplates(db))));
-  r.put('/kpi-templates', write, ah(async (req, res) => {
+  r.put('/kpi-templates', templates, ah(async (req, res) => {
     const data = parse(scopeSchema.extend({ lines: z.array(lineSchema).max(40) }), req.body);
     await kpi.saveTemplate(db, data, req.user);
     res.json(await kpi.listTemplates(db));
@@ -74,7 +76,7 @@ module.exports = function kpiRoutes(db) {
    * Application des modèles pour une année : à un service, à un poste, ou à tout le personnel. Sans `confirm`, seulement
    * l'aperçu (objectifs à créer, à mettre à jour, conservés, impossibles).
    */
-  r.post('/kpi-templates/apply', write, ah(async (req, res) => {
+  r.post('/kpi-templates/apply', templates, ah(async (req, res) => {
     const data = parse(scopeSchema.partial().extend({ year: z.number().int().min(2000).max(2100), confirm: z.boolean().optional() }), req.body);
     const employees = await kpi.employeesFor(db, data);
     res.json({ ...(await kpi.apply(db, { employees, year: data.year, user: req.user, dryRun: !data.confirm })), confirmed: !!data.confirm });
@@ -94,12 +96,12 @@ module.exports = function kpiRoutes(db) {
     if (!next.due_date && !current) next.due_date = periodRange(next.year, next.period, next.period_index).to;
     return next;
   }
-  r.post('/department-objectives', write, ah(async (req, res) => {
+  r.post('/department-objectives', department, ah(async (req, res) => {
     const data = await collectiveData(parse(collectiveSchema, req.body));
     const [id] = await db('hr_department_objectives').insert({ ...data, created_by: req.user.id });
     res.status(201).json(await db('hr_department_objectives').where({ id: insertedId(id) }).first());
   }));
-  r.patch('/department-objectives/:id', write, ah(async (req, res) => {
+  r.patch('/department-objectives/:id', department, ah(async (req, res) => {
     const o = await db('hr_department_objectives').where({ id: idParam(req) }).first();
     if (!o) throw new HttpError(404, 'Objectif introuvable.');
     const patch = parse(collectiveSchema.partial().omit({ department: true, year: true }), req.body);
@@ -108,7 +110,7 @@ module.exports = function kpiRoutes(db) {
     await db('hr_department_objectives').where({ id: o.id }).update({ ...Object.fromEntries(fields.filter(f => f in patch || ['period_index', 'metric'].includes(f)).map(f => [f, next[f]])), updated_at: new Date() });
     res.json(await db('hr_department_objectives').where({ id: o.id }).first());
   }));
-  r.delete('/department-objectives/:id', write, ah(async (req, res) => {
+  r.delete('/department-objectives/:id', department, ah(async (req, res) => {
     if (!(await db('hr_department_objectives').where({ id: idParam(req) }).del())) throw new HttpError(404, 'Objectif introuvable.');
     res.json({ ok: true });
   }));

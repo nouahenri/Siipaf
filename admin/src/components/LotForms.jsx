@@ -209,7 +209,7 @@ export function LotFormModal({ projectId, lot, onClose, onDone }) {
 /** Modifier le dossier d'acquisition. Changer le prix, le financement ou la date de réservation recalcule l'échéancier type. */
 export function SaleEditModal({ sale, onClose, onDone }) {
   const { can } = useAuth();
-  const legal = can('juridique:write'); // la date de l'acte se saisit avec le droit Juridique
+  const legal = can('juridique:deeds'); // la date de l'acte se saisit avec le droit Juridique
   const toast = useToast();
   const saved = useSaved();
   const [f, setF] = useState({

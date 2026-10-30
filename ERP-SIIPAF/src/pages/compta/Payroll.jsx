@@ -79,6 +79,7 @@ export function PayrollRun() {
   const d = run.data;
   const draft = d?.status === 'brouillon';
   const write = can('paie:prepare');
+  const inputs = can('paie:inputs');
   const act = async (fn, msg) => { try { await fn(); toast(msg); run.reload(); } catch (e) { toast(e.message, 'err'); } };
 
   const patchSlip = async (s, k, v) => {
@@ -126,7 +127,7 @@ export function PayrollRun() {
           <tbody>
             {d.slips.map(s => {
               const r = s.result;
-              const cell = (k, max) => (draft && write
+              const cell = (k, max) => (draft && inputs
                 ? <input className="input right tabular" type="number" min="0" max={max} defaultValue={s.inputs[k] || 0} onBlur={e => Number(e.target.value) !== Number(s.inputs[k] || 0) && patchSlip(s, k, e.target.value)} aria-label={k} />
                 : <span className="tabular small">{amt(s.inputs[k], { zero: '—' })}</span>);
               return (

@@ -113,7 +113,7 @@ export default function ProjectEdit() {
     if (on) checked[refId] = state; else delete checked[refId];
     return { ...f, checked };
   });
-  const canLists = can('settings:write');
+  const canLists = can('settings:refs');
 
   const set = k => e => setForm(f => ({ ...f, [k]: e.target.type === 'checkbox' ? e.target.checked : e.target.value }));
   const setOffer = (i, k, v) => setOffers(list => list.map((o, j) => (j === i ? { ...o, [k]: v } : o)));

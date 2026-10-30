@@ -1,7 +1,7 @@
 /**
  * ERP · Chantiers (choix du client du 24/10, docs/cadrage-chantiers.md). Plusieurs chantiers par programme : zone
  * couverte, conducteur de travaux, phases (Gantt), tâches (Kanban), budget par poste. Le conducteur nommé gère son
- * chantier sans autre droit ; chantiers:write gère tous les chantiers ; chantiers:read et la Direction consultent.
+ * chantier sans autre droit ; chantiers:plan et chantiers:budget gèrent tous les chantiers (chantiers:create les ouvre, chantiers:settings et chantiers:tma complètent) ; chantiers:read et la Direction consultent.
  * Règles dans lib/domain.js (WORKSITE_*, TASK_STATUSES, phaseState, worksiteProgress…).
  */
 const { HttpError, json, isoDay, isoTime } = require('../lib/http');
@@ -17,10 +17,12 @@ const insertedId = r => (typeof r === 'object' ? r.id : r);
 const today = () => new Date().toISOString().slice(0, 10);
 const fr = d => (d ? d.split('-').reverse().join('/') : '');
 
-/** Lecture de tous les chantiers : chantiers:read, chantiers:write, validation en direction, Vue Direction. */
-const seesAll = v => ['chantiers:read', 'chantiers:write', 'chantiers:direction', 'direction:read'].some(p => v.can(p));
+/** Lecture de tous les chantiers : chantiers:read, toute action de gestion, validation en direction, Vue Direction. */
+const MANAGE_ACTIONS = ['chantiers:create', 'chantiers:plan', 'chantiers:budget', 'chantiers:settings', 'chantiers:tma', 'chantiers:stages', 'chantiers:situations'];
+const seesAll = v => ['chantiers:read', ...MANAGE_ACTIONS, 'direction:read'].some(p => v.can(p));
 const canSee = (w, v) => seesAll(v) || Number(w.manager_id) === Number(v.user.id);
-const canManage = (w, v) => v.can('chantiers:write') || Number(w.manager_id) === Number(v.user.id);
+/** Gère le chantier : le conducteur nommé, ou qui a le droit `perm` (chantiers:plan : planning, phases, tâches, journal, besoins ; chantiers:budget : budget). */
+const canManage = (w, v, perm = 'chantiers:plan') => v.can(perm) || Number(w.manager_id) === Number(v.user.id);
 
 /** Référence annuelle : CH-2026-0001. */
 async function nextReference(trx, date) {
@@ -92,9 +94,9 @@ async function visibleWorksite(db, id, v) {
   if (!canSee(w, v)) throw new HttpError(404, 'Chantier introuvable.');
   return w;
 }
-async function managedWorksite(db, id, v) {
+async function managedWorksite(db, id, v, perm = 'chantiers:plan') {
   const w = await visibleWorksite(db, id, v);
-  if (!canManage(w, v)) throw new HttpError(403, 'Seuls le conducteur du chantier et les gestionnaires des chantiers le modifient.');
+  if (!canManage(w, v, perm)) throw new HttpError(403, 'Seuls le conducteur du chantier et les gestionnaires des chantiers le modifient.');
   return w;
 }
 
@@ -161,7 +163,7 @@ async function detail(db, w, v) {
   const shown = byCategory.filter(c => c.amount_fcfa || c.spent_fcfa || postes.find(p => p.code === c.category)?.active);
   return {
     ...serializeWorksite(w, { phases: ph, budget: lines.reduce((t, l) => t + l.amount_fcfa, 0), buildings }),
-    can_manage: canManage(w, v), phases: ph, tasks: tasks.map(serializeTask), budget_lines: lines, budget_by_category: shown,
+    can_manage: canManage(w, v), can_budget: canManage(w, v, 'chantiers:budget'), phases: ph, tasks: tasks.map(serializeTask), budget_lines: lines, budget_by_category: shown,
     lots: { total: lots.length, sold, codes: lots.slice(0, 60).map(l => l.code) },
     costs: cost, spent_fcfa: cost.total, consumed_pct: budgetTotal ? Math.round((cost.total / budgetTotal) * 100) : null,
   };
@@ -613,8 +615,8 @@ async function badges(db, v) {
   const visible = open.filter(w => canSee(w, v));
   const phases = visible.length ? await db('worksite_phases').whereIn('worksite_id', visible.map(w => w.id)) : [];
   const day = today();
-  const toDeclare = v.can('chantiers:direction') ? Number((await db('stage_declarations').where({ status: 'signalee' }).count({ n: '*' }).first()).n) : 0;
-  const toValidate = v.can('chantiers:direction') ? Number((await db('worksite_situations').where({ status: 'verifiee' }).count({ n: '*' }).first()).n) : 0;
+  const toDeclare = v.can('chantiers:stages') ? Number((await db('stage_declarations').where({ status: 'signalee' }).count({ n: '*' }).first()).n) : 0;
+  const toValidate = v.can('chantiers:situations') ? Number((await db('worksite_situations').where({ status: 'verifiee' }).count({ n: '*' }).first()).n) : 0;
   return {
     to_declare: toDeclare,
     situations_to_validate: toValidate,

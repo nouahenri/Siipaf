@@ -151,7 +151,7 @@ export function FixedAssets({ onOpen }) {
   const reg = useResource(`${URL}/immobilisations`);
   const [edit, setEdit] = useState(null); // ligne du registre ou bien à compléter
   const [out, setOut] = useState(null); // { a, date, price, journal_id }
-  const write = can('compta:entries');
+  const write = can('compta:assets');
   const r = reg.data;
   const act = async (fn, message) => {
     try { const data = await fn(); reg.setData(data.register || data); saved(message); setEdit(null); setOut(null); } catch (e) { toast(e.message, 'err'); }

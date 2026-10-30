@@ -154,7 +154,7 @@ async function run(db, { kind, rows, mapping, options = {}, dryRun = true, user,
 
   // ─── Plan comptable ───────────────────────────────────────
   if (kind === 'plan') {
-    if (!can('compta:settings')) throw new HttpError(403, 'Importer le plan comptable demande le droit « Paramétrer la comptabilité ».');
+    if (!can('compta:plan')) throw new HttpError(403, 'Importer le plan comptable demande le droit « Plan comptable et journaux ».');
     let known = 0, relabel = [];
     for (const r of rows) {
       const raw = text(cell(r, 'account')), label = text(cell(r, 'label'));
@@ -183,7 +183,7 @@ async function run(db, { kind, rows, mapping, options = {}, dryRun = true, user,
 
   // ─── Soldes d'ouverture ───────────────────────────────────
   if (kind === 'balance') {
-    if (!can('compta:close')) throw new HttpError(403, 'Les soldes d’ouverture demandent le droit « Exercices et clôture ».');
+    if (!can('compta:opening')) throw new HttpError(403, 'Les soldes d’ouverture demandent le droit « Soldes d’ouverture et à-nouveaux ».');
     const fy = await db('acc_fiscal_years').where({ id: Number(options.fiscal_year_id) || 0 }).first();
     if (!fy) throw new HttpError(400, 'Choisissez l’exercice qui reçoit les soldes d’ouverture.');
     const lines = [];
@@ -210,7 +210,7 @@ async function run(db, { kind, rows, mapping, options = {}, dryRun = true, user,
   }
 
   // ─── Écritures ────────────────────────────────────────────
-  if (!can('compta:entries')) throw new HttpError(403, 'Importer des écritures demande le droit « Saisir des écritures ».');
+  if (!can('compta:import')) throw new HttpError(403, 'Importer des écritures demande le droit « Importer des écritures Sage ».');
   if (options.validate && !can('compta:validate')) throw new HttpError(403, 'Valider à l’import demande le droit « Valider les écritures ».');
   const journals = new Map((await db('acc_journals').select('id', 'code', 'label', 'kind')).map(j => [j.code, j]));
   const newJournals = new Map();

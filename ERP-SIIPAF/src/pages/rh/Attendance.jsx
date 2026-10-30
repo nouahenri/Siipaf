@@ -13,14 +13,14 @@ export default function Attendance() {
   const { can } = useAuth();
   const [params, setParams] = useSearchParams();
   const tab = params.get('onglet') || 'jour';
-  const tabs = [['jour', 'Aujourd’hui'], ...(can('presence:write') ? [['feuille', 'Feuille de chantier']] : []), ['pointages', 'Pointages'], ['heures', 'Heures supplémentaires']];
+  const tabs = [['jour', 'Aujourd’hui'], ...(can('presence:sheets') ? [['feuille', 'Feuille de chantier']] : []), ['pointages', 'Pointages'], ['heures', 'Heures supplémentaires']];
   return (
     <div className="stack">
       <div className="row-between">
         <div className="tabs" role="tablist" style={{ marginBottom: 0, flex: 1 }}>
           {tabs.map(([k, l]) => <button key={k} role="tab" aria-selected={tab === k} className={`tab ${tab === k ? 'active' : ''}`} onClick={() => setParams({ onglet: k })}>{l}</button>)}
         </div>
-        {can('presence:write') && <Link className="btn" to="/rh/borne"><Tablet />Ouvrir la borne de pointage</Link>}
+        {can('presence:kiosk') && <Link className="btn" to="/rh/borne"><Tablet />Ouvrir la borne de pointage</Link>}
       </div>
       {tab === 'jour' && <Today />}
       {tab === 'feuille' && <Sheet />}
@@ -110,7 +110,7 @@ function Records() {
   const [edit, setEdit] = useState(null);
   const list = useResource(`${RH}/attendance${qs({ from, to, employee_id: employee })}`);
   const del = async a => { if (!window.confirm('Supprimer ce pointage ?')) return; try { await api.del(`${RH}/attendance/${a.id}`); list.reload(); } catch (e) { toast(e.message, 'err'); } };
-  const editable = can('presence:write');
+  const editable = can('presence:correct');
   return (
     <div className="stack">
       <div className="row-between">

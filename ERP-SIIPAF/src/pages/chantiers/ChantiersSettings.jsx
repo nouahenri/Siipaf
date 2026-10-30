@@ -21,7 +21,7 @@ export default function ChantiersSettings() {
   if (refs.error) return <ErrorBox error={refs.error} />;
   if (!refs.data || !f) return <Skeleton h={200} />;
   const fields = refs.data.setting_fields;
-  const write = can('chantiers:write');
+  const write = can('chantiers:settings');
   const save = async e => {
     e.preventDefault(); setBusy(true); setError(null);
     try {

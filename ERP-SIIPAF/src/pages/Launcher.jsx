@@ -7,7 +7,7 @@ import { CHANTIERS, CHANTIERS_SHOW } from '../lib/chantiers';
 
 // Feuille de route de l'ERP (passation.md §5 quinquies) : seuls les modules livrés sont ouverts
 const MODULES = [
-  { id: 'commercial', to: '/commercial', label: 'Service commercial', text: 'Parc immobilier, pipeline de la prospection au notaire, ventes, appels de fonds VEFA, objectifs.', icon: Briefcase, perm: ['commercial:read', 'vefa:write'], color: '#d2101e' },
+  { id: 'commercial', to: '/commercial', label: 'Service commercial', text: 'Parc immobilier, pipeline de la prospection au notaire, ventes, appels de fonds VEFA, objectifs.', icon: Briefcase, perm: ['commercial:read', 'vefa:read', 'vefa:write'], color: '#d2101e' },
   { id: 'sav', to: '/sav', label: 'Client & SAV', text: 'Après la vente : réserves de livraison, réclamations (maisons et terrains), interventions, satisfaction.', icon: LifeBuoy, perm: 'sav:read', color: '#2a78d6' },
   { id: 'compta', to: '/compta', label: 'Comptabilité', text: 'SYSCOHADA : écritures automatiques des ventes et versements, achats par programme, paie, trésorerie, états, export Sage.', icon: Calculator, perm: ['compta:read', 'paie:read'], color: '#1baf7a' },
   { id: 'rh', to: '/rh', label: 'Ressources humaines', text: 'Mon espace (pointage, congés, notes de frais), personnel, présences, recrutement, compétences et formations, entretiens.', icon: Users, color: '#eb6834' },
@@ -16,7 +16,7 @@ const MODULES = [
   { id: 'juridique', to: '/juridique', label: 'Juridique', text: 'Ventes jusqu’à l’acte notarié, litiges, cautions et retenues de garantie, impayés transmis, contrats et échéances.', icon: Scale, perm: [...JURIDIQUE, 'compta:read'], show: JURIDIQUE_SHOW, badges: 'juridique', color: '#6d28d9' },
   // Demandé par le client le 29/10, cadrage à venir : tuile visible de tous, sans accès
   { id: 'qhse', label: 'QHSE', text: 'Qualité, hygiène, sécurité et environnement : règles, contrôles et actions de prévention pour la conformité des ouvrages, la santé des travailleurs et un impact environnemental limité sur les chantiers.', icon: ShieldAlert, color: '#0f766e', status: 'En cours' },
-  { id: 'admin', module: 'administration', to: '/administration', label: 'Administration générale', text: 'Vue Direction de tous les services, courrier arrivée et départ, contrats et échéances, parc auto et matériel, documents internes, demandes internes, lieux (siège, bureaux, dépôts), circuit d’information entre les services.', icon: Building, perm: ['direction:read', 'courrier:read', 'courrier:write', 'courrier:assign', 'contrats:read', 'contrats:write', 'parc:read', 'parc:write', 'demandes:handle', 'demandes:dg', 'lieux:write', 'users:edit', 'circuit:write'], show: ADMIN_SHOW, color: '#5b6170' },
+  { id: 'admin', module: 'administration', to: '/administration', label: 'Administration générale', text: 'Vue Direction de tous les services, courrier arrivée et départ, contrats et échéances, parc auto et matériel, documents internes, demandes internes, lieux (siège, bureaux, dépôts), circuit d’information entre les services.', icon: Building, perm: ['direction:read', 'courrier:read', 'courrier:write', 'courrier:assign', 'contrats:read', 'contrats:write', 'contrats:close', 'contrats:documents', 'parc:read', 'parc:write', 'parc:maintenance', 'parc:costs', 'parc:reservations', 'demandes:handle', 'demandes:view_all', 'demandes:dg', 'lieux:write', 'users:edit', 'circuit:write'], show: ADMIN_SHOW, color: '#5b6170' },
 ];
 
 export default function Launcher() {

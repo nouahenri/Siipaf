@@ -18,7 +18,7 @@ const GUESS = {
   account: /compte g[eé]n|^compte$|n° ?compte|^n° de compte|account/i, partner: /tiers|auxiliaire/i, label: /libell|intitul/i,
   debit: /d[eé]bit/i, credit: /cr[eé]dit/i, amount: /montant|solde/i, direction: /^sens/i, ref: /r[eé]f[eé]rence/i,
 };
-const RIGHT = { ecritures: 'compta:entries', plan: 'compta:settings', balance: 'compta:close' };
+const RIGHT = { ecritures: 'compta:import', plan: 'compta:plan', balance: 'compta:opening' };
 
 export default function SageImport({ onClose, onDone }) {
   const { can } = useAuth();

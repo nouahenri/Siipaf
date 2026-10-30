@@ -1,7 +1,7 @@
 /**
  * RH › Performance et entretiens › Référentiel KPI (demande du client du 27/10) : indicateurs (nom, famille, calcul,
  * niveau, seuils), modèles d'objectifs de chaque service et de chaque poste avec leur application à une année (aperçu
- * puis confirmation), part des objectifs collectifs dans le score d'un service. Modification : droit « kpi:write »
+ * puis confirmation), part des objectifs collectifs dans le score d'un service. Modification : droits « kpi:indicators » (indicateurs, part des objectifs collectifs) et « kpi:templates » (modèles)
  * (service RH et Direction) ; lecture : service RH.
  */
 import { useEffect, useState } from 'react';
@@ -17,7 +17,8 @@ const PERIOD_WORDS = { annee: 'Année', trimestre: 'Chaque trimestre', mois: 'Ch
 
 export default function KpiReferential() {
   const { can } = useAuth();
-  const write = can('kpi:write');
+  const write = can('kpi:indicators') || can('kpi:templates') || can('kpi:department');
+  const [writeIndicators, writeTemplates] = [can('kpi:indicators'), can('kpi:templates')];
   const ref = useResource(`${RH}/kpis`);
   const templates = useResource(`${RH}/kpi-templates`);
   if (ref.error) return <ErrorBox error={ref.error} />;
@@ -25,9 +26,9 @@ export default function KpiReferential() {
   return (
     <div className="stack">
       {!write && <div className="alert alert-info">Lecture seule : le référentiel est géré par les comptes qui ont le privilège « Gérer le référentiel KPI » (service RH et Direction).</div>}
-      <Indicators data={ref.data} write={write} onChange={() => { ref.reload(); templates.reload(); }} />
-      <Templates data={templates} kpis={ref.data.kpis} write={write} />
-      <ScoreRule pct={ref.data.collective_pct} write={write} onSaved={ref.reload} />
+      <Indicators data={ref.data} write={writeIndicators} onChange={() => { ref.reload(); templates.reload(); }} />
+      <Templates data={templates} kpis={ref.data.kpis} write={writeTemplates} />
+      <ScoreRule pct={ref.data.collective_pct} write={writeIndicators} onSaved={ref.reload} />
     </div>
   );
 }

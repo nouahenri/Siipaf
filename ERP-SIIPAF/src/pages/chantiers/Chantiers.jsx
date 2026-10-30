@@ -22,13 +22,13 @@ export default function Chantiers() {
   const [q, setQ] = useState('');
   // Retour du dashboard après « Nouveau programme » : formulaire rouvert, programme créé déjà choisi
   const [params, setParams] = useSearchParams();
-  const [creating, setCreating] = useState(params.get('nouveau') === '1' && can('chantiers:write'));
+  const [creating, setCreating] = useState(params.get('nouveau') === '1' && can('chantiers:create'));
   const [newProject] = useState(params.get('programme') || '');
   useEffect(() => { if (params.get('nouveau')) setParams({}, { replace: true }); }, []);
   const list = useResource(`${CH}${qs({ status, project_id: project, q })}`);
   // Direction : étapes signalées par les conducteurs, à déclarer (elles émettront les appels de fonds)
-  const pending = useResource(can('chantiers:direction') ? `${CH}/etapes?status=signalee` : null);
-  const situations = useResource(can('chantiers:direction') ? `${CH}/situations` : null);
+  const pending = useResource(can('chantiers:stages') ? `${CH}/etapes?status=signalee` : null);
+  const situations = useResource(can('chantiers:situations') ? `${CH}/situations` : null);
   useEffect(() => { const t = setTimeout(() => setQ(text.trim()), 300); return () => clearTimeout(t); }, [text]);
 
   return (
@@ -46,7 +46,7 @@ export default function Chantiers() {
             <input className="input" style={{ paddingLeft: 32, width: 220 }} type="search" placeholder="Référence, nom, programme…" value={text} onChange={e => setText(e.target.value)} aria-label="Rechercher" />
           </label>
         </div>
-        {can('chantiers:write') && <button className="btn btn-primary" onClick={() => setCreating(true)}><Plus />Nouveau chantier</button>}
+        {can('chantiers:create') && <button className="btn btn-primary" onClick={() => setCreating(true)}><Plus />Nouveau chantier</button>}
       </div>
 
       {pending.data?.length > 0 && (
@@ -82,7 +82,7 @@ export default function Chantiers() {
       <Card bodyClass="">
         <ErrorBox error={list.error} />
         {!list.data ? <div className="card-body"><Skeleton h={220} /></div> : !list.data.length ? (
-          <div className="card-body"><Empty icon={HardHat}>Aucun chantier.{can('chantiers:write') ? ' Créez le premier avec « Nouveau chantier ».' : ''}</Empty></div>
+          <div className="card-body"><Empty icon={HardHat}>Aucun chantier.{can('chantiers:create') ? ' Créez le premier avec « Nouveau chantier ».' : ''}</Empty></div>
         ) : (
           <div className="table-wrap"><table className="table">
             <thead><tr><th>Chantier</th><th>Programme et zone</th><th>Conducteur</th><th>Période prévue</th><th style={{ minWidth: 140 }}>Avancement</th><th className="right">Réel / budget</th></tr></thead>
@@ -131,7 +131,7 @@ export function WorksiteForm({ worksite: w, refs, initialProject = '', onClose, 
       const data = body(f, ['project_id', 'manager_id']);
       data.zone = f.zone_kind === 'programme' ? [] : f.zone;
       if (w) { delete data.project_id; delete data.stages; }
-      if (w && !can('chantiers:write')) delete data.manager_id; // le conducteur ne change pas de conducteur
+      if (w && !can('chantiers:create')) delete data.manager_id; // le conducteur ne change pas de conducteur
       const res = w ? await api.patch(`${CH}/${w.id}`, data) : await api.post(CH, data);
       saved(w ? 'Chantier modifié' : `Chantier créé sous la référence ${res.reference}`);
       onSaved(res);
@@ -171,8 +171,8 @@ export function WorksiteForm({ worksite: w, refs, initialProject = '', onClose, 
             )}
           </div>
         )}
-        <Field label="Conducteur de travaux" hint={can('chantiers:write') ? 'Reçoit la cloche et un e-mail ; il gère ce chantier' : 'Changé par un gestionnaire des chantiers'}>
-          <select className="select" value={f.manager_id} disabled={w && !can('chantiers:write')} onChange={set('manager_id')}><option value="">—</option>{refs.users.map(u => <option key={u.id} value={u.id}>{u.name}</option>)}</select>
+        <Field label="Conducteur de travaux" hint={can('chantiers:create') ? 'Reçoit la cloche et un e-mail ; il gère ce chantier' : 'Changé par un gestionnaire des chantiers'}>
+          <select className="select" value={f.manager_id} disabled={w && !can('chantiers:create')} onChange={set('manager_id')}><option value="">—</option>{refs.users.map(u => <option key={u.id} value={u.id}>{u.name}</option>)}</select>
         </Field>
         <Field label="Statut"><select className="select" value={f.status} onChange={set('status')}>{Object.entries(refs.statuses).map(([k, l]) => <option key={k} value={k}>{l}</option>)}</select></Field>
         <Field label="Début prévu"><input className="input" type="date" value={f.planned_start} onChange={set('planned_start')} /></Field>

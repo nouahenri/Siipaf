@@ -10,8 +10,10 @@ const normalizeEmail = e => (e ? String(e).trim().toLowerCase() : null);
 /**
  * Retrouve un prospect par e-mail ou téléphone (hors prospects perdus), sinon le crée.
  * Les infos manquantes du prospect existant sont complétées.
+ * `actor` : le compte qui saisit (import) ; sans la portée « toute l'équipe » (leads:all), il ne complète pas la fiche d'une
+ * personne suivie par un collègue ni celle d'une fiche à attribuer : elle est rendue telle quelle, `protected` à vrai (audit du 30/10, B15).
  */
-async function findOrCreateLead(trx, data) {
+async function findOrCreateLead(trx, data, { actor = null } = {}) {
   const email = normalizeEmail(data.email);
   const phone = normalizePhone(data.phone);
   if (!email && !phone) throw new HttpError(400, 'Un e-mail ou un téléphone est requis.');
@@ -26,6 +28,7 @@ async function findOrCreateLead(trx, data) {
     .first();
 
   if (existing) {
+    if (actor && (existing.assigned_to !== actor.id) && !(actor.permissions || []).some(p => p === '*' || p === 'leads:all')) return { ...existing, protected: true };
     const patch = {};
     if (!existing.email && email) patch.email = email;
     if (!existing.phone && phone) patch.phone = phone;

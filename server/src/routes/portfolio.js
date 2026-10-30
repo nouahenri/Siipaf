@@ -8,12 +8,16 @@ const { z } = require('zod');
 const { ah, parse, idParam, HttpError } = require('../lib/http');
 const { requirePermission } = require('../auth');
 const pf = require('../services/portfolio');
-const { canAssignLeads, leadInScope, seesAllLeads, assertSeller } = require('../services/commercial');
+const { canAssignLeads, canDecideTransfers, leadInScope, seesAllLeads, assertSeller } = require('../services/commercial');
 const { inform, notify } = require('../services/notifications');
 const { effectivePermissions } = require('../services/permissions');
+const { isTest } = require('../config');
 
 const day = z.string().regex(/^\d{4}-\d{2}-\d{2}$/).optional();
 const MAX_PENDING_REQUESTS = 5;
+// Y a-t-il un responsable commercial actif ? Le calcul parcourt tous les comptes : réponse gardée quelques secondes (audit du 30/10, B20) ;
+// pas de cache en test, où les comptes changent d'une requête à l'autre
+const MANAGER_CACHE_MS = isTest ? 0 : 5000;
 
 module.exports = function portfolioRoutes(db) {
   const r = express.Router();
@@ -27,7 +31,7 @@ module.exports = function portfolioRoutes(db) {
     res.json(await pf.stats(db, req.user, { granularity: q.granularite, from: q.du, to: q.au, userId: q.commercial }));
   }));
 
-  // Attribuer, répartir ou transférer : le responsable seulement (leads:assign). Un commercial demande le transfert.
+  // Attribuer, répartir ou transférer : le responsable seulement (leads:assign) ; valider les demandes : leads:transfer_decide. Un commercial demande le transfert.
   r.post('/leads/assign', requirePermission('leads:assign'), ah(async (req, res) => {
     const data = parse(z.object({ ids: z.array(z.number().int().positive()).min(1).max(1000), user_id: z.number().int().positive().nullable() }), req.body);
     await assertSeller(db, data.user_id);
@@ -55,11 +59,15 @@ module.exports = function portfolioRoutes(db) {
   // l'administrateur général (super admin), dans l'ordre que fixe celui qui demande. Sans responsable commercial actif,
   // le super admin donne les deux.
   const isAdmin = user => user.role === 'super_admin';
+  let managerCache = { at: 0, value: false };
   async function hasManager() {
+    if (MANAGER_CACHE_MS && Date.now() - managerCache.at < MANAGER_CACHE_MS) return managerCache.value;
+    let value = false;
     for (const u of await db('users').where({ active: true }).whereNot('role', 'super_admin').select('id', 'role')) {
-      if ((await effectivePermissions(db, u)).includes('leads:assign')) return true;
+      if ((await effectivePermissions(db, u)).includes('leads:transfer_decide')) { value = true; break; }
     }
-    return false;
+    managerCache = { at: Date.now(), value };
+    return value;
   }
   const awaiting = (t, manager) => (t.status !== 'en_attente' ? null : !t.client ? 'responsable'
     : !t.manager_by ? (manager ? 'responsable' : 'administrateur') : !t.admin_by ? 'administrateur' : null);
@@ -77,7 +85,7 @@ module.exports = function portfolioRoutes(db) {
     if (status !== 'tous') q.where('t.status', status);
     if (req.query.lead_id) q.where('t.lead_id', Number(req.query.lead_id));
     // Le responsable voit toutes les demandes ; un commercial, celles qu'il a faites ou qui le concernent
-    if (!canAssignLeads(req.user)) q.where(b => b.where('t.requested_by', req.user.id).orWhere('t.from_user_id', req.user.id).orWhere('t.to_user_id', req.user.id));
+    if (!canDecideTransfers(req.user)) q.where(b => b.where('t.requested_by', req.user.id).orWhere('t.from_user_id', req.user.id).orWhere('t.to_user_id', req.user.id));
     res.json(await withStep(await q));
   }));
 
@@ -90,7 +98,7 @@ module.exports = function portfolioRoutes(db) {
     const lead = await db('leads').where({ id: leadId }).first('id', 'name', 'assigned_to', 'client_code');
     if (!lead) throw new HttpError(404, 'Prospect introuvable.');
     const mine = lead.assigned_to === req.user.id;
-    const manager = canAssignLeads(req.user);
+    const manager = canAssignLeads(req.user), decider = canDecideTransfers(req.user);
     // Une personne suivie par un collègue : on ne peut demander qu'à la reprendre pour soi (le responsable choisit le commercial)
     const to = mine || manager ? (data.to_user_id ?? null) : req.user.id;
     if (!mine && !lead.assigned_to && !seesAllLeads(req.user)) throw new HttpError(404, 'Prospect introuvable.');
@@ -105,7 +113,7 @@ module.exports = function portfolioRoutes(db) {
     }
     // Client : l'accord de celui qui demande vaut pour son étape (responsable commercial ou administrateur général)
     const client = !!lead.client_code, now = new Date();
-    const signed = !client ? {} : isAdmin(req.user) ? { admin_by: req.user.id, admin_at: now } : manager ? { manager_by: req.user.id, manager_at: now } : {};
+    const signed = !client ? {} : isAdmin(req.user) ? { admin_by: req.user.id, admin_at: now } : decider ? { manager_by: req.user.id, manager_at: now } : {};
     const [id] = await db('lead_transfer_requests').insert({ lead_id: leadId, from_user_id: lead.assigned_to || null, to_user_id: to, reason: data.reason, requested_by: req.user.id, client, ...signed });
     const tId = typeof id === 'object' ? id.id : id;
     if (signed.manager_by) {
@@ -144,7 +152,7 @@ module.exports = function portfolioRoutes(db) {
     });
   };
 
-  r.post('/lead-transfers/:id/valider', requirePermission('leads:assign'), ah(async (req, res) => {
+  r.post('/lead-transfers/:id/valider', requirePermission('leads:transfer_decide'), ah(async (req, res) => {
     const t = await pendingTransfer(req);
     const { to_user_id, note } = parse(z.object({ to_user_id: z.number().int().positive().nullable().optional(), note: z.string().trim().max(1000).optional() }), req.body || {});
     const to = to_user_id !== undefined ? to_user_id : t.to_user_id; // le responsable peut choisir un autre commercial
@@ -168,7 +176,7 @@ module.exports = function portfolioRoutes(db) {
     res.json(await oneRow(t.id));
   }));
 
-  r.post('/lead-transfers/:id/refuser', requirePermission('leads:assign'), ah(async (req, res) => {
+  r.post('/lead-transfers/:id/refuser', requirePermission('leads:transfer_decide'), ah(async (req, res) => {
     const t = await pendingTransfer(req);
     const { note } = parse(z.object({ note: z.string().trim().min(3, 'Indiquez le motif du refus.').max(1000) }), req.body);
     await db('lead_transfer_requests').where({ id: t.id }).update({ status: 'refusee', decided_by: req.user.id, decided_at: new Date(), decision_note: note, updated_at: new Date() });
@@ -179,7 +187,7 @@ module.exports = function portfolioRoutes(db) {
   // L'auteur retire sa demande tant qu'elle n'est pas traitée
   r.delete('/lead-transfers/:id', requirePermission('leads:read'), ah(async (req, res) => {
     const t = await pendingTransfer(req);
-    if (t.requested_by !== req.user.id && !canAssignLeads(req.user)) throw new HttpError(403, 'Seul son auteur retire une demande.');
+    if (t.requested_by !== req.user.id && !canDecideTransfers(req.user)) throw new HttpError(403, 'Seul son auteur retire une demande.');
     await db('lead_transfer_requests').where({ id: t.id }).update({ status: 'annulee', updated_at: new Date() });
     res.json({ ok: true });
   }));

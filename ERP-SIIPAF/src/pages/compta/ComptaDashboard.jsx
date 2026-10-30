@@ -69,7 +69,7 @@ export default function ComptaDashboard() {
         <Empty icon={CalendarPlus}>
           <b>Aucun exercice comptable ne couvre la date du jour.</b>
           <p className="small muted" style={{ marginTop: 6 }}>L’exercice de départ est à fixer avec le comptable (reprise des soldes d’ouverture).</p>
-          {can('compta:close') && <Link className="btn btn-primary" style={{ marginTop: 12 }} to="/compta/parametres">Créer l’exercice</Link>}
+          {can('compta:years') && <Link className="btn btn-primary" style={{ marginTop: 12 }} to="/compta/parametres">Créer l’exercice</Link>}
         </Empty>
       </Card>
       </div>

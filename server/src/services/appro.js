@@ -15,12 +15,12 @@ async function event(db, entity, id, action, userId, details = null) {
 }
 const resolveOrderValidation = (db, id) => db('notifications').whereIn('event', ['commande.a_valider', 'commande.soumise'])
   .where(q => q.where('dedupe_key', `appro:validation:${id}`).orWhere('dedupe_key', 'like', `appro:validation:${id}:%`)).whereNull('read_at').update({ read_at: new Date() });
-/** Comptes actifs du module avec leurs droits : émetteurs (`appro:write`) et validateurs (`appro:validate` ou Direction). */
+/** Comptes actifs du module avec leurs droits : émetteurs (`appro:orders`) et validateurs (`appro:validate` ou Direction). */
 async function approAccounts(db) {
   const out = [];
   for (const u of await db('users as u').leftJoin('roles as r', 'r.id', 'u.role').where('u.active', true).orderBy('u.name').select('u.id', 'u.name', 'u.role', 'r.label as role_label')) {
     const p = await effectivePermissions(db, u); if (!hasPermission(p, 'appro:read')) continue;
-    out.push({ id: u.id, name: u.name, role_label: u.role_label || u.role, super_admin: u.role === 'super_admin', write: hasPermission(p, 'appro:write'), validate: hasPermission(p, 'appro:validate'), direction: hasPermission(p, 'appro:direction') });
+    out.push({ id: u.id, name: u.name, role_label: u.role_label || u.role, super_admin: u.role === 'super_admin', write: hasPermission(p, 'appro:orders'), validate: hasPermission(p, 'appro:validate'), direction: hasPermission(p, 'appro:direction') });
   }
   return out;
 }
@@ -111,7 +111,7 @@ async function stockAlerts(db, except) {
     if (!b.low) { await resolve(db, key); continue; }
     // Une nouvelle alerte après réapprovisionnement, sans doublon pendant la même rupture.
     const open = await db('notifications').where({ event: 'stock.bas' }).where('dedupe_key', 'like', `${key}%`).whereNull('read_at').first('id');
-    if (!open) await inform(db, 'stock.bas', { direct: await usersWith(db, 'appro:stock'), except, key: `${key}${Date.now()}`, title: `Stock bas : ${b.label}`, body: `${b.location_name} · disponible ${b.quantity} ${b.unit} · seuil ${b.min_quantity}`, link: '/achats/stocks', priority: 'action' });
+    if (!open) await inform(db, 'stock.bas', { direct: await usersWith(db, ['appro:minimum', 'appro:stock']), except, key: `${key}${Date.now()}`, title: `Stock bas : ${b.label}`, body: `${b.location_name} · disponible ${b.quantity} ${b.unit} · seuil ${b.min_quantity}`, link: '/achats/stocks', priority: 'action' });
   }
 }
 async function setStockMinimum(db, data, userId) {
@@ -447,7 +447,7 @@ async function prepareInvoice(db, id, data, userId) {
     const invoiceId = insertedId(r);
     await trx('appro_invoice_receipts').insert(selectedIds.map(movement_id => ({ movement_id, invoice_id: invoiceId })));
     await event(trx, 'order', id, 'facture_brouillon', userId, { invoice_id: invoiceId, number, receipt_ids: selectedIds });
-    await inform(trx, 'appro.facture', { direct: await usersWith(trx, 'compta:entries'), except: userId, key: `appro:facture:${invoiceId}`, title: `Facture à contrôler : ${number}`, body: `${o.reference} · ${amounts.amount_ttc.toLocaleString('fr-FR')} FCFA TTC`, link: '/compta/achats', priority: 'action' });
+    await inform(trx, 'appro.facture', { direct: await usersWith(trx, 'achats:validate'), except: userId, key: `appro:facture:${invoiceId}`, title: `Facture à contrôler : ${number}`, body: `${o.reference} · ${amounts.amount_ttc.toLocaleString('fr-FR')} FCFA TTC`, link: '/compta/achats', priority: 'action' });
     return { invoice_id: invoiceId, number, status: 'brouillon', ...amounts };
   });
 }

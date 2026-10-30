@@ -30,39 +30,39 @@ module.exports = db => {
   r.post('/articles', action('appro:articles'), ah(async (req, res) => res.status(201).json(await s.saveArticle(db, parse(article, req.body), null, req.user.id))));
   r.put('/articles/:id', action('appro:articles'), ah(async (req, res) => res.json(await s.saveArticle(db, parse(article, req.body), idParam(req), req.user.id))));
   r.get('/locations', ah(async (req, res) => res.json(await s.locations(db))));
-  r.post('/locations', action('appro:write'), ah(async (req, res) => res.status(201).json(await s.createLocation(db, parse(z.object({ place_id: optId, worksite_id: optId }), req.body), req.user.id))));
+  r.post('/locations', action('appro:locations'), ah(async (req, res) => res.status(201).json(await s.createLocation(db, parse(z.object({ place_id: optId, worksite_id: optId }), req.body), req.user.id))));
   r.get('/stock', ah(async (req, res) => res.json(await s.stock(db))));
-  r.put('/stock/minimum', action('appro:stock'), ah(async (req, res) => res.json(await s.setStockMinimum(db, parse(z.object({ article_id: id, location_id: id, min_quantity: minimum.nullable() }), req.body), req.user.id))));
+  r.put('/stock/minimum', action('appro:minimum'), ah(async (req, res) => res.json(await s.setStockMinimum(db, parse(z.object({ article_id: id, location_id: id, min_quantity: minimum.nullable() }), req.body), req.user.id))));
   r.get('/needs', ah(async (req, res) => res.json(await s.needs(db))));
-  r.post('/needs/:id/prepare', action('appro:write'), ah(async (req, res) => res.json(await s.prepareNeed(db, idParam(req), req.user.id))));
-  r.post('/needs/:id/refuse', action('appro:write'), ah(async (req, res) => res.json(await s.refuseNeed(db, idParam(req), parse(z.object({ reason: z.string().trim().min(3).max(255) }), req.body).reason, req.user.id))));
+  r.post('/needs/:id/prepare', action('appro:needs'), ah(async (req, res) => res.json(await s.prepareNeed(db, idParam(req), req.user.id))));
+  r.post('/needs/:id/refuse', action('appro:needs'), ah(async (req, res) => res.json(await s.refuseNeed(db, idParam(req), parse(z.object({ reason: z.string().trim().min(3).max(255) }), req.body).reason, req.user.id))));
   // Besoins des services (demandes internes d'achat ou d'équipement validées)
   r.get('/service-needs', ah(async (req, res) => res.json(await s.serviceNeeds(db))));
-  r.post('/service-needs/:id/prepare', action('appro:write'), ah(async (req, res) => res.json(await s.prepareRequest(db, idParam(req), req.user.id))));
-  r.post('/service-needs/:id/refuse', action('appro:write'), ah(async (req, res) => res.json(await s.refuseRequest(db, idParam(req), parse(z.object({ reason: z.string().trim().min(3).max(255) }), req.body).reason, req.user.id))));
+  r.post('/service-needs/:id/prepare', action('appro:needs'), ah(async (req, res) => res.json(await s.prepareRequest(db, idParam(req), req.user.id))));
+  r.post('/service-needs/:id/refuse', action('appro:needs'), ah(async (req, res) => res.json(await s.refuseRequest(db, idParam(req), parse(z.object({ reason: z.string().trim().min(3).max(255) }), req.body).reason, req.user.id))));
   r.get('/contracts', action('contrats:read'), ah(async (req, res) => res.json(await s.contracts(db))));
   for (const [url, type] of [['orders', 'order'], ['quotes', 'quote']]) {
     r.get(`/${url}`, ah(async (req, res) => res.json(await s.listDocuments(db, type, { status: req.query.status || null }))));
-    r.post(`/${url}`, action('appro:write'), ah(async (req, res) => res.status(201).json(await s.saveDocument(db, type, parse(type === 'order' ? order : doc, req.body), null, req.user.id))));
+    r.post(`/${url}`, action(type === 'order' ? 'appro:orders' : 'appro:quotes'), ah(async (req, res) => res.status(201).json(await s.saveDocument(db, type, parse(type === 'order' ? order : doc, req.body), null, req.user.id))));
     r.get(`/${url}/:id`, ah(async (req, res) => res.json(await s.detail(db, type, idParam(req)))));
-    r.put(`/${url}/:id`, action('appro:write'), ah(async (req, res) => res.json(await s.saveDocument(db, type, parse(type === 'order' ? order : doc, req.body), idParam(req), req.user.id))));
-    r.post(`/${url}/:id/cancel`, action('appro:write'), ah(async (req, res) => res.json(await s.cancelDocument(db, type, idParam(req), req.user.id))));
+    r.put(`/${url}/:id`, action(type === 'order' ? 'appro:orders' : 'appro:quotes'), ah(async (req, res) => res.json(await s.saveDocument(db, type, parse(type === 'order' ? order : doc, req.body), idParam(req), req.user.id))));
+    r.post(`/${url}/:id/cancel`, action(type === 'order' ? 'appro:orders' : 'appro:quotes'), ah(async (req, res) => res.json(await s.cancelDocument(db, type, idParam(req), req.user.id))));
   }
-  r.post('/quotes/:id/received', action('appro:write'), ah(async (req, res) => res.json(await s.receiveQuote(db, idParam(req), req.user.id))));
-  r.post('/quotes/:id/order', action('appro:write'), ah(async (req, res) => res.status(201).json(await s.quoteToOrder(db, idParam(req), req.user.id))));
+  r.post('/quotes/:id/received', action('appro:quotes'), ah(async (req, res) => res.json(await s.receiveQuote(db, idParam(req), req.user.id))));
+  r.post('/quotes/:id/order', action('appro:quotes'), action('appro:orders'), ah(async (req, res) => res.status(201).json(await s.quoteToOrder(db, idParam(req), req.user.id))));
   r.get('/approvers', ah(async (req, res) => res.json(await s.approvers(db))));
   r.get('/issuers', ah(async (req, res) => res.json(await s.issuers(db))));
-  r.post('/orders/:id/submit', action('appro:write'), ah(async (req, res) => res.json(await s.submitOrder(db, idParam(req), actor(req)))));
-  r.post('/orders/:id/reopen', action('appro:write'), ah(async (req, res) => res.json(await s.reopenOrder(db, idParam(req), req.user.id))));
+  r.post('/orders/:id/submit', action('appro:orders'), ah(async (req, res) => res.json(await s.submitOrder(db, idParam(req), actor(req)))));
+  r.post('/orders/:id/reopen', action('appro:orders'), ah(async (req, res) => res.json(await s.reopenOrder(db, idParam(req), req.user.id))));
   // Acompte au fournisseur sur une commande confirmée : Comptabilité, droit « Régler les fournisseurs »
-  r.post('/orders/:id/advances', action('achats:pay'), ah(async (req, res) => {
+  r.post('/orders/:id/advances', action('achats:advance'), ah(async (req, res) => {
     const data = parse(z.object({ date: day, amount: z.number().int().positive().max(1000000000000), journal_id: id, reference: text(120) }), req.body);
     await require('../../services/compta').payOrderAdvance(db, idParam(req), data, req.user.id);
     res.status(201).json(await s.detail(db, 'order', idParam(req)));
   }));
   r.post('/orders/:id/approve', requirePermission('appro:validate', 'appro:direction'), ah(async (req, res) => res.json(await s.approveOrder(db, idParam(req), actor(req)))));
   r.post('/orders/:id/refuse', requirePermission('appro:validate', 'appro:direction'), ah(async (req, res) => res.json(await s.approveOrder(db, idParam(req), actor(req), { refuse: true, reason: parse(z.object({ reason: z.string().trim().min(3).max(500) }), req.body).reason }))));
-  r.post('/orders/:id/receive', action('appro:stock'), ah(async (req, res) => res.json(await s.receiveOrder(db, idParam(req), parse(z.object({ date: day, supplier_ref: text(100), note: text(5000), lines: z.array(z.object({ order_line_id: id, quantity: qty })).min(1).max(100) }), req.body), actor(req)))));
+  r.post('/orders/:id/receive', action('appro:receive'), ah(async (req, res) => res.json(await s.receiveOrder(db, idParam(req), parse(z.object({ date: day, supplier_ref: text(100), note: text(5000), lines: z.array(z.object({ order_line_id: id, quantity: qty })).min(1).max(100) }), req.body), actor(req)))));
   // Reprend les droits existants de la Comptabilité ; aucun nouveau rôle n'obtient le droit de facturer.
   r.post('/orders/:id/invoice', action('achats:write'), action('compta:read'), ah(async (req, res) => res.status(201).json(await s.prepareInvoice(db, idParam(req), parse(z.object({ date: day, due_date: day.nullable().optional(), supplier_ref: z.string().trim().min(1).max(60), expense_account: z.string().trim().min(2).max(12), receipt_ids: z.array(id).min(1).max(100).optional() }), req.body), req.user.id))));
   r.get('/movements', ah(async (req, res) => res.json(await s.movements(db))));

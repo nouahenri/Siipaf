@@ -31,7 +31,10 @@ const guaranteeSchema = z.object({
 
 module.exports = function juridiqueRoutes(db) {
   const r = express.Router();
-  const write = requirePermission('juridique:write');
+  const settingsRight = requirePermission('juridique:settings');
+  const deeds = requirePermission('juridique:deeds');
+  const litigation = requirePermission('juridique:litigation');
+  const guarantees = requirePermission('juridique:guarantees');
   const cleanup = req => req.file && fs.promises.unlink(req.file.path).catch(() => {});
   const guarded = fn => ah(async (req, res) => { try { await fn(req, res); } catch (e) { await cleanup(req); throw e; } });
   const viewer = req => courrier.viewer(db, req.user, p => req.can(p));
@@ -78,7 +81,7 @@ module.exports = function juridiqueRoutes(db) {
   }));
 
   // ─── Réglages ─────────────────────────────────────────────
-  r.put('/reglages', write, ah(async (req, res) => {
+  r.put('/reglages', settingsRight, ah(async (req, res) => {
     const shape = Object.fromEntries(Object.entries(LEGAL_SETTINGS).map(([k, s]) => [k, z.number().int().min(s.min).max(s.max)]));
     const data = parse(z.object(shape).partial(), req.body);
     const next = { ...(await juridique.settings(db)), ...data };
@@ -86,14 +89,14 @@ module.exports = function juridiqueRoutes(db) {
     res.json(await juridique.saveSettings(db, data));
   }));
   const kindSchema = z.object({ label: z.string().trim().min(2).max(120), direction: z.enum(Object.keys(GUARANTEE_DIRECTIONS)), active: z.boolean().optional() });
-  r.post('/sortes', write, ah(async (req, res) => {
+  r.post('/sortes', settingsRight, ah(async (req, res) => {
     const data = parse(kindSchema, req.body);
     if (await db('guarantee_kinds').whereRaw('lower(label) = ?', [data.label.toLowerCase()]).first()) throw new HttpError(409, 'Cette sorte de caution existe déjà.');
     const max = await db('guarantee_kinds').max({ m: 'sort' }).first();
     await db('guarantee_kinds').insert({ ...data, sort: Number(max?.m || 0) + 1 });
     res.status(201).json(await db('guarantee_kinds').orderBy(['sort', 'id']));
   }));
-  r.patch('/sortes/:id', write, ah(async (req, res) => {
+  r.patch('/sortes/:id', settingsRight, ah(async (req, res) => {
     const kid = idParam(req);
     const data = parse(kindSchema.partial(), req.body);
     const kind = await db('guarantee_kinds').where({ id: kid }).first();
@@ -117,7 +120,7 @@ module.exports = function juridiqueRoutes(db) {
     if (!isJurist) await require('../../services/commercial').saleInScope(db, idParam(req), req.user);
     res.json(await juridique.deedDetail(db, idParam(req)));
   }));
-  r.post('/actes/:id', write, ah(async (req, res) => {
+  r.post('/actes/:id', deeds, ah(async (req, res) => {
     const data = parse(z.object({
       key: z.enum(juridique.DEED_STEP_KEYS).optional(), date: day.nullable().optional(), notary_supplier_id: z.number().int().positive().nullable().optional(),
       notary_ref: z.string().trim().max(100).nullable().optional(), deed_number: z.string().trim().max(60).nullable().optional(), notes: z.string().trim().max(4000).nullable().optional(),
@@ -140,19 +143,19 @@ module.exports = function juridiqueRoutes(db) {
   r.get('/litiges', ah(async (req, res) => {
     res.json(await juridique.litigations(db, await viewer(req), { status: req.query.status ?? 'ouvert', origin: req.query.origin || null, q: req.query.q }));
   }));
-  r.post('/litiges', write, ah(async (req, res) => res.status(201).json(await juridique.createLitigation(db, parse(litigationSchema, req.body), req.user))));
+  r.post('/litiges', litigation, ah(async (req, res) => res.status(201).json(await juridique.createLitigation(db, parse(litigationSchema, req.body), req.user))));
   async function visibleLitigation(req) {
     const l = await juridique.loadLitigation(db, idParam(req));
     if (!juridique.canSeeLitigation(l, await viewer(req))) throw new HttpError(404, 'Litige introuvable.');
     return l;
   }
   r.get('/litiges/:id', ah(async (req, res) => res.json(await juridique.litigationDetail(db, (await visibleLitigation(req)).id))));
-  r.patch('/litiges/:id', write, ah(async (req, res) => {
+  r.patch('/litiges/:id', litigation, ah(async (req, res) => {
     const l = await juridique.loadLitigation(db, idParam(req));
     await juridique.updateLitigation(db, l, parse(litigationSchema.partial(), req.body));
     res.json(await juridique.litigationDetail(db, l.id));
   }));
-  r.post('/litiges/:id/etapes', write, juridique.fileUpload(), guarded(async (req, res) => {
+  r.post('/litiges/:id/etapes', litigation, juridique.fileUpload(), guarded(async (req, res) => {
     const l = await juridique.loadLitigation(db, idParam(req));
     const data = parse(z.object({
       stage: z.enum(Object.keys(LITIGATION_STAGES)), date: day, note: opt(z.string().trim().max(4000)), outcome: opt(z.enum(Object.keys(LITIGATION_OUTCOMES))),
@@ -161,7 +164,7 @@ module.exports = function juridiqueRoutes(db) {
     await juridique.addEvent(db, l, data, { file: req.file, userId: req.user.id });
     res.status(201).json(await juridique.litigationDetail(db, l.id));
   }));
-  r.post('/litiges/:id/reopen', write, ah(async (req, res) => {
+  r.post('/litiges/:id/reopen', litigation, ah(async (req, res) => {
     const l = await juridique.loadLitigation(db, idParam(req));
     await juridique.reopenLitigation(db, l, req.user.id);
     res.json(await juridique.litigationDetail(db, l.id));
@@ -179,22 +182,22 @@ module.exports = function juridiqueRoutes(db) {
   r.get('/cautions', seeGuarantees, ah(async (req, res) => {
     res.json(await juridique.guarantees(db, { status: req.query.status ?? 'active', direction: req.query.direction || null, contractId: Number(req.query.contract_id) || null, q: req.query.q }));
   }));
-  r.post('/cautions', write, juridique.fileUpload(), guarded(async (req, res) => {
+  r.post('/cautions', guarantees, juridique.fileUpload(), guarded(async (req, res) => {
     const gid = await juridique.createGuarantee(db, parse(guaranteeSchema, req.body), { file: req.file, userId: req.user.id });
     res.status(201).json(juridique.serializeGuarantee(await juridique.loadGuarantee(db, gid)));
   }));
   r.get('/cautions/:id', seeGuarantees, ah(async (req, res) => res.json(juridique.serializeGuarantee(await juridique.loadGuarantee(db, idParam(req))))));
-  r.patch('/cautions/:id', write, juridique.fileUpload(), guarded(async (req, res) => {
+  r.patch('/cautions/:id', guarantees, juridique.fileUpload(), guarded(async (req, res) => {
     const g = await juridique.loadGuarantee(db, idParam(req));
     await juridique.updateGuarantee(db, g, parse(guaranteeSchema.partial(), req.body), { file: req.file });
     res.json(juridique.serializeGuarantee(await juridique.loadGuarantee(db, g.id)));
   }));
-  r.post('/cautions/:id/close', write, ah(async (req, res) => {
+  r.post('/cautions/:id/close', guarantees, ah(async (req, res) => {
     const g = await juridique.loadGuarantee(db, idParam(req));
     await juridique.closeGuarantee(db, g, parse(z.object({ status: z.enum(['liberee', 'appelee', 'expiree']), date: day, note: z.string().trim().max(255).optional() }), req.body));
     res.json(juridique.serializeGuarantee(await juridique.loadGuarantee(db, g.id)));
   }));
-  r.post('/cautions/:id/reopen', write, ah(async (req, res) => {
+  r.post('/cautions/:id/reopen', guarantees, ah(async (req, res) => {
     const g = await juridique.loadGuarantee(db, idParam(req));
     await juridique.reopenGuarantee(db, g);
     res.json(juridique.serializeGuarantee(await juridique.loadGuarantee(db, g.id)));

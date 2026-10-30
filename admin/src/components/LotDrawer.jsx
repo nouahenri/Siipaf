@@ -118,7 +118,7 @@ function Overview({ d, sale, onOpenClient, onOpened, onSaleChange, onLotChanged,
 
       {sale ? (
         <>
-          <Card title="Acquéreur" actions={can(['sales:edit', 'juridique:write']) && sale.status !== 'desiste' && <button className="btn btn-sm" onClick={() => setEditSale(true)}><Pencil />Modifier le dossier</button>}>
+          <Card title="Acquéreur" actions={can(['sales:edit', 'juridique:deeds']) && sale.status !== 'desiste' && <button className="btn btn-sm" onClick={() => setEditSale(true)}><Pencil />Modifier le dossier</button>}>
             <div className="row-between" style={{ alignItems: 'flex-start' }}>
               <div>
                 <strong style={{ fontSize: 15 }}>{sale.lead.name}</strong>

@@ -28,7 +28,7 @@ export default function Reviews() {
   const [period, setPeriod] = useState(yearPeriod());
   const tab = params.get('onglet') || 'services';
   const tabs = [['services', 'Performance par service'], ['courbes', 'Courbes par employé'], ['employes', 'Objectifs et entretiens']];
-  if (can('kpi:write') || can('rh:read')) tabs.push(['referentiel', 'Référentiel KPI']);
+  if (['kpi:indicators', 'kpi:templates', 'kpi:department', 'rh:read'].some(can)) tabs.push(['referentiel', 'Référentiel KPI']);
   return (
     <div className="stack">
       <div className="tabs" role="tablist" style={{ marginBottom: 0 }}>
@@ -136,7 +136,7 @@ function ServicePanel({ dept, share, period, onChange }) {
   const { can } = useAuth();
   const toast = useToast();
   const [form, setForm] = useState(null);
-  const write = can('kpi:write');
+  const write = can('kpi:department');
   const del = async o => {
     if (!window.confirm(`Supprimer l’objectif du service « ${o.title} » ?`)) return;
     try { await api.del(`${RH}/department-objectives/${o.id}`); onChange(); } catch (e) { toast(e.message, 'err'); }
@@ -324,7 +324,8 @@ export function ObjectivesPanel({ employee, period: initial = yearPeriod() }) {
   const [open, setOpen] = useState(null);
   if (card.error) return <ErrorBox error={card.error} />;
   if (!card.data || !file.data) return <Skeleton h={200} />;
-  const coach = can('evaluation:write') || card.data.access === 'manager';
+  const coach = can('evaluation:objectives') || card.data.access === 'manager';
+  const coachReview = can('evaluation:reviews') || card.data.access === 'manager';
   const { lines, objectives, score } = card.data;
   const review = file.data.reviews.find(r => r.year === period.annee) || null;
   const byId = Object.fromEntries(objectives.map(o => [o.id, o]));
@@ -407,7 +408,7 @@ export function ObjectivesPanel({ employee, period: initial = yearPeriod() }) {
         )}
         {score != null && <p className="small" style={{ marginTop: 12 }}>Atteinte pondérée : <b>{score} %</b></p>}
       </Card>
-      <ReviewForm key={`${period.annee}-${review?.id || 0}-${review?.status}`} employeeId={employee.id} year={period.annee} review={review} coach={coach} onSaved={reload} />
+      <ReviewForm key={`${period.annee}-${review?.id || 0}-${review?.status}`} employeeId={employee.id} year={period.annee} review={review} coach={coachReview} onSaved={reload} />
       {adding && <ObjectiveForm employeeId={employee.id} period={period} hasAccount={card.data.has_account} hasProject={card.data.has_project} onClose={() => setAdding(false)} onSaved={() => { setAdding(false); reload(); }} />}
       {editing && <ObjectiveEdit objective={editing} onClose={() => setEditing(null)} onSaved={() => { setEditing(null); reload(); }} />}
     </div>

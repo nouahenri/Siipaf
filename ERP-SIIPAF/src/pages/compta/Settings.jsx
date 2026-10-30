@@ -25,20 +25,20 @@ export default function Settings() {
   const { can } = useAuth();
   const { meta, reload } = useComptaMeta();
   if (!meta) return <Skeleton h={400} />;
-  // Exercices (« Exercices et clôture ») et réglages (« Paramétrer la comptabilité ») : le serveur contrôle chaque action
-  const write = can('compta:settings') || can('compta:close');
+  // Exercices (créer, verrouiller, soldes d'ouverture, clôturer), journaux (« Plan comptable et journaux ») et réglages : le serveur contrôle chaque action
+  const rights = { years: can('compta:years'), lock: can('compta:lock'), opening: can('compta:opening'), close: can('compta:close') };
   return (
     <div className="stack">
-      <FiscalYears meta={meta} write={write} onChange={reload} />
+      <FiscalYears meta={meta} rights={rights} onChange={reload} />
       <div className="grid grid-2" style={{ alignItems: 'start' }}>
-        <Rules meta={meta} write={write} onChange={reload} />
-        <Journals meta={meta} write={write} onChange={reload} />
+        <Rules meta={meta} write={can('compta:settings')} onChange={reload} />
+        <Journals meta={meta} write={can('compta:plan')} onChange={reload} />
       </div>
     </div>
   );
 }
 
-function FiscalYears({ meta, write, onChange }) {
+function FiscalYears({ meta, rights, onChange }) {
   const toast = useToast();
   const y = new Date().getFullYear();
   const [f, setF] = useState({ label: String(y), start_date: `${y}-01-01`, end_date: `${y}-12-31` });
@@ -60,24 +60,24 @@ function FiscalYears({ meta, write, onChange }) {
                   <td><b>{fy.label}</b></td>
                   <td className="small">{date(fy.start_date)} → {date(fy.end_date)}</td>
                   <td className="small">
-                    {write && fy.status === 'ouvert'
+                    {rights.lock && fy.status === 'ouvert'
                       ? <input className="input" type="date" style={{ width: 'auto' }} defaultValue={fy.lock_date || ''} onBlur={e => e.target.value !== (fy.lock_date || '') && act(() => api.patch(`/admin/erp/compta/fiscal-years/${fy.id}`, { lock_date: e.target.value || null }), 'Période verrouillée')} aria-label="Date de verrouillage" />
                       : fy.lock_date ? date(fy.lock_date) : '—'}
                   </td>
                   <td><Badge tone={fy.status === 'ouvert' ? 'ok' : ''}>{fy.status === 'ouvert' ? 'Ouvert' : 'Clôturé'}</Badge></td>
                   <td className="nowrap right">
-                    {write && fy.status === 'ouvert' && <button className="btn btn-sm" onClick={() => setOpening(fy)}><Upload />Soldes d’ouverture</button>}
-                    {write && fy.status === 'ouvert' && years.some(o => o.status === 'cloture' && o.end_date < fy.start_date) && (
+                    {rights.opening && fy.status === 'ouvert' && <button className="btn btn-sm" onClick={() => setOpening(fy)}><Upload />Soldes d’ouverture</button>}
+                    {rights.opening && fy.status === 'ouvert' && years.some(o => o.status === 'cloture' && o.end_date < fy.start_date) && (
                       <button className="btn btn-sm btn-ghost" onClick={() => act(() => api.post(`/admin/erp/compta/fiscal-years/${fy.id}/opening-from/${years.filter(o => o.status === 'cloture' && o.end_date < fy.start_date)[0].id}`), 'À-nouveaux générés (brouillon)')}><ArrowRightLeft />À-nouveaux</button>
                     )}
-                    {write && fy.status === 'ouvert' && <button className="btn btn-sm btn-ghost btn-danger" onClick={() => window.confirm(`Clôturer l’exercice ${fy.label} ? Plus aucune écriture ne pourra y être passée.`) && act(() => api.post(`/admin/erp/compta/fiscal-years/${fy.id}/close`), 'Exercice clôturé')}><Archive />Clôturer</button>}
+                    {rights.close && fy.status === 'ouvert' && <button className="btn btn-sm btn-ghost btn-danger" onClick={() => window.confirm(`Clôturer l’exercice ${fy.label} ? Plus aucune écriture ne pourra y être passée.`) && act(() => api.post(`/admin/erp/compta/fiscal-years/${fy.id}/close`), 'Exercice clôturé')}><Archive />Clôturer</button>}
                   </td>
                 </tr>
               ))}
             </tbody>
           </table></div>
         )}
-        {write && (
+        {rights.years && (
           <form className="row erp-panel" style={{ alignItems: 'flex-end' }} onSubmit={e => { e.preventDefault(); act(() => api.post('/admin/erp/compta/fiscal-years', f), `Exercice ${f.label} créé`); }}>
             <Field label="Nouvel exercice"><input className="input" required minLength={2} style={{ width: 120 }} value={f.label} onChange={e => setF(x => ({ ...x, label: e.target.value }))} /></Field>
             <Field label="Du"><input className="input" type="date" required value={f.start_date} onChange={e => setF(x => ({ ...x, start_date: e.target.value }))} /></Field>

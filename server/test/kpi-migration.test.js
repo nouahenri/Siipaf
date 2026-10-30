@@ -8,10 +8,10 @@ let db;
 before(async () => { ({ db } = await setup()); });
 after(() => db.destroy());
 
-test('reprise : cibles du Commercial devenues objectifs mensuels des fiches, droit kpi:write, retour arrière', async () => {
-  assert.ok(await db('role_permissions').where({ role: 'comptable', permission: 'kpi:write' }).first(), 'service RH');
-  assert.ok(await db('role_permissions').where({ role: 'resp_exploitation', permission: 'kpi:write' }).first(), 'Direction');
-  assert.equal(await db('role_permissions').where({ role: 'commercial', permission: 'kpi:write' }).first(), undefined);
+test('reprise : cibles du Commercial devenues objectifs mensuels des fiches, droits kpi:indicators, kpi:templates et kpi:department, retour arrière', async () => {
+  assert.ok(await db('role_permissions').where({ role: 'comptable', permission: 'kpi:indicators' }).first(), 'service RH');
+  assert.ok(await db('role_permissions').where({ role: 'resp_exploitation', permission: 'kpi:indicators' }).first(), 'Direction');
+  assert.equal(await db('role_permissions').where({ role: 'commercial', permission: 'kpi:indicators' }).first(), undefined);
 
   await db.migrate.down({ name: NAME });
   assert.equal(await db.schema.hasTable('hr_kpis'), false);

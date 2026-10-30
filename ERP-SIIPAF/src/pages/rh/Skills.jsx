@@ -44,7 +44,7 @@ function Trainings() {
     <div className="stack">
       <div className="row-between">
         <select className="select" style={{ width: 'auto' }} value={year} onChange={e => setYear(Number(e.target.value))} aria-label="Année">{[thisYear + 1, thisYear, thisYear - 1].map(y => <option key={y} value={y}>{y}</option>)}</select>
-        {can('formation:write') && <button className="btn btn-primary" onClick={() => setEdit({})}><Plus />Formation</button>}
+        {can('formation:plan') && <button className="btn btn-primary" onClick={() => setEdit({})}><Plus />Formation</button>}
       </div>
       {s && (
         <div className="grid grid-4">
@@ -66,11 +66,11 @@ function Trainings() {
                 <td className="right tabular">{fcfa(t.cost)}</td>
                 <td className="small">{t.participants.length ? t.participants.map(p => <div key={p.id}>{p.employee_name}{p.status !== 'inscrit' && <span className="muted"> · {p.status === 'present' ? 'présent' : 'absent'}</span>}</div>) : <span className="muted">—</span>}</td>
                 <td><Badge tone={t.status === 'realisee' ? 'ok' : t.status === 'annulee' ? '' : 'brand'}>{t.status_label}</Badge></td>
-                <td className="right nowrap">{can('formation:write') && t.status === 'planifiee' && <>
-                  <button className="btn btn-ghost btn-icon btn-sm" onClick={() => setEdit(t)} aria-label="Modifier"><Pencil /></button>
-                  <button className="btn btn-ghost btn-icon btn-sm" onClick={() => setPeople(t)} aria-label="Participants"><Users /></button>
-                  <button className="btn btn-ghost btn-icon btn-sm" disabled={!t.participants.length} onClick={() => setClosing(t)} aria-label="Clôturer" title="Clôturer (présences)"><CheckCheck /></button>
-                  <button className="btn btn-ghost btn-icon btn-sm" onClick={() => cancel(t)} aria-label="Annuler"><Ban /></button>
+                <td className="right nowrap">{t.status === 'planifiee' && <>
+                  {can('formation:plan') && <button className="btn btn-ghost btn-icon btn-sm" onClick={() => setEdit(t)} aria-label="Modifier"><Pencil /></button>}
+                  {can('formation:plan') && <button className="btn btn-ghost btn-icon btn-sm" onClick={() => setPeople(t)} aria-label="Participants"><Users /></button>}
+                  {can('formation:complete') && <button className="btn btn-ghost btn-icon btn-sm" disabled={!t.participants.length} onClick={() => setClosing(t)} aria-label="Clôturer" title="Clôturer (présences)"><CheckCheck /></button>}
+                  {can('formation:plan') && <button className="btn btn-ghost btn-icon btn-sm" onClick={() => cancel(t)} aria-label="Annuler"><Ban /></button>}
                 </>}</td>
               </tr>
             ))}</tbody>
@@ -193,7 +193,7 @@ function Referential() {
   const ref = useResource(`${RH}/skills`);
   const [typeForm, setTypeForm] = useState(null);
   const [names, setNames] = useState({});
-  const write = can('formation:write');
+  const write = can('formation:skills');
   const addSkill = async t => {
     const name = (names[t.id] || '').trim();
     if (!name) return;

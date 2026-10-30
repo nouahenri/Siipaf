@@ -54,10 +54,10 @@ test('nouveaux droits : au catalogue et aux bons rôles par défaut (sans commer
   assert.ok(PERMISSIONS.conducteur_travaux.includes('sav:all') && PERMISSIONS.resp_exploitation.includes('sav:all'));
   assert.ok(!PERMISSIONS.commercial.includes('sav:all'), 'le commercial ne voit que ses clients au SAV');
   assert.ok(PERMISSIONS.comptable.includes('achats:validate') && !PERMISSIONS.resp_exploitation.includes('achats:validate'));
-  // Service RH : qui règle les RH (rh:settings) ; pas les autres titulaires de rh:read
+  // Service RH : qui règle les RH (rh:rules) ; pas les autres titulaires de rh:read
   for (const [role, perms] of Object.entries(PERMISSIONS)) {
     if (role === 'super_admin') continue;
-    assert.equal(perms.includes('rh:documents'), perms.includes('rh:settings'), role);
+    assert.equal(perms.includes('rh:documents'), perms.includes('rh:rules'), role);
   }
   for (const role of ['commercial', 'editeur', 'resp_exploitation']) assert.ok(PERMISSIONS[role].includes('contacts:handle'), role);
 });
@@ -145,7 +145,7 @@ test('SAV : le ticket confié et l’intervention dont on est technicien entrent
 });
 
 test('SAV : écritures hors portée refusées (réserve, date de livraison, intervention, statut) pour qui n’a pas sav:all', async () => {
-  const gestionnaire = await roleWith('sav_sans_portee', ['sav:read', 'sav:create', 'sav:handle', 'sav:reserves', 'sav:interventions', 'leads:create']);
+  const gestionnaire = await roleWith('sav_sans_portee', ['sav:read', 'sav:create', 'sav:edit', 'sav:status', 'sav:comment', 'sav:delivery', 'sav:reserves', 'sav:interventions', 'leads:create']);
   const me = await idOf('sav_sans_portee@test.ci');
   assert.equal((await gestionnaire.post(`${ERP}/sav/sales/${saleB.id}/reserves`).send({ label: 'Hors portée' })).status, 404);
   assert.equal((await gestionnaire.patch(`${ERP}/sav/sales/${saleB.id}/delivery`).send({ delivered_at: '2026-06-01' })).status, 404);
@@ -171,7 +171,7 @@ test('SAV : photos — dépôt sans client libre (lead_id hors périmètre refus
   // Dépôt d'une photo par A en visant le client de B : refusé ; pour son client : accepté
   let res = await sellerA.post(`${ERP}/sav/files`).field('lead_id', String(leadB.id)).attach('files', PNG, { filename: 'a.png', contentType: 'image/png' });
   assert.equal(res.status, 403, 'le commercial n’a pas de droit d’écriture au SAV');
-  const gest = await roleWith('sav_photos', ['sav:read', 'sav:handle', 'leads:create']);
+  const gest = await roleWith('sav_photos', ['sav:read', 'sav:edit', 'sav:status', 'sav:comment', 'leads:create']);
   const me = await idOf('sav_photos@test.ci');
   res = await gest.post(`${ERP}/sav/files`).field('lead_id', String(leadB.id)).attach('files', PNG, { filename: 'b.png', contentType: 'image/png' });
   assert.equal(res.status, 404, 'client hors de son périmètre');
@@ -248,8 +248,8 @@ test('corps de requête : 2 Mo en amont ; l’import Sage lit jusqu’à 25 Mo s
 });
 
 // ─── B6. Import Sage : créer des comptes ou des journaux demande le réglage de la comptabilité ───
-test('import Sage : create_accounts / create_journals exigent compta:settings', async () => {
-  const saisie = await roleWith('saisie_compta', ['compta:read', 'compta:entries']);
+test('import Sage : create_accounts / create_journals exigent compta:plan (plan comptable et journaux)', async () => {
+  const saisie = await roleWith('saisie_compta', ['compta:read', 'compta:entries', 'compta:import']);
   const S = '/api/admin/erp/compta/import/sage';
   const base = { kind: 'plan', rows: [{ line: 2, cells: ['52110099', 'Banque 2'] }], mapping: { account: 0, label: 1 } };
   assert.equal((await saisie.post(S).send({ ...base, options: { create_accounts: true } })).status, 403);
@@ -392,8 +392,8 @@ test('références et programmes des chantiers : complets pour les chantiers et 
 });
 
 // ─── Point 1. Lots de l'ERP : prix, surface et îlot demandent aussi plans:lots ───
-test('PATCH lot (ERP) : price_fcfa, surface_m2 et ilot exigent plans:lots en plus de property:write', async () => {
-  const parc = await roleWith('parc_structure', ['commercial:read', 'property:write']);
+test('PATCH lot (ERP) : price_fcfa, surface_m2 et ilot exigent plans:lots en plus de property:lots', async () => {
+  const parc = await roleWith('parc_structure', ['commercial:read', 'property:lots']);
   const url = `${ERP}/commercial/lots/${lots[2].id}`;
   assert.equal((await parc.patch(url).send({ price_fcfa: 1 })).status, 403);
   assert.equal((await parc.patch(url).send({ surface_m2: 300 })).status, 403);
@@ -450,8 +450,8 @@ test('fiche employé : relier un compte demande users:edit, la garde contre l’
   await patch(admin, null);
   // Les champs sans changement de compte restent permis sans users:edit
   assert.equal((await sansCompte.patch(`${ERP}/rh/employees/${emp.id}`).send({ notes: 'RAS' })).status, 200);
-  // Création par la Comptabilité : même règle, et solde de congés repris = conges:manage
-  const paie = await roleWith('paie_fiches', ['paie:read', 'paie:employees']);
+  // Création par la Comptabilité : même règle, et solde de congés repris = conges:adjust
+  const paie = await roleWith('paie_fiches', ['paie:read', 'paie:employees', 'paie:salary']);
   const body = { last_name: 'Nouvelle', first_name: 'Fiche', job_title: 'Aide', hire_date: '2025-02-01', base_salary: 90000, department: 'administratif' };
   assert.equal((await paie.post(`${ERP}/paie/employees`).send({ ...body, leave_opening_days: 12 })).status, 403);
   assert.equal((await paie.post(`${ERP}/paie/employees`).send({ ...body, last_name: 'Embauche', user_id: idA })).status, 201, 'embauche : le compte de la nouvelle personne se relie librement');
@@ -552,7 +552,7 @@ test('lectures RH ouvertes : réglages, chefs de service et organigramme sans do
   assert.equal(plain.settings.expense_categories.deplacement.account, undefined);
   assert.ok(plain.settings.accrual_per_month && plain.settings.expense_categories.deplacement.label && plain.settings.working_days, 'règles utiles à Mon espace conservées');
   assert.equal(plain.defaults, null);
-  const settingsOnly = await roleWith('reglages_rh', ['rh:settings']);
+  const settingsOnly = await roleWith('reglages_rh', ['rh:rules']);
   assert.ok((await settingsOnly.get(`${RH}/meta`)).body.settings.overtime_tiers);
 
   // Chef de service
@@ -639,9 +639,9 @@ test('réservation de véhicule : un gestionnaire du parc ne décide pas sa prop
 });
 
 // ─── B16. Évaluation : pas d'auto-évaluation par ce biais ────────────────────
-test('objectifs et entretien : evaluation:write ne fixe pas ses propres objectifs ni ne finalise son propre entretien', async () => {
+test('objectifs et entretien : evaluation:objectives et evaluation:reviews ne fixe pas ses propres objectifs ni ne finalise son propre entretien', async () => {
   const RH = `${ERP}/rh`;
-  const eval1 = await roleWith('evaluateur', ['rh:read', 'evaluation:write']);
+  const eval1 = await roleWith('evaluateur', ['rh:read', 'evaluation:objectives', 'evaluation:reviews']);
   const evalId = await idOf('evaluateur@test.ci');
   const mine = (await admin.post(`${ERP}/paie/employees`).send({ last_name: 'Evalue', first_name: 'Moi', job_title: 'Agent', hire_date: '2025-01-10', base_salary: 100000, department: 'administratif', user_id: evalId })).body;
   const other = (await admin.post(`${ERP}/paie/employees`).send({ last_name: 'Evalue', first_name: 'Autre', job_title: 'Agent', hire_date: '2025-01-10', base_salary: 100000, department: 'administratif' })).body;
@@ -656,7 +656,7 @@ test('objectifs et entretien : evaluation:write ne fixe pas ses propres objectif
 
 // ─── Revue de sécurité : portée SAV indépendante de leads:all ────────────────
 test('SAV : sav:all sans leads:all voit tout le SAV et y dépose des photos ; leads:all sans sav:all ne voit que ses clients', async () => {
-  const tout = await roleWith('sav_tout_sans_leads', ['sav:read', 'sav:all', 'sav:handle']);
+  const tout = await roleWith('sav_tout_sans_leads', ['sav:read', 'sav:all', 'sav:edit', 'sav:status', 'sav:comment']);
   const ids = rows => rows.map(x => x.id).sort();
   assert.deepEqual(ids((await tout.get(`${ERP}/sav/sales`)).body), [saleA.id, saleB.id].sort(), 'tous les dossiers');
   assert.equal((await tout.get(`${ERP}/sav/sales/${saleB.id}`)).status, 200);
@@ -664,13 +664,13 @@ test('SAV : sav:all sans leads:all voit tout le SAV et y dépose des photos ; le
   assert.equal((await photo(tout, leadB.id, 'tout-b.png')).status, 201, 'dépôt chez n’importe quel client du SAV');
 
   // leads:all sans sav:all : /sales cohérent avec /sales/:id (ses clients seulement)
-  const equipe = await roleWith('leads_all_sans_sav_all', ['sav:read', 'sav:handle', 'leads:all']);
+  const equipe = await roleWith('leads_all_sans_sav_all', ['sav:read', 'sav:edit', 'sav:status', 'sav:comment', 'leads:all']);
   assert.deepEqual((await equipe.get(`${ERP}/sav/sales`)).body, [], 'aucun client attribué');
   assert.equal((await equipe.get(`${ERP}/sav/sales/${saleB.id}`)).status, 404);
   assert.equal((await photo(equipe, leadB.id, 'equipe-b.png')).status, 404, 'leads:all ne donne pas la portée SAV');
 
   // Technicien sans sav:all : le client de la réclamation qui lui est confiée, et lui seul
-  const tech = await roleWith('technicien_sav', ['sav:read', 'sav:handle']);
+  const tech = await roleWith('technicien_sav', ['sav:read', 'sav:edit', 'sav:status', 'sav:comment']);
   const techId = await idOf('technicien_sav@test.ci');
   assert.equal((await photo(tech, leadB.id, 'tech-avant.png')).status, 404, 'pas encore confié');
   const t = (await admin.post(`${ERP}/sav/tickets`).send({ sale_id: saleB.id, category: 'autre', title: 'Confiée au technicien' })).body;

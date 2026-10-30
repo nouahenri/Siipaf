@@ -64,7 +64,7 @@ export function TransferRequests({ leadId = null, onChange }) {
   const { can, user } = useAuth();
   const toast = useToast();
   const saved = useSaved();
-  const manager = can('leads:assign');
+  const manager = can('leads:transfer_decide');
   const admin = user?.role === 'super_admin';
   const myTurn = t => manager && (t.awaiting === 'administrateur' ? admin : t.awaiting === 'responsable' && (!t.client || !admin));
   const list = useResource(`/admin/lead-transfers?status=en_attente${leadId ? `&lead_id=${leadId}` : ''}`);

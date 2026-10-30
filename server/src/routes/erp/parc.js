@@ -37,8 +37,12 @@ const costSchema = z.object({
 
 module.exports = function parcRoutes(db) {
   const r = express.Router();
-  const read = (req, res, next) => (req.can('parc:read') || req.can('parc:write') ? next() : next(new HttpError(403, 'Droits insuffisants.')));
+  const MANAGE = ['parc:write', 'parc:maintenance', 'parc:costs', 'parc:reservations'];
+  const read = (req, res, next) => (req.can('parc:read') || MANAGE.some(p => req.can(p)) ? next() : next(new HttpError(403, 'Droits insuffisants.')));
   const write = requirePermission('parc:write');
+  const maintenance = requirePermission('parc:maintenance');
+  const costs = requirePermission('parc:costs');
+  const reservations = requirePermission('parc:reservations');
   const cleanup = req => req.file && fs.promises.unlink(req.file.path).catch(() => {});
   const guarded = fn => ah(async (req, res) => { try { await fn(req, res); } catch (e) { await cleanup(req); throw e; } });
   const asset = req => parc.load(db, idParam(req));
@@ -130,18 +134,18 @@ module.exports = function parcRoutes(db) {
   }));
 
   // Plans d'entretien
-  r.post('/assets/:id/plans', write, ah(async (req, res) => {
+  r.post('/assets/:id/plans', maintenance, ah(async (req, res) => {
     const a = await asset(req);
     await parc.addPlan(db, a, parse(planSchema, req.body));
     res.status(201).json(await parc.detail(db, a.id));
   }));
-  r.patch('/plans/:id', write, ah(async (req, res) => {
+  r.patch('/plans/:id', maintenance, ah(async (req, res) => {
     const p = await db('asset_maintenance_plans').where({ id: idParam(req) }).first();
     if (!p) throw new HttpError(404, 'Plan introuvable.');
     await parc.updatePlan(db, p, await parc.load(db, p.asset_id), parse(planSchema.partial(), req.body));
     res.json(await parc.detail(db, p.asset_id));
   }));
-  r.delete('/plans/:id', write, ah(async (req, res) => {
+  r.delete('/plans/:id', maintenance, ah(async (req, res) => {
     const p = await db('asset_maintenance_plans').where({ id: idParam(req) }).first();
     if (!p) throw new HttpError(404, 'Plan introuvable.');
     await db('asset_maintenance_plans').where({ id: p.id }).del();
@@ -149,12 +153,12 @@ module.exports = function parcRoutes(db) {
   }));
 
   // Dépenses
-  r.post('/assets/:id/costs', write, ah(async (req, res) => {
+  r.post('/assets/:id/costs', costs, ah(async (req, res) => {
     const a = await asset(req);
     await parc.addCost(db, a, parse(costSchema, req.body), { userId: req.user.id });
     res.status(201).json(await parc.detail(db, a.id));
   }));
-  r.delete('/costs/:id', write, ah(async (req, res) => res.json(await parc.detail(db, await pc.deleteCost(db, idParam(req))))));
+  r.delete('/costs/:id', costs, ah(async (req, res) => res.json(await parc.detail(db, await pc.deleteCost(db, idParam(req))))));
 
   r.get('/echeances', read, ah(async (req, res) => res.json(await parc.deadlines(db, { days: Math.min(Number(req.query.days) || 60, 400) }))));
   r.get('/couts', read, ah(async (req, res) => {
@@ -170,9 +174,9 @@ module.exports = function parcRoutes(db) {
     if (req.query.department) {
       const department = String(req.query.department);
       const d = await require('../../services/departments').departmentsOf(db, req.user.id);
-      if (d.member !== department && !d.heads.includes(department) && !req.can('parc:write')) throw new HttpError(403, 'Droits insuffisants.');
+      if (d.member !== department && !d.heads.includes(department) && !req.can('parc:reservations')) throw new HttpError(403, 'Droits insuffisants.');
       q.where('r.department', department);
-    } else if (req.query.mine === '1' || !req.can('parc:write')) q.where('r.requested_by', req.user.id);
+    } else if (req.query.mine === '1' || !req.can('parc:reservations')) q.where('r.requested_by', req.user.id);
     if (req.query.status) q.whereIn('r.status', String(req.query.status).split(','));
     if (req.query.upcoming === '1') q.where('r.end_at', '>=', `${new Date().toISOString().slice(0, 10)}T00:00`);
     res.json((await q).map(parc.resaRow));
@@ -186,11 +190,11 @@ module.exports = function parcRoutes(db) {
     const id = await parc.request(db, data, { user: req.user });
     res.status(201).json(parc.resaRow(await parc.resaQuery(db).where('r.id', id).first()));
   }));
-  r.get('/vehicules-libres', write, ah(async (req, res) => {
+  r.get('/vehicules-libres', reservations, ah(async (req, res) => {
     const { start_at, end_at, except } = parse(z.object({ start_at: slot, end_at: slot, except: num(z.number().int().positive()) }), req.query);
     res.json(await parc.freeVehicles(db, { start_at, end_at, except }));
   }));
-  r.post('/reservations/:id/decide', write, ah(async (req, res) => {
+  r.post('/reservations/:id/decide', reservations, ah(async (req, res) => {
     const resa = await db('asset_reservations').where({ id: idParam(req) }).first();
     if (!resa) throw new HttpError(404, 'Demande introuvable.');
     // Pas d'auto-décision (audit du 30/10) : sa propre demande est décidée par un autre gestionnaire du parc
@@ -202,7 +206,7 @@ module.exports = function parcRoutes(db) {
     const resa = await db('asset_reservations').where({ id: idParam(req) }).first();
     if (!resa) throw new HttpError(404, 'Demande introuvable.');
     const head = resa.department && (await require('../../services/departments').departmentsOf(db, req.user.id)).heads.includes(resa.department);
-    if (resa.requested_by !== req.user.id && !head && !req.can('parc:write')) throw new HttpError(403, 'Droits insuffisants.');
+    if (resa.requested_by !== req.user.id && !head && !req.can('parc:reservations')) throw new HttpError(403, 'Droits insuffisants.');
     if (!['demandee', 'accordee'].includes(resa.status)) throw new HttpError(409, 'Demande déjà close.');
     await db('asset_reservations').where({ id: resa.id }).update({ status: 'annulee', updated_at: new Date() });
     res.json(parc.resaRow(await parc.resaQuery(db).where('r.id', resa.id).first()));
@@ -210,14 +214,14 @@ module.exports = function parcRoutes(db) {
 
   // ─── Comptabilité (choix du client du 23/10) : validation des dépenses, cartes carburant, immobilisations ───
   const can = (...perms) => (req, res, next) => (perms.some(p => req.can(p)) ? next() : next(new HttpError(403, 'Droits insuffisants.')));
-  r.get('/compta/depenses', can('achats:write', 'compta:read'), ah(async (req, res) => res.json(await pc.pendingCosts(db, { status: req.query.status ?? 'a_valider' }))));
+  r.get('/compta/depenses', can('achats:write', 'achats:validate', 'compta:read'), ah(async (req, res) => res.json(await pc.pendingCosts(db, { status: req.query.status ?? 'a_valider' }))));
   r.post('/costs/:id/validate', requirePermission('achats:validate'), ah(async (req, res) => res.json(await pc.validateCost(db, idParam(req), req.user))));
   r.post('/costs/:id/reject', requirePermission('achats:validate'), ah(async (req, res) => {
     const { reason } = parse(z.object({ reason: z.string().trim().min(3, 'Indiquez le motif du rejet.').max(255) }), req.body);
     res.json(await pc.rejectCost(db, idParam(req), reason, req.user));
   }));
 
-  r.get('/cartes', can('parc:read', 'parc:write', 'compta:read'), ah(async (req, res) => res.json(await pc.cards(db))));
+  r.get('/cartes', can('parc:read', ...MANAGE, 'compta:read'), ah(async (req, res) => res.json(await pc.cards(db))));
   const cardSchema = z.object({ label: z.string().trim().min(2).max(120), number: opt(z.string().trim().max(40)), supplier_id: z.number().int().positive(), active: z.boolean().optional(), notes: opt(z.string().trim().max(500)) });
   r.post('/cartes', requirePermission('achats:write'), ah(async (req, res) => { await pc.saveCard(db, parse(cardSchema, req.body)); res.status(201).json(await pc.cards(db)); }));
   r.patch('/cartes/:id', requirePermission('achats:write'), ah(async (req, res) => { await pc.saveCard(db, parse(cardSchema.partial(), req.body), idParam(req)); res.json(await pc.cards(db)); }));
@@ -228,7 +232,7 @@ module.exports = function parcRoutes(db) {
   }));
 
   r.get('/immobilisations', can('compta:read'), ah(async (req, res) => res.json(await pc.register(db, { day: /^\d{4}-\d{2}-\d{2}$/.test(req.query.au || '') ? req.query.au : undefined }))));
-  r.patch('/assets/:id/immobilisation', requirePermission('compta:entries'), ah(async (req, res) => {
+  r.patch('/assets/:id/immobilisation', requirePermission('compta:assets'), ah(async (req, res) => {
     const data = parse(z.object({
       fixed_value: num(z.number().int().positive()), in_service_on: opt(day), depreciation_years: num(z.number().int().min(1).max(50)),
       prior_depreciation: z.preprocess(v => (blank(v) == null ? 0 : Number(v)), z.number().int().min(0)).optional(), prior_as_of: opt(day), purchase_invoice_id: num(z.number().int().positive()),
@@ -236,18 +240,18 @@ module.exports = function parcRoutes(db) {
     await pc.updateFixed(db, idParam(req), data);
     res.json(await pc.register(db));
   }));
-  r.post('/immobilisations/dotations', requirePermission('compta:entries'), ah(async (req, res) => {
+  r.post('/immobilisations/dotations', requirePermission('compta:assets'), ah(async (req, res) => {
     const { fiscal_year_id } = parse(z.object({ fiscal_year_id: z.number().int().positive() }), req.body);
     const e = await pc.postDotations(db, fiscal_year_id, req.user);
     res.status(201).json({ entry: { id: e.id, status: e.status }, register: await pc.register(db) });
   }));
-  r.post('/assets/:id/sortie', requirePermission('compta:entries'), ah(async (req, res) => {
+  r.post('/assets/:id/sortie', requirePermission('compta:assets'), ah(async (req, res) => {
     const data = parse(z.object({ date: day, price: z.number().int().min(0).optional(), journal_id: z.number().int().positive().nullable().optional() }), req.body);
     await pc.dispose(db, idParam(req), data, req.user);
     res.json(await pc.register(db));
   }));
 
-  r.get('/a-payer', can('parc:read', 'parc:write', 'compta:read'), ah(async (req, res) => res.json(await pc.payables(db, { days: Math.min(Number(req.query.days) || 60, 365) }))));
+  r.get('/a-payer', can('parc:read', ...MANAGE, 'compta:read'), ah(async (req, res) => res.json(await pc.payables(db, { days: Math.min(Number(req.query.days) || 60, 365) }))));
 
   return r;
 };
