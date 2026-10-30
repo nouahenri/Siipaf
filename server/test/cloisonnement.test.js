@@ -87,7 +87,9 @@ test('demande de transfert : motivée par le commercial, validée ou refusée pa
   // B demande à reprendre le client de A
   let res = await sellerB.post(`/api/admin/leads/${leadA.id}/transfert`).send({ reason: 'Le client m’a contacté directement' });
   assert.equal(res.status, 201, JSON.stringify(res.body));
-  const t = res.body;
+  // Audit du 30/10 : celui qui demande à reprendre la personne d'un collègue ne reçoit que { id, status } (ni nom ni code client)
+  assert.deepEqual(Object.keys(res.body).sort(), ['id', 'status']);
+  const t = await db('lead_transfer_requests').where({ id: res.body.id }).first();
   assert.equal(t.from_user_id, idA);
   assert.equal(t.to_user_id, idB);
   assert.equal((await sellerB.post(`/api/admin/leads/${leadA.id}/transfert`).send({ reason: 'Encore une fois' })).status, 409, 'une demande à la fois');

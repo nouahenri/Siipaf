@@ -27,7 +27,7 @@ export function CostsToValidate({ onOpen, onChange }) {
   const [status, setStatus] = useState('a_valider');
   const [reject, setReject] = useState(null); // { cost, reason }
   const list = useResource(`${URL}/compta/depenses${qs({ status })}`);
-  const write = can('achats:write');
+  const validate = can('achats:validate'); // valider ou rejeter une dépense : « Valider les factures d’achat et les dépenses du Parc »
   const act = async (fn, message) => {
     try { await fn(); saved(message); list.reload(); onChange?.(); setReject(null); } catch (e) { toast(e.message, 'err'); }
   };
@@ -44,7 +44,7 @@ export function CostsToValidate({ onOpen, onChange }) {
         <ErrorBox error={list.error} />
         {!list.data ? <div className="card-body"><Skeleton h={200} /></div> : !rows.length ? <div className="card-body"><Empty icon={Fuel}>Aucune dépense.</Empty></div> : (
           <div className="table-wrap"><table className="table">
-            <thead><tr><th>Date</th><th>Bien</th><th>Dépense</th><th>Paiement</th><th>Pièce</th><th className="right">Montant</th><th>État</th>{write && status === 'a_valider' && <th />}</tr></thead>
+            <thead><tr><th>Date</th><th>Bien</th><th>Dépense</th><th>Paiement</th><th>Pièce</th><th className="right">Montant</th><th>État</th>{validate && status === 'a_valider' && <th />}</tr></thead>
             <tbody>{rows.map(c => (
               <tr key={c.id}>
                 <td className="small nowrap">{date(c.date)}</td>
@@ -54,7 +54,7 @@ export function CostsToValidate({ onOpen, onChange }) {
                 <td className="small">{c.invoice_number ? <Link to="/compta/achats">Facture {c.invoice_number}</Link> : c.entry_id ? <Link to="/compta/ecritures">Écriture {c.entry_number || 'brouillon'}</Link> : '—'}</td>
                 <td className="right tabular">{fcfa(c.amount)}</td>
                 <td><Badge tone={TONES[c.status]}>{c.status_label}</Badge>{c.reject_reason && <div className="small muted">{c.reject_reason}</div>}</td>
-                {write && status === 'a_valider' && (
+                {validate && status === 'a_valider' && (
                   <td className="right nowrap">
                     <button className="btn btn-sm btn-primary" onClick={() => act(() => api.post(`${URL}/costs/${c.id}/validate`), 'Dépense validée')}><Check />Valider</button>
                     <button className="btn btn-sm btn-ghost" onClick={() => setReject({ cost: c, reason: '' })}><X />Rejeter</button>

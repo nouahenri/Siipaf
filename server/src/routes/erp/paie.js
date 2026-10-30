@@ -44,6 +44,9 @@ module.exports = function paieRoutes(db) {
 
   r.post('/employees', requirePermission('paie:employees'), ah(async (req, res) => {
     const data = parse(employeeSchema, req.body);
+    // Solde de congés repris : « Gérer les absences » (le compte relié à une nouvelle fiche reste libre : l'embauche ne reprend la
+    // fiche de personne ; changer le compte d'une fiche existante demande « Modifier un compte », voir services/employees.js)
+    if (employees.LEAVE_FIELDS.some(k => data[k] != null) && !req.can('conges:manage')) throw new HttpError(403, 'Le solde d’ouverture des congés se règle avec le droit « Gérer les absences ».');
     await checkUser(data.user_id);
     const id = await db.transaction(async trx => {
       Object.assign(data, await positions.resolve(trx, data));

@@ -30,10 +30,20 @@ module.exports = function crmRoutes(db) {
   // Prospect ou rendez-vous d'un collègue : on ne révèle rien, sauf qu'un transfert peut être demandé au responsable
   const ownedElsewhere = lead => new HttpError(409, 'Cette personne est déjà suivie par un autre commercial. Pour la reprendre, demandez son transfert au responsable.', { lead_id: lead.id, transfer: true });
 
+  // Messages de contact (requête jointe à « leads as ld » en jointure gauche). Sans la portée « toute l'équipe » : les messages
+  // de ses fiches et la boîte commune (sans fiche, ou fiche non attribuée), jamais ceux d'une fiche attribuée à un collègue
+  const contactScope = (q, user) => {
+    if (!seesAllLeads(user)) q.where(b => b.whereNull('ld.assigned_to').orWhere('ld.assigned_to', user.id));
+    return q;
+  };
+  const toAssign = () => new HttpError(409, 'Cette personne est déjà suivie : demandez son attribution au responsable.');
+
   // Prospect OU client, jamais les deux : un client a un code client (page Clients), un prospect n'en a pas
-  const onlyType = (q, type) => {
+  // Sans type, ni les clients (code client) ne sont listés sans clients:read (liste) ou clients:export (CSV) — audit du 30/10
+  const onlyType = (q, type, mayList = false) => {
     if (type === 'prospects') q.whereNull('ld.client_code');
     else if (type === 'clients') q.whereNotNull('ld.client_code');
+    else if (!mayList) q.whereNull('ld.client_code');
     return q;
   };
 
@@ -43,7 +53,8 @@ module.exports = function crmRoutes(db) {
       .leftJoin('projects as p', 'p.id', 'ld.project_id')
       .leftJoin('lots as l', 'l.id', 'ld.lot_id')
       .leftJoin('users as u', 'u.id', 'ld.assigned_to');
-    onlyType(q, req.query.type);
+    if (req.query.type === 'clients' && !req.can('clients:read')) throw new HttpError(403, 'Droits insuffisants pour la liste des clients.');
+    onlyType(q, req.query.type, req.can('clients:read'));
     if (req.query.stage) q.whereIn('ld.stage', String(req.query.stage).split(','));
     if (req.query.project_id) q.where('ld.project_id', Number(req.query.project_id));
     if (req.query.assigned_to === 'aucun') q.whereNull('ld.assigned_to');
@@ -91,9 +102,12 @@ module.exports = function crmRoutes(db) {
     if (!canAssignLeads(req.user) && data.assigned_to && data.assigned_to !== req.user.id) {
       throw new HttpError(403, 'Seul le responsable attribue un prospect à un autre commercial.');
     }
+    await require('../services/commercial').assertSeller(db, data.assigned_to);
     const lead = await db.transaction(async trx => {
       const found = await findOrCreateLead(trx, { ...data, source: 'admin', created_by: req.user.id });
       if (!found.created && found.assigned_to && found.assigned_to !== req.user.id && !seesAllLeads(req.user)) throw ownedElsewhere(found);
+      // Fiche existante sans commercial : à attribuer par le responsable, jamais capturée par une saisie (rien n'est divulgué)
+      if (!found.created && !found.assigned_to && !seesAllLeads(req.user)) throw toAssign();
       const patch = {};
       if (data.stage) patch.stage = data.stage;
       // Attribué d'office à celui qui a établi le contact ; une personne déjà connue garde son commercial
@@ -124,6 +138,7 @@ module.exports = function crmRoutes(db) {
     if ('assigned_to' in data && (data.assigned_to || null) !== (lead.assigned_to || null) && !canAssignLeads(req.user)) {
       throw new HttpError(403, 'Seul le responsable change le commercial d’un prospect ou d’un client : faites une demande de transfert.');
     }
+    if (data.assigned_to && data.assigned_to !== lead.assigned_to) await require('../services/commercial').assertSeller(db, data.assigned_to);
     await db.transaction(async trx => {
       await trx('leads').where({ id }).update({ ...data, updated_at: new Date() });
       if ('assigned_to' in data && (data.assigned_to || null) !== (lead.assigned_to || null)) await require('../services/portfolio').followOwner(trx, id, data.assigned_to);
@@ -158,7 +173,7 @@ module.exports = function crmRoutes(db) {
   r.get('/leads.csv', requirePermission('leads:read', 'clients:export'), ah(async (req, res) => {
     // Liste des clients : clients:export ; des prospects : leads:read
     if (!req.can(req.query.type === 'clients' ? 'clients:export' : 'leads:read')) throw new HttpError(403, 'Droits insuffisants pour cet export.');
-    const rows = await onlyType(scopeLeads(db('leads as ld'), req.user), req.query.type)
+    const rows = await onlyType(scopeLeads(db('leads as ld'), req.user), req.query.type, req.can('clients:export'))
       .leftJoin('projects as p', 'p.id', 'ld.project_id')
       .select('ld.id', 'ld.name', 'ld.email', 'ld.phone', 'ld.country', 'ld.stage', 'ld.source', 'ld.financing', 'p.name as projet', 'ld.created_at')
       .orderBy('ld.id');
@@ -196,10 +211,22 @@ module.exports = function crmRoutes(db) {
     notes: z.string().max(4000).nullable().optional(),
   });
 
+  // Programme et lot d'un rendez-vous : ils existent et le lot appartient au programme
+  const checkSite = async (projectId, lotId) => {
+    if (projectId && !(await db('projects').where({ id: projectId }).first('id'))) throw new HttpError(400, 'Programme introuvable.');
+    if (lotId) {
+      const lot = await db('lots').where({ id: lotId }).first('project_id');
+      if (!lot || (projectId && lot.project_id !== projectId)) throw new HttpError(400, 'Lot introuvable dans ce programme.');
+    }
+  };
+
   r.post('/appointments', requirePermission('appointments:create'), ah(async (req, res) => {
     const data = parse(apptSchema, req.body);
     const lead = await leadInScope(db, data.lead_id, req.user);
     if (!seesAllLeads(req.user) && data.assigned_to && data.assigned_to !== req.user.id) throw new HttpError(403, 'Un commercial ne planifie que ses propres rendez-vous.');
+    // Le statut (confirmer, marquer effectué…) relève de « Confirmer, déplacer » : sans lui, le rendez-vous reste « demandé »
+    if (data.status && !req.can('appointments:edit')) delete data.status;
+    await checkSite(data.project_id, data.lot_id);
     // Par défaut le commercial de la fiche ; une fiche à attribuer est attribuée au commercial choisi par le responsable
     const id = await db.transaction(async trx => {
       const assignedTo = await require('../services/commercial').plannedFor(trx, lead, data.assigned_to ?? null, req.user);
@@ -216,12 +243,16 @@ module.exports = function crmRoutes(db) {
     const { status: _status, ...apptFields } = data;
     if (data.status === 'annule' && !req.can('appointments:cancel')) throw new HttpError(403, 'Annuler un rendez-vous demande le droit correspondant.');
     if (((data.status && data.status !== 'annule') || Object.keys(apptFields).length) && !req.can('appointments:edit')) throw new HttpError(403, 'Modifier un rendez-vous demande le droit correspondant.');
-    const current = await scopeLeads(db('appointments as a').join('leads as ld', 'ld.id', 'a.lead_id'), req.user).where('a.id', id).first('a.id', 'a.lead_id');
+    const current = await scopeLeads(db('appointments as a').join('leads as ld', 'ld.id', 'a.lead_id'), req.user).where('a.id', id).first('a.id', 'a.lead_id', 'a.assigned_to', 'a.project_id');
     if (!current) throw new HttpError(404, 'Rendez-vous introuvable.');
     if (!seesAllLeads(req.user)) {
       if (data.lead_id && data.lead_id !== current.lead_id) await leadInScope(db, data.lead_id, req.user);
       if (data.assigned_to && data.assigned_to !== req.user.id) throw new HttpError(403, 'Un commercial ne confie pas un rendez-vous à un collègue.');
     }
+    // Le commercial n'est revérifié que s'il change (un formulaire renvoie l'ancien, devenu inactif, sans le toucher)
+    if (data.assigned_to && data.assigned_to !== current.assigned_to) await require('../services/commercial').assertSeller(db, data.assigned_to);
+    await checkSite(data.project_id, data.lot_id);
+    if (data.lot_id && !data.project_id && current.project_id) await checkSite(current.project_id, data.lot_id);
     await db('appointments').where({ id }).update({ ...data, updated_at: new Date() });
     // Une visite effectuée fait avancer le prospect à l'étape « visite »
     const appt = await db('appointments').where({ id }).first();
@@ -234,15 +265,19 @@ module.exports = function crmRoutes(db) {
   // ─── Messages de contact ──────────────────────────────────
   r.get('/contacts', requirePermission('contacts:read'), ah(async (req, res) => {
     const { limit, offset } = page(req);
-    const q = db('contact_messages as m').leftJoin('projects as p', 'p.id', 'm.project_id');
+    const q = db('contact_messages as m').leftJoin('projects as p', 'p.id', 'm.project_id').leftJoin('leads as ld', 'ld.id', 'm.lead_id');
+    contactScope(q, req.user);
     if (req.query.status) q.whereIn('m.status', String(req.query.status).split(','));
     const [{ total }] = await q.clone().count({ total: '*' });
     const rows = await q.select('m.*', 'p.name as project_name').orderBy('m.id', 'desc').limit(limit).offset(offset);
     res.json({ total: Number(total), rows });
   }));
 
-  r.patch('/contacts/:id', requirePermission('contacts:read'), ah(async (req, res) => {
+  // Traiter un message (marquer traité, archiver) : contacts:handle, dans sa portée
+  r.patch('/contacts/:id', requirePermission('contacts:handle'), ah(async (req, res) => {
     const { status } = parse(z.object({ status: z.enum(['nouveau', 'traite', 'archive']) }), req.body);
+    const mine = await contactScope(db('contact_messages as m').leftJoin('leads as ld', 'ld.id', 'm.lead_id'), req.user).where('m.id', idParam(req)).first('m.id');
+    if (!mine) throw new HttpError(404, 'Message introuvable.');
     const n = await db('contact_messages').where({ id: idParam(req) }).update({ status });
     if (!n) throw new HttpError(404, 'Message introuvable.');
     res.json({ ok: true });
@@ -280,7 +315,7 @@ module.exports = function crmRoutes(db) {
       req.can('leads:read') ? myLeads().select('ld.stage').count({ n: '*' }).groupBy('ld.stage') : [],
       req.can('leads:read') ? myLeads().where('ld.created_at', '>=', since).count({ n: '*' }) : [{ n: 0 }],
       req.can('leads:read') ? myLeads().where('ld.created_at', '>=', new Date(since.getTime() - 30 * 24 * 3600 * 1000)).where('ld.created_at', '<', since).count({ n: '*' }) : [{ n: 0 }],
-      req.can('contacts:read') ? db('contact_messages').where({ status: 'nouveau' }).count({ n: '*' }) : [{ n: 0 }],
+      req.can('contacts:read') ? contactScope(db('contact_messages as m').leftJoin('leads as ld', 'ld.id', 'm.lead_id'), req.user).where('m.status', 'nouveau').count({ n: '*' }) : [{ n: 0 }],
       req.can('appointments:read') ? scopeLeads(db('appointments as a').join('leads as ld', 'ld.id', 'a.lead_id'), req.user).where('a.starts_at', '>=', new Date()).whereIn('a.status', ['demande', 'confirme']).count({ n: '*' }) : [{ n: 0 }],
       db('newsletter_subscribers').where({ status: 'actif' }).count({ n: '*' }),
     ]);

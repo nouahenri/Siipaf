@@ -398,9 +398,9 @@ function roleKey(label) {
 // Actions de l'espace employé de l'ERP (Mon espace), données à tous les rôles
 const SELF_SERVICE = ['self:conges', 'self:pointage', 'self:frais', 'self:vehicule', 'self:demandes'];
 // Actions détaillées des modules de l'ERP (une ligne du catalogue chacune)
-const SAV_ACTIONS = ['sav:create', 'sav:handle', 'sav:assign', 'sav:reserves', 'sav:interventions'];
+const SAV_ACTIONS = ['sav:all', 'sav:create', 'sav:handle', 'sav:assign', 'sav:reserves', 'sav:interventions'];
 const APPRO_ACTIONS = ['appro:read', 'appro:write', 'appro:validate', 'appro:stock', 'appro:settings'];
-const COMPTA_ACTIONS = ['compta:entries', 'compta:validate', 'achats:write', 'achats:pay', 'frais:post', 'compta:close', 'compta:settings', 'compta:export'];
+const COMPTA_ACTIONS = ['compta:entries', 'compta:validate', 'achats:write', 'achats:validate', 'achats:pay', 'frais:post', 'compta:close', 'compta:settings', 'compta:export'];
 const PAIE_ACTIONS = ['paie:employees', 'paie:prepare', 'paie:validate', 'paie:pay', 'paie:settings'];
 const COURRIER_ACTIONS = ['courrier:read', 'courrier:write', 'courrier:assign'];
 const CONTRACT_ACTIONS = ['contrats:read', 'contrats:write'];
@@ -408,7 +408,7 @@ const PARC_ACTIONS = ['parc:read', 'parc:write'];
 const DOCS_ACTIONS = ['docs:publish'];
 const REQUEST_ACTIONS = ['demandes:handle'];
 const LEGAL_ACTIONS = ['juridique:read', 'juridique:write'];
-const RH_ACTIONS = ['rh:files', 'conges:approve', 'conges:manage', 'rh:overtime', 'frais:approve', 'recrutement:write', 'formation:write', 'evaluation:write', 'rh:settings'];
+const RH_ACTIONS = ['rh:files', 'rh:documents', 'conges:approve', 'conges:manage', 'rh:overtime', 'frais:approve', 'recrutement:write', 'formation:write', 'evaluation:write', 'rh:settings'];
 
 
 /**
@@ -455,16 +455,16 @@ const PERMISSIONS = {
   commercial: splitPermissions([
     'projects:read', 'lots:read', 'lots:status', 'leads:read', 'leads:write',
     'appointments:read', 'appointments:write', 'contacts:read', 'sales:read', 'sales:write', 'payments:record',
-    'client_access:write', 'client_messages', 'sav:read', 'commercial:read', ...SELF_SERVICE,
+    'client_access:write', 'client_messages', 'sav:read', 'commercial:read', 'contacts:handle', ...SELF_SERVICE,
   ]),
   editeur: splitPermissions([
     'projects:read', 'projects:write', 'plans:write', 'lots:read', 'content:write', 'media:write',
-    'newsletter:read', 'newsletter:write', 'newsletter:send', 'contacts:read', 'testimonials:write', 'settings:write', 'property:write', ...SELF_SERVICE,
+    'newsletter:read', 'newsletter:write', 'newsletter:send', 'contacts:read', 'contacts:handle', 'testimonials:write', 'settings:write', 'property:write', ...SELF_SERVICE,
   ]),
   conducteur_travaux: splitPermissions([
     ...APPRO_ACTIONS,
     'projects:read', 'lots:read', 'sales:read', 'documents:write', 'site_updates:write', 'client_messages',
-    'sav:read', 'sav:create', 'sav:handle', 'sav:reserves', 'sav:interventions', 'vefa:write', 'presence:write', ...CONTRACT_ACTIONS, ...LEGAL_ACTIONS, 'leads:all',
+    'sav:read', 'sav:all', 'sav:create', 'sav:handle', 'sav:reserves', 'sav:interventions', 'vefa:write', 'presence:write', ...CONTRACT_ACTIONS, ...LEGAL_ACTIONS, 'leads:all',
     'chantiers:read', 'chantiers:write', ...SELF_SERVICE,
   ]),
   comptable: splitPermissions([
@@ -476,7 +476,7 @@ const PERMISSIONS = {
   resp_exploitation: splitPermissions([
     ...APPRO_ACTIONS, 'appro:direction', 'appro:articles',
     'projects:read', 'projects:write', 'plans:write', 'lots:read', 'lots:status', 'leads:read', 'leads:delete',
-    'appointments:read', 'appointments:create', 'contacts:read', 'users:read', 'newsletter:read',
+    'appointments:read', 'appointments:create', 'contacts:read', 'contacts:handle', 'users:read', 'newsletter:read',
     'sales:read', 'sales:write', 'documents:write', 'testimonials:write',
     'client_access:write', 'client_messages', 'site_updates:write', 'schedule:write', 'settings:write',
     'leads:all', 'leads:assign', 'clients:edit', 'sav:read', ...SAV_ACTIONS, 'commercial:read', 'targets:write', 'vefa:write', 'property:write', 'compta:read',
@@ -555,7 +555,8 @@ const PERMISSION_CATALOG = [
     ['compta:read', 'Consulter la comptabilité', 'Écritures, états, trésorerie, achats, tableau de bord'],
     ['compta:entries', 'Saisir des écritures', 'Écritures manuelles en brouillon, modification et suppression des brouillons, synchronisation des ventes et versements'],
     ['compta:validate', 'Valider les écritures', 'Numérotation définitive, contrepassation d’une écriture validée'],
-    ['achats:write', 'Gérer les achats', 'Fournisseurs, factures d’achat, validation des factures'],
+    ['achats:write', 'Gérer les achats', 'Fournisseurs, factures d’achat en brouillon, cartes carburant'],
+    ['achats:validate', 'Valider les factures d’achat et les dépenses du Parc', 'Validation d’une facture d’achat (numéro définitif, écriture) ; validation ou rejet des dépenses du Parc auto et matériel'],
     ['achats:pay', 'Régler les fournisseurs', 'Enregistrer les paiements des factures d’achat'],
     ['frais:post', 'Comptabiliser les notes de frais', 'Passer les notes approuvées en comptabilité et rembourser les employés'],
     ['compta:close', 'Exercices et clôture', 'Créer les exercices, verrouiller une période, clôturer, à-nouveaux, soldes d’ouverture'],
@@ -572,6 +573,7 @@ const PERMISSION_CATALOG = [
   ] },
   { group: 'ERP · Ressources humaines', items: [
     ['rh:read', 'Voir le personnel', 'Annuaire, dossiers, absences, présences, recrutement, formations, performance (sans les salaires)'],
+    ['rh:documents', 'Voir les pièces du dossier du personnel', 'CNI, certificats, courriers disciplinaires, contrats : liste et téléchargement (service RH ; l’employé garde l’accès à ses propres pièces)'],
     ['rh:files', 'Gérer les dossiers du personnel', 'Identité, contrat, responsable direct, documents, carrière, code de pointage'],
     ['conges:approve', 'Approuver les congés', 'Approbation finale ou refus des demandes de tout le personnel'],
     ['conges:manage', 'Gérer les absences', 'Saisir une absence pour un employé, ajuster les soldes, annuler une absence commencée'],
@@ -617,6 +619,7 @@ const PERMISSION_CATALOG = [
   ] },
   { group: 'ERP · Client & SAV', items: [
     ['sav:read', 'Voir le SAV', 'Réclamations, réserves à la livraison, interventions, indicateurs'],
+    ['sav:all', 'Portée : tout le SAV', 'Réclamations, réserves, interventions, clients et photos de tous les dossiers. Sans ce droit, on ne voit que ses clients et ce qui nous est confié (réclamation attribuée, intervention dont on est le technicien)'],
     ['sav:create', 'Créer des réclamations', 'Ouvrir une réclamation pour un client, à partir d’une réserve'],
     ['sav:handle', 'Traiter les réclamations', 'Modifier, changer de statut, commenter, joindre des photos'],
     ['sav:assign', 'Attribuer les réclamations', 'Choisir le technicien ou le responsable du dossier'],
@@ -642,7 +645,8 @@ const PERMISSION_CATALOG = [
     ['content:contacts', 'Coordonnées et réseaux sociaux', 'Téléphones, e-mail, adresse, WhatsApp, réseaux', 'Contenu du site'],
     ['media:upload', 'Ajouter et renommer des fichiers', null, 'Médiathèque'],
     ['media:delete', 'Supprimer des fichiers', null, 'Médiathèque'],
-    ['contacts:read', 'Traiter les messages de contact', null],
+    ['contacts:read', 'Voir les messages de contact', 'Sans la portée « toute l’équipe » : les messages de ses prospects et clients et la boîte commune (messages sans fiche ou dont la fiche n’est pas attribuée), jamais ceux des fiches d’un collègue'],
+    ['contacts:handle', 'Traiter les messages de contact', 'Marquer un message traité ou l’archiver'],
     ['testimonials:write', 'Modérer les témoignages', 'Publier, refuser, mettre en avant'],
     ['newsletter:read', 'Voir les abonnés et les campagnes', null],
     ['newsletter:subscribers', 'Gérer les abonnés', 'Désinscrire, réinscrire', 'Newsletter'],
@@ -1515,7 +1519,7 @@ const INFO_AUDIENCES = {
   achats: { label: 'Achats & stocks', hint: 'Comptes qui préparent les achats, valident les commandes ou gèrent les stocks', perms: ['appro:write', 'appro:validate', 'appro:direction', 'appro:stock'], module: 'achats' },
   dg: { label: 'Direction générale', hint: 'Super administrateur et comptes qui valident en direction (demandes, chantiers)', perms: ['demandes:dg', 'chantiers:direction'], superAdmin: true },
   exploitation: { label: 'Direction des exploitations', hint: 'Comptes qui ouvrent la Vue Direction', perms: ['direction:read'] },
-  compta: { label: 'Comptabilité', hint: 'Comptes qui saisissent les écritures ou les achats', perms: ['compta:entries', 'achats:write'], module: 'compta' },
+  compta: { label: 'Comptabilité', hint: 'Comptes qui saisissent les écritures ou les achats', perms: ['compta:entries', 'achats:write', 'achats:validate'], module: 'compta' },
   juridique: { label: 'Juridique', hint: 'Comptes qui gèrent le Juridique', perms: ['juridique:write'], module: 'juridique' },
   sav: { label: 'Client & SAV', hint: 'Comptes qui traitent les réclamations', perms: ['sav:handle'], module: 'sav' },
   chantiers: { label: 'Chantiers', hint: 'Gestionnaires des chantiers', perms: ['chantiers:write'], module: 'chantiers' },

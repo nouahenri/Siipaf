@@ -168,6 +168,8 @@ function Reservations({ write, onChange }) {
 
 function DecideForm({ resa, onClose, onDone }) {
   const toast = useToast();
+  const { user } = useAuth();
+  const own = resa.requested_by === user?.id && user?.role !== 'super_admin'; // pas d'auto-décision
   const free = useResource(`${URL}/vehicules-libres${qs({ start_at: resa.start_at, end_at: resa.end_at, except: resa.id })}`);
   const [asset, setAsset] = useState('');
   const [note, setNote] = useState('');
@@ -183,8 +185,9 @@ function DecideForm({ resa, onClose, onDone }) {
   const vehicles = free.data || [];
   return (
     <Modal title={`Demande de ${resa.requested_by_name}`} onClose={onClose}
-      footer={<><button className="btn btn-ghost" onClick={onClose}>Fermer</button><button className="btn" disabled={busy || !note.trim()} onClick={() => decide('refusee')} title={!note.trim() ? 'Indiquez le motif du refus' : undefined}><X />Refuser</button><button className="btn btn-primary" disabled={busy || !asset} onClick={() => decide('accordee')}><Check />Accorder</button></>}>
+      footer={<><button className="btn btn-ghost" onClick={onClose}>Fermer</button><button className="btn" disabled={own || busy || !note.trim()} onClick={() => decide('refusee')} title={!note.trim() ? 'Indiquez le motif du refus' : undefined}><X />Refuser</button><button className="btn btn-primary" disabled={own || busy || !asset} onClick={() => decide('accordee')}><Check />Accorder</button></>}>
       <div className="stack" style={{ gap: 12 }}>
+        {own && <p className="small" style={{ color: 'var(--warn)' }}>C’est votre propre demande : un autre gestionnaire du parc la traite.</p>}
         <div>
           <div className="kv"><span>Créneau</span><b>{slotLabel(resa)}</b></div>
           <div className="kv"><span>Motif</span><b>{resa.purpose}</b></div>

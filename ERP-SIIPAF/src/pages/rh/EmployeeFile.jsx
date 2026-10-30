@@ -224,7 +224,7 @@ function Documents({ d, hr, onChange }) {
           <span className="small muted">PDF, image ou Word · 15 Mo · stockés hors de la partie publique du serveur</span>
         </div>
       )}
-      {!d.documents.length ? <div className="card-body"><Empty icon={FileText}>Aucun document.</Empty></div> : (
+      {d.documents_access === false ? <div className="card-body"><Empty icon={FileText}>Les pièces du dossier sont réservées au service RH (droit « Voir les pièces du dossier du personnel »).</Empty></div> : !d.documents.length ? <div className="card-body"><Empty icon={FileText}>Aucun document.</Empty></div> : (
         <ul className="list">{d.documents.map(doc => (
           <li key={doc.id} className="list-row">
             <a className="row" style={{ gap: 10 }} href={doc.url} target="_blank" rel="noreferrer"><FileText className="ico" /><span><b>{doc.label}</b><div className="small muted">{meta?.document_kinds[doc.kind]} · {doc.original_name} · ajouté par {doc.uploaded_by_name || '—'}</div></span></a>

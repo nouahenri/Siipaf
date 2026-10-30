@@ -137,7 +137,9 @@ test('nouvel arrivant : les modèles de son poste et de son service s’applique
 });
 
 test('objectifs collectifs : score du service = 50 % collectif + 50 % employés, part réglable, Vue Direction', async () => {
-  assert.equal((await comptable.post(`${R}/employees/${mariam.id}/objectives`).send({ year: Y, title: 'Classer les pièces', progress: 40 })).status, 201);
+  // Mariam est le compte « comptable » : evaluation:write ne fixe pas ses propres objectifs (audit du 30/10), le responsable des exploitations le fait
+  assert.equal((await comptable.post(`${R}/employees/${mariam.id}/objectives`).send({ year: Y, title: 'Classer les pièces', progress: 40 })).status, 403);
+  assert.equal((await exploitation.post(`${R}/employees/${mariam.id}/objectives`).send({ year: Y, title: 'Classer les pièces', progress: 40 })).status, 201);
   const body = { department: 'comptabilite', year: Y, title: 'Clôturer chaque mois à temps', progress: 80 };
   assert.equal((await commercial.post(`${R}/department-objectives`).send(body)).status, 403);
   let res = await comptable.post(`${R}/department-objectives`).send(body);

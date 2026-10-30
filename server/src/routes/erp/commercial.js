@@ -100,6 +100,7 @@ module.exports = function commercialRoutes(db) {
       assigned_to: z.number().int().positive().nullable(),
     }).partial(), req.body);
     const { assigned_to: _assigned, ...fields } = data;
+    if (data.assigned_to && data.assigned_to !== lead.assigned_to) await cm.assertSeller(db, data.assigned_to);
     if (Object.keys(fields).length && !req.can(lead.client_code ? 'clients:edit' : 'leads:edit')) throw new HttpError(403, `Modifier la fiche d’un ${lead.client_code ? 'client' : 'prospect'} demande le droit correspondant.`);
     if ('assigned_to' in data && lead.client_code && (data.assigned_to || null) !== (lead.assigned_to || null)) {
       throw new HttpError(409, 'Changer le commercial d’un client : faites une demande de changement (accord du responsable commercial et de l’administrateur général).');
@@ -188,6 +189,7 @@ module.exports = function commercialRoutes(db) {
     }), req.body);
     if (data.next && !data.next.due_at) throw new HttpError(400, 'Indiquez la date de l’activité suivante.');
     checkAssignee(req, data.next?.assigned_to);
+    if (data.next?.assigned_to) await cm.assertSeller(db, data.next.assigned_to);
     await db.transaction(async trx => {
       await trx('lead_activities').where({ id: a.id }).update({ done_at: new Date(), outcome: data.outcome, created_by: a.created_by || req.user.id, updated_at: new Date() });
       if (data.next) {
@@ -315,6 +317,10 @@ module.exports = function commercialRoutes(db) {
     const lot = await db('lots').where({ id: idParam(req) }).first();
     if (!lot) throw new HttpError(404, 'Lot introuvable.');
     const data = parse(lotPropertySchema, req.body);
+    // Prix, surface et îlot sont les données du plan de masse : « Créer et modifier les lots » en plus de la structure du parc
+    if (['price_fcfa', 'surface_m2', 'ilot'].some(k => k in data) && !req.can('plans:lots')) {
+      throw new HttpError(403, 'Modifier le prix, la surface ou l’îlot d’un lot demande le droit « Créer et modifier les lots ».');
+    }
     await checkLotType(db, lot.project_id, data.property_type_id);
     await checkBuilding(lot, data);
     if (data.building_id === null) data.floor = null;

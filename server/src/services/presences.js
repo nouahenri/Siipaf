@@ -48,10 +48,36 @@ async function toggle(db, e, { project_id = null, worksite_id = null, place_id =
   return { action: 'arrivee', attendance: serialize(await db('hr_attendances').where({ id: insertedId(id) }).first()) };
 }
 
+// Verrou de la borne (audit du 30/10) : 5 échecs en 15 minutes bloquent le matricule, même avec le bon code, jusqu'à la fin de
+// la fenêtre. En mémoire du processus (une relance le remet à zéro) ; la limite par adresse et par compte complète la route.
+const KIOSK_MAX_FAILS = 5, KIOSK_WINDOW = 15 * 60 * 1000;
+const kioskFails = new Map(); // matricule -> horodatages des échecs récents
+const recentFails = (key, now) => {
+  const list = (kioskFails.get(key) || []).filter(t => now - t < KIOSK_WINDOW);
+  if (list.length) kioskFails.set(key, list); else kioskFails.delete(key);
+  return list;
+};
+let dummyHash = null; // vérification factice : un matricule inconnu coûte le même temps qu'un code faux
+const dummyCheck = async pin => { dummyHash ||= hashPassword('code-factice-borne'); return checkPassword(String(pin), await dummyHash); };
+/** Remet à zéro le verrou (tests). */
+const resetKioskLocks = () => kioskFails.clear();
+
 /** Borne de pointage : matricule + code personnel, sur une tablette ouverte par un compte autorisé. */
-async function kiosk(db, { matricule, pin, project_id, worksite_id, place_id }, userId) {
-  const e = rh.normEmployee(await db('employees').where({ matricule: String(matricule).trim().toUpperCase() }).first());
-  if (!e || !e.attendance_pin_hash || !(await checkPassword(String(pin), e.attendance_pin_hash))) throw new HttpError(401, 'Matricule ou code incorrect.');
+async function kiosk(db, { matricule, pin, project_id, worksite_id, place_id }, userId, now = Date.now()) {
+  const key = String(matricule).trim().toUpperCase();
+  const fails = recentFails(key, now);
+  if (fails.length >= KIOSK_MAX_FAILS) {
+    await dummyCheck(pin);
+    throw new HttpError(429, `Trop d’essais pour ce matricule : réessayez dans ${Math.max(1, Math.ceil((fails[0] + KIOSK_WINDOW - now) / 60000))} minute(s) ou demandez au service RH.`);
+  }
+  const e = rh.normEmployee(await db('employees').where({ matricule: key }).first());
+  const ok = e && e.attendance_pin_hash ? await checkPassword(String(pin), e.attendance_pin_hash) : (await dummyCheck(pin), false);
+  if (!ok) {
+    kioskFails.set(key, [...fails, now]);
+    if (kioskFails.size > 5000) for (const k of kioskFails.keys()) recentFails(k, now); // purge des matricules inventés
+    throw new HttpError(401, 'Matricule ou code incorrect.');
+  }
+  kioskFails.delete(key);
   const r = await toggle(db, e, { project_id, worksite_id, place_id, source: 'borne', userId });
   return { ...r, employee: { id: e.id, name: `${e.last_name} ${e.first_name}`, matricule: e.matricule } };
 }
@@ -170,4 +196,4 @@ async function today(db, now = new Date()) {
   };
 }
 
-module.exports = { serialize, query, openOf, toggle, kiosk, setPin, saveSheet, upsertManual, overtimeReport, approveOvertime, today, monthAttendances, lastDay };
+module.exports = { serialize, query, openOf, toggle, kiosk, resetKioskLocks, setPin, saveSheet, upsertManual, overtimeReport, approveOvertime, today, monthAttendances, lastDay };

@@ -371,7 +371,7 @@ module.exports = function comptaRoutes(db) {
     res.json({ ok: true });
   }));
 
-  r.post('/purchases/:id/validate', requirePermission('achats:write'), ah(async (req, res) => {
+  r.post('/purchases/:id/validate', requirePermission('achats:validate'), ah(async (req, res) => {
     const inv = await ct.validatePurchase(db, idParam(req), req.user.id);
     res.json(await purchaseRow(inv));
   }));
@@ -421,7 +421,8 @@ module.exports = function comptaRoutes(db) {
     kinds: sage.KINDS, date_formats: sage.DATE_FORMATS, saved: (await ct.getSettings(db)).sage_import || {},
     fiscal_years: await db('acc_fiscal_years').orderBy('start_date', 'desc').select('id', 'label', 'status'),
   })));
-  r.post('/import/sage', requirePermission('compta:entries', 'compta:settings', 'compta:close'), ah(async (req, res) => {
+  // Corps jusqu'à 25 Mo, lu seulement une fois le compte authentifié et le droit vérifié (app.js ne lit pas cette route)
+  r.post('/import/sage', requirePermission('compta:entries', 'compta:settings', 'compta:close'), express.json({ limit: '25mb' }), ah(async (req, res) => {
     const data = parse(z.object({
       kind: z.enum(Object.keys(sage.KINDS)), dry_run: z.boolean().default(true),
       rows: z.array(z.object({ line: z.number().int().positive(), cells: z.array(z.union([z.string().max(500), z.number(), z.null()])).max(60) })).min(1).max(100000),
@@ -432,6 +433,10 @@ module.exports = function comptaRoutes(db) {
         validate: z.boolean().default(false), fiscal_year_id: z.number().int().positive().optional(),
       }).default({}),
     }), req.body);
+    // Créer des comptes ou des journaux modifie le plan comptable : c'est le réglage de la comptabilité, pas la saisie
+    if ((data.options.create_accounts || data.options.create_journals) && !req.can('compta:settings')) {
+      throw new HttpError(403, 'Créer les comptes ou les journaux manquants demande le droit « Paramétrer la comptabilité ».');
+    }
     const out = await sage.run(db, { kind: data.kind, rows: data.rows, mapping: data.mapping, options: data.options, dryRun: data.dry_run, user: req.user, can: p => req.can(p) });
     // Correspondance retenue (par intitulé de colonne) et format : proposés au prochain import du même type
     if (!data.dry_run && !out.errors.length && data.headers && req.can('compta:settings')) {

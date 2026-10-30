@@ -4,6 +4,7 @@ const express = require('express');
 const helmet = require('helmet');
 const cookieParser = require('cookie-parser');
 const multer = require('multer');
+const { rateLimit } = require('express-rate-limit');
 const { corsOrigins, uploadsDir, isProd, isTest, adminHost, erpHost } = require('./config');
 const { HttpError } = require('./lib/http');
 const { requireAuth } = require('./auth');
@@ -19,9 +20,10 @@ function createApp(db) {
     // blob: : images lues dans le navigateur avant envoi (dimensions d'une photo, import d'un plan)
     contentSecurityPolicy: { directives: { 'img-src': ["'self'", 'data:', 'blob:'] } },
   }));
-  // Import Sage : un exercice complet peut peser plus lourd que le reste des requêtes
-  const bigJson = express.json({ limit: '25mb' }), json = express.json({ limit: '2mb' });
-  app.use((req, res, next) => (req.path === '/api/admin/erp/compta/import/sage' ? bigJson : json)(req, res, next));
+  // 2 Mo pour toutes les requêtes, avant même l'authentification. L'import Sage (un exercice complet pèse plus lourd) n'est
+  // pas lu ici : sa route monte son propre analyseur de 25 Mo, APRÈS l'authentification et le contrôle du droit (audit du 30/10).
+  const json = express.json({ limit: '2mb' });
+  app.use((req, res, next) => (req.path === '/api/admin/erp/compta/import/sage' && req.method === 'POST' ? next() : json(req, res, next)));
   app.use(cookieParser());
 
   // CORS : seul le site public (autre domaine) appelle l'API publique
@@ -52,6 +54,12 @@ function createApp(db) {
 
   const admin = express.Router();
   admin.use(requireAuth(db));
+  // Limite modérée par compte (à défaut par adresse) : freine un compte détourné ou un script qui interroge sans relâche
+  admin.use(rateLimit({
+    windowMs: 60 * 1000, limit: isTest ? 100000 : 600, standardHeaders: true, legacyHeaders: false,
+    keyGenerator: req => (req.user ? `u${req.user.id}` : req.ip),
+    message: { error: 'Trop de requêtes, patientez quelques instants.' },
+  }));
   // Mot de passe provisoire : seul le choix d'un nouveau mot de passe (/api/auth/password) reste possible
   admin.use((req, res, next) => (req.user.must_change_password ? next(new HttpError(403, 'Choisissez d’abord votre mot de passe.')) : next()));
   admin.use(require('./routes/permissions')(db));

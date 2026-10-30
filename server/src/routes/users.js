@@ -4,7 +4,7 @@ const { z } = require('zod');
 const { ah, parse, idParam, HttpError } = require('../lib/http');
 const { hashPassword, requirePermission, publicUser } = require('../auth');
 const { listRoles, requireRole } = require('../services/roles');
-const { effectivePermissions, rolePermissions, hasPermission } = require('../services/permissions');
+const { ensureNotAbove } = require('../services/permissions');
 
 const insertedId = r => (typeof r === 'object' ? r.id : r);
 // Mot de passe provisoire lisible (sans 0/O, 1/l/I), montré une seule fois à la personne qui crée le compte
@@ -18,13 +18,7 @@ module.exports = function userRoutes(db) {
    * Personne ne donne plus de privilèges qu'il n'en a (audit du 29/10) : rôle attribué, ou compte plus privilégié dont
    * on changerait le mot de passe, l'e-mail ou l'état. Le super administrateur n'est pas limité.
    */
-  const notAbove = async (req, { role = null, user = null }) => {
-    if (req.user.role === 'super_admin') return;
-    const mine = req.user.permissions;
-    const theirs = role ? await rolePermissions(db, role) : await effectivePermissions(db, user);
-    const beyond = theirs.filter(p => !hasPermission(mine, p));
-    if (beyond.length) throw new HttpError(403, role ? 'Ce rôle a des privilèges que vous n’avez pas : seul le super administrateur peut l’attribuer.' : 'Ce compte a des privilèges que vous n’avez pas : seul le super administrateur peut le modifier.');
-  };
+  const notAbove = (req, target) => ensureNotAbove(db, req.user, target);
 
   // Rôles proposés dans les sélecteurs : ceux d'origine et ceux créés dans « Rôles & privilèges »
   r.get('/roles', requirePermission('users:read', 'users:create', 'users:role', 'roles:write'), ah(async (req, res) => {
@@ -124,7 +118,11 @@ module.exports = function userRoutes(db) {
     if (!(req.can('rh:files') || req.can('paie:employees'))) throw new HttpError(403, 'Relier une fiche employé demande un droit sur les fiches du personnel.');
     const userId = idParam(req);
     const { employee_id } = parse(z.object({ employee_id: z.number().int().positive().nullable() }), req.body);
-    if (!(await db('users').where({ id: userId }).first())) throw new HttpError(404, 'Utilisateur introuvable.');
+    const target = await db('users').where({ id: userId }).first();
+    if (!target) throw new HttpError(404, 'Utilisateur introuvable.');
+    // Même garde que le changement de compte d'une fiche (relier comme détacher) : users:edit, jamais son propre compte, un
+    // super administrateur ni un compte plus privilégié
+    await require('../services/employees').guardUserLink(db, userId, { user: req.user, can: p => req.can(p) });
     await db.transaction(async trx => {
       if (employee_id) {
         const e = await trx('employees').where({ id: employee_id }).first();

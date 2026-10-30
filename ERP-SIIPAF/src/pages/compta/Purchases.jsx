@@ -102,11 +102,11 @@ function InvoiceDrawer({ id, onClose, onChange }) {
             <dt>Montants</dt><dd className="tabular">HT {fcfa(d.amount_ht)} · TVA {d.vat_rate} % {fcfa(d.vat_amount)} · <b>TTC {fcfa(d.amount_ttc)}</b></dd>
             {d.status === 'validee' && <><dt>Réglé</dt><dd className="tabular">{fcfa(d.paid_fcfa)} · reste <b>{fcfa(d.remaining_fcfa)}</b></dd></>}
           </dl>
-          {d.status === 'brouillon' && can('achats:write') && (
+          {d.status === 'brouillon' && (can('achats:write') || can('achats:validate')) && (
             <div className="row" style={{ gap: 8 }}>
-              <button className="btn btn-primary" onClick={() => act(() => api.post(`/admin/erp/compta/purchases/${d.id}/validate`), 'Facture validée : écriture d’achat créée')}><CheckCheck />Valider la facture</button>
-              <button className="btn" onClick={() => setEditing(true)}><Pencil />Modifier</button>
-              <button className="btn btn-ghost btn-danger" onClick={() => window.confirm('Supprimer ce brouillon ?') && act(async () => { await api.del(`/admin/erp/compta/purchases/${d.id}`); onClose(); }, 'Facture supprimée')}><Trash2 />Supprimer</button>
+              {can('achats:validate') && <button className="btn btn-primary" onClick={() => act(() => api.post(`/admin/erp/compta/purchases/${d.id}/validate`), 'Facture validée : écriture d’achat créée')}><CheckCheck />Valider la facture</button>}
+              {can('achats:write') && <button className="btn" onClick={() => setEditing(true)}><Pencil />Modifier</button>}
+              {can('achats:write') && <button className="btn btn-ghost btn-danger" onClick={() => window.confirm('Supprimer ce brouillon ?') && act(async () => { await api.del(`/admin/erp/compta/purchases/${d.id}`); onClose(); }, 'Facture supprimée')}><Trash2 />Supprimer</button>}
             </div>
           )}
           {d.status === 'validee' && (

@@ -59,8 +59,10 @@ const serializeChange = t => ({
   file_url: t.file_filename ? `/api/admin/erp/chantiers/tma/${t.id}/devis` : null,
 });
 
-async function changes(db, { worksiteId = null, saleId = null, status = null } = {}) {
+async function changes(db, { worksiteId = null, saleId = null, status = null, assignedTo = null } = {}) {
   const q = changeQuery(db).orderBy([{ column: 't.created_at', order: 'desc' }, { column: 't.id', order: 'desc' }]).limit(300);
+  // Accès par « sales:read » seul : les dossiers de ses clients (audit du 30/10)
+  if (assignedTo) q.where('c.assigned_to', assignedTo);
   if (worksiteId) q.where('t.worksite_id', worksiteId);
   if (saleId) q.where('t.sale_id', saleId);
   if (status) q.where('t.status', status);

@@ -34,7 +34,7 @@ export default function EmployeeForm({ employee, onClose, onSaved }) {
   const staff = useResource('/admin/erp/paie/employees?active=1');
   const isNew = !employee.id;
   // Salaire inconnu (fiche lue sans le droit paie) : jamais renvoyé, pour ne pas l'écraser
-  const seePay = isNew || employee.base_salary !== undefined, canPay = can('paie:employees') && seePay, canLeave = can('conges:manage');
+  const seePay = isNew || employee.base_salary !== undefined, canPay = can('paie:employees') && seePay, canLeave = can('conges:manage'), canLink = isNew || can('users:edit'); // changer le compte d'une fiche existante : « Modifier un compte »
   // Fiche existante : poste et service changent par « Changer de poste » (date d'effet, motif, historique) quand on tient les dossiers RH
   const viaChange = !isNew && can('rh:files');
   const [initial] = useState(() => Object.fromEntries(Object.entries(BLANK).map(([k, v]) => [k, employee[k] ?? v])));
@@ -47,7 +47,7 @@ export default function EmployeeForm({ employee, onClose, onSaved }) {
     e.preventDefault(); setError(null);
     const body = {};
     for (const [k, v] of Object.entries(f)) {
-      if ((PAY.includes(k) && !canPay) || (LEAVE.includes(k) && !canLeave)) continue;
+      if ((PAY.includes(k) && !canPay) || (LEAVE.includes(k) && !canLeave) || (k === 'user_id' && !canLink)) continue;
       if (viaChange && ['job_title', 'position_id', 'department'].includes(k)) continue;
       if (!isNew && v === initial[k]) continue; // fiche existante : seuls les champs modifiés sont envoyés
       body[k] = NUMBERS.includes(k) ? (v === '' || v == null ? null : Number(v)) : typeof v === 'string' && v === '' ? null : v;
@@ -84,8 +84,8 @@ export default function EmployeeForm({ employee, onClose, onSaved }) {
           <Field label="N° CNI / passeport"><input className="input" value={f.id_number} onChange={set('id_number')} /></Field>
           <Field label="N° CNPS"><input className="input" value={f.cnps_number} onChange={set('cnps_number')} /></Field>
           <Field label="Contact en cas d’urgence"><input className="input" value={f.emergency_contact} onChange={set('emergency_contact')} placeholder="Nom, lien, téléphone" /></Field>
-          <Field label="Compte du dashboard" hint="Relie la fiche au compte de connexion de la même personne">
-            <select className="select" value={f.user_id || ''} onChange={set('user_id')}><option value="">— Aucun —</option>{users.map(u => <option key={u.id} value={u.id}>{u.name} ({u.email})</option>)}</select>
+          <Field label="Compte du dashboard" hint={canLink ? 'Relie la fiche au compte de connexion de la même personne' : 'Réservé au droit « Modifier un compte »'}>
+            <select className="select" disabled={!canLink} value={f.user_id || ''} onChange={set('user_id')}><option value="">— Aucun —</option>{users.map(u => <option key={u.id} value={u.id}>{u.name} ({u.email})</option>)}</select>
           </Field>
         </div>
         <h3 className="erp-h3">Poste et contrat</h3>

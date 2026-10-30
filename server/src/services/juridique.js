@@ -225,8 +225,21 @@ const litigationQuery = db => db('litigations as g')
     'c.title as contract_title', 'e.first_name as employee_first_name', 'e.last_name as employee_last_name', 'cl.name as client_name',
     'lt.code as lot_code', 'p.name as project_name');
 
-/** Voit un litige : juriste, Direction, juriste en charge, ou un membre du service concerné. */
-const canSeeLitigation = (l, v) => isLegal(v) || l.owner_id === v.userId || (!!l.department && l.department === v.department);
+/**
+ * Voit un litige : juriste, Direction, juriste en charge, ou un membre du service concerné. Audit du 30/10 : un litige qui
+ * vise un employé n'est jamais visible de cet employé (hors Juridique), et n'est pas ouvert à tout son service, seulement
+ * au juriste en charge.
+ */
+const canSeeLitigation = (l, v) => {
+  if (isLegal(v)) return true;
+  if (l.employee_id && v.employeeId && Number(l.employee_id) === Number(v.employeeId)) return false;
+  return l.owner_id === v.userId || (!!l.department && l.department === v.department && !l.employee_id);
+};
+/** Même règle en requête : `v` = { userId, department, employeeId } ; `alias` = préfixe de la colonne (« g. »). */
+const scopeLitigations = (query, v, alias = '') => query.where(w => {
+  w.where(`${alias}owner_id`, v.userId);
+  if (v.department) w.orWhere(b => b.where(`${alias}department`, v.department).whereNull(`${alias}employee_id`));
+}).modify(q => { if (v.employeeId) q.where(b => b.whereNull(`${alias}employee_id`).orWhereNot(`${alias}employee_id`, v.employeeId)); });
 
 function serializeLitigation(l, day = today()) {
   const next = isoDay(l.next_date);
@@ -266,7 +279,7 @@ async function litigationDetail(db, id) {
 
 async function litigations(db, v, { status = 'ouvert', origin = null, q = '' } = {}) {
   const query = litigationQuery(db).orderBy('g.reference', 'desc');
-  if (!isLegal(v)) query.where(w => { w.where('g.owner_id', v.userId); if (v.department) w.orWhere('g.department', v.department); });
+  if (!isLegal(v)) scopeLitigations(query, v, 'g.');
   if (status) query.where('g.status', status);
   if (origin) query.where('g.origin', origin);
   let rows = (await query.limit(2000)).map(l => serializeLitigation(l));
@@ -471,7 +484,7 @@ async function departmentMail(db, user, can) {
 
 async function overview(db, user, can) {
   const day = today();
-  const v = { userId: user.id, can };
+  const v = await require('./courrier').viewer(db, user, can); // service et fiche employé, comme la route des litiges
   const [deedRows, lits, gars, unpaidList, mail] = await Promise.all([
     deeds(db), litigations(db, v, { status: 'ouvert' }), guarantees(db, { status: 'active' }), unpaid(db, { day }), departmentMail(db, user, can),
   ]);
@@ -502,13 +515,14 @@ async function badges(db, user, can) {
   const n = async q => Number((await q.count({ n: '*' }).first()).n || 0);
   const soon = new Date(Date.now() + 7 * 86400000).toISOString().slice(0, 10);
   const legal = isLegal({ can });
-  const e = await db('employees').where({ user_id: user.id }).first('department');
+  const e = await db('employees').where({ user_id: user.id }).first('id', 'department');
+  const mine = { userId: user.id, department: e?.department || null, employeeId: e?.id || null };
   const [litDue, mailOpen] = await Promise.all([
-    n(db('litigations').where({ status: 'ouvert' }).where('next_date', '<=', soon).modify(q => { if (!legal) q.where(w => { w.where('owner_id', user.id); if (e?.department) w.orWhere('department', e.department); }); })),
+    n(db('litigations').where({ status: 'ouvert' }).where('next_date', '<=', soon).modify(q => { if (!legal) scopeLitigations(q, mine); })),
     n(db('mail_items').where({ status: 'affecte', assigned_department: 'juridique' })),
   ]);
   const gars = legal || can('compta:read') ? (await guarantees(db, { status: 'active' })).filter(g => g.deadline && g.deadline.days_left <= 30).length : 0;
-  const owned = await n(db('litigations').where({ status: 'ouvert' }).where(w => { w.where('owner_id', user.id); if (e?.department) w.orWhere('department', e.department); }));
+  const owned = await n(scopeLitigations(db('litigations').where({ status: 'ouvert' }), mine));
   return { litigations_due: litDue, guarantees_due: gars, mail: e?.department === 'juridique' || legal ? mailOpen : 0, litigations_mine: owned, count: litDue + gars, day };
 }
 

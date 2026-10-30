@@ -5,6 +5,8 @@ const { ah, parse, idParam, HttpError } = require('../../lib/http');
 const { requirePermission } = require('../../auth');
 const rh = require('../../services/rh');
 const presences = require('../../services/presences');
+const { rateLimit } = require('express-rate-limit');
+const { isTest } = require('../../config');
 
 const day = z.string().regex(/^\d{4}-\d{2}-\d{2}$/, 'Date attendue au format AAAA-MM-JJ');
 const period = z.string().regex(/^\d{4}-(0[1-9]|1[0-2])$/, 'Mois attendu au format AAAA-MM');
@@ -43,7 +45,12 @@ module.exports = function presencesRoutes(db) {
   }));
 
   // ─── Borne de pointage (tablette ouverte par un compte autorisé) ──
-  r.post('/attendance/kiosk', pointer, ah(async (req, res) => {
+  // Limite par compte et par adresse (audit du 30/10) : une tablette de chantier pointe des dizaines de personnes, pas des milliers d'essais
+  const kioskLimiter = rateLimit({
+    windowMs: 5 * 60 * 1000, limit: isTest ? 100000 : 80, standardHeaders: true, legacyHeaders: false, skipSuccessfulRequests: true, // seuls les échecs comptent : la file du matin n'est pas freinée
+    keyGenerator: req => `${req.user?.id}|${req.ip}`, message: { error: 'Trop d’essais sur la borne, patientez quelques minutes.' },
+  });
+  r.post('/attendance/kiosk', pointer, kioskLimiter, ah(async (req, res) => {
     const data = parse(z.object({ matricule: z.string().trim().min(3).max(20), pin: z.string().min(4).max(6), project_id: projectId, worksite_id: projectId, place_id: projectId }), req.body);
     res.json(await presences.kiosk(db, data, req.user.id));
   }));

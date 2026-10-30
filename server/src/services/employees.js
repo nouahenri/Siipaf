@@ -6,6 +6,7 @@
  */
 const { z } = require('zod');
 const { HttpError } = require('../lib/http');
+const { ensureNotAbove } = require('./permissions');
 const { CONTRACT_TYPES, DEPARTMENTS, MARITAL, PAY_METHODS } = require('../lib/paie');
 const rh = require('./rh');
 const positions = require('./positions');
@@ -45,6 +46,23 @@ async function checkUser(db, userId, selfId = null) {
   if (taken) throw new HttpError(409, `Ce compte est déjà relié à ${taken.first_name} ${taken.last_name}.`);
 }
 
+/**
+ * Relier une fiche à un compte (ou l'en détacher) touche à ce compte : droit « Modifier un compte », jamais le compte d'un
+ * super administrateur ni plus privilégié que soi, ni son propre compte (audit du 30/10). Le super administrateur n'est pas limité.
+ * Ne s'applique qu'à une fiche EXISTANTE : à la création (embauche), la Comptabilité relie librement le compte de la nouvelle
+ * personne, ce qui ne reprend la fiche de personne.
+ */
+async function guardUserLink(db, userId, { user, can }) {
+  if (!userId) return;
+  if (!can('users:edit')) throw new HttpError(403, 'Relier une fiche à un compte demande le droit « Modifier un compte ».');
+  if (user.role === 'super_admin') return;
+  const target = await db('users').where({ id: userId }).first();
+  if (!target) return; // checkUser répond « introuvable »
+  if (target.id === user.id) throw new HttpError(403, 'Vous ne pouvez pas relier votre propre compte à une fiche : demandez au service RH.');
+  if (target.role === 'super_admin') throw new HttpError(403, 'Seul un super administrateur peut modifier un super administrateur.');
+  await ensureNotAbove(db, user, { user: target });
+}
+
 /** Enregistre la fiche (RH ou Comptabilité, même règle) ; renvoie la fiche avant et après. */
 async function update(db, id, data, { user, can }) {
   const superAdmin = user.role === 'super_admin';
@@ -54,7 +72,11 @@ async function update(db, id, data, { user, can }) {
   const before = await db('employees').where({ id }).first();
   if (!before) throw new HttpError(404, 'Employé introuvable.');
   if (before.user_id === user.id && !superAdmin) throw new HttpError(403, 'Votre propre fiche se modifie par le service RH ou la Comptabilité (vos coordonnées : Mon espace).');
-  if (data.user_id !== undefined) await checkUser(db, data.user_id, id);
+  if (data.user_id !== undefined && (data.user_id || null) !== (before.user_id || null)) {
+    await guardUserLink(db, data.user_id, { user, can });
+    await guardUserLink(db, before.user_id, { user, can }); // détacher le compte actuel
+    await checkUser(db, data.user_id, id);
+  }
   // Se nommer responsable de quelqu'un donne ses droits de responsable : jamais pour soi-même
   if (data.manager_id && !superAdmin && (await db('employees').where({ id: data.manager_id }).first('user_id'))?.user_id === user.id) {
     throw new HttpError(403, 'Vous ne pouvez pas vous nommer responsable d’un employé : demandez au service RH.');
@@ -82,4 +104,4 @@ async function update(db, id, data, { user, can }) {
   return { before, after };
 }
 
-module.exports = { employeeSchema, checkUser, update, PAY_FIELDS };
+module.exports = { employeeSchema, checkUser, guardUserLink, update, PAY_FIELDS, LEAVE_FIELDS };

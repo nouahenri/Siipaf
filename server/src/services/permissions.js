@@ -5,6 +5,7 @@
  * Les droits des rôles sont mis en cache et rechargés après chaque modification.
  */
 const { PERMISSIONS, PERMISSION_IDS } = require('../lib/domain');
+const { HttpError } = require('../lib/http');
 
 const caches = new WeakMap(); // une entrée par connexion (les tests en ouvrent plusieurs)
 
@@ -58,4 +59,17 @@ async function resetRolePermissions(db, role) {
   await setRolePermissions(db, role, (PERMISSIONS[role] || []).filter(p => p !== '*'));
 }
 
-module.exports = { effectivePermissions, rolePermissions, setRolePermissions, resetRolePermissions, hasPermission, invalidate };
+/**
+ * Personne ne touche à un rôle ou à un compte qui a plus de privilèges que lui (audit du 29/10) : rôle attribué, ou compte plus
+ * privilégié dont on changerait le mot de passe, l'e-mail, l'état ou la fiche reliée. Le super administrateur n'est pas limité.
+ * `actor` : l'utilisateur de la requête (req.user, avec ses droits dans `permissions`).
+ */
+async function ensureNotAbove(db, actor, { role = null, user = null }) {
+  if (actor.role === 'super_admin') return;
+  const theirs = role ? await rolePermissions(db, role) : await effectivePermissions(db, user);
+  if (theirs.some(p => !hasPermission(actor.permissions, p))) {
+    throw new HttpError(403, role ? 'Ce rôle a des privilèges que vous n’avez pas : seul le super administrateur peut l’attribuer.' : 'Ce compte a des privilèges que vous n’avez pas : seul le super administrateur peut le modifier.');
+  }
+}
+
+module.exports = { ensureNotAbove, effectivePermissions, rolePermissions, setRolePermissions, resetRolePermissions, hasPermission, invalidate };

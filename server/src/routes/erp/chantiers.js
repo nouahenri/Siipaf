@@ -8,6 +8,7 @@ const chantiers = require('../../services/chantiers');
 const suivi = require('../../services/chantiersSuivi');
 const sousTraitance = require('../../services/chantiersSousTraitance');
 const livraison = require('../../services/chantiersLivraison');
+const cm = require('../../services/commercial');
 const { SAV_CATEGORIES, NEED_STATUSES } = require('../../lib/domain');
 const day = z.string().regex(/^\d{4}-\d{2}-\d{2}$/, 'Date attendue au format AAAA-MM-JJ');
 
@@ -82,6 +83,9 @@ const budgetSchema = z.object({
 module.exports = function chantiersRoutes(db) {
   const r = express.Router();
   const viewer = req => ({ user: req.user, can: p => req.can(p) });
+  const juridiqueIsLegal = req => require('../../services/juridique').isLegal({ can: p => req.can(p) });
+  // Conducteur nommé d'au moins un chantier (éventuellement d'un programme donné)
+  const isConductor = async (req, projectId = null) => !!(await db('worksites').where({ manager_id: req.user.id }).modify(q => { if (projectId) q.where({ project_id: projectId }); }).first('id'));
   const managed = req => chantiers.managedWorksite(db, idParam(req), viewer(req));
   const sendDetail = async (req, res, w, status = 200) => res.status(status).json(await chantiers.detail(db, await chantiers.loadWorksite(db, w.id), viewer(req)));
   const sendFile = (res, row, fallback) => {
@@ -99,7 +103,16 @@ module.exports = function chantiersRoutes(db) {
   const guarded = fn => ah(async (req, res) => { try { await fn(req, res); } catch (e) { await suivi.removeFiles(req.files || (req.file ? [req.file] : [])); throw e; } });
 
   r.get('/badges', ah(async (req, res) => res.json(await chantiers.badges(db, viewer(req)))));
-  r.get('/refs', ah(async (req, res) => res.json({ ...(await chantiers.refs(db)), settings: await chantiers.settings(db), setting_fields: CHANTIER_SETTINGS, list_kinds: chantiers.LIST_KINDS, declaration_statuses: DECLARATION_STATUSES })));
+  // Références des chantiers : comptes, personnel et fournisseurs seulement pour qui voit les chantiers ou en conduit un (audit du
+  // 30/10) ; les autres (achats, comptabilité…) reçoivent les listes de libellés et les programmes, sans données de personnes
+  r.get('/refs', ah(async (req, res) => {
+    const refs = await chantiers.refs(db);
+    if (!chantiers.seesAll(viewer(req)) && !(await isConductor(req))) {
+      const { users: _u, employees: _e, suppliers: _s, articles: _a, ...minimal } = refs;
+      return res.json({ ...minimal, users: [], employees: [], suppliers: [], articles: [], minimal: true });
+    }
+    res.json({ ...refs, settings: await chantiers.settings(db), setting_fields: CHANTIER_SETTINGS, list_kinds: chantiers.LIST_KINDS, declaration_statuses: DECLARATION_STATUSES });
+  }));
   // Listes réglables : postes du budget, météo du journal
   const listKind = z.enum(Object.keys(chantiers.LIST_KINDS));
   r.post('/reglages/listes', requirePermission('chantiers:write'), ah(async (req, res) => {
@@ -126,7 +139,10 @@ module.exports = function chantiersRoutes(db) {
     const shape = Object.fromEntries(Object.entries(CHANTIER_SETTINGS).map(([k, x]) => [k, x.options ? z.enum(Object.keys(x.options)) : z.number().int().min(x.min).max(x.max)]));
     res.json(await chantiers.saveSettings(db, parse(z.object(shape).partial(), req.body)));
   }));
-  r.get('/programmes/:id', ah(async (req, res) => res.json(await chantiers.programme(db, idParam(req)))));
+  r.get('/programmes/:id', ah(async (req, res) => {
+    if (!chantiers.seesAll(viewer(req)) && !(await isConductor(req, idParam(req)))) return res.json({ ilots: [], buildings: [], lots: [] });
+    res.json(await chantiers.programme(db, idParam(req)));
+  }));
 
   // ─── Étapes déclarées : vue de la Direction, fichiers (avant les routes /:id) ──
   const direction = requirePermission('chantiers:direction');
@@ -161,24 +177,28 @@ module.exports = function chantiersRoutes(db) {
   // ─── TMA (travaux modificatifs des acquéreurs) ────────────
   // Commercial (dossiers de vente) ou chantiers : liste d'un dossier, demande, devis, annulation, réalisation
   const seesSales = req => req.can('sales:read') || chantiers.seesAll(viewer(req));
+  // Périmètre (audit du 30/10) : l'accès par « sales:read » seul se limite aux dossiers de ses clients ; les chantiers, la
+  // portée « toute l'équipe » et le Juridique voient tout
+  const tmaWide = req => chantiers.seesAll(viewer(req)) || cm.seesAllLeads(req.user) || juridiqueIsLegal(req);
   const canTma = (req, t, action) => {
     const manage = req.can('chantiers:write') || Number(t.manager_id) === Number(req.user.id);
-    if (action === 'annulee' ? manage || req.can('sales:edit') : manage) return;
+    if (action === 'annulee' ? manage || (req.can('sales:edit') && (tmaWide(req) || t.assigned_to === req.user.id)) : manage) return;
     throw new HttpError(403, action === 'devis' ? 'Le devis est établi par le conducteur du chantier ou un gestionnaire des chantiers.' : 'Accès refusé.');
   };
   r.get('/tma', ah(async (req, res) => {
     const { vente, statut } = parse(z.object({ vente: z.coerce.number().int().positive().optional(), statut: z.string().max(12).optional() }), req.query);
     if (!seesSales(req)) throw new HttpError(403, 'Accès refusé.');
-    res.json(await livraison.changes(db, { saleId: vente || null, status: statut || null }));
+    res.json(await livraison.changes(db, { saleId: vente || null, status: statut || null, assignedTo: tmaWide(req) ? null : req.user.id }));
   }));
   r.post('/tma', ah(async (req, res) => {
     const data = parse(tmaSchema, req.body);
-    if (!req.can('sales:edit') && !req.can('chantiers:write')) {
-      const sale = await db('sales').where({ id: data.sale_id }).first('lot_id');
-      const lot = sale && await db('lots').where({ id: sale.lot_id }).first();
-      const w = lot && await livraison.worksiteForLot(db, lot);
-      if (!w || Number(w.manager_id) !== Number(req.user.id)) throw new HttpError(403, 'Demande réservée au commercial, au conducteur du chantier et aux gestionnaires.');
-    }
+    const sale = await db('sales').where({ id: data.sale_id }).first('lot_id');
+    const lot = sale && await db('lots').where({ id: sale.lot_id }).first();
+    const w = lot && await livraison.worksiteForLot(db, lot);
+    const conductor = !!w && Number(w.manager_id) === Number(req.user.id);
+    if (!req.can('sales:edit') && !req.can('chantiers:write') && !conductor) throw new HttpError(403, 'Demande réservée au commercial, au conducteur du chantier et aux gestionnaires.');
+    // Le commercial ne demande des travaux modificatifs que pour le dossier de son client
+    if (!req.can('chantiers:write') && !conductor && !tmaWide(req)) await cm.saleInScope(db, data.sale_id, req.user);
     res.status(201).json(await livraison.createChange(db, data, { userId: req.user.id, source: 'equipe' }));
   }));
   r.post('/tma/:tmaId/devis', multipart(suivi.declarationUpload()), guarded(async (req, res) => {
@@ -194,7 +214,8 @@ module.exports = function chantiersRoutes(db) {
   }));
   r.get('/tma/:tmaId/devis', ah(async (req, res) => {
     const t = await livraison.loadChange(db, childId(req, 'tmaId'));
-    if (!seesSales(req) && Number(t.manager_id) !== Number(req.user.id)) throw new HttpError(404, 'Pièce introuvable.');
+    const conductor = Number(t.manager_id) === Number(req.user.id);
+    if (!conductor && (!seesSales(req) || !(tmaWide(req) || t.assigned_to === req.user.id))) throw new HttpError(404, 'Pièce introuvable.');
     sendFile(res, t, 'devis');
   }));
 

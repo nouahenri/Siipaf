@@ -111,7 +111,10 @@ module.exports = function juridiqueRoutes(db) {
   r.get('/actes', legal, ah(async (req, res) => res.json(await juridique.deeds(db, { step: req.query.step || null, q: req.query.q }))));
   /** Avancement d'une vente : le Juridique, la Direction, et l'équipe commerciale (lecture seule). */
   r.get('/actes/:id', ah(async (req, res) => {
-    if (!juridique.isLegal({ can: p => req.can(p) }) && !req.can('sales:read')) throw new HttpError(403, 'Accès refusé.');
+    const isJurist = juridique.isLegal({ can: p => req.can(p) });
+    if (!isJurist && !req.can('sales:read')) throw new HttpError(403, 'Accès refusé.');
+    // L'équipe commerciale (sales:read seul) ne suit que les ventes de ses clients (audit du 30/10)
+    if (!isJurist) await require('../../services/commercial').saleInScope(db, idParam(req), req.user);
     res.json(await juridique.deedDetail(db, idParam(req)));
   }));
   r.post('/actes/:id', write, ah(async (req, res) => {
@@ -126,7 +129,12 @@ module.exports = function juridiqueRoutes(db) {
   r.get('/impayes', legal, ah(async (req, res) => res.json(await juridique.unpaid(db))));
 
   // ─── Courrier affecté au service Juridique ────────────────
-  r.get('/courrier', ah(async (req, res) => res.json(await juridique.departmentMail(db, req.user, p => req.can(p)))));
+  // Réservé au Juridique, à la Direction, au registre du courrier et aux membres du service juridique (audit du 30/10)
+  r.get('/courrier', ah(async (req, res) => {
+    const can = p => req.can(p);
+    if (!juridique.isLegal({ can }) && !['courrier:read', 'courrier:write', 'courrier:assign'].some(can) && (await viewer(req)).department !== 'juridique') throw new HttpError(403, 'Accès réservé au Juridique et au registre du courrier.');
+    res.json(await juridique.departmentMail(db, req.user, can));
+  }));
 
   // ─── Litiges ──────────────────────────────────────────────
   r.get('/litiges', ah(async (req, res) => {

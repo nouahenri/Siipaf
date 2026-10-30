@@ -45,7 +45,7 @@ module.exports = function savRoutes(db) {
     });
   }));
 
-  r.get('/stats', read, ah(async (req, res) => res.json(await sav.savStats(db))));
+  r.get('/stats', read, ah(async (req, res) => res.json(await sav.savStats(db, new Date(), req.user))));
 
   // ─── Réclamations ─────────────────────────────────────────
   r.get('/tickets', read, ah(async (req, res) => {
@@ -55,6 +55,7 @@ module.exports = function savRoutes(db) {
       .leftJoin('lots as l', 'l.id', 't.lot_id')
       .leftJoin('projects as p', 'p.id', 't.project_id')
       .leftJoin('users as u', 'u.id', 't.assigned_to');
+    sav.scopeTickets(q, req.user); // sans « sav:all » : ses clients et les réclamations qui lui sont confiées
     if (req.query.status) q.whereIn('t.status', String(req.query.status).split(','));
     if (req.query.open === '1') q.whereIn('t.status', SAV_OPEN_STATUSES);
     if (req.query.priority) q.whereIn('t.priority', String(req.query.priority).split(','));
@@ -92,16 +93,25 @@ module.exports = function savRoutes(db) {
       media_ids: ids,
     }), req.body);
     if (data.assigned_to && !req.can('sav:assign')) throw new HttpError(403, 'Attribuer une réclamation demande le droit « Attribuer les réclamations ».');
+    // Sans « sav:all », on n'ouvre une réclamation que pour son client ou un dossier de son périmètre
+    if (!sav.seesAllSav(req.user)) {
+      if (data.sale_id) await sav.saleInScope(db, data.sale_id, req.user);
+      else if (data.lead_id) await sav.leadInSavScope(db, data.lead_id, req.user);
+    }
     data.media_ids = await sav.checkFiles(db, data.media_ids);
     const t = await sav.createTicket(db, data, { userId: req.user.id, source: data.source || 'equipe' });
     await sav.shareFiles(db, data.media_ids, t.lead_id);
     res.status(201).json(await sav.ticketDetail(db, t.id));
   }));
 
-  r.get('/tickets/:id', read, ah(async (req, res) => res.json(await sav.ticketDetail(db, idParam(req)))));
+  r.get('/tickets/:id', read, ah(async (req, res) => {
+    await sav.ticketInScope(db, idParam(req), req.user);
+    res.json(await sav.ticketDetail(db, idParam(req)));
+  }));
 
   r.patch('/tickets/:id', requirePermission('sav:handle', 'sav:assign'), ah(async (req, res) => {
     const id = idParam(req);
+    await sav.ticketInScope(db, id, req.user);
     const data = parse(z.object({
       category: category.optional(), priority: priority.optional(),
       title: z.string().trim().min(3).max(160).optional(),
@@ -139,6 +149,7 @@ module.exports = function savRoutes(db) {
 
   r.post('/tickets/:id/status', handle, ah(async (req, res) => {
     const { status, note } = parse(z.object({ status: z.enum(SAV_STATUSES), note: optText(1000) }), req.body);
+    await sav.ticketInScope(db, idParam(req), req.user);
     await sav.changeStatus(db, idParam(req), status, { userId: req.user.id, note });
     res.json(await sav.ticketDetail(db, idParam(req)));
   }));
@@ -148,6 +159,7 @@ module.exports = function savRoutes(db) {
       body: z.string().trim().min(1, 'Message vide.').max(4000), internal: z.boolean().default(false), media_ids: ids,
     }), req.body);
     const id = idParam(req);
+    await sav.ticketInScope(db, id, req.user);
     const media = await sav.checkFiles(db, data.media_ids);
     const t = await sav.addComment(db, id, { author: 'equipe', userId: req.user.id, body: data.body, internal: data.internal, media });
     if (!data.internal) await sav.shareFiles(db, media, t.lead_id);
@@ -164,6 +176,7 @@ module.exports = function savRoutes(db) {
       q.where(b => b.where('ld.name', 'like', s).orWhere('ld.client_code', 'like', s).orWhere('l.code', 'like', s).orWhere('ld.phone', 'like', s));
     }
     if (req.query.delivered === '1') q.whereNotNull('s.delivered_at');
+    sav.scopeSales(q, req.user, db); // sans « sav:all » : ses clients et les dossiers de ses réclamations ou interventions
     const rows = await q.select('s.id', 's.status', 's.delivered_at', 's.lead_id', 'ld.name as client_name', 'ld.client_code',
       'l.code as lot_code', 'l.ilot', 'p.name as project_name').orderBy('s.id', 'desc').limit(Math.min(Number(req.query.limit) || 20, 100));
     res.json(rows);
@@ -171,6 +184,7 @@ module.exports = function savRoutes(db) {
 
   r.get('/sales/:id', read, ah(async (req, res) => {
     const id = idParam(req);
+    await sav.saleInScope(db, id, req.user);
     const s = await db('sales as s').join('lots as l', 'l.id', 's.lot_id').join('projects as p', 'p.id', 'l.project_id')
       .join('leads as ld', 'ld.id', 's.lead_id').where('s.id', id)
       .first('s.id', 's.status', 's.delivered_at', 's.lead_id', 'ld.name as client_name', 'ld.client_code', 'ld.phone as client_phone',
@@ -190,6 +204,7 @@ module.exports = function savRoutes(db) {
   // Date du procès-verbal de livraison : point de départ des garanties
   r.patch('/sales/:id/delivery', reservesRight, ah(async (req, res) => {
     const { delivered_at } = parse(z.object({ delivered_at: day.nullable() }), req.body);
+    await sav.saleInScope(db, idParam(req), req.user);
     const n = await db('sales').where({ id: idParam(req) }).update({ delivered_at, updated_at: new Date() });
     if (!n) throw new HttpError(404, 'Dossier introuvable.');
     if (delivered_at) {
@@ -204,6 +219,7 @@ module.exports = function savRoutes(db) {
       .leftJoin('lots as l', 'l.id', 'r.lot_id').leftJoin('projects as p', 'p.id', 'l.project_id');
     if (req.query.status) q.where('r.status', String(req.query.status));
     if (req.query.project_id) q.where('l.project_id', Number(req.query.project_id));
+    sav.scopeReserves(q, req.user, db);
     const rows = await q.select('r.*', 'ld.name as client_name', 'ld.client_code', 'l.code as lot_code', 'p.name as project_name')
       .orderBy([{ column: 'r.status', order: 'desc' }, { column: 'r.deadline', order: 'asc' }, { column: 'r.id', order: 'asc' }]).limit(500);
     const today = new Date().toISOString().slice(0, 10);
@@ -217,6 +233,7 @@ module.exports = function savRoutes(db) {
       category: category.optional().nullable(), noted_at: day.optional(), deadline: day.optional().nullable(),
       note: optText(500), media_ids: ids,
     }), req.body);
+    await sav.saleInScope(db, idParam(req), req.user);
     const sale = await db('sales').where({ id: idParam(req) }).first('lead_id');
     if (!sale) throw new HttpError(404, 'Dossier introuvable.');
     data.media_ids = await sav.checkFiles(db, data.media_ids);
@@ -231,6 +248,7 @@ module.exports = function savRoutes(db) {
       location: optText(120), deadline: day.optional().nullable(), note: optText(500),
     }), req.body);
     const { status, note, ...rest } = data;
+    await sav.reserveInScope(db, id, req.user);
     if (Object.keys(rest).length) {
       const n = await db('sav_reserves').where({ id }).update({ ...rest, updated_at: new Date() });
       if (!n) throw new HttpError(404, 'Réserve introuvable.');
@@ -243,20 +261,18 @@ module.exports = function savRoutes(db) {
   }));
 
   r.post('/reserves/:id/ticket', create, ah(async (req, res) => {
+    await sav.reserveInScope(db, idParam(req), req.user);
     const t = await sav.reserveToTicket(db, idParam(req), { userId: req.user.id });
     res.status(201).json(await sav.ticketDetail(db, t.id));
   }));
 
   // ─── Interventions ────────────────────────────────────────
   r.get('/interventions', read, ah(async (req, res) => {
-    const q = db('sav_interventions as i')
-      .leftJoin('sav_tickets as t', 't.id', 'i.ticket_id')
-      .leftJoin('sav_reserves as rs', 'rs.id', 'i.reserve_id')
-      .leftJoin('sales as s', function () { this.on('s.id', '=', db.raw('coalesce(t.sale_id, rs.sale_id)')); })
-      .leftJoin('leads as ld', 'ld.id', 's.lead_id')
+    const q = sav.interventionQuery(db)
       .leftJoin('lots as l', 'l.id', 's.lot_id')
       .leftJoin('projects as p', 'p.id', 'l.project_id')
       .leftJoin('users as u', 'u.id', 'i.technician_id');
+    sav.scopeInterventions(q, req.user); // sans « sav:all » : ses clients, ses réclamations, ses interventions
     if (req.query.from) q.where('i.scheduled_at', '>=', new Date(String(req.query.from)));
     if (req.query.to) q.where('i.scheduled_at', '<', new Date(String(req.query.to)));
     if (req.query.status) q.where('i.status', String(req.query.status));
@@ -282,6 +298,8 @@ module.exports = function savRoutes(db) {
       ...interventionBase, duration_min: interventionBase.duration_min.optional(),
       technician_id: interventionBase.technician_id.optional(), cost_fcfa: interventionBase.cost_fcfa.optional(),
     }), req.body);
+    if (data.ticket_id) await sav.ticketInScope(db, data.ticket_id, req.user);
+    if (data.reserve_id) await sav.reserveInScope(db, data.reserve_id, req.user);
     res.status(201).json(await sav.createIntervention(db, data, { userId: req.user.id }));
   }));
 
@@ -290,6 +308,7 @@ module.exports = function savRoutes(db) {
       ...interventionBase, status: z.enum(SAV_INTERVENTION_STATUSES), report: optText(5000),
       media_before: z.array(z.number().int().positive()).max(12), media_after: z.array(z.number().int().positive()).max(12),
     }).partial(), req.body);
+    await sav.interventionInScope(db, idParam(req), req.user);
     const i = await db('sav_interventions as i').leftJoin('sav_tickets as t', 't.id', 'i.ticket_id').where('i.id', idParam(req)).first('i.id', 't.lead_id');
     if (!i) throw new HttpError(404, 'Intervention introuvable.');
     if (data.media_before) data.media_before = await sav.checkFiles(db, data.media_before);
@@ -300,15 +319,19 @@ module.exports = function savRoutes(db) {
   }));
 
   // ─── Photos ───────────────────────────────────────────────
+  // Le fichier n'est pas rattaché à un client à l'envoi (audit du 30/10 : un lead_id libre permettait de déposer dans
+  // l'espace d'un autre client) : il l'est ensuite par sav.shareFiles quand il est joint à une réclamation, une réserve
+  // ou une intervention ; un lead_id demandé ne vaut que pour un client de son périmètre.
   r.post('/files', anyWrite, sav.photoUpload(), ah(async (req, res) => {
-    const leadId = Number(req.body.lead_id) || null;
+    const asked = Number(req.body.lead_id) || null;
+    const leadId = asked ? (await sav.leadInSavScope(db, asked, req.user)).id : null;
     const created = await sav.saveFiles(db, req.files, { leadId, userId: req.user.id });
     res.status(201).json(Object.values(await sav.filesById(db, created, 'equipe')));
   }));
 
   r.get('/files/:id', read, ah(async (req, res) => {
     const f = await db('sav_files').where({ id: idParam(req) }).first();
-    if (!f) throw new HttpError(404, 'Fichier introuvable.');
+    if (!f || !(await sav.fileInScope(db, f, req.user))) throw new HttpError(404, 'Fichier introuvable.');
     res.set('Cache-Control', 'private, max-age=3600');
     res.sendFile(path.join(sav.savFilesDir, path.basename(f.filename)), err => err && !res.headersSent && res.sendStatus(404));
   }));

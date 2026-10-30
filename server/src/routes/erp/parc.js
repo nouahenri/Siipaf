@@ -193,6 +193,8 @@ module.exports = function parcRoutes(db) {
   r.post('/reservations/:id/decide', write, ah(async (req, res) => {
     const resa = await db('asset_reservations').where({ id: idParam(req) }).first();
     if (!resa) throw new HttpError(404, 'Demande introuvable.');
+    // Pas d'auto-décision (audit du 30/10) : sa propre demande est décidée par un autre gestionnaire du parc
+    if (resa.requested_by === req.user.id && req.user.role !== 'super_admin') throw new HttpError(403, 'Vous ne décidez pas votre propre demande de véhicule : un autre gestionnaire du parc la traite.');
     const data = parse(z.object({ status: z.enum(['accordee', 'refusee']), asset_id: num(z.number().int().positive()), note: opt(z.string().trim().max(255)) }), req.body);
     res.json(await parc.decide(db, resa, data, { user: req.user }));
   }));
@@ -209,8 +211,8 @@ module.exports = function parcRoutes(db) {
   // ─── Comptabilité (choix du client du 23/10) : validation des dépenses, cartes carburant, immobilisations ───
   const can = (...perms) => (req, res, next) => (perms.some(p => req.can(p)) ? next() : next(new HttpError(403, 'Droits insuffisants.')));
   r.get('/compta/depenses', can('achats:write', 'compta:read'), ah(async (req, res) => res.json(await pc.pendingCosts(db, { status: req.query.status ?? 'a_valider' }))));
-  r.post('/costs/:id/validate', requirePermission('achats:write'), ah(async (req, res) => res.json(await pc.validateCost(db, idParam(req), req.user))));
-  r.post('/costs/:id/reject', requirePermission('achats:write'), ah(async (req, res) => {
+  r.post('/costs/:id/validate', requirePermission('achats:validate'), ah(async (req, res) => res.json(await pc.validateCost(db, idParam(req), req.user))));
+  r.post('/costs/:id/reject', requirePermission('achats:validate'), ah(async (req, res) => {
     const { reason } = parse(z.object({ reason: z.string().trim().min(3, 'Indiquez le motif du rejet.').max(255) }), req.body);
     res.json(await pc.rejectCost(db, idParam(req), reason, req.user));
   }));

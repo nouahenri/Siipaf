@@ -222,6 +222,8 @@ module.exports = function competencesRoutes(db) {
   r.get('/orgchart', ah(async (req, res) => {
     const people = await db('employees as e').leftJoin('projects as p', 'p.id', 'e.project_id').where('e.active', true)
       .select('e.id', 'e.matricule', 'e.last_name', 'e.first_name', 'e.job_title', 'e.department', 'e.manager_id', 'p.name as project_name').orderBy(['e.last_name', 'e.first_name']);
+    // Le matricule sert au pointage à la borne : il n'est montré qu'au service RH (audit du 30/10)
+    if (!req.can('rh:read')) for (const p of people) delete p.matricule;
     const ids = new Set(people.map(p => p.id));
     // Garde contre une hiérarchie en boucle saisie avant les contrôles
     const node = (p, seen = new Set()) => ({ ...p, name: `${p.last_name} ${p.first_name}`, reports: seen.has(p.id) ? [] : people.filter(c => c.manager_id === p.id).map(c => node(c, new Set([...seen, p.id]))) });

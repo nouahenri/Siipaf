@@ -46,9 +46,19 @@ module.exports = function rhRoutes(db) {
     throw new HttpError(403, 'Droits insuffisants.');
   }
   const ctx = req => ({ user: req.user, can: p => req.can(p) });
+  // Pièces du dossier (CNI, certificats, courriers disciplinaires, contrats) : le service RH (rh:documents) et l'employé pour les
+  // siennes ; rh:read seul n'ouvre plus les pièces (audit du 30/10)
+  const canSeeDocuments = (req, e) => req.can('rh:documents') || (!!e.user_id && e.user_id === req.user.id);
 
+  // Règles des congés qu'un employé doit connaître (Mon espace) ; le reste des réglages RH (barèmes des heures supplémentaires,
+  // comptes de charge, validation…) n'est montré qu'à rh:read et rh:settings (audit du 30/10)
+  const employeeRules = s => ({
+    ...Object.fromEntries(['accrual_per_month', 'min_months_before_leave', 'allow_negative', 'min_continuous_days', 'working_days', 'permission_min_months', 'permission_max_days', 'geolocation', 'round_up'].map(k => [k, s[k]])),
+    expense_categories: Object.fromEntries(Object.entries(s.expense_categories || {}).map(([k, c]) => [k, { label: c.label }])),
+  });
   r.get('/meta', ah(async (req, res) => {
     const me = await rh.employeeOf(db, req.user.id);
+    const settingsRight = req.can('rh:read') || req.can('rh:settings');
     const team = me ? await db('employees').where({ manager_id: me.id, active: true }).count({ n: '*' }).first() : { n: 0 };
     res.json({
       leave_types: LEAVE_TYPES, events: PERMISSION_EVENTS, statuses: LEAVE_STATUSES, document_kinds: DOCUMENT_KINDS, career_events: CAREER_EVENTS,
@@ -56,7 +66,7 @@ module.exports = function rhRoutes(db) {
       expense_statuses: EXPENSE_STATUSES, attendance_sources: ATTENDANCE_SOURCES, recruit_stages: RECRUIT_STAGES, recruit_sources: RECRUIT_SOURCES,
       refuse_reasons: REFUSE_REASONS, job_statuses: JOB_STATUSES, resume_kinds: RESUME_KINDS, training_statuses: TRAINING_STATUSES,
       contract_types: CONTRACT_TYPES, departments: DEPARTMENTS, marital: MARITAL,
-      settings: await rh.getSettings(db), defaults: DEFAULT_RH,
+      settings: settingsRight ? await rh.getSettings(db) : employeeRules(await rh.getSettings(db)), defaults: settingsRight ? DEFAULT_RH : null,
       me: me ? { id: me.id, name: `${me.last_name} ${me.first_name}`, matricule: me.matricule } : null,
       team_size: Number(team?.n || 0),
       projects: await db('projects').orderBy('name').select('id', 'name'),
@@ -79,7 +89,12 @@ module.exports = function rhRoutes(db) {
     default_role: z.string().trim().max(40).optional().nullable().transform(v => v || null), active: z.boolean().optional(),
   });
   // Chef de chaque service (demandes au nom du service, choix du client du 29/10)
-  r.get('/department-heads', ah(async (req, res) => res.json(await require('../../services/departments').heads(db))));
+  r.get('/department-heads', ah(async (req, res) => {
+    const heads = await require('../../services/departments').heads(db);
+    // Sans rh:read, l'identifiant du compte du chef n'est pas communiqué
+    if (!req.can('rh:read')) for (const h of Object.values(heads)) delete h.user_id;
+    res.json(heads);
+  }));
   r.put('/department-heads/:department', requirePermission('rh:settings'), ah(async (req, res) => {
     const { employee_id } = parse(z.object({ employee_id: z.number().int().positive().nullable() }), req.body);
     res.json(await require('../../services/departments').setHead(db, req.params.department, employee_id, { userId: req.user.id }));
@@ -275,16 +290,17 @@ module.exports = function rhRoutes(db) {
     const level = await access(req, e);
     const year = yearOf(req.query.year);
     const withPay = req.can('paie:read');
+    const docsAccess = canSeeDocuments(req, e) && level !== 'manager';
     const [balance, leaves, adjustments, documents, career, objectives, reviews, manager, user] = await Promise.all([
       rh.balanceOf(db, e), rh.leaveQuery(db).where('l.employee_id', e.id).orderBy('l.start_date', 'desc'),
       db('hr_leave_adjustments as a').leftJoin('users as u', 'u.id', 'a.created_by').where('a.employee_id', e.id).orderBy('a.date', 'desc').select('a.*', 'u.name as created_by_name'),
-      level === 'manager' ? [] : db('hr_documents as d').leftJoin('users as u', 'u.id', 'd.uploaded_by').where('d.employee_id', e.id).orderBy('d.created_at', 'desc').select('d.*', 'u.name as uploaded_by_name'),
+      !docsAccess ? [] : db('hr_documents as d').leftJoin('users as u', 'u.id', 'd.uploaded_by').where('d.employee_id', e.id).orderBy('d.created_at', 'desc').select('d.*', 'u.name as uploaded_by_name'),
       rh.careerOf(db, e.id, { withPay }), rh.objectivesOf(db, e, year), db('hr_reviews').where({ employee_id: e.id }).orderBy('year', 'desc'),
       e.manager_id ? db('employees').where({ id: e.manager_id }).first('id', 'last_name', 'first_name') : null,
       e.user_id ? db('users').where({ id: e.user_id }).first('id', 'name', 'email', 'role') : null,
     ]);
     res.json({
-      access: level, year, employee: paie.serializeEmployee(e, { withPay }), manager, user, balance,
+      access: level, documents_access: docsAccess, year, employee: paie.serializeEmployee(e, { withPay }), manager, user, balance,
       leaves: leaves.map(rh.serializeLeave), adjustments: adjustments.map(a => ({ ...a, date: isoDay(a.date), days: Number(a.days) })),
       documents: documents.map(d => ({ ...d, expires_at: isoDay(d.expires_at), url: `/api/admin/erp/rh/documents/${d.id}/file` })), career, objectives, reviews,
     });
@@ -348,8 +364,9 @@ module.exports = function rhRoutes(db) {
   r.get('/documents/:id/file', ah(async (req, res) => {
     const d = await db('hr_documents').where({ id: idParam(req) }).first();
     if (!d) throw new HttpError(404, 'Document introuvable.');
-    const level = await access(req, await rh.getEmployee(db, d.employee_id));
-    if (level === 'manager') throw new HttpError(403, 'Droits insuffisants.');
+    const owner = await rh.getEmployee(db, d.employee_id);
+    const level = await access(req, owner);
+    if (level === 'manager' || !canSeeDocuments(req, owner)) throw new HttpError(403, 'Les pièces du dossier se consultent avec le droit « Voir les pièces du dossier du personnel ».');
     res.set('Cache-Control', 'private, no-store');
     const inline = /^(application\/pdf|image\/)/.test(d.mime || '') ? 'inline' : 'attachment';
     res.set('Content-Disposition', `${inline}; filename*=UTF-8''${encodeURIComponent(d.original_name || d.filename)}`);
@@ -366,6 +383,8 @@ module.exports = function rhRoutes(db) {
 
   // ─── Objectifs et entretiens annuels ──────────────────────
   async function canCoach(req, e) {
+    // Pas d'auto-évaluation par ce biais (audit du 30/10) : ses propres objectifs et son entretien sont fixés par son responsable ou le RH
+    if (e.user_id && e.user_id === req.user.id && req.user.role !== 'super_admin') throw new HttpError(403, 'Vos objectifs et votre entretien sont fixés par votre responsable direct ou le service RH.');
     if (req.can('evaluation:write')) return true;
     if (await rh.isManagerOf(db, req.user.id, e)) return true;
     throw new HttpError(403, 'Seuls le responsable direct et le service RH fixent les objectifs.');

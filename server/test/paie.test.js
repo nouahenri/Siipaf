@@ -56,7 +56,9 @@ test('fiches reliées aux comptes du dashboard, sans doublon', async () => {
   assert.equal((await comptable.post(`${P}/employees/from-users`).send({ user_ids: [user.id], hire_date: `${year}-02-01` })).body.created, 0);
   koffi = (await db('employees').where({ user_id: user.id }).first());
   assert.equal(koffi.department, 'commercial');
-  res = await comptable.patch(`${P}/employees/${awa.id}`).send({ user_id: user.id });
+  // Changer le compte d'une fiche existante demande « Modifier un compte » (audit du 30/10) : le comptable seul est refusé
+  assert.equal((await comptable.patch(`${P}/employees/${awa.id}`).send({ user_id: user.id })).status, 403);
+  res = await admin.patch(`${P}/employees/${awa.id}`).send({ user_id: user.id });
   assert.equal(res.status, 409, 'un compte = une fiche');
   await comptable.patch(`${P}/employees/${koffi.id}`).send({ base_salary: 250000, hire_date: `${year}-03-16`, pay_method: 'mobile_money', job_title: 'Commercial terrain' });
 });

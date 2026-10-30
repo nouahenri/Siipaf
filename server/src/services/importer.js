@@ -193,7 +193,7 @@ async function runImport(db, { mode, rows, dryRun, createLots, openAccess: withA
     if (!existing || existing.created_by !== user.id) throw new HttpError(404, 'Liste d’import introuvable.');
     assignTo = existing.assigned_to;
   } else if (!seesAllLeads(user)) assignTo = user.id;
-  if (assignTo && !(await db('users').where({ id: assignTo, active: true }).first('id'))) throw new HttpError(400, 'Commercial introuvable ou désactivé.');
+  if (assignTo) await require('./commercial').assertSeller(db, assignTo, 'Commercial introuvable ou désactivé.');
   if (!dryRun && !importId && list) {
     importId = await createImport(db, { name: list.name || list.filename || `Import du ${new Date().toLocaleDateString('fr-FR')}`, filename: list.filename, mode, assigned_to: assignTo, user });
   }

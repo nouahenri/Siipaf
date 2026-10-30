@@ -15,6 +15,92 @@ const {
 const HOUR = 3600 * 1000;
 const insertedId = r => (typeof r === 'object' ? r.id : r);
 
+// ─── Portée (audit des privilèges du 30/10) ─────────────────
+// Sans « sav:all » (Portée : tout le SAV), un compte ne voit que ce qui concerne ses clients (prospect attribué à lui)
+// ou ce qui lui est confié (réclamation attribuée, intervention dont il est le technicien).
+const seesAllSav = user => (user.permissions || []).some(p => p === '*' || p === 'sav:all');
+
+/** Réclamations : requête sur « sav_tickets as t » jointe à « leads as ld ». */
+function scopeTickets(q, user) {
+  if (!seesAllSav(user)) q.where(b => b.where('ld.assigned_to', user.id).orWhere('t.assigned_to', user.id));
+  return q;
+}
+/** Réserves : requête sur « sav_reserves as r » jointe à « sales as s » puis « leads as ld ». */
+function scopeReserves(q, user, db) {
+  if (!seesAllSav(user)) {
+    q.where(b => b.where('ld.assigned_to', user.id)
+      .orWhereIn('r.ticket_id', db('sav_tickets').where('assigned_to', user.id).select('id'))
+      .orWhereIn('r.id', db('sav_interventions').where('technician_id', user.id).whereNotNull('reserve_id').select('reserve_id')));
+  }
+  return q;
+}
+/** Interventions : requête sur « sav_interventions as i » jointe à « sav_tickets as t » et au prospect « ld ». */
+function scopeInterventions(q, user) {
+  if (!seesAllSav(user)) q.where(b => b.where('ld.assigned_to', user.id).orWhere('t.assigned_to', user.id).orWhere('i.technician_id', user.id));
+  return q;
+}
+const interventionQuery = db => db('sav_interventions as i').leftJoin('sav_tickets as t', 't.id', 'i.ticket_id')
+  .leftJoin('sav_reserves as rs', 'rs.id', 'i.reserve_id').leftJoin('sales as s', 's.id', db.raw('coalesce(t.sale_id, rs.sale_id)'))
+  .leftJoin('leads as ld', 'ld.id', 's.lead_id');
+
+/** Réclamation dans la portée du compte, sinon 404 (on ne révèle pas qu'elle existe). */
+async function ticketInScope(db, id, user) {
+  if (seesAllSav(user)) return;
+  const row = await scopeTickets(db('sav_tickets as t').leftJoin('leads as ld', 'ld.id', 't.lead_id'), user).where('t.id', id).first('t.id');
+  if (!row) throw new HttpError(404, 'Réclamation introuvable.');
+}
+/**
+ * Dossiers (requête sur « sales as s » jointe à « leads as ld ») : son client, ou un dossier dont une réclamation ou une
+ * intervention lui est confiée. Même règle pour la liste, le détail et les dépôts de photos (jamais « leads:all »).
+ */
+function scopeSales(q, user, db) {
+  if (!seesAllSav(user)) {
+    q.where(b => b.where('ld.assigned_to', user.id)
+      .orWhereIn('s.id', db('sav_tickets').where('assigned_to', user.id).whereNotNull('sale_id').select('sale_id'))
+      .orWhereIn('s.id', db('sav_reserves as r').join('sav_interventions as i', 'i.reserve_id', 'r.id').where('i.technician_id', user.id).select('r.sale_id')));
+  }
+  return q;
+}
+/** Dossier dans la portée du compte, sinon 404. */
+async function saleInScope(db, id, user) {
+  if (seesAllSav(user)) return;
+  const row = await scopeSales(db('sales as s').join('leads as ld', 'ld.id', 's.lead_id'), user, db).where('s.id', id).first('s.id');
+  if (!row) throw new HttpError(404, 'Dossier introuvable.');
+}
+/** Client (prospect) dans la portée du SAV : ses clients, les clients de ses dossiers et de ses réclamations confiées, sinon 404. */
+async function leadInSavScope(db, leadId, user, message = 'Client introuvable.') {
+  const q = db('leads as ld').where('ld.id', leadId);
+  if (!seesAllSav(user)) {
+    q.where(b => b.where('ld.assigned_to', user.id)
+      .orWhereIn('ld.id', db('sav_tickets').where('assigned_to', user.id).whereNotNull('lead_id').select('lead_id'))
+      .orWhereIn('ld.id', scopeSales(db('sales as s').join('leads as sl', 'sl.id', 's.lead_id'), user, db).select('s.lead_id')));
+  }
+  const lead = await q.first('ld.id');
+  if (!lead) throw new HttpError(404, message);
+  return lead;
+}
+async function reserveInScope(db, id, user) {
+  if (seesAllSav(user)) return;
+  const row = await scopeReserves(db('sav_reserves as r').join('sales as s', 's.id', 'r.sale_id').join('leads as ld', 'ld.id', 's.lead_id'), user, db).where('r.id', id).first('r.id');
+  if (!row) throw new HttpError(404, 'Réserve introuvable.');
+}
+async function interventionInScope(db, id, user) {
+  if (seesAllSav(user)) return;
+  const row = await scopeInterventions(interventionQuery(db), user).where('i.id', id).first('i.id');
+  if (!row) throw new HttpError(404, 'Intervention introuvable.');
+}
+/** Photo ou vidéo : celle qu'on a déposée, celle d'un de ses clients, ou jointe à une réclamation ou intervention qui nous est confiée. */
+async function fileInScope(db, file, user) {
+  if (seesAllSav(user) || file.uploaded_by === user.id) return true;
+  if (file.lead_id && await db('leads').where({ id: file.lead_id, assigned_to: user.id }).first('id')) return true;
+  const has = v => json(v, []).map(Number).includes(file.id);
+  const tickets = await db('sav_tickets').where('assigned_to', user.id).select('id', 'media');
+  const ids = tickets.map(t => t.id);
+  const interv = await db('sav_interventions').where(b => b.where('technician_id', user.id).orWhereIn('ticket_id', ids.length ? ids : [0])).select('media_before', 'media_after');
+  const events = ids.length ? await db('sav_events').whereIn('ticket_id', ids).select('media') : [];
+  return tickets.some(t => has(t.media)) || events.some(e => has(e.media)) || interv.some(i => has(i.media_before) || has(i.media_after));
+}
+
 // ─── Photos jointes ─────────────────────────────────────────
 // Rangées hors de la partie publique de /uploads (app.js bloque /uploads/private).
 const savFilesDir = path.join(uploadsDir, 'private', 'sav');
@@ -245,17 +331,27 @@ async function ticketDetail(db, ticketId, { forClient = false } = {}) {
 }
 
 /** Indicateurs du tableau de bord SAV. */
-async function savStats(db, now = new Date()) {
+async function savStats(db, now = new Date(), user = null) {
+  // Sans « sav:all », les chiffres ne portent que sur ce qui concerne le compte (clients attribués, réclamations confiées)
+  const T = () => {
+    const q = db('sav_tickets as t').leftJoin('leads as ld', 'ld.id', 't.lead_id');
+    return user ? scopeTickets(q, user) : q;
+  };
+  const reservesQ = () => {
+    const q = db('sav_reserves as r').join('sales as s', 's.id', 'r.sale_id').join('leads as ld', 'ld.id', 's.lead_id');
+    return user ? scopeReserves(q, user, db) : q;
+  };
+  const interventionsQ = () => (user ? scopeInterventions(interventionQuery(db), user) : interventionQuery(db));
   const [byStatus, byCategory, byProject, open, resolvedRows, rated, reserves, upcoming] = await Promise.all([
-    db('sav_tickets').select('status').count({ n: '*' }).groupBy('status'),
-    db('sav_tickets').select('category').count({ n: '*' }).groupBy('category'),
-    db('sav_tickets as t').leftJoin('projects as p', 'p.id', 't.project_id').whereIn('t.status', SAV_OPEN_STATUSES)
+    T().select('t.status').count({ n: '*' }).groupBy('t.status'),
+    T().select('t.category').count({ n: '*' }).groupBy('t.category'),
+    T().leftJoin('projects as p', 'p.id', 't.project_id').whereIn('t.status', SAV_OPEN_STATUSES)
       .select('p.name').count({ n: '*' }).groupBy('p.id', 'p.name'),
-    db('sav_tickets').whereIn('status', SAV_OPEN_STATUSES).select('due_at', 'priority'),
-    db('sav_tickets').whereNotNull('resolved_at').select('created_at', 'resolved_at', 'due_at'),
-    db('sav_tickets').whereNotNull('satisfaction').avg({ avg: 'satisfaction' }).count({ n: '*' }),
-    db('sav_reserves').select('status').count({ n: '*' }).groupBy('status'),
-    db('sav_interventions').where('status', 'planifiee').where('scheduled_at', '>=', now).count({ n: '*' }),
+    T().whereIn('t.status', SAV_OPEN_STATUSES).select('t.due_at', 't.priority'),
+    T().whereNotNull('t.resolved_at').select('t.created_at', 't.resolved_at', 't.due_at'),
+    T().whereNotNull('t.satisfaction').avg({ avg: 't.satisfaction' }).count({ n: '*' }),
+    reservesQ().select('r.status').count({ n: '*' }).groupBy('r.status'),
+    interventionsQ().where('i.status', 'planifiee').where('i.scheduled_at', '>=', now).count({ n: '*' }),
   ]);
   const time = v => new Date(typeof v === 'number' || /^\d+$/.test(v) ? Number(v) : v).getTime();
   const hours = resolvedRows.map(r => (time(r.resolved_at) - time(r.created_at)) / HOUR);
@@ -267,7 +363,7 @@ async function savStats(db, now = new Date()) {
     months.push({ month: `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`, ouvertes: 0, resolues: 0 });
   }
   const key = v => { const d = new Date(time(v)); return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`; };
-  const all = await db('sav_tickets').where('created_at', '>=', new Date(now.getFullYear(), now.getMonth() - 5, 1)).select('created_at');
+  const all = await T().where('t.created_at', '>=', new Date(now.getFullYear(), now.getMonth() - 5, 1)).select('t.created_at');
   all.forEach(r => { const m = months.find(x => x.month === key(r.created_at)); if (m) m.ouvertes++; });
   resolvedRows.forEach(r => { const m = months.find(x => x.month === key(r.resolved_at)); if (m) m.resolues++; });
   const obj = (rows, k) => Object.fromEntries(rows.map(r => [r[k], Number(r.n)]));
@@ -388,5 +484,6 @@ async function updateIntervention(db, id, patch, { userId }) {
 module.exports = {
   createTicket, changeStatus, addComment, rate, ticketDetail, savStats, dueFrom, addEvent, nextRef,
   createReserve, setReserveStatus, reserveToTicket, createIntervention, updateIntervention,
+  seesAllSav, scopeTickets, scopeReserves, scopeInterventions, scopeSales, interventionQuery, ticketInScope, saleInScope, leadInSavScope, reserveInScope, interventionInScope, fileInScope,
   checkFiles, filesById, shareFiles, photoUpload, saveFiles, savFilesDir, FILE_URL,
 };

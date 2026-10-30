@@ -2,7 +2,7 @@ import { useState } from 'react';
 import { useOutletContext } from 'react-router-dom';
 import { Mail, Phone, Archive, Check } from 'lucide-react';
 import { api, qs } from '../lib/api';
-import { useResource, useToast } from '../lib/app-context';
+import { useAuth, useResource, useToast } from '../lib/app-context';
 import { Card, Drawer, Badge, Empty, ErrorBox, Skeleton } from '../components/ui';
 import { dateTime, relative } from '../lib/format';
 
@@ -10,6 +10,7 @@ const STATUS = { nouveau: { label: 'Nouveau', tone: 'brand' }, traite: { label: 
 
 export default function Messages() {
   const toast = useToast();
+  const { can } = useAuth();
   const { stats } = useOutletContext(); // pastille « nouveaux » du menu
   const [status, setStatus] = useState('nouveau');
   const [open, setOpen] = useState(null);
@@ -54,10 +55,10 @@ export default function Messages() {
         <Drawer
           title={open.name}
           onClose={() => setOpen(null)}
-          footer={<>
+          footer={can('contacts:handle') ? <>
             {open.status !== 'archive' && <button className="btn" onClick={() => setMsgStatus(open, 'archive')}><Archive />Archiver</button>}
             {open.status !== 'traite' && <button className="btn btn-primary" onClick={() => setMsgStatus(open, 'traite')}><Check />Marquer traité</button>}
-          </>}
+          </> : null}
         >
           <div className="row">
             {open.phone && <a className="btn btn-sm" href={`tel:${open.phone}`}><Phone />{open.phone}</a>}

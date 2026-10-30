@@ -8,11 +8,12 @@ const { z } = require('zod');
 const { ah, parse, idParam, HttpError } = require('../lib/http');
 const { requirePermission } = require('../auth');
 const pf = require('../services/portfolio');
-const { canAssignLeads, leadInScope, seesAllLeads } = require('../services/commercial');
+const { canAssignLeads, leadInScope, seesAllLeads, assertSeller } = require('../services/commercial');
 const { inform, notify } = require('../services/notifications');
 const { effectivePermissions } = require('../services/permissions');
 
 const day = z.string().regex(/^\d{4}-\d{2}-\d{2}$/).optional();
+const MAX_PENDING_REQUESTS = 5;
 
 module.exports = function portfolioRoutes(db) {
   const r = express.Router();
@@ -29,6 +30,7 @@ module.exports = function portfolioRoutes(db) {
   // Attribuer, répartir ou transférer : le responsable seulement (leads:assign). Un commercial demande le transfert.
   r.post('/leads/assign', requirePermission('leads:assign'), ah(async (req, res) => {
     const data = parse(z.object({ ids: z.array(z.number().int().positive()).min(1).max(1000), user_id: z.number().int().positive().nullable() }), req.body);
+    await assertSeller(db, data.user_id);
     const clients = await db('leads').whereIn('id', data.ids).whereNotNull('client_code').pluck('id');
     const ids = data.ids.filter(id => !clients.includes(id));
     res.json({ changed: ids.length ? await pf.assign(db, ids, data.user_id, req.user.id) : 0, clients_skipped: clients.length });
@@ -93,9 +95,13 @@ module.exports = function portfolioRoutes(db) {
     const to = mine || manager ? (data.to_user_id ?? null) : req.user.id;
     if (!mine && !lead.assigned_to && !seesAllLeads(req.user)) throw new HttpError(404, 'Prospect introuvable.');
     if (to === lead.assigned_to) throw new HttpError(400, 'Ce prospect est déjà suivi par ce commercial.');
-    if (to && !(await db('users').where({ id: to, active: true }).first('id'))) throw new HttpError(400, 'Commercial introuvable ou désactivé.');
+    await assertSeller(db, to, 'Commercial introuvable ou désactivé.');
     if (await db('lead_transfer_requests').where({ lead_id: leadId, status: 'en_attente' }).first('id')) {
       throw new HttpError(409, 'Une demande de transfert est déjà en attente pour cette personne.');
+    }
+    // Pas plus de MAX_PENDING_REQUESTS demandes en attente par demandeur (audit du 30/10) : freine le sondage de fiches par identifiant
+    if (!mine && !manager && Number((await db('lead_transfer_requests').where({ requested_by: req.user.id, status: 'en_attente' }).count({ n: '*' }))[0].n) >= MAX_PENDING_REQUESTS) {
+      throw new HttpError(429, `Vous avez déjà ${MAX_PENDING_REQUESTS} demandes de transfert en attente : attendez la décision du responsable.`);
     }
     // Client : l'accord de celui qui demande vaut pour son étape (responsable commercial ou administrateur général)
     const client = !!lead.client_code, now = new Date();
@@ -116,8 +122,10 @@ module.exports = function portfolioRoutes(db) {
     // Le commercial actuel est prévenu qu'un collègue demande à reprendre son prospect
     if (!mine && lead.assigned_to) {
       await notify(db, { to: [lead.assigned_to], module: 'commercial', event: 'prospect.transfert_demande', key: `transfert:${tId}:titulaire`,
-        title: `${req.user.name} demande à reprendre ${lead.name}`, body: `Motif : ${data.reason}. Le responsable décidera.`, link: '/commercial/pipeline' });
+        title: `${req.user.name} demande à reprendre ${lead.name}`, body: 'Le responsable décidera.', link: '/commercial/pipeline' });
     }
+    // Une personne suivie par un collègue, hors de sa portée : ni nom ni code client dans la réponse (audit du 30/10)
+    if (!mine && !manager && !seesAllLeads(req.user)) return res.status(201).json({ id: tId, status: 'en_attente' });
     res.status(201).json(await oneRow(tId));
   }));
 

@@ -43,8 +43,8 @@ const query = db => db('mail_items as m')
 
 /** Contexte de visibilité d'un compte : son service (fiche employé) et ses droits. */
 async function viewer(db, user, can) {
-  const e = await db('employees').where({ user_id: user.id }).first('department');
-  return { userId: user.id, can, department: e?.department || null };
+  const e = await db('employees').where({ user_id: user.id }).first('id', 'department');
+  return { userId: user.id, can, department: e?.department || null, employeeId: e?.id || null };
 }
 
 function serialize(m, v, replies = []) {

@@ -115,6 +115,8 @@ async function placeOption(db, { lotId, leadData, userId = null, user = null }) 
       if (!lead.created && lead.assigned_to && lead.assigned_to !== user.id) {
         throw new HttpError(409, 'Cette personne est déjà suivie par un autre commercial. Pour la reprendre, demandez son transfert au responsable.', { lead_id: lead.id, transfer: true });
       }
+      // Fiche existante sans commercial : à attribuer par le responsable (audit du 30/10), rien n'est divulgué
+      if (!lead.created && !lead.assigned_to) throw new HttpError(409, 'Cette personne est déjà suivie : demandez son attribution au responsable.');
       if (lead.created || !lead.assigned_to) await trx('leads').where({ id: lead.id }).update({ assigned_to: user.id });
     }
 

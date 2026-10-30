@@ -180,8 +180,9 @@ async function achieved(db, { from, to, userId = null }) {
 async function plannedFor(trx, lead, assignedTo, user) {
   const chosen = assignedTo || lead.assigned_to || user.id;
   if (!seesAllLeads(user) && chosen !== user.id) throw new HttpError(403, 'Un commercial ne planifie que pour lui-même.');
-  if (chosen !== user.id && !(await sellers(trx)).some(s => s.id === chosen)) throw new HttpError(400, 'Commercial introuvable ou inactif.');
-  if (!lead.assigned_to && assignedTo && canAssignLeads(user)) {
+  if (chosen !== user.id) await assertSeller(trx, chosen);
+  // Une fiche déjà cliente (code client) ne change pas de commercial ainsi : demande de changement validée par la hiérarchie
+  if (!lead.assigned_to && !lead.client_code && assignedTo && canAssignLeads(user)) {
     await trx('leads').where({ id: lead.id }).update({ assigned_to: chosen, updated_at: new Date() });
     await logActivity(trx, lead.id, { kind: 'systeme', summary: `Attribué à ${(await trx('users').where({ id: chosen }).first('name'))?.name || 'un commercial'} en planifiant`, userId: user.id });
     await require('./portfolio').syncLead(trx, lead.id, { by: user.id });
@@ -189,9 +190,24 @@ async function plannedFor(trx, lead, assignedTo, user) {
   return chosen;
 }
 
+/** Le destinataire d'une attribution est un commercial actif (audit du 30/10), pas n'importe quel compte. */
+async function assertSeller(db, userId, message = 'Commercial introuvable ou inactif.') {
+  if (userId && !(await sellers(db)).some(s => s.id === userId)) throw new HttpError(400, message);
+}
+
 async function sellers(db) {
-  const roles = db('role_permissions').whereIn('permission', ['leads:create', 'leads:edit']).select('role');
-  return db('users').where({ active: true }).where(q => q.whereIn('role', roles).orWhereIn('role', ['commercial', 'super_admin'])).orderBy('name').select('id', 'name', 'role');
+  // Droit du rôle (ou rôle « commercial » / super administrateur), puis privilèges individuels : accordé ajoute, retiré enlève
+  const roleRows = await db('role_permissions').whereIn('permission', ['leads:create', 'leads:edit']).select('role', 'permission');
+  const overrides = await db('user_permissions').whereIn('permission', ['leads:create', 'leads:edit']).select('user_id', 'permission', 'granted');
+  const users = await db('users').where({ active: true }).orderBy('name').select('id', 'name', 'role');
+  return users.filter(u => {
+    if (u.role === 'super_admin') return true;
+    return ['leads:create', 'leads:edit'].some(p => {
+      const own = overrides.find(o => o.user_id === u.id && o.permission === p);
+      if (own) return !!own.granted;
+      return u.role === 'commercial' || roleRows.some(r => r.role === u.role && r.permission === p);
+    });
+  });
 }
 
 /**
@@ -276,4 +292,4 @@ async function dashboard(db, user, now = new Date()) {
   };
 }
 
-module.exports = { STAGE_LABELS, plannedFor, seesAllLeads, canAssignLeads, scopeLeads, leadInScope, saleInScope, logActivity, changeStage, serializeActivity, leadHistory, pipeline, achieved, sellers, targetsReport, dashboard, monthKey, monthRange, isoDay };
+module.exports = { STAGE_LABELS, plannedFor, assertSeller, seesAllLeads, canAssignLeads, scopeLeads, leadInScope, saleInScope, logActivity, changeStage, serializeActivity, leadHistory, pipeline, achieved, sellers, targetsReport, dashboard, monthKey, monthRange, isoDay };
