@@ -19,7 +19,9 @@ function createApp(db) {
     // blob: : images lues dans le navigateur avant envoi (dimensions d'une photo, import d'un plan)
     contentSecurityPolicy: { directives: { 'img-src': ["'self'", 'data:', 'blob:'] } },
   }));
-  app.use(express.json({ limit: '2mb' }));
+  // Import Sage : un exercice complet peut peser plus lourd que le reste des requêtes
+  const bigJson = express.json({ limit: '25mb' }), json = express.json({ limit: '2mb' });
+  app.use((req, res, next) => (req.path === '/api/admin/erp/compta/import/sage' ? bigJson : json)(req, res, next));
   app.use(cookieParser());
 
   // CORS : seul le site public (autre domaine) appelle l'API publique

@@ -415,6 +415,33 @@ module.exports = function comptaRoutes(db) {
     res.send(csv);
   }));
 
+  // ─── Import Sage (plan comptable, écritures, soldes d'ouverture) ─────────
+  const sage = require('../../services/sageImport');
+  r.get('/import/sage', read, ah(async (req, res) => res.json({
+    kinds: sage.KINDS, date_formats: sage.DATE_FORMATS, saved: (await ct.getSettings(db)).sage_import || {},
+    fiscal_years: await db('acc_fiscal_years').orderBy('start_date', 'desc').select('id', 'label', 'status'),
+  })));
+  r.post('/import/sage', requirePermission('compta:entries', 'compta:settings', 'compta:close'), ah(async (req, res) => {
+    const data = parse(z.object({
+      kind: z.enum(Object.keys(sage.KINDS)), dry_run: z.boolean().default(true),
+      rows: z.array(z.object({ line: z.number().int().positive(), cells: z.array(z.union([z.string().max(500), z.number(), z.null()])).max(60) })).min(1).max(100000),
+      mapping: z.record(z.number().int().min(0).max(59)), headers: z.array(z.string().max(200)).max(60).optional(),
+      options: z.object({
+        date_format: z.enum(sage.DATE_FORMATS).default('JJMMAAAA'), decimal: z.enum([',', '.']).default(','),
+        create_accounts: z.boolean().default(false), create_journals: z.boolean().default(false), update_labels: z.boolean().default(false),
+        validate: z.boolean().default(false), fiscal_year_id: z.number().int().positive().optional(),
+      }).default({}),
+    }), req.body);
+    const out = await sage.run(db, { kind: data.kind, rows: data.rows, mapping: data.mapping, options: data.options, dryRun: data.dry_run, user: req.user, can: p => req.can(p) });
+    // Correspondance retenue (par intitulé de colonne) et format : proposés au prochain import du même type
+    if (!data.dry_run && !out.errors.length && data.headers && req.can('compta:settings')) {
+      const current = (await ct.getSettings(db)).sage_import || {};
+      const byHeader = Object.fromEntries(Object.entries(data.mapping).map(([f, i]) => [f, data.headers[i] || null]).filter(([, h]) => h));
+      await ct.saveSettings(db, { sage_import: { ...current, [data.kind]: { mapping: byHeader, date_format: data.options.date_format, decimal: data.options.decimal } } });
+    }
+    res.status(!data.dry_run && !out.errors.length && (out.summary.created || out.summary.entry_id) ? 201 : 200).json(out);
+  }));
+
   r.get('/settings', read, ah(async (req, res) => res.json(await ct.getSettings(db))));
   r.put('/settings', requirePermission('compta:settings'), ah(async (req, res) => {
     const data = parse(z.object({

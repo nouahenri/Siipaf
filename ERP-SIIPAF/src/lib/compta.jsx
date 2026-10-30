@@ -24,7 +24,7 @@ export const signed = n => (n < 0 ? `(${amt(-n)})` : amt(n, { zero: '0' }));
 export const STATUS = { brouillon: { label: 'Brouillon', tone: 'warn' }, valide: { label: 'Validée', tone: 'ok' } };
 export const SOURCES = {
   manuel: 'Saisie manuelle', versement: 'Versement client', appel_fonds: 'Appel de fonds VEFA', tma: 'Travaux modificatifs (TMA)', vente: 'Vente constatée',
-  achat: 'Facture d’achat', reglement: 'Règlement fournisseur', an: 'À-nouveaux', contrepassation: 'Contrepassation', paie: 'Paie',
+  achat: 'Facture d’achat', reglement: 'Règlement fournisseur', an: 'À-nouveaux', contrepassation: 'Contrepassation', paie: 'Paie', sage: 'Import Sage',
 };
 export const PAYMENT_STATUS = {
   a_payer: { label: 'À payer', tone: 'warn' }, en_retard: { label: 'En retard', tone: 'danger' }, partielle: { label: 'Partiellement payée', tone: 'warn' }, payee: { label: 'Payée', tone: 'ok' },

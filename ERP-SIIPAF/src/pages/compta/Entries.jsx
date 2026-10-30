@@ -1,12 +1,13 @@
 import { useEffect, useState } from 'react';
 import { useSearchParams } from 'react-router-dom';
-import { Plus, Search, RefreshCw, CheckCheck, Trash2, RotateCcw, BookOpen, Lock } from 'lucide-react';
+import { Plus, Search, RefreshCw, CheckCheck, Trash2, RotateCcw, BookOpen, Lock, Upload } from 'lucide-react';
 import { api, qs } from '@admin/lib/api';
 import { useAuth, useResource, useToast, useSaved } from '@admin/lib/app-context';
 import { Card, Empty, Skeleton, ErrorBox, Drawer, Modal, Field, Badge, Pagination } from '@admin/components/ui';
 import { date, dateTime } from '@admin/lib/format';
 import { useComptaMeta, amt, STATUS, SOURCES, AccountInput } from '../../lib/compta';
 import { PendingPayments, ClientPaymentButton } from './ClientPayments';
+import SageImport from './SageImport';
 
 export default function Entries() {
   const { can } = useAuth();
@@ -19,6 +20,7 @@ export default function Entries() {
   const [pageSize, setPageSize] = useState(25);
   const [selected, setSelected] = useState([]);
   const [creating, setCreating] = useState(false);
+  const [importing, setImporting] = useState(false);
   const filters = { journal_id: params.get('journal_id') || '', status: params.get('status') || '', source: params.get('source') || '', from: params.get('from') || '', to: params.get('to') || '' };
   const openId = Number(params.get('e')) || null;
   useEffect(() => { const t = setTimeout(() => { setDebounced(q); setPage(1); }, 300); return () => clearTimeout(t); }, [q]);
@@ -70,6 +72,7 @@ export default function Entries() {
           {/* Versement d'un client : enregistré dans son dossier, puis passé en écriture par « Synchroniser » */}
           <ClientPaymentButton />
           {can('compta:entries') && <button className="btn" onClick={sync}><RefreshCw />Synchroniser</button>}
+          {['compta:entries', 'compta:settings', 'compta:close'].some(can) && <button className="btn" onClick={() => setImporting(true)}><Upload />Importer de Sage</button>}
           {can('compta:validate') && selected.length > 0 && <button className="btn btn-primary" onClick={() => validate(selected)}><CheckCheck />Valider {selected.length}</button>}
           {can('compta:entries') && <button className="btn btn-primary" onClick={() => setCreating(true)}><Plus />Écriture</button>}
         </div>
@@ -104,6 +107,7 @@ export default function Entries() {
         )}
       </Card>
       {openId && <EntryDrawer id={openId} onClose={() => set('e', '')} onChange={() => list.reload()} />}
+      {importing && <SageImport onClose={() => setImporting(false)} onDone={() => list.reload()} />}
       {creating && <EntryForm onClose={() => setCreating(false)} onSaved={e => { setCreating(false); list.reload(); set('e', String(e.id)); }} />}
     </div>
   );
