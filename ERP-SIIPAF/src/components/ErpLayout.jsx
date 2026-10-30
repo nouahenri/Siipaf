@@ -45,7 +45,7 @@ const MODULES = {
     items: [
       { to: '/commercial', label: 'Tableau de bord', icon: LayoutDashboard, end: true, perm: 'commercial:read' },
       { to: '/commercial/pipeline', label: 'Pipeline', icon: Columns3, perm: 'leads:read' },
-      { to: '/commercial/activites', label: 'Mes activités', icon: ListTodo, badge: 'late_activities', perm: 'commercial:read' },
+      { to: '/commercial/activites', label: 'Mes activités', icon: ListTodo, badge: 'my_late_activities', perm: 'commercial:read' },
       { to: '/commercial/rendez-vous', label: 'Rendez-vous', icon: CalendarDays, perm: 'appointments:read' },
       // also : droits exigés en plus par le serveur (il réserve le Service commercial à commercial:read)
       { to: '/commercial/parc', label: 'Parc immobilier', icon: Building2, perm: 'lots:read', also: 'commercial:read' },

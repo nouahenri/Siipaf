@@ -1,6 +1,6 @@
 import { Link } from 'react-router-dom';
 import { Banknote, FileSignature, Gauge, Percent, Wallet, AlarmClock, ListTodo, ArrowRight, TrendingUp, TrendingDown, Minus } from 'lucide-react';
-import { useResource } from '@admin/lib/app-context';
+import { useAuth, useResource } from '@admin/lib/app-context';
 import { Card, Skeleton, Empty } from '@admin/components/ui';
 import { LineChart, BarList, useCountUp } from '@admin/components/Charts';
 import { fcfa, num } from '@admin/lib/format';
@@ -27,6 +27,7 @@ export function Kpi({ icon: Icon, label, count, format = num, foot, trend, to, t
 }
 
 export default function CommercialDashboard() {
+  const { can } = useAuth();
   const meta = useCommercialMeta();
   const d = useResource('/admin/erp/commercial/dashboard').data;
   if (!d) return <div className="grid grid-4">{[1, 2, 3, 4].map(i => <Skeleton key={i} h={110} />)}</div>;
@@ -45,7 +46,7 @@ export default function CommercialDashboard() {
       </div>
       <div className="grid grid-3">
         <Kpi icon={Gauge} label="Pipeline pondéré" count={d.pipeline_weighted_fcfa} format={v => `${compact(v)} FCFA`} foot={`${d.open_leads} opportunités · ${compact(d.pipeline_value_fcfa)} brut`} tint="green" to="/commercial/pipeline" />
-        <Kpi icon={ListTodo} label="Activités en retard" count={d.late_activities} foot="relances et rappels à faire" to="/commercial/activites" tint={d.late_activities ? 'amber' : undefined} />
+        <Kpi icon={ListTodo} label="Activités en retard" count={d.late_activities} foot={can('leads:all') ? 'relances et rappels de l’équipe' : 'relances et rappels à faire'} to={can('leads:all') ? '/commercial/activites?vue=equipe' : '/commercial/activites'} tint={d.late_activities ? 'amber' : undefined} />
         <Kpi icon={AlarmClock} label="Appels de fonds en retard" count={d.late_fund_calls.n} foot={d.late_fund_calls.n ? `${fcfa(d.late_fund_calls.amount_fcfa)} à recouvrer` : 'aucun impayé VEFA'} to="/commercial/vefa?filter=retard" tint={d.late_fund_calls.n ? 'amber' : undefined} />
       </div>
 

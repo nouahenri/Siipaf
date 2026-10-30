@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import { useSearchParams } from 'react-router-dom';
 import { Clock, ListTodo } from 'lucide-react';
 import { useAuth, useResource } from '@admin/lib/app-context';
 import { Card, Empty, Skeleton, ErrorBox } from '@admin/components/ui';
@@ -8,11 +9,15 @@ import LeadDrawer from './LeadDrawer';
 
 const GROUPS = [['retard', 'En retard'], ['aujourdhui', 'Aujourd’hui'], ['a_venir', 'À venir']];
 
-/** Activités à faire, regroupées par échéance (vue « Mes activités » d'Odoo). */
+/**
+ * Activités à faire (appels, rendez-vous, relances planifiés sur les fiches), regroupées par échéance (vue « Mes activités »
+ * d'Odoo). « Les miennes » par défaut, comme la pastille du menu ; le responsable passe à « Toute l'équipe ».
+ */
 export default function Activities() {
   const { can } = useAuth();
   const meta = useCommercialMeta();
-  const [scope, setScope] = useState('mine');
+  const [params] = useSearchParams();
+  const [scope, setScope] = useState(() => (params.get('vue') === 'equipe' && can('leads:all') ? 'team' : 'mine'));
   const [assigned, setAssigned] = useState('');
   const [leadId, setLeadId] = useState(null);
   const list = useResource(`/admin/erp/commercial/activities?mine=${scope === 'mine' ? '1' : '0'}${scope === 'team' && assigned ? `&assigned_to=${assigned}` : ''}`);

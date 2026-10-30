@@ -231,6 +231,9 @@ async function dashboard(db, user, now = new Date()) {
   });
   const lateActs = await scopeLeads(db('lead_activities as a').join('leads as ld', 'ld.id', 'a.lead_id'), user)
     .whereNull('a.done_at').where('a.due_at', '<', new Date(now.getFullYear(), now.getMonth(), now.getDate())).count({ n: '*' });
+  // Pastille du menu « Mes activités » : les activités en retard du compte lui-même, comme la page (prospects perdus exclus)
+  const myLate = await db('lead_activities as a').join('leads as ld', 'ld.id', 'a.lead_id').where('a.assigned_to', user.id).whereNot('ld.stage', 'perdu')
+    .whereNull('a.done_at').where('a.due_at', '<', new Date(now.getFullYear(), now.getMonth(), now.getDate())).count({ n: '*' });
 
   // Appels de fonds VEFA en retard (échéance dépassée et non couverte par les versements)
   const vefaSales = await scopeLeads(db('sales as s').join('leads as ld', 'ld.id', 's.lead_id'), user).where('s.vefa', true).whereIn('s.status', ['en_cours', 'solde']).select('s.*');
@@ -244,7 +247,7 @@ async function dashboard(db, user, now = new Date()) {
     pipeline_value_fcfa: stages.reduce((s, x) => s + x.value_fcfa, 0),
     pipeline_weighted_fcfa: stages.reduce((s, x) => s + x.weighted_fcfa, 0),
     open_leads: cards.filter(c => PIPELINE_STAGES.includes(c.stage)).length,
-    late_activities: Number(lateActs[0].n),
+    late_activities: Number(lateActs[0].n), my_late_activities: Number(myLate[0].n),
     late_fund_calls: { n: lateCalls, amount_fcfa: lateCallsFcfa },
     sources: Object.fromEntries(sources.map(s => [s.source, Number(s.n)])),
     lost_reasons: Object.fromEntries(lost.map(l => [l.lost_reason, Number(l.n)])),
