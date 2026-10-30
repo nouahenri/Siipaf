@@ -48,7 +48,7 @@ module.exports = function clientAdminRoutes(db) {
       const ds = salesByLead[l.id] || [];
       const live = ds.filter(d => d.status !== 'desiste');
       return {
-        lead_id: l.id, name: l.name, client_code: l.client_code, phone: l.phone, email: l.email, country: l.country,
+        lead_id: l.id, name: l.name, client_code: l.client_code, assigned_to: l.assigned_to || null, phone: l.phone, email: l.email, country: l.country,
         is_diaspora: !!l.is_diaspora, stage: l.stage, sales: ds, property_type: l.property_type || null, legacy_number: l.legacy_number || null, project_name: l.project_name || null,
         price_fcfa: live.reduce((n, d) => n + d.price_fcfa, 0), paid_fcfa: live.reduce((n, d) => n + d.paid_fcfa, 0),
         overdue_fcfa: live.reduce((n, d) => n + d.overdue_fcfa, 0), overdue_count: live.reduce((n, d) => n + d.overdue_count, 0),

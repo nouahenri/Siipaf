@@ -173,6 +173,14 @@ async function leadHistory(db, leadId) {
 }
 
 /** Attribution (ou retrait) d'un ou plusieurs prospects à un commercial, par le responsable. */
+/** Nouveau commercial d'une fiche : ses activités à faire et ses rendez-vous à venir passent chez lui. */
+async function followOwner(trx, leadId, userId) {
+  if (!userId) return;
+  const now = new Date();
+  await trx('lead_activities').where({ lead_id: leadId }).whereNull('done_at').update({ assigned_to: userId, updated_at: now });
+  await trx('appointments').where({ lead_id: leadId }).whereIn('status', ['demande', 'confirme']).where('starts_at', '>=', now).update({ assigned_to: userId, updated_at: now });
+}
+
 async function assign(db, ids, userId, by) {
   if (userId) {
     const u = await db('users').where({ id: userId, active: true }).first('id');
@@ -184,6 +192,7 @@ async function assign(db, ids, userId, by) {
       const lead = await trx('leads').where({ id }).first('id', 'assigned_to');
       if (!lead || (lead.assigned_to || null) === (userId || null)) continue;
       await trx('leads').where({ id }).update({ assigned_to: userId || null, updated_at: new Date() });
+      await followOwner(trx, id, userId);
       await syncLead(trx, id, { by });
       changed += 1;
     }
@@ -245,4 +254,4 @@ async function convertedBy(db, leadIds) {
   return out;
 }
 
-module.exports = { convertedBy, syncLead, recordDeletion, reconcile, stats, leadHistory, assign, createImport, importReports, seesAllLeads };
+module.exports = { followOwner, convertedBy, syncLead, recordDeletion, reconcile, stats, leadHistory, assign, createImport, importReports, seesAllLeads };

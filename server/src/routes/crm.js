@@ -126,6 +126,7 @@ module.exports = function crmRoutes(db) {
     }
     await db.transaction(async trx => {
       await trx('leads').where({ id }).update({ ...data, updated_at: new Date() });
+      if ('assigned_to' in data && (data.assigned_to || null) !== (lead.assigned_to || null)) await require('../services/portfolio').followOwner(trx, id, data.assigned_to);
       await syncLead(trx, id, { by: req.user.id });
     });
     // Historique du prospect (ERP · Commercial) : le changement d'étape y est inscrit
@@ -198,9 +199,13 @@ module.exports = function crmRoutes(db) {
   r.post('/appointments', requirePermission('appointments:create'), ah(async (req, res) => {
     const data = parse(apptSchema, req.body);
     const lead = await leadInScope(db, data.lead_id, req.user);
-    const assignedTo = data.assigned_to ?? (seesAllLeads(req.user) ? lead.assigned_to || req.user.id : req.user.id);
-    if (!seesAllLeads(req.user) && assignedTo !== req.user.id) throw new HttpError(403, 'Un commercial ne planifie que ses propres rendez-vous.');
-    const [id] = await db('appointments').insert({ ...data, source: 'admin', assigned_to: assignedTo });
+    if (!seesAllLeads(req.user) && data.assigned_to && data.assigned_to !== req.user.id) throw new HttpError(403, 'Un commercial ne planifie que ses propres rendez-vous.');
+    // Par défaut le commercial de la fiche ; une fiche à attribuer est attribuée au commercial choisi par le responsable
+    const id = await db.transaction(async trx => {
+      const assignedTo = await require('../services/commercial').plannedFor(trx, lead, data.assigned_to ?? null, req.user);
+      const [newId] = await trx('appointments').insert({ ...data, source: 'admin', assigned_to: assignedTo });
+      return typeof newId === 'object' ? newId.id : newId;
+    });
     res.status(201).json(await db('appointments').where({ id }).first());
   }));
 

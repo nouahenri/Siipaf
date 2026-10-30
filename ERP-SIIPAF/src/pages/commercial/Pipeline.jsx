@@ -58,6 +58,7 @@ export default function Pipeline() {
           {can('leads:all') && (
             <select className="select" style={{ width: 'auto' }} value={assigned} onChange={e => set('assigned_to', e.target.value)} aria-label="Commercial">
               <option value="">Toute l’équipe</option>
+              <option value="aucun">À attribuer</option>
               {meta?.sellers.map(u => <option key={u.id} value={u.id}>{u.name}</option>)}
             </select>
           )}

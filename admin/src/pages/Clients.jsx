@@ -159,7 +159,7 @@ function ClientDrawer({ client, initialTab = 'dossiers', onClose, onOpenLot, onC
         {can('appointments:create') && <button className="btn btn-sm" onClick={() => setAppt(true)}><CalendarPlus />Planifier un rendez-vous</button>}
       </div>
       <ClientStageBar leadId={client.lead_id} stage={client.stage} onChanged={onChanged} />
-      {appt && <ApptModal lead={{ id: client.lead_id, name: client.name }} projectId={live?.project_id ?? null} onClose={() => setAppt(false)} />}
+      {appt && <ApptModal lead={{ id: client.lead_id, name: client.name, assigned_to: client.assigned_to }} projectId={live?.project_id ?? null} onClose={() => setAppt(false)} />}
       <div className="tabs" role="tablist" style={{ marginBottom: 0 }}>
         {tabs.map(([id, label]) => <button key={id} role="tab" aria-selected={tab === id} className={`tab ${tab === id ? 'active' : ''}`} onClick={() => setTab(id)}>{label}</button>)}
       </div>

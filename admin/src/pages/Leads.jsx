@@ -89,7 +89,7 @@ export default function Leads() {
       <TransferRequests onChange={leads.reload} />
       {view === 'liste'
         ? <LeadTable leads={leads} page={page} setPage={setPage} pageSize={pageSize} setPageSize={changePageSize} onOpen={setSelected} sellers={sellers.data} />
-        : <Pipeline leads={leads} onOpen={setSelected} canWrite={can('leads:stage')} />}
+        : <Pipeline leads={leads} onOpen={setSelected} canWrite={can('leads:stage')} filters={{ q, project_id: projectId, assigned_to: seller }} />}
 
       {selected && <LeadDrawer id={selected} onClose={() => setSelected(null)} onSaved={leads.reload} projects={projects.data || []} />}
       {importing && <ImportModal mode="prospects" allowModes={can('clients:import') ? ['prospects', 'clients'] : ['prospects']} onClose={() => setImporting(false)} onDone={() => leads.reload()} />}
@@ -161,11 +161,11 @@ function LeadTable({ leads, page, setPage, pageSize, setPageSize, onOpen, seller
   );
 }
 
-function Pipeline({ leads, onOpen, canWrite }) {
+function Pipeline({ leads, onOpen, canWrite, filters = {} }) {
   const toast = useToast();
   const [over, setOver] = useState(null);
   // Clients (paiement et au-delà) : hors de la liste des prospects, affichés dans leurs colonnes
-  const clients = useResource(`/admin/leads${qs({ type: 'clients', stage: 'paiement,contrat,notaire,sav', limit: 200 })}`);
+  const clients = useResource(`/admin/leads${qs({ type: 'clients', stage: 'paiement,contrat,notaire,sav', limit: 200, ...filters })}`);
   if (leads.loading && !leads.data) return <Skeleton h={300} />;
   const rows = leads.data?.rows || [];
 
@@ -234,7 +234,8 @@ function LeadDrawer({ id, onClose, onSaved, projects }) {
   const wasNew = detail.data && detail.data.alert_at && !detail.data.seen_at;
   useEffect(() => { if (wasNew) { window.dispatchEvent(new Event('siipaf:notifications')); onSaved?.(); } }, [wasNew]); // eslint-disable-line react-hooks/exhaustive-deps
   // Nouveau prospect : attribué d'office à celui qui établit le contact (modifiable)
-  const [form, setForm] = useState(id ? null : { ...EMPTY, assigned_to: String(user.id) });
+  // Nouveau prospect : à attribuer quand c'est le responsable qui le crée (il le confie ensuite), sinon au commercial qui le crée
+  const [form, setForm] = useState(id ? null : { ...EMPTY, assigned_to: can('leads:assign') ? '' : String(user.id) });
   const [error, setError] = useState(null);
   const [busy, setBusy] = useState(false);
   const [appt, setAppt] = useState(null);

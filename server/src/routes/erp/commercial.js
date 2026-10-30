@@ -108,6 +108,7 @@ module.exports = function commercialRoutes(db) {
     await db.transaction(async trx => {
       await trx('leads').where({ id: lead.id }).update({ ...data, updated_at: new Date() });
       if (data.assigned_to !== undefined && data.assigned_to !== lead.assigned_to) {
+        await require('../../services/portfolio').followOwner(trx, lead.id, data.assigned_to);
         const u = data.assigned_to ? await trx('users').where({ id: data.assigned_to }).first('name') : null;
         await cm.logActivity(trx, lead.id, { kind: 'systeme', summary: u ? `Attribué à ${u.name}` : 'Plus de commercial attribué', userId: req.user.id });
       }
@@ -152,15 +153,18 @@ module.exports = function commercialRoutes(db) {
     const data = parse(z.object(activityFields), req.body);
     checkAssignee(req, data.assigned_to);
     if (data.kind !== 'note' && !data.due_at) throw new HttpError(400, 'Indiquez la date de l’activité.');
-    // Une note s'inscrit directement dans l'historique
-    const row = {
-      lead_id: lead.id, kind: data.kind, summary: data.summary || ACTIVITY_KINDS[data.kind], note: data.note,
-      due_at: data.due_at ? new Date(data.due_at) : null, done_at: data.kind === 'note' ? new Date() : null,
-      assigned_to: data.assigned_to || (cm.seesAllLeads(req.user) ? lead.assigned_to : null) || req.user.id, created_by: req.user.id,
-    };
     if (data.kind === 'note' && !data.note) throw new HttpError(400, 'Note vide.');
-    const [id] = await db('lead_activities').insert(row);
-    await db('leads').where({ id: lead.id }).update({ updated_at: new Date() });
+    const id = await db.transaction(async trx => {
+      // Par défaut le commercial de la fiche ; une fiche à attribuer est attribuée au commercial choisi par le responsable
+      const assignedTo = await cm.plannedFor(trx, lead, data.assigned_to, req.user);
+      // Une note s'inscrit directement dans l'historique
+      const [newId] = await trx('lead_activities').insert({
+        lead_id: lead.id, kind: data.kind, summary: data.summary || ACTIVITY_KINDS[data.kind], note: data.note,
+        due_at: data.due_at ? new Date(data.due_at) : null, done_at: data.kind === 'note' ? new Date() : null, assigned_to: assignedTo, created_by: req.user.id,
+      });
+      await trx('leads').where({ id: lead.id }).update({ updated_at: new Date() });
+      return newId;
+    });
     res.status(201).json(cm.serializeActivity(await db('lead_activities').where({ id: insertedId(id) }).first()));
   }));
 
@@ -186,7 +190,7 @@ module.exports = function commercialRoutes(db) {
       if (data.next) {
         await trx('lead_activities').insert({
           lead_id: a.lead_id, kind: data.next.kind, summary: data.next.summary || ACTIVITY_KINDS[data.next.kind], note: data.next.note,
-          due_at: new Date(data.next.due_at), assigned_to: data.next.assigned_to || a.assigned_to || req.user.id, created_by: req.user.id,
+          due_at: new Date(data.next.due_at), assigned_to: data.next.assigned_to || (await trx('leads').where({ id: a.lead_id }).first('assigned_to'))?.assigned_to || req.user.id, created_by: req.user.id,
         });
       }
       await trx('leads').where({ id: a.lead_id }).update({ updated_at: new Date() });

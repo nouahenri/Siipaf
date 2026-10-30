@@ -7,6 +7,7 @@ import { dateTime, fcfa, relative, toLocalInput } from '@admin/lib/format';
 import { useCommercialMeta, ACTIVITY_STATE, STAGE_COLORS, compact } from '../../lib/commercial';
 import { TransferModal, TransferRequests } from '@admin/components/Transfers';
 import ConvertedBy from '@admin/components/ConvertedBy';
+import ApptModal from '@admin/components/ApptModal';
 
 const HISTORY_ICONS = { etape: '◆', note: '✎', activite: '✓', rdv: '◷', option: '◇', vente: '€', paiement: '₣', message: '✉', espace_client: '✉', sav: '⚑' };
 const waLink = phone => `https://wa.me/${String(phone || '').replace(/\D/g, '').replace(/^0/, '225')}`;
@@ -103,7 +104,7 @@ export default function LeadDrawer({ id, onClose, onChange }) {
         </div>
       )}
       {lost && l && <LostModal lead={l} onClose={() => setLost(false)} onDone={() => { setLost(false); refresh(); }} />}
-      {appt && l && <ApptModal lead={l} onClose={() => setAppt(false)} onDone={() => { setAppt(false); refresh(); toast('Rendez-vous planifié'); }} />}
+      {appt && l && <ApptModal lead={l} onClose={() => setAppt(false)} onDone={refresh} />}
       {selling && l && <NewSale lead={l} another={engaged} onClose={() => setSelling(false)} onDone={() => { setSelling(false); refresh(); toast('Dossier de vente ouvert'); }} />}
     </Drawer>
   );
@@ -193,9 +194,15 @@ function LeadInfo({ lead, meta, write, onSaved }) {
   );
 }
 
-/** Formulaire d'activité (création ou « planifier la suivante »). */
-function ActivityForm({ meta, initial, onSubmit, onCancel, submitLabel }) {
-  const [f, setF] = useState(initial || { kind: 'appel', summary: '', due_at: toLocalInput(new Date(Date.now() + 864e5)), note: '' });
+/**
+ * Formulaire d'activité (création ou « planifier la suivante »). Le responsable choisit le commercial : par défaut celui
+ * de la fiche ; sur une fiche à attribuer, le commercial choisi reçoit aussi la fiche. Un commercial planifie pour lui.
+ */
+function ActivityForm({ meta, lead, initial, onSubmit, onCancel, submitLabel }) {
+  const { can, user } = useAuth();
+  const team = can('leads:all');
+  const owner = lead?.assigned_to || null;
+  const [f, setF] = useState(initial || { kind: 'appel', summary: '', due_at: toLocalInput(new Date(Date.now() + 864e5)), note: '', assigned_to: owner ? String(owner) : '' });
   const set = k => e => setF(x => ({ ...x, [k]: e.target.value }));
   return (
     <div className="stack" style={{ gap: 10 }}>
@@ -207,9 +214,18 @@ function ActivityForm({ meta, initial, onSubmit, onCancel, submitLabel }) {
         </Field>
         <Field label="Échéance"><input className="input" type="datetime-local" required value={f.due_at} onChange={set('due_at')} /></Field>
         <Field label="Objet" className="full"><input className="input" maxLength={200} value={f.summary} onChange={set('summary')} placeholder="Ex. Envoyer la grille de prix, confirmer la visite…" /></Field>
+        {team && (
+          <Field label="Commercial" className="full" hint={!owner ? 'Fiche à attribuer : elle sera attribuée à ce commercial' : Number(f.assigned_to) !== owner ? `Commercial de la fiche : ${lead.assigned_name || '—'}` : 'Commercial de la fiche'}>
+            <select className="select" value={f.assigned_to} onChange={set('assigned_to')}>
+              <option value="">— Choisir le commercial —</option>
+              {meta?.sellers.map(u => <option key={u.id} value={u.id}>{u.name}{u.id === user.id ? ' (vous)' : ''}</option>)}
+            </select>
+          </Field>
+        )}
       </div>
       <div className="row" style={{ gap: 8 }}>
-        <button type="button" className="btn btn-sm btn-primary" onClick={() => onSubmit({ kind: f.kind, summary: f.summary || null, due_at: new Date(f.due_at).toISOString(), note: f.note || null })}>{submitLabel}</button>
+        <button type="button" className="btn btn-sm btn-primary" disabled={team && !f.assigned_to} title={team && !f.assigned_to ? 'Choisissez le commercial' : undefined}
+          onClick={() => onSubmit({ kind: f.kind, summary: f.summary || null, due_at: new Date(f.due_at).toISOString(), note: f.note || null, ...(team && f.assigned_to ? { assigned_to: Number(f.assigned_to) } : {}) })}>{submitLabel}</button>
         {onCancel && <button type="button" className="btn btn-sm btn-ghost" onClick={onCancel}>Annuler</button>}
       </div>
     </div>
@@ -240,7 +256,7 @@ function Activities({ lead, meta, write, onChange }) {
         <h3 className="erp-h3">Activités planifiées</h3>
         {write && !adding && lead.stage !== 'perdu' && <button className="btn btn-sm" onClick={() => setAdding(true)}><CalendarPlus />Planifier</button>}
       </div>
-      {adding && <div className="erp-panel" style={{ marginBottom: 10 }}><ActivityForm meta={meta} onSubmit={add} onCancel={() => setAdding(false)} submitLabel="Planifier" /></div>}
+      {adding && <div className="erp-panel" style={{ marginBottom: 10 }}><ActivityForm meta={meta} lead={lead} onSubmit={add} onCancel={() => setAdding(false)} submitLabel="Planifier" /></div>}
       {!lead.activities.length && !adding && <p className="small muted">Aucune activité prévue. Planifiez la prochaine action pour ne pas perdre le contact.</p>}
       <div className="stack" style={{ gap: 8 }}>
         {lead.activities.map(a => {
@@ -270,7 +286,7 @@ function Activities({ lead, meta, write, onChange }) {
                       <button className="btn btn-sm" onClick={() => setChain(true)}>Fait & planifier la suivante</button>
                       <button className="btn btn-sm btn-ghost" onClick={() => setClosing(null)}>Annuler</button>
                     </div>
-                  ) : <ActivityForm meta={meta} onSubmit={next => done(a, next)} onCancel={() => setChain(false)} submitLabel="Valider et planifier" />}
+                  ) : <ActivityForm meta={meta} lead={lead} onSubmit={next => done(a, next)} onCancel={() => setChain(false)} submitLabel="Valider et planifier" />}
                 </div>
               )}
             </div>
@@ -415,45 +431,3 @@ export function NewSale({ lead, onClose, onDone, lot: fixedLot, another = false 
   );
 }
 
-const APPT_KINDS = { visite: 'Visite sur site', appel: 'Appel', bureau: 'Rendez-vous au bureau', visio: 'Visio' };
-
-/** Planifie un rendez-vous (visite du site, appel, bureau, visio) ; une visite effectuée fait passer le prospect à « Visite ». */
-function ApptModal({ lead, onClose, onDone }) {
-  const meta = useCommercialMeta();
-  const { can } = useAuth();
-  const team = can('leads:all'); // un commercial ne planifie que ses propres rendez-vous
-  const [f, setF] = useState({ kind: 'visite', starts_at: toLocalInput(new Date(Date.now() + 2 * 864e5)), duration_min: 60, assigned_to: lead.assigned_to || '', notes: '' });
-  const [error, setError] = useState(null);
-  const set = k => e => setF(x => ({ ...x, [k]: e.target.value }));
-  const save = async e => {
-    e.preventDefault(); setError(null);
-    try {
-      await api.post('/admin/appointments', {
-        lead_id: lead.id, kind: f.kind, status: 'confirme', starts_at: new Date(f.starts_at).toISOString(), duration_min: Number(f.duration_min) || 60,
-        ...(team ? { assigned_to: Number(f.assigned_to) || null } : {}), project_id: lead.project_id || null, lot_id: lead.lot_id || null, notes: f.notes || null,
-      });
-      onDone();
-    } catch (err) { setError(err); }
-  };
-  return (
-    <Modal title={`Rendez-vous avec ${lead.name}`} onClose={onClose} footer={<><button className="btn btn-ghost" onClick={onClose}>Annuler</button><button className="btn btn-primary" form="appt">Planifier</button></>}>
-      <form id="appt" className="form-grid" onSubmit={save}>
-        <div className="full"><ErrorBox error={error} /></div>
-        <Field label="Type">
-          <select className="select" value={f.kind} onChange={set('kind')}>{Object.entries(APPT_KINDS).map(([k, v]) => <option key={k} value={k}>{v}</option>)}</select>
-        </Field>
-        <Field label="Date et heure"><input className="input" type="datetime-local" required value={f.starts_at} onChange={set('starts_at')} /></Field>
-        <Field label="Durée (minutes)"><input className="input" type="number" min="5" max="480" value={f.duration_min} onChange={set('duration_min')} /></Field>
-        {team && (
-          <Field label="Commercial">
-            <select className="select" value={f.assigned_to} onChange={set('assigned_to')}>
-              <option value="">—</option>
-              {meta?.sellers.map(u => <option key={u.id} value={u.id}>{u.name}</option>)}
-            </select>
-          </Field>
-        )}
-        <Field label="Notes" className="full"><input className="input" value={f.notes} onChange={set('notes')} placeholder="Lieu de rendez-vous, documents à apporter…" /></Field>
-      </form>
-    </Modal>
-  );
-}

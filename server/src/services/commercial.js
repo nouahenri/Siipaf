@@ -119,7 +119,8 @@ async function pipeline(db, user, { project_id, assigned_to, q, include_lost } =
     .leftJoin('projects as p', 'p.id', 'ld.project_id').leftJoin('lots as l', 'l.id', 'ld.lot_id').leftJoin('users as u', 'u.id', 'ld.assigned_to')
     .whereIn('ld.stage', stages);
   if (project_id) query.where('ld.project_id', Number(project_id));
-  if (assigned_to) query.where('ld.assigned_to', Number(assigned_to));
+  if (assigned_to === 'aucun') query.whereNull('ld.assigned_to');
+  else if (assigned_to) query.where('ld.assigned_to', Number(assigned_to));
   if (q) {
     const s = `%${String(q).trim()}%`;
     query.where(b => b.where('ld.name', 'like', s).orWhere('ld.phone', 'like', s).orWhere('ld.email', 'like', s).orWhere('ld.client_code', 'like', s));
@@ -170,6 +171,24 @@ async function achieved(db, { from, to, userId = null }) {
 }
 
 /** Commerciaux : comptes actifs ayant le droit de gérer des prospects (rôles créés compris). */
+/**
+ * Commercial choisi pour une activité ou un rendez-vous (choix du client du 30/10) : par défaut celui de la fiche ;
+ * un commercial ne choisit que lui-même ; le responsable choisit dans l'équipe. Sur une fiche encore à attribuer,
+ * le commercial choisi par le responsable reçoit aussi la fiche (activité, fiche et suivi chez la même personne).
+ * Renvoie l'identifiant retenu.
+ */
+async function plannedFor(trx, lead, assignedTo, user) {
+  const chosen = assignedTo || lead.assigned_to || user.id;
+  if (!seesAllLeads(user) && chosen !== user.id) throw new HttpError(403, 'Un commercial ne planifie que pour lui-même.');
+  if (chosen !== user.id && !(await sellers(trx)).some(s => s.id === chosen)) throw new HttpError(400, 'Commercial introuvable ou inactif.');
+  if (!lead.assigned_to && assignedTo && canAssignLeads(user)) {
+    await trx('leads').where({ id: lead.id }).update({ assigned_to: chosen, updated_at: new Date() });
+    await logActivity(trx, lead.id, { kind: 'systeme', summary: `Attribué à ${(await trx('users').where({ id: chosen }).first('name'))?.name || 'un commercial'} en planifiant`, userId: user.id });
+    await require('./portfolio').syncLead(trx, lead.id, { by: user.id });
+  }
+  return chosen;
+}
+
 async function sellers(db) {
   const roles = db('role_permissions').whereIn('permission', ['leads:create', 'leads:edit']).select('role');
   return db('users').where({ active: true }).where(q => q.whereIn('role', roles).orWhereIn('role', ['commercial', 'super_admin'])).orderBy('name').select('id', 'name', 'role');
@@ -230,9 +249,10 @@ async function dashboard(db, user, now = new Date()) {
     return { stage: st, label: STAGE_LABELS[st], n: c.length, value_fcfa: c.reduce((s, x) => s + (x.expected_revenue_fcfa || 0), 0), weighted_fcfa: c.reduce((s, x) => s + x.weighted_fcfa, 0) };
   });
   const lateActs = await scopeLeads(db('lead_activities as a').join('leads as ld', 'ld.id', 'a.lead_id'), user)
+    .modify(q => { if (!seesAllLeads(user)) q.where('a.assigned_to', user.id); }).whereNot('ld.stage', 'perdu')
     .whereNull('a.done_at').where('a.due_at', '<', new Date(now.getFullYear(), now.getMonth(), now.getDate())).count({ n: '*' });
   // Pastille du menu « Mes activités » : les activités en retard du compte lui-même, comme la page (prospects perdus exclus)
-  const myLate = await db('lead_activities as a').join('leads as ld', 'ld.id', 'a.lead_id').where('a.assigned_to', user.id).whereNot('ld.stage', 'perdu')
+  const myLate = await scopeLeads(db('lead_activities as a').join('leads as ld', 'ld.id', 'a.lead_id'), user).where('a.assigned_to', user.id).whereNot('ld.stage', 'perdu')
     .whereNull('a.done_at').where('a.due_at', '<', new Date(now.getFullYear(), now.getMonth(), now.getDate())).count({ n: '*' });
 
   // Appels de fonds VEFA en retard (échéance dépassée et non couverte par les versements)
@@ -256,4 +276,4 @@ async function dashboard(db, user, now = new Date()) {
   };
 }
 
-module.exports = { STAGE_LABELS, seesAllLeads, canAssignLeads, scopeLeads, leadInScope, saleInScope, logActivity, changeStage, serializeActivity, leadHistory, pipeline, achieved, sellers, targetsReport, dashboard, monthKey, monthRange, isoDay };
+module.exports = { STAGE_LABELS, plannedFor, seesAllLeads, canAssignLeads, scopeLeads, leadInScope, saleInScope, logActivity, changeStage, serializeActivity, leadHistory, pipeline, achieved, sellers, targetsReport, dashboard, monthKey, monthRange, isoDay };

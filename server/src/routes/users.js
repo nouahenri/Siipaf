@@ -47,11 +47,8 @@ module.exports = function userRoutes(db) {
   // Liste courte pour les sélecteurs (assigner un prospect à un commercial…)
   // (plus les rôles créés dans le dashboard qui ont le droit « Gérer les prospects »)
   r.get('/commerciaux', ah(async (req, res) => {
-    const sellers = db('role_permissions').whereIn('permission', ['leads:create', 'leads:edit']).select('role');
-    const users = await db('users').where({ active: true })
-      .where(q => q.whereIn('role', ['commercial', 'resp_exploitation', 'super_admin']).orWhereIn('role', sellers))
-      .orderBy('name');
-    res.json(users.map(u => ({ id: u.id, name: u.name, role: u.role })));
+    // Même liste que l'ERP (services/commercial.js, sellers) : un commercial proposé d'un côté l'est aussi de l'autre
+    res.json(await require('../services/commercial').sellers(db));
   }));
 
   const base = {
