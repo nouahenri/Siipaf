@@ -141,20 +141,20 @@ async function transition(db, id, action, { user, can, note = null, journal = nu
 
 /** Circuit des notes de frais dans la cloche : responsable (ou service RH), puis comptable, et l'employé à chaque décision. */
 async function notifyExpense(db, x, action, { user, note }) {
-  const { notify, usersWith, employeeUser, resolve } = require('./notifications');
+  const { inform, usersWith, employeeUser, resolve } = require('./notifications');
   const what = `${x.reference} — ${x.last_name} ${x.first_name} · ${Number(x.amount).toLocaleString('fr-FR')} F CFA`;
   if (action === 'submit') {
     const manager = await employeeUser(db, x.manager_id);
     const to = manager && manager.id !== x.employee_user_id ? manager : await usersWith(db, 'frais:approve');
-    await notify(db, { to, except: user.id, module: 'rh', event: 'frais.soumise', title: 'Note de frais à approuver', body: what, link: '/rh/frais', priority: 'action', key: `frais:${x.id}:approve:${Date.now()}` });
+    await inform(db, 'frais.soumise', { direct: to, except: user.id, title: 'Note de frais à approuver', body: what, link: '/rh/frais', priority: 'action', key: `frais:${x.id}:approve:${Date.now()}` });
   } else if (action === 'approve' || action === 'refuse') {
     await resolve(db, `frais:${x.id}:approve`);
-    await notify(db, {
-      to: x.employee_user_id, except: user.id, module: 'rh', event: action === 'approve' ? 'frais.approuvee' : 'frais.refusee',
+    await inform(db, action === 'approve' ? 'frais.approuvee' : 'frais.refusee', {
+      direct: x.employee_user_id, except: user.id, module: 'rh',
       title: `Votre note de frais est ${action === 'approve' ? 'approuvée' : 'refusée'}`, body: action === 'refuse' && note ? `${x.reference} — Motif : ${note}` : what, link: '/rh/moi',
     });
     if (action === 'approve') {
-      await notify(db, { to: await usersWith(db, 'frais:post'), except: user.id, module: 'compta', event: 'frais.a_comptabiliser', title: 'Note de frais à comptabiliser', body: what, link: '/rh/frais', priority: 'action', key: `frais:${x.id}:post` });
+      await inform(db, 'frais.a_comptabiliser', { direct: await usersWith(db, 'frais:post'), except: user.id, title: 'Note de frais à comptabiliser', body: what, link: '/rh/frais', priority: 'action', key: `frais:${x.id}:post` });
     }
   } else if (action === 'post') {
     await resolve(db, `frais:${x.id}:post`);

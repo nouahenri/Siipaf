@@ -8,7 +8,8 @@ const { openSale, refreshSaleStatus, totals, ACTIVE } = require('../services/sal
 const { regenerateSchedule, replaceSchedule, scheduleStatus } = require('../services/schedule');
 const { receiptNumber } = require('../services/clients');
 const juridique = require('../services/juridique');
-const { inform, notify } = require('../services/notifications');
+const { inform, resolve } = require('../services/notifications');
+const liaisons = require('../services/liaisons');
 const { seesAllLeads, saleInScope, leadInScope } = require('../services/commercial');
 
 const day = z.coerce.date();
@@ -106,6 +107,7 @@ module.exports = function salesRoutes(db) {
     // L'acte se date dans ERP › Juridique (ou avec le droit Juridique)
     if (rest.signed_at && !req.can('juridique:deeds')) throw new HttpError(403, 'La date de signature de l’acte se saisit dans ERP › Juridique.');
     const sale = await openSale(db, { lotId: idParam(req), leadId: lead_id, leadData: { name, phone, email }, ...rest, user: req.user });
+    await resolve(db, `lot:${idParam(req)}:sans_dossier`); // le dossier existe : l'alerte « lot réservé sans dossier » est lue
     // Circuit d'information : Direction générale, exploitation, Comptabilité, Juridique (réglable dans l'ERP)
     const info = await db('sales as s').join('lots as l', 'l.id', 's.lot_id').join('projects as p', 'p.id', 'l.project_id').join('leads as c', 'c.id', 's.lead_id')
       .where('s.id', sale.id).first('c.name as client_name', 'c.assigned_to', 'p.name as project_name', 'l.code as lot_code', 's.price_fcfa', 's.vefa');
@@ -148,6 +150,8 @@ module.exports = function salesRoutes(db) {
       return refreshSaleStatus(trx, id);
     });
     if (signedNow) await juridique.announceDeed(db, id, req.user.id);
+    // Prix, financement ou date de départ modifiés : l'échéancier a été recalculé, le commercial et le client en sont prévenus
+    if (['price_fcfa', 'financing', 'reserved_at', 'vefa'].some(k => k in data)) await liaisons.announceSchedule(db, sale, req.user).catch(() => {});
     res.json(await saleDetail(await db('sales').where({ id: sale.id }).first()));
   }));
 
@@ -167,6 +171,7 @@ module.exports = function salesRoutes(db) {
       throw new HttpError(400, 'L’apport dépasse le prix du bien.');
     }
     await db.transaction(trx => regenerateSchedule(trx, sale, opts));
+    await liaisons.announceSchedule(db, sale, req.user).catch(() => {});
     res.json(await saleDetail(sale));
   }));
 
@@ -180,6 +185,7 @@ module.exports = function salesRoutes(db) {
     })).min(1).max(240), req.body);
     const sale = await saleInScope(db, id, req.user);
     await db.transaction(trx => replaceSchedule(trx, sale, lines));
+    await liaisons.announceSchedule(db, sale, req.user).catch(() => {});
     res.json(await saleDetail(sale));
   }));
 
@@ -220,6 +226,8 @@ module.exports = function salesRoutes(db) {
       body: `${info.project_name}, lot ${info.lot_code} · le ${paidAt.toLocaleDateString('fr-FR')}${declaration ? ` · réception des fonds confirmée par la Comptabilité${declaration.adjusted ? ` (ajusté${declaration.adjusted_from !== Number(data.amount_fcfa) ? ` : déclaré ${declaration.adjusted_from.toLocaleString('fr-FR')} FCFA` : ''})` : ''}` : ''}`,
       link: '/commercial/ventes', links: { compta: '/compta/ecritures' },
     });
+    // Le client reçoit la confirmation dans son espace (le reçu est dans « Paiements »)
+    await liaisons.announcePayment(db, sale, data, user).catch(() => {});
     return pid;
   };
 
@@ -283,8 +291,8 @@ module.exports = function salesRoutes(db) {
     const { reason } = parse(z.object({ reason: z.string().trim().min(3, 'Indiquez le motif du refus.').max(255) }), req.body);
     await db('payment_declarations').where({ id: d.id }).update({ status: 'rejete', decided_by: req.user.id, decided_at: new Date(), reject_reason: reason, updated_at: new Date() });
     const info = await saleInfo(d.sale_id);
-    await notify(db, {
-      to: [d.declared_by, info.assigned_to], module: 'commercial', event: 'versement.refuse', priority: 'action', except: req.user.id, key: `declaration:${d.id}:refus`,
+    await inform(db, 'versement.refuse', {
+      direct: [d.declared_by, info.assigned_to], priority: 'action', except: req.user.id, key: `declaration:${d.id}:refus`,
       title: `Versement non confirmé : ${info.client_name} — ${Number(d.amount_fcfa).toLocaleString('fr-FR')} FCFA`,
       body: `Motif de la Comptabilité : ${reason}`, link: '/commercial/ventes',
     });
@@ -346,7 +354,9 @@ module.exports = function salesRoutes(db) {
     const data = parse(z.object({ type: z.enum(DOCUMENT_TYPES), ...docFields }).partial({ status: true, media_id: true, visible_client: true, note: true }), req.body);
     await saleInScope(db, id, req.user);
     const [{ max }] = await db('sale_documents').where({ sale_id: id }).max({ max: 'sort' });
-    await db('sale_documents').insert({ ...data, sale_id: id, sort: (Number(max) || 0) + 1, updated_by: req.user.id });
+    const [docId] = await db('sale_documents').insert({ ...data, sale_id: id, sort: (Number(max) || 0) + 1, updated_by: req.user.id });
+    // Pièce mise en ligne pour le client : il en est prévenu dans son espace
+    await liaisons.announceDocument(db, await db('sale_documents').where({ id: typeof docId === 'object' ? docId.id : docId }).first(), req.user).catch(() => {});
     res.status(201).json(await saleDetail(await db('sales').where({ id }).first()));
   }));
 
@@ -361,6 +371,7 @@ module.exports = function salesRoutes(db) {
     if (!doc) throw new HttpError(404, 'Document introuvable.');
     await saleInScope(db, doc.sale_id, req.user);
     await db('sale_documents').where({ id }).update({ ...data, updated_by: req.user.id, updated_at: new Date() });
+    await liaisons.announceDocument(db, await db('sale_documents').where({ id }).first(), req.user).catch(() => {});
     res.json(await saleDetail(await db('sales').where({ id: doc.sale_id }).first()));
   }));
 

@@ -6,6 +6,7 @@ import { useCountUp, monthLabel } from '@admin/components/Charts';
 import { SmoothAreaChart, GroupedBars, HighlightBars, Donut } from '@admin/components/ChartsPlus';
 import { date } from '@admin/lib/format';
 import { RH, useRhMeta } from '../../lib/rh';
+import DepartmentMail from '../../components/DepartmentMail';
 
 function Kpi({ icon: Icon, label, value, suffix = '', foot, tint, to }) {
   const v = useCountUp(value ?? 0);
@@ -96,6 +97,7 @@ export default function RhDashboard() {
           )}
         </Card>
       </div>
+      <DepartmentMail departments="rh" label="Ressources humaines" />
       <p className="small muted"><Link className="link" to="/rh/reglages">Réglages RH <ArrowRight className="ico" /></Link> : acquisition des congés, majorations, heures supplémentaires, jours fériés et catégories de frais — à faire valider par SIIPAF et le comptable.</p>
     </div>
   );

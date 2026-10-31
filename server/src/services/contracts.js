@@ -16,7 +16,7 @@ const {
 } = require('../lib/domain');
 const { splitVat } = require('../lib/compta');
 const { nextPurchaseNumber } = require('./compta');
-const { notify, usersWith } = require('./notifications');
+const { inform, usersWith, usersWithAny } = require('./notifications');
 
 const insertedId = r => (typeof r === 'object' ? r.id : r);
 const filesDir = path.join(uploadsDir, 'private', 'contrats');
@@ -198,9 +198,13 @@ async function badges(db, v) {
   return { due: watched.length, late: watched.filter(d => d.days_left < 0).length, owned };
 }
 
-/** Destinataires des alertes : le responsable du contrat et les responsables d'exploitation (sinon les gestionnaires). */
+/**
+ * Destinataires des alertes : le responsable du contrat et les comptes qui gèrent les contrats (droits contrats:write,
+ * contrats:close, contrats:documents, ou le super administrateur à défaut) — plus le rôle « resp_exploitation » codé en dur (audit du 30/10).
+ */
 async function alertRecipients(db, c) {
-  return db('users').where({ active: true }).where(w => { w.where('role', 'resp_exploitation'); if (c.owner_id) w.orWhere('id', c.owner_id); }).select('id', 'name', 'email');
+  const managers = await usersWithAny(db, ['contrats:write', 'contrats:close', 'contrats:documents']);
+  return [...(c.owner_id ? [c.owner_id] : []), ...managers];
 }
 
 /** Facture d'achat en brouillon pour une échéance de paiement (une seule par échéance). */
@@ -256,15 +260,17 @@ async function tick(db, day = today()) {
       await db('contract_alerts').insert({ contract_id: c.id, deadline_key: d.key, due_date: d.date, stage });
       const left = daysBetween(day, d.date);
       const when = left < 0 ? `dépassée depuis ${-left} jour(s)` : left === 0 ? 'aujourd’hui' : `dans ${left} jour(s)`;
-      await notify(db, {
-        to: await alertRecipients(db, raw), module: 'administration', event: 'contrat.echeance',
+      const alert = {
         title: `Contrat ${c.reference} : ${d.label.toLowerCase()} le ${fr(d.date)}`, body: `${c.title} — ${when}`,
         link: `/administration/contrats?fiche=${c.id}`, priority: left <= 7 ? 'urgent' : 'action', key: `contrat:${c.id}:${d.key}:${d.date}:${stage}`,
         email: {
           subject: `[SIIPAF] Contrat ${c.reference} : ${d.label.toLowerCase()} le ${fr(d.date)}`,
           text: u => `Bonjour ${u.name},\n\n${d.label} (${when}) pour le contrat ${c.reference} — ${c.title}\nCocontractant : ${raw.supplier_name || c.counterparty || '—'}\nÉchéance : ${fr(d.date)}\n\nOuvrir dans l’ERP : ${erpUrl}/administration/contrats?fiche=${c.id}`,
         },
-      });
+      };
+      // Le responsable du contrat et les comptes qui gèrent les contrats (par droits) ; le Juridique pour un marché de sous-traitance
+      await inform(db, 'contrat.echeance', { ...alert, direct: await alertRecipients(db, raw) });
+      if (c.kind === 'sous_traitance') await inform(db, 'contrat.echeance_juridique', { ...alert, link: `/juridique/contrats?fiche=${c.id}`, email: false });
       stats.alerts++;
     }
   }
@@ -277,8 +283,8 @@ async function tick(db, day = today()) {
       if (!(await prepareInvoice(db, c, due))) continue;
       stats.invoices++;
       // Le comptable valide la facture préparée (lien Contrats → Comptabilité)
-      await notify(db, {
-        to: await usersWith(db, 'achats:write'), module: 'compta', event: 'contrat.facture_preparee',
+      await inform(db, 'contrat.facture_preparee', {
+        direct: await usersWith(db, 'achats:write'),
         title: `Facture à valider : ${c.reference} — échéance du ${fr(due)}`, body: c.title,
         link: '/compta/achats', priority: 'action', key: `contrat:${c.id}:facture:${due}`,
       });

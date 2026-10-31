@@ -2,7 +2,7 @@
  * Centre de notifications commun de l'ERP (docs/analyse-liaisons-inter-services.md §6.1). Chaque module appelle
  * `notify` au lieu d'envoyer ses e-mails lui-même : une notification par destinataire dans la cloche de l'ERP,
  * plus l'e-mail quand le module le demande. Sans doublon : une même clé n'est notifiée qu'une fois par compte.
- * Personne n'est notifié de sa propre action (`except`), ni d'un module dont il a coupé les notifications.
+ * Personne n'est notifié de sa propre action (`except` : un compte ou une liste de comptes), ni d'un module dont il a coupé les notifications.
  */
 const { isoTime } = require('../lib/http');
 const { erpUrl } = require('../config');
@@ -15,6 +15,51 @@ const NOTIF_MODULES = {
   juridique: 'Juridique', chantiers: 'Chantiers', achats: 'Achats & stocks', marketing: 'Marketing & Communication', qhse: 'QHSE',
 };
 const PRIORITIES = ['info', 'action', 'urgent'];
+
+/**
+ * Pages de l'ERP réservées à certains droits : une notification ne mène que là où son destinataire peut aller (audit du 30/10 :
+ * un commercial recevait /chantiers/<id> sans droit sur les chantiers). Une page absente de la liste est ouverte à tous.
+ * Le test reçoit `has(droit)`, le compte et la base ; le conducteur d'un chantier ouvre le sien sans autre droit.
+ */
+const CHANTIERS_ANY = ['chantiers:read', 'chantiers:create', 'chantiers:plan', 'chantiers:budget', 'chantiers:settings', 'chantiers:tma', 'chantiers:stages', 'chantiers:situations', 'direction:read'];
+const JURIDIQUE_ANY = ['juridique:read', 'juridique:deeds', 'juridique:litigation', 'juridique:guarantees', 'juridique:settings', 'direction:read'];
+const LINK_RULES = [
+  [/^\/chantiers/, async (has, u, db) => CHANTIERS_ANY.some(has) || !!(await db('worksites').where({ manager_id: u.id }).first('id'))],
+  [/^\/achats/, has => has('appro:read')],
+  [/^\/commercial\/pipeline/, has => has('leads:read')],
+  [/^\/commercial\/rendez-vous/, has => has('appointments:read')],
+  [/^\/commercial\/ventes/, has => has('commercial:read') && has('sales:read')],
+  [/^\/commercial\/vefa/, has => has('commercial:read') || has('vefa:read') || has('vefa:write')],
+  [/^\/commercial/, has => has('commercial:read')],
+  [/^\/(compta|sav|administration)\/ventes/, has => has('sales:read')],
+  [/^\/compta\/recu/, has => has('sales:read') || has('payments:write')],
+  [/^\/compta\/paie/, has => has('paie:read')],
+  [/^\/compta/, has => has('compta:read')],
+  [/^\/sav/, has => has('sav:read')],
+  [/^\/juridique\/(actes|impayes)/, has => JURIDIQUE_ANY.some(has)],
+  [/^\/marketing/, has => has('marketing:read')],
+  [/^\/qhse/, has => has('qhse:read')],
+  [/^\/rh\/(personnel|recrutement|competences)/, has => has('rh:read')],
+];
+// Pages de repli, par ordre, quand le lien prévu est fermé au destinataire
+const LINK_FALLBACKS = ['/commercial/ventes', '/sav/reclamations', '/compta', '/achats'];
+
+/** Lien de la notification pour ce compte : celui prévu s'il peut l'ouvrir, sinon la première page de repli qui lui est ouverte, sinon l'accueil. */
+async function linkFor(db, user, link, cache = {}) {
+  if (!link) return link;
+  const opens = async target => {
+    const rule = LINK_RULES.find(([re]) => re.test(target));
+    if (!rule) return true;
+    if (!cache[user.id]) {
+      const perms = await effectivePermissions(db, user);
+      cache[user.id] = x => hasPermission(perms, x);
+    }
+    return !!(await rule[1](cache[user.id], user, db));
+  };
+  if (await opens(link)) return link;
+  for (const f of LINK_FALLBACKS) if (await opens(f)) return f;
+  return '/';
+}
 
 /** Préférences d'un compte par module : { commercial: { enabled: false, sound: 'goutte' }, … } (vide = tout activé). */
 function prefsOf(u) {
@@ -40,6 +85,15 @@ async function usersWith(db, perms) {
   return holders.length ? holders : users.filter(u => u.role === 'super_admin');
 }
 
+/**
+ * Comptes qui ont l'un des droits d'une liste (chaque droit cherché séparément, doublons retirés), avec le repli sur le
+ * super administrateur de `usersWith` : « l'un ou l'autre » des droits.
+ */
+async function usersWithAny(db, perms) {
+  const found = await Promise.all([].concat(perms).map(p => usersWith(db, p)));
+  return [...new Map(found.flat().map(u => [u.id, u])).values()];
+}
+
 /** Compte relié à un employé (son responsable direct, par exemple). */
 async function employeeUser(db, employeeId) {
   if (!employeeId) return null;
@@ -53,15 +107,18 @@ async function employeeUser(db, employeeId) {
  */
 async function notify(db, { to, module, event, title, body = null, link = null, priority = 'info', key = null, except = null, email = false }) {
   const list = [].concat(to || []).filter(Boolean);
-  const ids = [...new Set(list.map(u => (typeof u === 'object' ? u.id : Number(u))).filter(id => id && id !== except))];
+  const excepted = [].concat(except || []).map(Number); // l'auteur de l'action, et au besoin ceux déjà prévenus par ailleurs
+  const ids = [...new Set(list.map(u => (typeof u === 'object' ? u.id : Number(u))).filter(id => id && !excepted.includes(id)))];
   if (!ids.length) return 0;
-  const users = await db('users').whereIn('id', ids).where({ active: true }).select('id', 'name', 'email', 'notif_prefs');
+  const users = await db('users').whereIn('id', ids).where({ active: true }).select('id', 'name', 'email', 'role', 'notif_prefs');
   let count = 0;
+  const perms = {};
   for (const u of users) {
     if (prefsOf(u)[module]?.enabled === false) continue;
     if (key && (await db('notifications').where({ user_id: u.id, dedupe_key: key }).first('id'))) continue;
+    const target = await linkFor(db, u, link, perms); // lien que ce destinataire peut ouvrir
     await db('notifications').insert({
-      user_id: u.id, module, event, title: title.slice(0, 255), body: body ? String(body).slice(0, 500) : null, link,
+      user_id: u.id, module, event, title: title.slice(0, 255), body: body ? String(body).slice(0, 500) : null, link: target,
       priority: PRIORITIES.includes(priority) ? priority : 'info', dedupe_key: key,
     });
     count++;
@@ -71,7 +128,7 @@ async function notify(db, { to, module, event, title, body = null, link = null, 
         to: u.email,
         subject: custom.subject || `[SIIPAF] ${title}`,
         text: typeof custom.text === 'function' ? custom.text(u)
-          : `Bonjour ${u.name},\n\n${title}${body ? `\n${body}` : ''}${link ? `\n\nOuvrir dans l’ERP : ${erpUrl}${link}` : ''}`,
+          : `Bonjour ${u.name},\n\n${title}${body ? `\n${body}` : ''}${target ? `\n\nOuvrir dans l’ERP : ${erpUrl}${target}` : ''}`,
       });
     }
   }
@@ -129,7 +186,10 @@ async function saveInfoRoutes(db, routes) {
   return infoRoutes(db);
 }
 
-/** Comptes d'un service (les droits du service ; la Direction générale comprend le super administrateur). */
+/**
+ * Comptes d'un service (les droits du service ; la Direction générale comprend le super administrateur). Comme `usersWith`,
+ * un service sans titulaire retombe sur le super administrateur : une demande de transfert ne reste pas sans destinataire.
+ */
 async function audienceUsers(db, audience) {
   const def = INFO_AUDIENCES[audience];
   if (!def) return [];
@@ -140,19 +200,22 @@ async function audienceUsers(db, audience) {
     const p = await effectivePermissions(db, u);
     if (def.perms.some(x => hasPermission(p, x))) out.push(u);
   }
-  return out;
+  return out.length ? out : users.filter(u => u.role === 'super_admin');
 }
 
 /**
- * Informe les services d'un événement selon le circuit réglé, en plus des personnes directement visées (`direct`).
- * `links` : lien propre à un service (ex. { compta: '/compta/ecritures' }), sinon `link`. Un compte présent dans
- * plusieurs groupes ne reçoit qu'une notification (même clé) ; jamais l'auteur de l'action (`except`).
+ * Informe les services d'un événement selon le circuit réglé, en plus des personnes directement visées (`direct` : comptes,
+ * identifiants, ou { id, link } pour une personne qui a son propre lien). `links` : lien propre à un service
+ * (ex. { compta: '/compta/ecritures' }), `directLink` : lien des personnes directes, sinon `link`. Un lien fermé à un
+ * destinataire est remplacé par une page qu'il peut ouvrir (voir `linkFor`). `module` : module des personnes directes quand
+ * l'événement s'adresse à plusieurs modules. Un compte présent dans plusieurs groupes ne reçoit qu'une notification (même
+ * clé, à fournir pour dédoublonner) ; jamais l'auteur de l'action (`except`).
  */
-async function inform(db, event, { title, body = null, link = null, links = {}, key = null, except = null, priority = null, direct = [], email = false }) {
+async function inform(db, event, { title, body = null, link = null, links = {}, directLink = null, module = null, key = null, except = null, priority = null, direct = [], email = false, circuit = true }) {
   const def = INFO_EVENTS[event];
   if (!def) throw new Error(`Événement inconnu du circuit d'information : ${event}`);
   const dedupe = key || `${event}:${Date.now()}:${Math.random().toString(36).slice(2, 8)}`;
-  const base = { module: def.module, event, title, body, key: dedupe, except, priority: priority || def.priority || 'info', email };
+  const base = { module: module || def.module, event, title, body, key: dedupe, except, priority: priority || def.priority || 'info', email };
   // Contrôle supplémentaire propre aux événements qui le déclarent : rôle + privilèges individuels.
   // Les événements existants sans requiredPerms gardent exactement leur diffusion habituelle.
   let eligible = null;
@@ -164,9 +227,12 @@ async function inform(db, event, { title, body = null, link = null, links = {}, 
     }
   }
   const recipients = list => [].concat(list || []).filter(u => u && (!eligible || eligible.has(typeof u === 'object' ? u.id : Number(u))));
-  let n = await notify(db, { ...base, to: recipients(direct), link });
-  // Chaque service la reçoit dans son module (badge de sa tuile, réglage de notifications de son module)
-  for (const a of (await infoRoutes(db))[event] || []) {
+  const hasOwnLink = d => d && typeof d === 'object' && d.link;
+  const all = [].concat(direct || []);
+  let n = await notify(db, { ...base, to: recipients(all.filter(d => !hasOwnLink(d))), link: directLink || link });
+  for (const d of all.filter(hasOwnLink)) n += await notify(db, { ...base, to: recipients([d]), link: d.link });
+  // Chaque service la reçoit dans son module (badge de sa tuile, réglage de notifications de son module) ; `circuit: false` : les personnes directes seulement
+  for (const a of circuit ? (await infoRoutes(db))[event] || [] : []) {
     n += await notify(db, { ...base, module: INFO_AUDIENCES[a].module || def.module, to: recipients(await audienceUsers(db, a)), link: links[a] || link });
   }
   return n;
@@ -181,4 +247,4 @@ async function savePrefs(db, userId, module, { enabled, sound }) {
   return prefs;
 }
 
-module.exports = { NOTIF_MODULES, prefsOf, savePrefs, notify, usersWith, employeeUser, list, markRead, resolve, infoRoutes, saveInfoRoutes, audienceUsers, inform };
+module.exports = { NOTIF_MODULES, prefsOf, savePrefs, notify, usersWith, usersWithAny, linkFor, employeeUser, list, markRead, resolve, infoRoutes, saveInfoRoutes, audienceUsers, inform };

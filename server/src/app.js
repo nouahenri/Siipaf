@@ -190,6 +190,14 @@ function createApp(db) {
     setInterval(() => require('./services/marketing').tick(db).catch(e => console.error('[marketing]', e.message)), 60 * 60 * 1000).unref();
     // QHSE : contrôle du jour manquant (jours ouvrés, à l'heure réglée) et actions correctives en retard, sans doublon
     setInterval(() => require('./services/qhseSuivi').tick(db).catch(e => console.error('[qhse]', e.message)), 60 * 60 * 1000).unref();
+    // Service commercial : options qui expirent demain (commercial et prospect), activités échues, rendez-vous du lendemain (audit du 30/10)
+    setInterval(() => require('./services/liaisons').tick(db).catch(e => console.error('[commercial]', e.message)), 60 * 60 * 1000).unref();
+    // Client & SAV : réclamation ouverte dont l'échéance de traitement est dépassée (alerte unique par réclamation)
+    setInterval(() => require('./services/sav').tick(db).catch(e => console.error('[sav]', e.message)), 60 * 60 * 1000).unref();
+    // Comptabilité : « N opérations à synchroniser » (versements, appels de fonds, TMA sans écriture), une fois par jour tant qu'il en reste
+    setInterval(() => require('./services/compta').tick(db).catch(e => console.error('[compta]', e.message)), 60 * 60 * 1000).unref();
+    // RH : fin de période d'essai et de CDD (30 puis 7 jours avant) → responsable direct, RH et Juridique
+    setInterval(() => require('./services/rh').contractsTick(db).catch(e => console.error('[contrats de travail]', e.message)), 60 * 60 * 1000).unref();
     // Changements de poste planifiés : appliqués à leur date d'effet
     const positions = require('./services/positions');
     setInterval(() => positions.tick(db).catch(e => console.error('[postes]', e.message)), 60 * 60 * 1000).unref();

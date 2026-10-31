@@ -169,6 +169,8 @@ module.exports.publicCareers = function publicCareers(db) {
       const id = await recrutement.createApplicant(db, { ...fields, source: fields.job_id ? 'site_web' : 'spontanee' }, { file: req.file, fromSite: true });
       const job = fields.job_id ? await db('hr_jobs').where({ id: fields.job_id }).first('title') : null;
       notifyTeam(`Nouvelle candidature : ${fields.name}`, `${fields.name} a postulé ${job ? `au poste « ${job.title} »` : '(candidature spontanée)'} depuis le site.\nÀ traiter dans l’ERP › RH › Recrutement.`);
+      // Cloche du service RH (circuit d'information)
+      await require('../../services/notifications').inform(db, 'candidature.recue', { key: `candidature:${id}`, title: `Nouvelle candidature : ${fields.name}`, body: job ? `Poste : ${job.title}` : 'Candidature spontanée', link: '/rh/recrutement', priority: 'action' }).catch(() => {});
       res.status(201).json({ ok: true, id });
     } catch (e) { await cleanup(req); throw e; }
   }));

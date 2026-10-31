@@ -13,7 +13,7 @@ const { uploadsDir, erpUrl } = require('../config');
 const { MAIL_DIRECTIONS, MAIL_SUITES, MAIL_NATURES, MAIL_CHANNELS, MAIL_STATUSES, mailNumber, mailVisibility, mailReminder } = require('../lib/domain');
 const { DEPARTMENTS } = require('../lib/paie');
 const { effectivePermissions, hasPermission } = require('./permissions');
-const { notify, resolve } = require('./notifications');
+const { inform, resolve } = require('./notifications');
 
 const insertedId = r => (typeof r === 'object' ? r.id : r);
 const scansDir = path.join(uploadsDir, 'private', 'courrier');
@@ -137,8 +137,8 @@ async function create(db, data, { file, user, can }) {
   }
   if (row.direction === 'arrivee') {
     const m = await load(db, id);
-    await notify(db, {
-      to: await directionUsers(db), except: user.id, module: 'administration', event: 'courrier.a_affecter',
+    await inform(db, 'courrier.a_affecter', {
+      direct: await directionUsers(db), except: user.id,
       title: `Courrier ${m.number} à affecter${m.urgent ? ' (urgent)' : ''}`, body: m.confidential ? 'Courrier confidentiel' : `${m.correspondent} — ${m.subject}`,
       link: `/administration/courrier?fiche=${m.id}`, priority: m.urgent ? 'urgent' : 'action', key: `courrier:${m.id}:a_affecter`,
     });
@@ -236,8 +236,8 @@ const describe = m => [
 async function notifyAssignment(db, id) {
   const m = await load(db, id);
   const title = `Courrier ${m.number} à traiter${m.urgent ? ' (urgent)' : ''}`;
-  await notify(db, {
-    to: await recipientsOf(db, m), except: m.assigned_by, module: 'administration', event: 'courrier.affecte',
+  await inform(db, 'courrier.affecte', {
+    direct: await recipientsOf(db, m), except: m.assigned_by,
     title, body: m.confidential ? 'Courrier confidentiel' : m.subject, link: `/administration/courrier?fiche=${m.id}`,
     priority: m.urgent ? 'urgent' : 'action', key: `courrier:${m.id}:affecte:${isoTime(m.assigned_at) || ''}`,
     email: { subject: `[SIIPAF] ${title}`, text: u => `Bonjour ${u.name},\n\nUn courrier vous est affecté.\n\n${describe(m)}` },
@@ -255,8 +255,8 @@ async function tick(db, day = today()) {
     if (!kind) continue;
     direction ||= await directionUsers(db);
     const title = kind === 'veille' ? `Rappel : courrier ${m.number} à traiter pour le ${m.due_date.split('-').reverse().join('/')}` : `Retard : courrier ${m.number} non traité`;
-    await notify(db, {
-      to: [...await recipientsOf(db, m), ...direction], module: 'administration', event: kind === 'veille' ? 'courrier.rappel' : 'courrier.retard',
+    await inform(db, kind === 'veille' ? 'courrier.rappel' : 'courrier.retard', {
+      direct: [...await recipientsOf(db, m), ...direction], module: 'administration',
       title, body: m.confidential ? 'Courrier confidentiel' : m.subject, link: `/administration/courrier?fiche=${m.id}`,
       priority: kind === 'veille' ? 'action' : 'urgent', key: `courrier:${m.id}:${kind}:${m.due_date}`,
       email: { subject: `[SIIPAF] ${title}`, text: u => `Bonjour ${u.name},\n\n${kind === 'veille' ? 'Le délai de ce courrier arrive à échéance.' : 'Le délai de ce courrier est dépassé.'}\n\n${describe(m)}` },
@@ -284,4 +284,17 @@ async function badges(db, v) {
 
 }
 
-module.exports = { scanUpload, removeScan, scanPath, query, viewer, serialize, load, detail, create, update, assign, done, reopen, cancel, tick, badges, directionUsers };
+/**
+ * Courriers affectés à un ou plusieurs services (en cours, et traités depuis 30 jours), pour l'encart « Courriers affectés au service » des
+ * modules (Juridique, Comptabilité, SAV, RH, Achats, Chantiers). Un courrier confidentiel reste masqué à qui ne le voit pas (serialize).
+ */
+async function departmentMail(db, departments, user, can) {
+  const v = await viewer(db, user, can);
+  const since = new Date(Date.now() - 30 * 86400000);
+  const rows = await query(db).whereIn('m.assigned_department', [].concat(departments))
+    .where(w => w.where('m.status', 'affecte').orWhere(x => x.where('m.status', 'traite').where('m.done_at', '>=', since)))
+    .orderBy('m.date', 'desc').limit(50);
+  return rows.map(m => serialize(m, v));
+}
+
+module.exports = { departmentMail, scanUpload, removeScan, scanPath, query, viewer, serialize, load, detail, create, update, assign, done, reopen, cancel, tick, badges, directionUsers };

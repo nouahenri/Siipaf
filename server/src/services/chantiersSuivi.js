@@ -13,7 +13,7 @@ const { uploadsDir } = require('../config');
 const {
   siteStageLabel, siteStageIndex, siteStageError, DECLARATION_STATUSES, lotInZone, deliveryForecast, deliveryDelay, phaseState, addDays,
 } = require('../lib/domain');
-const { notify, usersWith, inform, resolve } = require('./notifications');
+const { usersWith, inform, resolve } = require('./notifications');
 
 const insertedId = r => (typeof r === 'object' ? r.id : r);
 const today = () => new Date().toISOString().slice(0, 10);
@@ -303,7 +303,7 @@ async function declare(db, { id = null, worksite = null, projectId = null, ilot 
   if (result.calls) {
     // Les commerciaux des acquéreurs appelés (Service commercial)
     const commercials = result.sale_ids.length ? await db('sales as s').join('leads as c', 'c.id', 's.lead_id').whereIn('s.id', result.sale_ids).whereNotNull('c.assigned_to').distinct('c.assigned_to') : [];
-    await notify(db, { to: commercials.map(c => c.assigned_to), module: 'commercial', event: 'vefa.appel_emis', title: `Appels de fonds émis : ${label}`, body: 'Vos acquéreurs concernés ont reçu l’appel dans leur espace client.', link: '/commercial/vefa', key: `etape:${d.id}:commercial` });
+    await inform(db, 'vefa.appel_emis', { direct: commercials.map(c => c.assigned_to), title: `Appels de fonds émis : ${label}`, body: 'Vos acquéreurs concernés ont reçu l’appel dans leur espace client.', link: '/commercial/vefa', key: `etape:${d.id}:commercial` });
   }
   return result;
 }
@@ -406,7 +406,7 @@ async function tick(db) {
       n += await inform(db, 'chantier.livraison_retard', {
         direct: [r.assigned_to],
         title: `Livraison en retard prévue : lot ${r.lot_code} (${r.client_name})`, body: `Promise le ${fr(r.promised_delivery_on)}, prévue le ${fr(forecast)} (${r.delay_days} j) — ${w.reference}.`,
-        link: `/chantiers/${w.id}?onglet=livraisons`, key: `livraison-retard:${r.sale_id}:${forecast}`,
+        link: `/chantiers/${w.id}?onglet=livraisons`, links: { sav: '/sav/ventes' }, directLink: '/commercial/ventes', key: `livraison-retard:${r.sale_id}:${forecast}`,
       });
     }
   }

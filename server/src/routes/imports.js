@@ -29,8 +29,9 @@ module.exports = function importRoutes(db) {
     const perm = data.mode === 'clients' ? 'clients:import' : 'leads:import';
     if (!req.can(perm)) throw new HttpError(403, 'Droits insuffisants pour cet import.');
     if (data.open_access && !req.can('client_access:open')) throw new HttpError(403, 'Droits insuffisants pour ouvrir les espaces clients.');
-    // Reprise des versements : enregistrés directement, donc réservée à la Comptabilité (payments:write)
-    if (data.mode === 'clients' && !req.can('payments:write') && data.rows.some(r => r.paid != null && String(r.paid).trim() !== '' && Number(String(r.paid).replace(/[^d]/g, '')) > 0)) {
+    // Reprise des versements : enregistrés directement, donc réservée à la Comptabilité (payments:write).
+    // Correction du 30/10 : l'expression `[^d]` effaçait tous les chiffres, si bien que le montant valait toujours 0 et le contrôle ne refusait jamais.
+    if (data.mode === 'clients' && !req.can('payments:write') && data.rows.some(r => r.paid != null && String(r.paid).trim() !== '' && Number(String(r.paid).replace(/[^\d]/g, '')) > 0)) {
       throw new HttpError(403, 'La colonne des montants versés est réservée à la Comptabilité : retirez-la ou faites l’import avec un compte qui enregistre les versements.');
     }
     // Création des lots absents du plan : droit des plans de masse

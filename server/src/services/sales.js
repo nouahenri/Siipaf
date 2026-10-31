@@ -78,7 +78,10 @@ async function openSale(db, { lotId, leadId, leadData, price_fcfa, financing, no
       if (!lead.created && lead.assigned_to && lead.assigned_to !== user.id && !all) {
         throw new HttpError(409, 'Cette personne est déjà suivie par un autre commercial. Pour la reprendre, demandez son transfert au responsable.', { lead_id: lead.id, transfer: true });
       }
-      if (lead.created && !all) await trx('leads').where({ id: lead.id }).update({ assigned_to: user.id });
+      if (lead.created && !all) {
+        await trx('leads').where({ id: lead.id }).update({ assigned_to: user.id });
+        await require('./commercial').traceAssignment(trx, lead.id, user.id, { by: user.id, why: 'dossier ouvert' });
+      }
     }
 
     // Le lot passe « réservé »

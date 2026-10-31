@@ -11,7 +11,7 @@
  */
 const { HttpError, isoDay, isoTime } = require('../lib/http');
 const { TMA_STATUSES, TMA_BILLED, NEED_STATUSES, SAV_CATEGORIES, siteStageLabel, addDays, warrantyDates } = require('../lib/domain');
-const { notify, usersWith, inform, resolve } = require('./notifications');
+const { usersWith, inform, resolve } = require('./notifications');
 
 const insertedId = r => (typeof r === 'object' ? r.id : r);
 const today = () => new Date().toISOString().slice(0, 10);
@@ -36,10 +36,8 @@ async function worksiteForLot(db, lot) {
   return null;
 }
 
-/** Message de l'équipe dans l'espace client de l'acquéreur. */
-async function tellClient(db, sale, body, userId = null) {
-  await db('client_messages').insert({ lead_id: sale.lead_id, sale_id: sale.id, sender: 'equipe', user_id: userId, body });
-}
+/** Message de l'équipe dans l'espace client de l'acquéreur, avec l'e-mail « nouveau message » (services/clients.js : tellClient, chemin unique). */
+const tellClient = (db, sale, body, userId = null) => require('./clients').tellClient(db, sale, body, userId);
 
 // ─── TMA ──────────────────────────────────────────────────────────────────
 
@@ -123,8 +121,8 @@ async function quoteChange(db, t, { amount_fcfa, delay_days = null, quote_note =
   const sale = await db('sales').where({ id: t.sale_id }).first();
   await tellClient(db, sale, `Devis de travaux modificatifs ${t.reference} — « ${t.title} » : ${money(amount_fcfa)}${delay_days ? `, réalisation en ${delay_days} jours` : ''}.${quote_note ? `\n${quote_note}` : ''}\nAcceptez-le ou refusez-le dans « Chantier » › Travaux modificatifs. Accepté, son montant s’ajoute à votre échéancier.`, userId);
   if (t.assigned_to) {
-    await notify(db, {
-      to: t.assigned_to, except: userId, module: 'commercial', event: 'tma.chiffree', title: `Devis TMA envoyé : ${t.client_name} — ${money(amount_fcfa)}`,
+    await inform(db, 'tma.chiffree', {
+      direct: [t.assigned_to], except: userId, title: `Devis TMA envoyé : ${t.client_name} — ${money(amount_fcfa)}`,
       body: `${t.title} · lot ${t.lot_code} ; l’acquéreur répond dans son espace client.`, link: '/commercial/ventes', key: `tma:${t.id}:chiffree:${amount_fcfa}`,
     });
   }
@@ -268,8 +266,8 @@ async function moveNeed(db, w, n, { status, reason = null, supplier_id, estimate
   if (['commande', 'refuse', 'annule'].includes(status)) await resolve(db, `besoin:${n.id}`);
   // Le conducteur qui l'a demandé suit sa demande
   if (['refuse', 'commande', 'livre'].includes(status) && n.requested_by) {
-    await notify(db, {
-      to: n.requested_by, except: userId, module: 'chantiers', event: `besoin.${status}`, link: `/chantiers/${w.id}?onglet=besoins`, key: `besoin:${n.id}:${status}`,
+    await inform(db, `besoin.${status}`, {
+      direct: [n.requested_by], except: userId, link: `/chantiers/${w.id}?onglet=besoins`, key: `besoin:${n.id}:${status}`,
       title: `Besoin ${NEED_STATUSES[status].toLowerCase()} : ${n.label} — ${w.reference}`, body: status === 'refuse' ? reason : null, priority: status === 'refuse' ? 'action' : 'info',
     });
   }
@@ -288,6 +286,14 @@ const serializeHandover = h => (h ? {
   id: h.id, sale_id: h.sale_id, handed_on: isoDay(h.handed_on), client_signed: !!h.client_signed, attendees: h.attendees, note: h.note,
   file_url: h.file_filename ? `/api/admin/erp/chantiers/receptions/${h.id}/pv` : null,
 } : null);
+
+/** Le client passe à l'étape « livraison » du circuit de vente, avec sa trace dans l'historique de la fiche. */
+async function moveToDelivery(trx, leadId, userId = null) {
+  const lead = await trx('leads').where({ id: leadId }).first('stage');
+  if (!lead || !['contrat', 'notaire', 'paiement', 'choix_bien'].includes(lead.stage)) return;
+  await trx('leads').where({ id: leadId }).update({ stage: 'livraison', updated_at: new Date() });
+  await require('./commercial').traceStage(trx, leadId, lead.stage, 'livraison', 'Réception du lot', userId);
+}
 
 /**
  * PV de réception d'un lot de la zone du chantier : date de livraison du dossier (garanties), réserves au SAV, étape
@@ -308,7 +314,7 @@ async function handover(db, w, saleId, { handed_on, client_signed = true, attend
     });
     await trx('sales').where({ id: sale.id }).update({ delivered_at: handed_on, updated_at: new Date() });
     // Comme Client & SAV › date de livraison : le client passe à l'étape « livraison »
-    await trx('leads').where({ id: sale.lead_id }).whereIn('stage', ['contrat', 'notaire', 'paiement', 'choix_bien']).update({ stage: 'livraison', updated_at: new Date() });
+    await moveToDelivery(trx, sale.lead_id, userId);
     if (reserves.length) {
       await trx('sav_reserves').insert(reserves.map(r => ({
         sale_id: sale.id, lot_id: lot.id, ticket_id: null, label: r.label, location: r.location || null, category: r.category || null, status: 'ouverte',
@@ -344,9 +350,56 @@ async function handover(db, w, saleId, { handed_on, client_signed = true, attend
   await inform(db, 'lot.livre', {
     direct: info.assigned_to ? [info.assigned_to] : [], except: userId, key: `livraison:${sale.id}`,
     title: `Lot ${lot.code} réceptionné : ${info.client_name}`, body: `${info.project_name} · le ${fr(handed_on)} · ${reserves.length} réserve(s)${declarationId ? ' · dernier appel de fonds à déclarer' : ''}`,
-    link: `/chantiers/${w.id}?onglet=livraisons`, links: { sav: '/sav/reserves', juridique: `/juridique/actes?fiche=${sale.id}`, compta: '/compta' },
+    link: `/chantiers/${w.id}?onglet=livraisons`, directLink: '/commercial/ventes', links: { sav: '/sav/reserves', juridique: `/juridique/actes?fiche=${sale.id}`, compta: '/compta/ventes' },
   });
   return { handover: serializeHandover(await db('lot_handovers').where({ id }).first()), reserves: reserves.length, declaration_id: declarationId };
+}
+
+/**
+ * Date de livraison saisie depuis Client & SAV : une seule porte avec le PV de réception. Si un chantier couvre le lot, c'est une
+ * réception (PV, étape « Livraison » signalée, garanties, message au client, services prévenus) ; si le PV existe déjà, seule sa date
+ * est corrigée ; sans chantier, les mêmes effets sont reproduits (date, étape du client, message, garanties, circuit `lot.livre`).
+ * Une date vidée retire la livraison.
+ */
+async function deliverFromSav(db, saleId, deliveredAt, { userId }) {
+  const sale = await db('sales').where({ id: saleId }).first();
+  if (!sale) throw new HttpError(404, 'Dossier introuvable.');
+  if (!deliveredAt) {
+    await db('sales').where({ id: saleId }).update({ delivered_at: null, updated_at: new Date() });
+    return { announced: false };
+  }
+  if (deliveredAt > today()) throw new HttpError(400, 'Une livraison ne se date pas à l’avance.');
+  const existing = await db('lot_handovers').where({ sale_id: saleId }).first();
+  if (existing) {
+    await db.transaction(async trx => {
+      await trx('lot_handovers').where({ id: existing.id }).update({ handed_on: deliveredAt, updated_at: new Date() });
+      await trx('sales').where({ id: saleId }).update({ delivered_at: deliveredAt, updated_at: new Date() });
+    });
+    return { announced: false };
+  }
+  const lot = await db('lots').where({ id: sale.lot_id }).first();
+  const w = ACTIVE.includes(sale.status) ? await worksiteForLot(db, lot) : null;
+  if (w) {
+    const full = await require('./chantiers').loadWorksite(db, w.id);
+    await handover(db, full, saleId, { handed_on: deliveredAt, client_signed: true, attendees: null, note: 'Date de livraison saisie dans Client & SAV', reserves: [] }, { userId });
+    return { announced: true };
+  }
+  await db.transaction(async trx => {
+    await trx('sales').where({ id: saleId }).update({ delivered_at: deliveredAt, updated_at: new Date() });
+    await moveToDelivery(trx, sale.lead_id, userId);
+  });
+  const [client, info] = await Promise.all([
+    db('leads').where({ id: sale.lead_id }).first('name', 'assigned_to'),
+    db('lots as l').join('projects as p', 'p.id', 'l.project_id').where('l.id', sale.lot_id).first('l.code', 'p.name as project_name'),
+  ]);
+  const g = warrantyDates(deliveredAt);
+  await tellClient(db, sale, `Réception de votre lot ${info.code} le ${fr(deliveredAt)}. Vos garanties courent à partir de cette date : parfait achèvement jusqu’au ${fr(g.parfait_achevement)}, biennale jusqu’au ${fr(g.biennale)}, décennale jusqu’au ${fr(g.decennale)}.`, userId);
+  await inform(db, 'lot.livre', {
+    direct: client.assigned_to ? [client.assigned_to] : [], except: userId, key: `livraison:${saleId}`, directLink: '/commercial/ventes',
+    title: `Lot ${info.code} livré : ${client.name}`, body: `${info.project_name} · le ${fr(deliveredAt)} (date saisie dans Client & SAV)`,
+    link: '/sav/ventes', links: { sav: '/sav/reserves', juridique: `/juridique/actes?fiche=${saleId}`, compta: '/compta/ventes' },
+  });
+  return { announced: true };
 }
 
 async function loadHandover(db, id) {
@@ -397,5 +450,5 @@ async function receiveMarket(db, w, contractId, { works_received_on }, { userId 
 module.exports = {
   worksiteForLot, changes, loadChange, serializeChange, extrasFor, tmaLines, createChange, quoteChange, answerChange, setChangeStatus, clientChanges,
   needs, loadNeed, createNeed, updateNeed, moveNeed, deleteNeed,
-  handover, loadHandover, serializeHandover, clientDelivery, receiveMarket,
+  handover, deliverFromSav, loadHandover, serializeHandover, clientDelivery, receiveMarket,
 };

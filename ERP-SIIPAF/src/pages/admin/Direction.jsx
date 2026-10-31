@@ -26,6 +26,7 @@ const ATTENTION = {
   parc: { icon: Truck, label: 'Parc' }, documents: { icon: FileText, label: 'Documents internes' },
   litiges: { icon: Scale, label: 'Litiges' }, cautions: { icon: ShieldHalf, label: 'Cautions' }, impayes: { icon: AlarmClock, label: 'Impayés' },
   chantiers: { icon: HardHat, label: 'Chantiers' }, qhse: { icon: ShieldAlert, label: 'QHSE' },
+  sav: { icon: LifeBuoy, label: 'Client & SAV' }, prospects: { icon: Users, label: 'Prospects' },
 };
 
 /** Performance par service sur la période choisie (année, trimestre, mois) : mêmes scores que RH › Performance et entretiens. */

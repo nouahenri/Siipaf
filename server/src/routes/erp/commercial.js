@@ -16,6 +16,7 @@ const { totals } = require('../../services/sales');
 const { scheduleStatus } = require('../../services/schedule');
 const { progressIndex } = require('../../services/clients');
 const { checkLotType, withTypeLabels } = require('../../services/refs');
+const liaisons = require('../../services/liaisons');
 
 const optText = max => z.string().trim().max(max).optional().nullable().transform(v => v || null);
 const month = z.string().regex(/^\d{4}-(0[1-9]|1[0-2])$/, 'Mois attendu au format AAAA-MM');
@@ -113,11 +114,11 @@ module.exports = function commercialRoutes(db) {
       await trx('leads').where({ id: lead.id }).update({ ...data, updated_at: new Date() });
       if (data.assigned_to !== undefined && data.assigned_to !== lead.assigned_to) {
         await require('../../services/portfolio').followOwner(trx, lead.id, data.assigned_to);
-        const u = data.assigned_to ? await trx('users').where({ id: data.assigned_to }).first('name') : null;
-        await cm.logActivity(trx, lead.id, { kind: 'systeme', summary: u ? `Attribué à ${u.name}` : 'Plus de commercial attribué', userId: req.user.id });
+        await cm.traceAssignment(trx, lead.id, data.assigned_to || null, { by: req.user.id });
       }
       await require('../../services/portfolio').syncLead(trx, lead.id, { by: req.user.id });
     });
+    if (data.assigned_to && data.assigned_to !== lead.assigned_to) await liaisons.announceAssigned(db, data.assigned_to, [{ id: lead.id, name: data.name || lead.name }], { by: req.user.id });
     res.json(await db('leads').where({ id: lead.id }).first());
   }));
 
@@ -158,9 +159,11 @@ module.exports = function commercialRoutes(db) {
     checkAssignee(req, data.assigned_to);
     if (data.kind !== 'note' && !data.due_at) throw new HttpError(400, 'Indiquez la date de l’activité.');
     if (data.kind === 'note' && !data.note) throw new HttpError(400, 'Note vide.');
+    let planned = null;
     const id = await db.transaction(async trx => {
       // Par défaut le commercial de la fiche ; une fiche à attribuer est attribuée au commercial choisi par le responsable
       const assignedTo = await cm.plannedFor(trx, lead, data.assigned_to, req.user);
+      planned = assignedTo;
       // Une note s'inscrit directement dans l'historique
       const [newId] = await trx('lead_activities').insert({
         lead_id: lead.id, kind: data.kind, summary: data.summary || ACTIVITY_KINDS[data.kind], note: data.note,
@@ -169,6 +172,9 @@ module.exports = function commercialRoutes(db) {
       await trx('leads').where({ id: lead.id }).update({ updated_at: new Date() });
       return newId;
     });
+    // Le commercial choisi par le responsable est prévenu de la fiche (si elle était à attribuer) et de l'activité
+    if (cm.attributedByPlanning(lead, data.assigned_to, req.user)) await liaisons.announceAssigned(db, planned, [{ id: lead.id, name: lead.name }], { by: req.user.id });
+    if (data.kind !== 'note') await liaisons.announceTask(db, { userId: planned, leadId: lead.id, what: data.summary || ACTIVITY_KINDS[data.kind], when: data.due_at }, req.user.id);
     res.status(201).json(cm.serializeActivity(await db('lead_activities').where({ id: insertedId(id) }).first()));
   }));
 
@@ -190,16 +196,19 @@ module.exports = function commercialRoutes(db) {
     if (data.next && !data.next.due_at) throw new HttpError(400, 'Indiquez la date de l’activité suivante.');
     checkAssignee(req, data.next?.assigned_to);
     if (data.next?.assigned_to) await cm.assertSeller(db, data.next.assigned_to);
+    let nextTo = null;
     await db.transaction(async trx => {
       await trx('lead_activities').where({ id: a.id }).update({ done_at: new Date(), outcome: data.outcome, created_by: a.created_by || req.user.id, updated_at: new Date() });
       if (data.next) {
+        nextTo = data.next.assigned_to || (await trx('leads').where({ id: a.lead_id }).first('assigned_to'))?.assigned_to || req.user.id;
         await trx('lead_activities').insert({
           lead_id: a.lead_id, kind: data.next.kind, summary: data.next.summary || ACTIVITY_KINDS[data.next.kind], note: data.next.note,
-          due_at: new Date(data.next.due_at), assigned_to: data.next.assigned_to || (await trx('leads').where({ id: a.lead_id }).first('assigned_to'))?.assigned_to || req.user.id, created_by: req.user.id,
+          due_at: new Date(data.next.due_at), assigned_to: nextTo, created_by: req.user.id,
         });
       }
       await trx('leads').where({ id: a.lead_id }).update({ updated_at: new Date() });
     });
+    if (data.next && nextTo) await liaisons.announceTask(db, { userId: nextTo, leadId: a.lead_id, what: data.next.summary || ACTIVITY_KINDS[data.next.kind], when: data.next.due_at }, req.user.id);
     res.json({ ok: true });
   }));
 
@@ -210,6 +219,7 @@ module.exports = function commercialRoutes(db) {
     const patch = { ...data, updated_at: new Date() };
     if (data.due_at) patch.due_at = new Date(data.due_at);
     await db('lead_activities').where({ id: a.id }).update(patch);
+    if (data.assigned_to && data.assigned_to !== a.assigned_to) await liaisons.announceTask(db, { userId: data.assigned_to, leadId: a.lead_id, what: data.summary || a.summary || ACTIVITY_KINDS[a.kind], when: data.due_at || a.due_at }, req.user.id);
     res.json(cm.serializeActivity(await db('lead_activities').where({ id: a.id }).first()));
   }));
 

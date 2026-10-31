@@ -456,6 +456,8 @@ module.exports = function catalogRoutes(db) {
     if (data.lead_id) await leadInScope(db, data.lead_id, req.user);
     await lotOfMyClient(idParam(req), req.user);
     const lot = await changeLotStatus(db, { lotId: idParam(req), to: data.status, user: req.user, leadId: data.lead_id, reason: data.reason });
+    // Réservé ou vendu à la main, sans dossier d'acquisition : le commercial (à défaut les responsables) est prévenu qu'il reste à l'ouvrir
+    if (['reserve', 'vendu'].includes(data.status)) await require('../services/liaisons').announceLotWithoutSale(db, lot.id, data.status, { user: req.user, leadId: data.lead_id }).catch(() => {});
     res.json(decodeLot(lot));
   }));
 

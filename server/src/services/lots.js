@@ -77,7 +77,8 @@ async function writeStatus(trx, lot, to, { userId = null, leadId = null, reason 
  * Quitter « option » clôt l'option active (confirmée si on réserve, annulée sinon).
  */
 async function changeLotStatus(db, { lotId, to, user, leadId = null, reason = null }) {
-  return db.transaction(async trx => {
+  let closedSales = [];
+  const lotRow = await db.transaction(async trx => {
     const lot = await trx('lots').where({ id: lotId }).first();
     if (!lot) throw new HttpError(404, 'Lot introuvable.');
     const refusal = checkLotTransition(lot.status, to, user.role);
@@ -94,13 +95,17 @@ async function changeLotStatus(db, { lotId, to, user, leadId = null, reason = nu
     }
     // Désistement ou annulation d'une réservation : le dossier d'acquisition actif est clos
     if (['reserve', 'vendu'].includes(lot.status) && ['desistement', 'disponible'].includes(to)) {
-      const closing = await trx('sales').where({ lot_id: lot.id }).whereIn('status', ['en_cours', 'solde']).pluck('lead_id');
+      const closing = await trx('sales').where({ lot_id: lot.id }).whereIn('status', ['en_cours', 'solde']).select('id', 'lead_id');
       await trx('sales').where({ lot_id: lot.id }).whereIn('status', ['en_cours', 'solde']).update({ status: 'desiste', updated_at: new Date() });
-      for (const leadId of closing) await require('./portfolio').syncLead(trx, leadId, { by: user.id });
+      for (const c of closing) await require('./portfolio').syncLead(trx, c.lead_id, { by: user.id });
+      closedSales = closing.map(c => c.id);
     }
     await writeStatus(trx, lot, to, { userId: user.id, leadId: lead, reason });
     return trx('lots').where({ id: lot.id }).first();
   });
+  // Désistement : Comptabilité, Juridique, Chantiers, SAV et commercial du client sont prévenus (circuit d'information réglable)
+  if (closedSales.length) await require('./liaisons').announceDesistement(db, closedSales, user).catch(() => {});
+  return lotRow;
 }
 
 /**
@@ -122,7 +127,10 @@ async function placeOption(db, { lotId, leadData, userId = null, user = null }) 
       }
       // Fiche existante sans commercial : à attribuer par le responsable (audit du 30/10), rien n'est divulgué
       if (!lead.created && !lead.assigned_to) throw new HttpError(409, 'Cette personne est déjà suivie : demandez son attribution au responsable.');
-      if (lead.created || !lead.assigned_to) await trx('leads').where({ id: lead.id }).update({ assigned_to: user.id });
+      if (lead.created || !lead.assigned_to) {
+        await trx('leads').where({ id: lead.id }).update({ assigned_to: user.id });
+        await require('./commercial').traceAssignment(trx, lead.id, user.id, { by: user.id, why: 'option posée' });
+      }
     }
 
     const active = await trx('lot_options')
@@ -153,17 +161,20 @@ async function placeOption(db, { lotId, leadData, userId = null, user = null }) 
 async function expireOptions(db, now = new Date()) {
   const due = await db('lot_options').where({ state: 'active' }).andWhere('expires_at', '<=', now);
   for (const opt of due) {
-    await db.transaction(async trx => {
-      await trx('lot_options').where({ id: opt.id, state: 'active' }).update({ state: 'expiree', updated_at: now });
+    const expired = await db.transaction(async trx => {
+      const n = await trx('lot_options').where({ id: opt.id, state: 'active' }).update({ state: 'expiree', updated_at: now });
       const lot = await trx('lots').where({ id: opt.lot_id }).first();
-      if (!lot || lot.status !== 'option') return;
+      if (!lot || lot.status !== 'option') return n > 0;
       const before = await trx('lot_status_history')
         .where({ lot_id: lot.id, to_status: 'option' })
         .orderBy('id', 'desc')
         .first();
       const back = before && SELLABLE_STATUSES.includes(before.from_status) ? before.from_status : 'disponible';
       await writeStatus(trx, lot, back, { leadId: opt.lead_id, reason: 'Option expirée' });
+      return n > 0;
     });
+    // Le commercial du prospect (à défaut les responsables) et le prospect sont prévenus de l'expiration
+    if (expired) await require('./liaisons').announceOption(db, opt.id, 'expiree').catch(() => {});
   }
   return due.length;
 }

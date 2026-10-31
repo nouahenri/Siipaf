@@ -13,6 +13,7 @@ import SignedBars from '../../components/SignedBars';
 import { ParcPayables } from '../../components/ParcCompta';
 import { PendingPayments, ClientPaymentButton } from './ClientPayments';
 import ServiceRequests from '../../components/ServiceRequests';
+import DepartmentMail from '../../components/DepartmentMail';
 
 // Nom court d'un programme sous les barres : « SIIPAF CITY AHOUTOUE » → « AHOUTOUE »
 const shortName = n => n.replace(/^(SIIPAF CITY|MINI-CITÉS DE|C & LY —)\s+/i, '').replace(/^(.{11}).+/, '$1…');
@@ -175,6 +176,8 @@ export default function ComptaDashboard() {
           </Card>
         </div>
       </div>
+
+      <DepartmentMail departments="comptabilite" label="Comptabilité" />
 
       {meta && <p className="small muted">Chiffre d’affaires : VEFA {meta.settings.revenue_vefa === 'avancement' ? 'à l’avancement' : 'à la livraison'} · ventes sur échéancier {meta.settings.revenue_echeancier === 'acte' ? 'à l’acte définitif' : 'à l’encaissement'} · TVA sur ventes {meta.settings.vat_sales_rate} % (<Link className="link" to="/compta/parametres">réglages</Link>). Montants des graphiques en FCFA, brouillons compris.</p>}
       {d.drafts > 0 && <p className="small" style={{ color: 'var(--warn)' }}>Les écritures automatiques sont créées en brouillon : le comptable les contrôle puis les valide (numérotation définitive).</p>}

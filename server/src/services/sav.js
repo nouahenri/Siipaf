@@ -223,7 +223,12 @@ async function createTicket(db, data, { userId = null, source = 'equipe' } = {})
       body: source === 'client' ? 'Réclamation déposée depuis l’espace client.' : 'Réclamation enregistrée.',
     });
     // Le client avance à l'étape « SAV » du circuit de vente
-    if (ctx.lead_id) await trx('leads').where({ id: ctx.lead_id }).whereNot('stage', 'perdu').update({ stage: 'sav', updated_at: now });
+    if (ctx.lead_id) {
+      const lead = await trx('leads').where({ id: ctx.lead_id }).first('stage');
+      await trx('leads').where({ id: ctx.lead_id }).whereNot('stage', 'perdu').update({ stage: 'sav', updated_at: now });
+      // Le passage automatique en « SAV » est inscrit dans l'historique de la fiche (audit du 30/10)
+      if (lead && !['perdu', 'sav'].includes(lead.stage)) await require('./commercial').traceStage(trx, ctx.lead_id, lead.stage, 'sav', `Réclamation ${row.ref}`, userId);
+    }
     return trx('sav_tickets').where({ id: ticketId }).first();
   });
 }
@@ -481,7 +486,114 @@ async function updateIntervention(db, id, patch, { userId }) {
   });
 }
 
+// ─── Liaisons : qui est prévenu de quoi (audit du 30/10, circuit d'information réglable) ───────────────
+
+const ticketLink = id => `/sav/reclamations?t=${id}`;
+
+/** Conducteur du chantier qui couvre le lot (celui qui reprend les réserves et les travaux de reprise), sinon null. */
+async function lotWorksite(db, lotId) {
+  if (!lotId) return null;
+  const lot = await db('lots').where({ id: lotId }).first();
+  return lot ? require('./chantiersLivraison').worksiteForLot(db, lot) : null;
+}
+
+/**
+ * Nouvelle réclamation, quel que soit son chemin (espace client, saisie de l'équipe, réserve convertie) : ceux qui attribuent
+ * les réclamations, le commercial du client et le conducteur du chantier, plus les services du circuit (SAV, exploitation).
+ */
+async function announceTicket(db, t, { by = null } = {}) {
+  const { inform, usersWith } = require('./notifications');
+  const lead = t.lead_id ? await db('leads').where({ id: t.lead_id }).first('name', 'assigned_to', 'client_code') : null;
+  const w = await lotWorksite(db, t.lot_id);
+  const direct = [
+    ...(await usersWith(db, 'sav:assign')), ...(t.assigned_to ? [t.assigned_to] : []),
+    ...(lead?.assigned_to ? [{ id: lead.assigned_to, link: '/commercial/ventes' }] : []),
+    ...(w?.manager_id ? [{ id: w.manager_id, link: `/chantiers/${w.id}?onglet=livraisons` }] : []),
+  ];
+  return inform(db, 'reclamation.ouverte', {
+    direct, except: by, title: `Nouvelle réclamation ${t.ref}${lead ? ` — ${lead.name}` : ''}`,
+    body: t.title, link: ticketLink(t.id), priority: 'action', key: `sav:${t.id}:ouverte`,
+  });
+}
+
+/** Changement de statut : le client est prévenu dans son espace (e-mail « nouveau message »), le commercial quand elle est résolue ou rejetée. */
+async function announceTicketStatus(db, t, to, { by = null } = {}) {
+  if (t.lead_id) {
+    await require('./clients').tellClient(db, { leadId: t.lead_id, saleId: t.sale_id }, `Votre demande ${t.ref} « ${t.title} » est maintenant : ${SAV_STATUS_LABELS[to]}. Suivez-la dans « Mes demandes ».`, by);
+  }
+  if (!['resolu', 'rejete'].includes(to) || !t.lead_id) return 0;
+  const lead = await db('leads').where({ id: t.lead_id }).first('name', 'assigned_to');
+  return require('./notifications').inform(db, 'reclamation.resolue', {
+    direct: lead?.assigned_to ? [{ id: lead.assigned_to, link: '/commercial/ventes' }] : [], except: by, key: `sav:${t.id}:${to}`,
+    title: `Réclamation ${t.ref} ${to === 'resolu' ? 'résolue' : 'rejetée'} : ${lead?.name || 'client'}`, body: t.title, link: ticketLink(t.id),
+  });
+}
+
+/** Avis de satisfaction du client : son commercial et le responsable de la réclamation sont prévenus (action si la note est basse). */
+async function announceSatisfaction(db, t) {
+  const lead = await db('leads').where({ id: t.lead_id }).first('name', 'assigned_to');
+  return require('./notifications').inform(db, 'satisfaction.recue', {
+    direct: [...(lead?.assigned_to ? [{ id: lead.assigned_to, link: '/commercial/ventes' }] : []), ...(t.assigned_to ? [t.assigned_to] : [])],
+    key: `sav:${t.id}:avis`, priority: t.satisfaction <= 2 ? 'action' : 'info',
+    title: `Avis de ${lead?.name || 'client'} : ${t.satisfaction}/5 sur ${t.ref}`, body: t.satisfaction_comment || t.title, link: ticketLink(t.id),
+  });
+}
+
+/** Réserve levée : le client est prévenu dans son espace et le conducteur du chantier de la livraison. */
+async function announceReserveLifted(db, reserveId, by) {
+  const r = await db('sav_reserves').where({ id: reserveId }).first();
+  if (!r || r.status !== 'levee') return 0;
+  const sale = await db('sales').where({ id: r.sale_id }).first('id', 'lead_id');
+  const lot = await db('lots').where({ id: r.lot_id }).first('code');
+  const stamp = r.lifted_at ? new Date(r.lifted_at).getTime() : Date.now();
+  if (sale) await require('./clients').tellClient(db, sale, `La réserve « ${r.label} » de votre lot ${lot?.code || ''} a été levée. Retrouvez le suivi dans « Chantier » › Livraison.`, by);
+  const w = await lotWorksite(db, r.lot_id);
+  return require('./notifications').inform(db, 'reserve.levee', {
+    direct: w?.manager_id ? [{ id: w.manager_id, link: `/chantiers/${w.id}?onglet=livraisons` }] : [], except: by, key: `reserve:${r.id}:levee:${stamp}`,
+    title: `Réserve levée : ${r.label} — lot ${lot?.code || ''}`, body: r.location || null, link: '/sav/reserves',
+  });
+}
+
+/** Intervention créée ou modifiée : le technicien désigné est prévenu ; réalisée avec un coût, la Comptabilité attend la facture. */
+async function announceIntervention(db, i, before, by) {
+  const { inform } = require('./notifications');
+  let n = 0;
+  if (i.technician_id && (!before || before.technician_id !== i.technician_id)) {
+    const t = i.ticket_id ? await db('sav_tickets').where({ id: i.ticket_id }).first('ref', 'title') : null;
+    const when = new Date(i.scheduled_at).toLocaleString('fr-FR', { dateStyle: 'medium', timeStyle: 'short', timeZone: 'Africa/Abidjan' });
+    n += await inform(db, 'intervention.confiee', {
+      direct: [i.technician_id], except: by, key: `intervention:${i.id}:technicien:${i.technician_id}`,
+      title: `Intervention SAV à assurer le ${when}`, body: t ? `${t.ref} — ${t.title}` : 'Reprise d’une réserve de livraison', link: '/sav/interventions',
+    });
+  }
+  if (i.status === 'realisee' && Number(i.cost_fcfa) > 0 && (!before || before.status !== 'realisee' || Number(before.cost_fcfa) !== Number(i.cost_fcfa))) {
+    const t = i.ticket_id ? await db('sav_tickets').where({ id: i.ticket_id }).first('ref', 'title') : null;
+    n += await inform(db, 'intervention.cout', {
+      except: by, key: `intervention:${i.id}:cout:${Number(i.cost_fcfa)}`, link: '/compta/achats',
+      title: `Intervention SAV réalisée : ${Number(i.cost_fcfa).toLocaleString('fr-FR')} FCFA à facturer`, body: [t && `${t.ref} — ${t.title}`, i.contractor && `Entreprise : ${i.contractor}`].filter(Boolean).join(' · ') || null,
+    });
+  }
+  return n;
+}
+
+/** Tâche horaire : réclamation ouverte dont l'échéance de traitement est dépassée (une seule alerte par réclamation). */
+async function tick(db, now = new Date()) {
+  const { inform } = require('./notifications');
+  let n = 0;
+  const late = await db('sav_tickets as t').leftJoin('leads as ld', 'ld.id', 't.lead_id').whereIn('t.status', SAV_OPEN_STATUSES).whereNotNull('t.due_at').where('t.due_at', '<', now)
+    .select('t.id', 't.ref', 't.title', 't.priority', 't.due_at', 't.assigned_to', 'ld.name as client_name');
+  for (const t of late) {
+    const hours = Math.max(1, Math.round((now.getTime() - new Date(t.due_at).getTime()) / HOUR));
+    n += await inform(db, 'reclamation.retard', {
+      direct: t.assigned_to ? [t.assigned_to] : [], key: `sav:${t.id}:retard`, priority: ['urgente', 'haute'].includes(t.priority) ? 'urgent' : 'action',
+      title: `Réclamation ${t.ref} en retard (${hours} h)`, body: `${t.client_name ? `${t.client_name} · ` : ''}${t.title}`, link: ticketLink(t.id),
+    });
+  }
+  return n;
+}
+
 module.exports = {
+  announceTicket, announceTicketStatus, announceSatisfaction, announceReserveLifted, announceIntervention, tick,
   createTicket, changeStatus, addComment, rate, ticketDetail, savStats, dueFrom, addEvent, nextRef,
   createReserve, setReserveStatus, reserveToTicket, createIntervention, updateIntervention,
   seesAllSav, scopeTickets, scopeReserves, scopeInterventions, scopeSales, interventionQuery, ticketInScope, saleInScope, leadInSavScope, reserveInScope, interventionInScope, fileInScope,

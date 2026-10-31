@@ -107,7 +107,7 @@ async function hire(db, id, { hire_date, base_salary, trial_end_date = null, con
   if (STAGE_ORDER.indexOf(a.stage) < STAGE_ORDER.indexOf('proposition')) throw new HttpError(400, 'Faites d’abord une proposition d’embauche.');
   const job = a.job_id ? await db('hr_jobs').where({ id: a.job_id }).first() : null;
   const [first, ...rest] = a.name.trim().split(/\s+/);
-  return db.transaction(async trx => {
+  const employeeId = await db.transaction(async trx => {
     // Le poste recruté rejoint la liste des postes (RH › Réglages)
     const post = await require('./positions').resolve(trx, { job_title: job_title || job?.title || 'Employé(e)', department: job?.department || 'administratif' });
     const title = post.job_title;
@@ -126,6 +126,8 @@ async function hire(db, id, { hire_date, base_salary, trial_end_date = null, con
     }
     return employeeId;
   });
+  await require('./rh').announceHire(db, employeeId, userId); // comptes, services généraux et Comptabilité (circuit d'information)
+  return employeeId;
 }
 
 module.exports = { cvUpload, cvDir, jobs, serializeJob, serializeApplicant, applicantQuery, applicant, createApplicant, move, hire, log };

@@ -11,7 +11,7 @@ const {
 } = require('../lib/domain');
 const { computePayslip } = require('../lib/paie');
 const { splitVat } = require('../lib/compta');
-const { notify, employeeUser, inform } = require('./notifications');
+const { employeeUser, inform } = require('./notifications');
 
 const insertedId = r => (typeof r === 'object' ? r.id : r);
 const today = () => new Date().toISOString().slice(0, 10);
@@ -112,11 +112,11 @@ async function list(db, v, { status = 'ouverts', projectId = null, q = '' } = {}
   const rows = await query;
   if (!rows.length) return [];
   const ids = rows.map(r => r.id);
-  const [phases, budgets, buildings, spent] = await Promise.all([
+  const [phases, budgets, buildings, spent, committed] = await Promise.all([
     db('worksite_phases').whereIn('worksite_id', ids),
     db('worksite_budget_lines').whereIn('worksite_id', ids).groupBy('worksite_id').select('worksite_id').sum({ total: 'amount_fcfa' }),
     db('buildings').whereIn('project_id', [...new Set(rows.map(r => r.project_id))]).select('id', 'code'),
-    spentByWorksite(db, ids),
+    spentByWorksite(db, ids), committedByWorksite(db, ids),
   ]);
   const day = today();
   return rows.map(w => {
@@ -125,6 +125,7 @@ async function list(db, v, { status = 'ouverts', projectId = null, q = '' } = {}
       budget: Number(budgets.find(b => b.worksite_id === w.id)?.total || 0), buildings,
     });
     out.spent_fcfa = spent[w.id] || 0;
+    out.committed_fcfa = committed[w.id] || 0; // commandes confirmées pas encore reçues
     out.consumed_pct = out.budget_fcfa ? Math.round((out.spent_fcfa / out.budget_fcfa) * 100) : null;
     return out;
   });
@@ -197,8 +198,8 @@ function checkDates(d) {
 /** Nomination du conducteur : cloche et e-mail au compte nommé. */
 async function announceManager(db, w, userId) {
   if (!w.manager_id || Number(w.manager_id) === Number(userId)) return;
-  await notify(db, {
-    to: w.manager_id, module: 'chantiers', event: 'chantier.conducteur', priority: 'action', email: true,
+  await inform(db, 'chantier.conducteur', {
+    direct: [w.manager_id], priority: 'action', email: true,
     title: `Vous êtes nommé conducteur du chantier ${w.reference}`, body: `${w.name} — ${w.project_name}`,
     link: `/chantiers/${w.id}`, key: `chantier:${w.id}:conducteur:${w.manager_id}`,
   });
@@ -318,8 +319,8 @@ async function announceTask(db, w, task, userId) {
   if (!task.employee_id) return;
   const u = await employeeUser(db, task.employee_id);
   if (!u || u.id === userId) return;
-  await notify(db, {
-    to: u.id, module: 'chantiers', event: 'chantier.tache', title: `Tâche confiée : ${task.title}`,
+  await inform(db, 'chantier.tache', {
+    direct: [u.id], title: `Tâche confiée : ${task.title}`,
     body: `${w.reference} — ${w.name}${task.due_on ? ` · échéance le ${fr(isoDay(task.due_on))}` : ''}`,
     link: `/chantiers/${w.id}?onglet=taches`, key: `chantier-tache:${task.id}:${task.employee_id}`,
   });
@@ -459,6 +460,24 @@ async function spentByWorksite(db, ids) {
   return out;
 }
 
+/**
+ * Engagé par chantier : bons de commande confirmés (ou partiellement reçus) livrés sur le chantier et pas encore reçus, en HT. Ce qui est
+ * déjà reçu est dans les coûts réels (facture préparée à la réception) : il n'est pas compté deux fois.
+ */
+async function committedByWorksite(db, ids) {
+  const out = Object.fromEntries(ids.map(id => [id, 0]));
+  if (!ids.length) return out;
+  const orders = await db('appro_orders as o').join('appro_locations as l', 'l.id', 'o.location_id').whereIn('l.worksite_id', ids).whereIn('o.status', ['confirmee', 'partielle'])
+    .select('o.id', 'o.amount_ht', 'l.worksite_id');
+  if (!orders.length) return out;
+  const lines = await db('appro_order_lines').whereIn('order_id', orders.map(o => o.id)).select('order_id', 'received_units', 'unit_price_fcfa');
+  for (const o of orders) {
+    const received = lines.filter(l => l.order_id === o.id).reduce((t, l) => t + Math.round((Number(l.received_units) * Number(l.unit_price_fcfa || 0)) / 100), 0);
+    out[o.worksite_id] += Math.max(0, Number(o.amount_ht) - received);
+  }
+  return out;
+}
+
 /** Détail des coûts réels d'un chantier, par poste du budget et par source. */
 async function costs(db, worksiteId) {
   const [purchases, parc, labor, paid] = await Promise.all([
@@ -478,8 +497,9 @@ async function costs(db, worksiteId) {
   const a = parc.map(r => ({ id: r.id, date: isoDay(r.date), kind: r.kind, label: r.label, asset_id: r.asset_id, asset: `${r.code} ${r.name}`, amount_fcfa: htOf(r.amount, r.vat_rate) }));
   by.engins = (by.engins || 0) + a.reduce((t, r) => t + r.amount_fcfa, 0);
   by.main_oeuvre = (by.main_oeuvre || 0) + labor.reduce((t, r) => t + r.amount_fcfa, 0);
+  const committed = (await committedByWorksite(db, [worksiteId]))[worksiteId] || 0;
   return {
-    by_category: by, total: Object.values(by).reduce((t, v) => t + v, 0), purchases: p, parc: a,
+    committed_fcfa: committed, by_category: by, total: Object.values(by).reduce((t, v) => t + v, 0), purchases: p, parc: a,
     labor: labor.map(({ worksite_id, ...r }) => r), paid_fcfa: Number(paid?.t) || 0,
     drafts_fcfa: p.filter(r => r.status === 'brouillon').reduce((t, r) => t + r.amount_fcfa, 0),
   };
@@ -493,10 +513,12 @@ async function tick(db) {
   const open = await worksiteQuery(db).whereIn('w.status', WORKSITE_OPEN);
   if (!open.length) return 0;
   const ids = open.map(w => w.id);
-  const [budgets, spent, s] = await Promise.all([
+  const [budgets, realSpent, committed, s] = await Promise.all([
     db('worksite_budget_lines').whereIn('worksite_id', ids).groupBy('worksite_id').select('worksite_id').sum({ total: 'amount_fcfa' }),
-    spentByWorksite(db, ids), settings(db),
+    spentByWorksite(db, ids), committedByWorksite(db, ids), settings(db),
   ]);
+  // L'alerte compte le réel et l'engagé (commandes confirmées pas encore reçues) : on prévient avant la réception, pas après
+  const spent = Object.fromEntries(ids.map(id => [id, (realSpent[id] || 0) + (committed[id] || 0)]));
   let n = 0;
   for (const w of open) {
     const budget = Number(budgets.find(b => b.worksite_id === w.id)?.total || 0);
@@ -507,7 +529,7 @@ async function tick(db) {
     // Le conducteur et les services du circuit (Direction générale, exploitation, Comptabilité par défaut)
     n += await inform(db, 'budget.depasse', {
       direct: [w.manager_id], priority: level === 'depasse' ? 'urgent' : 'action', title, links: { compta: '/compta' },
-      body: `${w.name} — ${w.project_name}`, link: `/chantiers/${w.id}?onglet=budget`, key: `chantier-budget:${w.id}:${level}`, email: level === 'depasse',
+      body: `${w.name} — ${w.project_name}${committed[w.id] ? ` · dont ${Math.round(committed[w.id]).toLocaleString('fr-FR')} FCFA engagés (commandes confirmées)` : ''}`, link: `/chantiers/${w.id}?onglet=budget`, key: `chantier-budget:${w.id}:${level}`, email: level === 'depasse',
     });
   }
   return n;
@@ -631,6 +653,6 @@ async function badges(db, v) {
 module.exports = {
   seesAll, canSee, canManage, loadWorksite, visibleWorksite, managedWorksite, list, detail, create, update, remove,
   savePhase, deletePhase, reorderPhases, saveTask, deleteTask, saveBudgetLine, deleteBudgetLine, refs, programme, badges, zoneLots, serializeWorksite,
-  resolveSite, places, settings, saveSettings, hourlyCost, costs, spentByWorksite, tick,
+  resolveSite, places, settings, saveSettings, hourlyCost, costs, spentByWorksite, committedByWorksite, tick,
   LIST_KINDS, listItems, checkListCode, addListItem, updateListItem, removeListItem, reorderList,
 };

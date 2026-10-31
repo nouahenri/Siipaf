@@ -11,8 +11,7 @@ const { splitVat } = require('../lib/compta');
 const { DEPARTMENTS } = require('../lib/paie');
 const { nextPurchaseNumber } = require('./compta');
 const { getSetting } = require('./settings');
-const { notify, resolve, usersWith, inform } = require('./notifications');
-const usersWithAny = async (db, perms) => [...new Map((await Promise.all(perms.map(p => usersWith(db, p)))).flat().map(u => [u.id, u])).values()];
+const { resolve, usersWith, usersWithAny, inform } = require('./notifications');
 
 const insertedId = r => (typeof r === 'object' ? r.id : r);
 
@@ -67,25 +66,25 @@ const canSee = (r, v) => r.requested_by === v.userId || r.manager_user_id === v.
 /** Prévient le ou les valideurs de l'étape où se trouve la demande. */
 async function notifyStep(db, r, except) {
   const s = serialize(r);
-  const base = { module: 'administration', link: `/administration/demandes?fiche=${r.id}`, priority: r.urgency === 'urgente' ? 'urgent' : 'action', email: true, except };
+  const base = { link: `/administration/demandes?fiche=${r.id}`, priority: r.urgency === 'urgente' ? 'urgent' : 'action', email: true, except };
   const what = `${s.kind_label} — ${r.title}${s.estimated_amount ? ` (${s.estimated_amount.toLocaleString('fr-FR')} FCFA)` : ''}`;
   if (r.status === 'attente_responsable') {
-    await notify(db, { ...base, to: r.manager_user_id, event: 'demande.responsable', title: `Demande de ${r.requested_by_name} à valider`, body: what, key: `demande:${r.id}:responsable` });
+    await inform(db, 'demande.responsable', { ...base, direct: r.manager_user_id, title: `Demande de ${r.requested_by_name} à valider`, body: what, key: `demande:${r.id}:responsable` });
   } else if (r.status === 'attente_dg') {
-    await notify(db, { ...base, to: await usersWith(db, 'demandes:dg'), event: 'demande.dg', title: `Achat à valider (DG) : ${r.reference}`, body: `${what} — demandé par ${r.requested_by_name}`, key: `demande:${r.id}:dg` });
+    await inform(db, 'demande.dg', { ...base, direct: await usersWith(db, 'demandes:dg'), title: `Achat à valider (DG) : ${r.reference}`, body: `${what} — demandé par ${r.requested_by_name}`, key: `demande:${r.id}:dg` });
   } else if (r.status === 'attente_achats') {
     // Besoin d'un service : les Achats le commandent (circuit réglable dans Administration générale › Circuit d'information)
     await inform(db, 'demande.achat', { except, key: `demande:${r.id}:achats`, priority: base.priority, title: `Besoin à commander : ${r.reference}`, body: `${what} — ${r.requested_by_name}`, link: '/achats/besoins?onglet=services' });
   } else if (r.status === 'attente_service' && REQUEST_SERVICES[r.service]) {
     const svc = REQUEST_SERVICES[r.service];
-    await notify(db, { ...base, module: svc.module, link: svc.link, to: await usersWithAny(db, svc.perms), event: 'demande.service', title: `Demande reçue : ${r.title}`, body: `${r.requested_by_name} — ${r.reference}`, key: `demande:${r.id}:service` });
+    await inform(db, 'demande.service', { ...base, module: svc.module, link: svc.link, direct: await usersWithAny(db, svc.perms), title: `Demande reçue : ${r.title}`, body: `${r.requested_by_name} — ${r.reference}`, key: `demande:${r.id}:service` });
   } else if (r.status === 'attente_sg') {
-    await notify(db, { ...base, to: await usersWith(db, 'demandes:handle'), event: 'demande.sg', title: `Demande à traiter : ${r.reference}`, body: `${what} — ${r.requested_by_name}`, key: `demande:${r.id}:sg` });
+    await inform(db, 'demande.sg', { ...base, direct: await usersWith(db, 'demandes:handle'), title: `Demande à traiter : ${r.reference}`, body: `${what} — ${r.requested_by_name}`, key: `demande:${r.id}:sg` });
   }
 }
 
 async function notifyRequester(db, r, title, body, except) {
-  await notify(db, { to: r.requested_by, except, module: 'rh', event: 'demande.suite', title, body, link: '/rh/moi', key: `demande:${r.id}:${r.status}`, email: true });
+  await inform(db, 'demande.suite', { direct: r.requested_by, except, title, body, link: '/rh/moi', key: `demande:${r.id}:${r.status}`, email: true });
 }
 
 async function create(db, data, { user }) {
@@ -198,8 +197,8 @@ async function close(db, r, data, v) {
   const fresh = await load(db, r.id);
   await notifyRequester(db, fresh, data.outcome === 'refusee' ? `Demande refusée : ${r.title}` : `Demande traitée : ${r.title}`, data.note || null, v.userId);
   if (fresh.purchase_invoice_id) {
-    await notify(db, {
-      to: await usersWith(db, 'achats:write'), except: v.userId, module: 'compta', event: 'achat.brouillon', title: `Facture d’achat à vérifier : ${fresh.invoice_number}`,
+    await inform(db, 'achat.brouillon', {
+      direct: await usersWith(db, 'achats:write'), except: v.userId, title: `Facture d’achat à vérifier : ${fresh.invoice_number}`,
       body: `${r.reference} — ${r.title}`, link: '/compta/achats', priority: 'action', key: `demande:${r.id}:facture`,
     });
   }

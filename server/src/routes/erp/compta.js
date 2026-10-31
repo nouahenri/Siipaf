@@ -226,7 +226,12 @@ module.exports = function comptaRoutes(db) {
   }));
 
   // Écritures automatiques à partir des versements, appels de fonds et ventes (dashboard et ERP)
-  r.post('/sync', requirePermission('compta:sync'), ah(async (req, res) => res.json(await ct.syncAutoEntries(db, req.user.id))));
+  r.post('/sync', requirePermission('compta:sync'), ah(async (req, res) => {
+    const out = await ct.syncAutoEntries(db, req.user.id);
+    // L'alerte « N opérations à synchroniser » est lue pour toute la Comptabilité quand plus rien n'attend
+    if (!(await ct.pendingSync(db))) await require('../../services/notifications').resolve(db, 'compta:sync:');
+    res.json(out);
+  }));
 
   // ─── Fournisseurs et achats ───────────────────────────────
   const supplierSchema = z.object({

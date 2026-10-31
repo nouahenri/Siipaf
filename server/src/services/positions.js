@@ -8,7 +8,7 @@ const { HttpError, isoDay, isoTime, json } = require('../lib/http');
 const { POSITION_CHANGE_REASONS, CAREER_EVENTS } = require('../lib/rh');
 const { DEPARTMENTS } = require('../lib/paie');
 const { requireRole } = require('./roles');
-const { notify } = require('./notifications');
+const { inform } = require('./notifications');
 
 const insertedId = r => (typeof r === 'object' ? r.id : r);
 const today = () => new Date().toISOString().slice(0, 10);
@@ -160,8 +160,8 @@ async function apply(db, changeId) {
   // Modèles d'objectifs du nouveau poste et du nouveau service (RH › Référentiel KPI) pour l'année en cours
   await require('./kpi').applyForEmployee(db, e.id, { user: c.created_by ? { id: c.created_by } : null });
   if (e.user_id) {
-    await notify(db, {
-      to: e.user_id, except: c.created_by, module: 'rh', event: 'poste.change', title: `Nouveau poste : ${c.job_title}`,
+    await inform(db, 'poste.change', {
+      direct: e.user_id, except: c.created_by, title: `Nouveau poste : ${c.job_title}`,
       body: `${c.reason_label} — à compter du ${fr(c.effective_date)}${c.role ? '. Vos droits dans l’ERP ont été mis à jour.' : '.'}`,
       link: `/rh/personnel/${e.id}?onglet=carriere`, priority: 'info', key: `poste:${c.id}`, email: true,
     });

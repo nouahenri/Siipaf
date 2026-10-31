@@ -8,7 +8,7 @@
 const { HttpError, isoDay } = require('../lib/http');
 const { OBJECTIVE_METRICS, PERIOD_COUNT, SALES_TARGET_METRICS, periodRange, periodLabel } = require('../lib/rh');
 const { DEPARTMENTS } = require('../lib/paie');
-const { notify } = require('./notifications');
+const { inform } = require('./notifications');
 
 const insertedId = r => (typeof r === 'object' ? r.id : r);
 const fold = s => String(s || '').normalize('NFD').replace(/[̀-ͯ]/g, '').toLowerCase().replace(/\s+/g, ' ').trim();
@@ -207,8 +207,8 @@ async function apply(db, { employees, year, user = null, dryRun = false, now = n
     out.created += created;
     out.people.push({ employee_id: e.id, name: `${e.last_name} ${e.first_name}`, created });
     if (!dryRun && created && e.user_id) {
-      await notify(db, {
-        to: e.user_id, except: user?.id, module: 'rh', event: 'objectifs.fixes', title: `Vos objectifs ${year} sont fixés`,
+      await inform(db, 'objectifs.fixes', {
+        direct: e.user_id, except: user?.id, title: `Vos objectifs ${year} sont fixés`,
         body: `${created} objectif(s) ajouté(s) d’après le modèle de votre ${plan.some(p => p.from === 'poste') ? 'poste' : 'service'}.`,
         link: '/rh/moi', priority: 'info', key: `objectifs:${e.id}:${year}:${isoDay(now)}`,
       });

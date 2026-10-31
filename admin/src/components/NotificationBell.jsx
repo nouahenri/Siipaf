@@ -31,7 +31,8 @@ export function useNotifications(leadsEnabled) {
     if (last.current) {
       const erpSound = e && soundFor(last.current.erp, e);
       if (erpSound) playSound(erpSound);
-      else if (l && last.current.leads && l.unread > last.current.leads.unread) playSound(e?.prefs?.commercial?.sound || e?.sound || last.current.erp?.sound);
+      // Pas de son si les notifications du Service commercial sont coupées dans « Mes notifications » (le serveur renvoie alors 0 non lu)
+      else if (l && !l.muted && last.current.leads && l.unread > last.current.leads.unread) playSound(e?.prefs?.commercial?.sound || e?.sound || last.current.erp?.sound);
     }
     last.current = { leads: l || last.current?.leads, erp: e || last.current?.erp };
   }), [leadsEnabled]);
@@ -115,7 +116,7 @@ export default function NotificationBell({ notif }) {
           <div className="notif-scroll">
             {leads && (
               <>
-                <div className="notif-section">Nouveaux prospects</div>
+                <div className="notif-section">Nouveaux prospects{leads.muted ? ' (alertes coupées dans « Mes notifications »)' : ''}</div>
                 {leadItems.length === 0
                   ? <p className="notif-empty muted">Aucun prospect pour l’instant.</p>
                   : (

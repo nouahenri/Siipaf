@@ -75,6 +75,7 @@ module.exports = function userRoutes(db) {
     if ((data.employee_id || data.employee) && !(req.can('rh:files') || req.can('paie:employees'))) throw new HttpError(403, 'Relier ou créer une fiche employé demande un droit sur les fiches du personnel.');
     const { password, employee_id, employee, ...rest } = data;
     const temporary = password ? null : temporaryPassword();
+    let newEmployee = null;
     const id = await db.transaction(async trx => {
       const userId = insertedId((await trx('users').insert({ ...rest, password_hash: await hashPassword(password || temporary), must_change_password: true }))[0]);
       if (employee_id) {
@@ -95,9 +96,11 @@ module.exports = function userRoutes(db) {
           hire_date: employee.hire_date, base_salary: 0,
         }))[0]);
         await trx('hr_career_events').insert({ employee_id: eid, date: employee.hire_date, kind: 'embauche', label: `Embauche : ${post.job_title}`, details: JSON.stringify({ contract_type: contract }), created_by: req.user.id }).catch(() => {});
+        newEmployee = eid;
       }
       return userId;
     });
+    if (newEmployee) await require('../services/rh').announceHire(db, newEmployee, req.user.id);
     res.status(201).json({ ...publicUser(await db('users').where({ id }).first()), temporary_password: temporary });
   }));
 

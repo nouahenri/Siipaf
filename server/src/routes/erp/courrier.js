@@ -30,6 +30,19 @@ module.exports = function courrierRoutes(db) {
   const cleanup = req => req.file && fs.promises.unlink(req.file.path).catch(() => {});
   const guarded = fn => ah(async (req, res) => { try { await fn(req, res); } catch (e) { await cleanup(req); throw e; } });
 
+  // Courriers affectés à un service, pour l'encart des modules (?departments=comptabilite,sav…). Accès : le registre du courrier, la Direction,
+  // les membres du service, ou le droit de lecture du module concerné.
+  const MODULE_READ = { comptabilite: ['compta:read'], sav: ['sav:read'], rh: ['rh:read'], chantier: ['chantiers:read'], technique: ['chantiers:read'], administratif: ['appro:read'], commercial: ['commercial:read'], juridique: ['juridique:read'] };
+  r.get('/service', ah(async (req, res) => {
+    const departments = String(req.query.departments || '').split(',').filter(d => DEPARTMENTS[d]);
+    if (!departments.length) throw new HttpError(400, 'Indiquez le ou les services.');
+    const viewer = await v(req);
+    const all = ['courrier:read', 'courrier:write', 'courrier:assign', 'direction:read'].some(p => req.can(p));
+    const allowed = departments.filter(d => all || viewer.department === d || (MODULE_READ[d] || []).some(p => req.can(p)));
+    if (!allowed.length) throw new HttpError(403, 'Accès réservé au registre du courrier, à la Direction et au service concerné.');
+    res.json(await courrier.departmentMail(db, allowed, req.user, p => req.can(p)));
+  }));
+
   r.get('/badges', ah(async (req, res) => res.json(await courrier.badges(db, await v(req)))));
 
   r.get('/refs', ah(async (req, res) => {

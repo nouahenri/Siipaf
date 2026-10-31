@@ -88,6 +88,8 @@ async function importLead(trx, row, ctx) {
   if (lead.created && ctx.assignTo) {
     await trx('leads').where({ id: lead.id }).update({ assigned_to: ctx.assignTo });
     lead.assigned_to = ctx.assignTo;
+    await require('./commercial').traceAssignment(trx, lead.id, ctx.assignTo, { by: ctx.user?.id, why: 'liste importée' }); // historique de la fiche
+    ctx.lineAssigned?.push({ id: lead.id, name: lead.name }); // prévenu une fois la ligne enregistrée
   }
   // Reprise de l'ancienne plateforme : type de bien et numéro du client (jamais écrasés)
   const legacy = { property_type: text(row.property_type).slice(0, 160), legacy_number: text(row.legacy_number).slice(0, 20) };
@@ -162,6 +164,7 @@ async function importClient(trx, row, ctx) {
       reference: 'Reprise ancienne plateforme', note: 'Cumul des versements à la date de l’import', recorded_by: ctx.user.id,
     });
     await refreshSaleStatus(trx, sale.id);
+    ctx.linePaid = paid; // versement repris : la Comptabilité est prévenue à la fin de l'import
   }
   return { lead, lot, sale };
 }
@@ -206,13 +209,17 @@ async function runImport(db, { mode, rows, dryRun, createLots, openAccess: withA
   if (!dryRun && !importId && list) {
     importId = await createImport(db, { name: list.name || list.filename || `Import du ${new Date().toLocaleDateString('fr-FR')}`, filename: list.filename, mode, assigned_to: assignTo, user });
   }
-  const ctx = { projects, createLots, user, assignTo };
+  const ctx = { projects, createLots, user, assignTo, lineAssigned: null };
+  const assigned = []; // prospects attribués au commercial de la liste, enregistrés
+  let paidRows = 0, paidTotal = 0; // versements repris (clients)
   const report = [];
   for (const [i, row] of rows.entries()) {
     const line = row._line || i + 2; // ligne 1 = en-têtes
     try {
       let result;
       let access = null;
+      ctx.lineAssigned = [];
+      ctx.linePaid = 0;
       await db.transaction(async trx => {
         result = mode === 'clients' ? await importClient(trx, row, ctx) : await importLead(trx, row, ctx);
         if (dryRun) throw ROLLBACK;
@@ -222,6 +229,7 @@ async function runImport(db, { mode, rows, dryRun, createLots, openAccess: withA
         }
         if (mode === 'clients' && withAccess) access = await openAccess(trx, result.lead.id, user);
       }).catch(e => { if (e !== ROLLBACK) throw e; });
+      if (!dryRun) { assigned.push(...ctx.lineAssigned); if (ctx.linePaid) { paidRows += 1; paidTotal += ctx.linePaid; } } // une ligne annulée ou en simulation ne compte pas
       const { lead, lot } = result;
       report.push({
         line, ok: true, name: lead.name,
@@ -240,6 +248,10 @@ async function runImport(db, { mode, rows, dryRun, createLots, openAccess: withA
       created_count: items.filter(i => !i.duplicate).length, duplicate_count: items.filter(i => i.duplicate).length, updated_at: new Date(),
     });
   }
+  // Le commercial à qui la liste est attribuée en est prévenu (une seule notification pour toute la liste)
+  if (!dryRun && assigned.length) await require('./liaisons').announceAssigned(db, assignTo, assigned, { by: user.id, why: list?.name || list?.filename ? `liste « ${list.name || list.filename} »` : 'import' });
+  // Versements repris par l'import de clients : la Comptabilité a des écritures à synchroniser
+  if (!dryRun && mode === 'clients' && paidRows) await require('./liaisons').announceImportedPayments(db, paidRows, paidTotal, user);
   return { dryRun, total: rows.length, ok, errors, report, import_id: importId };
 }
 

@@ -11,6 +11,7 @@ import { Card, Empty, Skeleton, ErrorBox, Field, Modal, Badge, Advance } from '@
 import { date, fcfa } from '@admin/lib/format';
 import { CH, WS_TONES, useChantierRefs, body } from '../../lib/chantiers';
 import { dashboardWithReturn } from '../../lib/links';
+import DepartmentMail from '../../components/DepartmentMail';
 
 export default function Chantiers() {
   const { can } = useAuth();
@@ -93,12 +94,14 @@ export default function Chantiers() {
                 <td className="small">{w.manager_name || <span className="muted">—</span>}</td>
                 <td className="small nowrap">{w.planned_start ? `${date(w.planned_start)} → ${date(w.planned_end)}` : '—'}</td>
                 <td><Advance value={w.progress_pct} />{w.late_phases > 0 && <div className="small" style={{ marginTop: 4 }}><Badge tone="danger">{w.late_phases} phase{w.late_phases > 1 ? 's' : ''} en retard</Badge></div>}</td>
-                <td className="right tabular small">{fcfa(w.spent_fcfa)}<div className="muted">{w.budget_fcfa ? `sur ${fcfa(w.budget_fcfa)} · ${w.consumed_pct} %` : 'sans budget'}</div></td>
+                <td className="right tabular small">{fcfa(w.spent_fcfa)}<div className="muted">{w.budget_fcfa ? `sur ${fcfa(w.budget_fcfa)} · ${w.consumed_pct} %` : 'sans budget'}</div>{w.committed_fcfa > 0 && <div className="muted" title="Bons de commande confirmés, pas encore reçus : comptés dans l’alerte de budget">+ {fcfa(w.committed_fcfa)} engagés</div>}</td>
               </tr>
             ))}</tbody>
           </table></div>
         )}
       </Card>
+
+      <DepartmentMail departments={['chantier', 'technique']} label="Chantiers et technique" />
 
       {creating && refs && <WorksiteForm refs={refs} initialProject={newProject} onClose={() => setCreating(false)} onSaved={w => navigate(`/chantiers/${w.id}`)} />}
     </div>

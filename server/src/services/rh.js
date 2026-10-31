@@ -175,17 +175,17 @@ async function createLeave(db, e, data, { user, asHr = false, approve = false })
  * de ce qu'ils ont à approuver ; l'employé, de la décision. Une demande close n'est plus « à traiter » chez personne.
  */
 async function notifyLeave(db, l, e, { user }) {
-  const { notify, usersWith, employeeUser, resolve } = require('./notifications');
+  const { inform, usersWith, employeeUser, resolve } = require('./notifications');
   const who = `${e.last_name} ${e.first_name}`;
   const period = `du ${l.start_date.split('-').reverse().join('/')} au ${l.end_date.split('-').reverse().join('/')} (${l.days} j)`;
-  const toRh = async () => notify(db, {
-    to: await usersWith(db, 'conges:approve'), except: user.id, module: 'rh', event: 'conge.a_approuver',
+  const toRh = async () => inform(db, 'conge.a_approuver', {
+    direct: await usersWith(db, 'conges:approve'), except: user.id,
     title: `Congé à approuver : ${who}`, body: `${l.label} ${period}`, link: '/rh/conges', priority: 'action', key: `conge:${l.id}:rh`,
   });
   if (l.status === 'en_attente') {
     const manager = await employeeUser(db, e.manager_id);
     if (manager && manager.id !== e.user_id) {
-      await notify(db, { to: manager, except: user.id, module: 'rh', event: 'conge.demande', title: `Demande de congé : ${who}`, body: `${l.label} ${period}`, link: '/rh/conges', priority: 'action', key: `conge:${l.id}:manager` });
+      await inform(db, 'conge.demande', { direct: manager, except: user.id, title: `Demande de congé : ${who}`, body: `${l.label} ${period}`, link: '/rh/conges', priority: 'action', key: `conge:${l.id}:manager` });
     } else await toRh();
     return;
   }
@@ -197,8 +197,8 @@ async function notifyLeave(db, l, e, { user }) {
   await resolve(db, `conge:${l.id}:`);
   const labels = { approuvee: 'approuvée', refusee: 'refusée', annulee: 'annulée' };
   if (labels[l.status] && e.user_id) {
-    await notify(db, {
-      to: e.user_id, except: user.id, module: 'rh', event: `conge.${l.status}`, title: `Votre demande de congé est ${labels[l.status]}`,
+    await inform(db, `conge.${l.status}`, {
+      direct: e.user_id, except: user.id, module: 'rh', title: `Votre demande de congé est ${labels[l.status]}`,
       body: [`${l.label} ${period}`, l.status === 'refusee' && l.decision_note ? `Motif : ${l.decision_note}` : null].filter(Boolean).join(' — '),
       link: '/rh/moi', key: `conge:${l.id}:decision:${l.status}`,
     });
@@ -414,7 +414,55 @@ async function dashboard(db, at = today()) {
   };
 }
 
+// ─── Embauche et échéances des contrats de travail (audit du 30/10) ───────────────
+
+const frDay = d => (d ? String(d).slice(0, 10).split('-').reverse().join('/') : '');
+
+/**
+ * Nouvel employé (recrutement, fiche créée à la main, compte avec fiche) : les comptes à créer, les services généraux (matériel, bureau)
+ * et la Comptabilité (paie) sont prévenus selon le circuit d'information.
+ */
+async function announceHire(db, employeeId, by = null) {
+  const e = await db('employees').where({ id: employeeId }).first('id', 'first_name', 'last_name', 'job_title', 'department', 'hire_date', 'user_id');
+  if (!e) return 0;
+  return require('./notifications').inform(db, 'employe.embauche', {
+    except: by, key: `embauche:${e.id}`, title: `Nouvel employé : ${fullName(e)}`,
+    body: `${e.job_title} — arrivée le ${frDay(isoDay(e.hire_date))}${e.user_id ? '' : ' · compte utilisateur à créer'} · matériel, accès et paie à prévoir`, link: `/rh/personnel/${e.id}`,
+  });
+}
+
+/**
+ * Tâche horaire : fin de période d'essai et fin de CDD (ou de contrat à terme) des employés en poste, aux paliers réglés dans
+ * Administration générale › Réglages (30 puis 7 jours avant), sans doublon. Le responsable direct est prévenu avec le service RH et le Juridique.
+ */
+async function contractsTick(db, day = today()) {
+  const { inform, employeeUser } = require('./notifications');
+  const { contractAlertStage, daysBetween } = require('../lib/domain');
+  const stages = await require('./moduleSettings').alertStages(db);
+  let n = 0;
+  for (const raw of await db('employees').where({ active: true })) {
+    const e = normEmployee(raw);
+    const items = [
+      e.trial_end_date && { kind: 'essai', date: e.trial_end_date, label: 'Fin de la période d’essai' },
+      e.end_date && { kind: 'fin_contrat', date: e.end_date, label: `Fin de ${e.contract_type === 'cdd' ? 'CDD' : 'contrat'}` },
+    ].filter(Boolean);
+    for (const it of items) {
+      const stage = contractAlertStage(it.date, day, stages);
+      if (!stage || daysBetween(it.date, day) > 30) continue; // rien pour une échéance oubliée depuis longtemps
+      const left = daysBetween(day, it.date);
+      const when = left < 0 ? `dépassée depuis ${-left} jour(s)` : left === 0 ? 'aujourd’hui' : `dans ${left} jour(s)`;
+      const manager = await employeeUser(db, e.manager_id);
+      n += await inform(db, 'contrat_travail.echeance', {
+        direct: manager ? [manager] : [], key: `emploi:${e.id}:${it.kind}:${it.date}:${stage}`, priority: left <= 7 ? 'urgent' : 'action',
+        title: `${it.label} de ${fullName(e)} le ${frDay(it.date)}`, body: `${e.job_title} — ${when}`, link: `/rh/personnel/${e.id}`, links: { juridique: '/juridique/contrats' },
+      });
+    }
+  }
+  return n;
+}
+
 module.exports = {
+  announceHire, contractsTick,
   getSettings, saveSettings, holidays, seedHolidays, employeeOf, getEmployee, isManagerOf, accessLevel, balanceOf, checkLeave, createLeave, decideLeave,
   leaveQuery, serializeLeave, leaveDetail, toApprove, unpaidDays, documentUpload, hrFilesDir, logChanges, careerOf, objectivesOf, dashboard, normEmployee, calendarOverlap,
 };

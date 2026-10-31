@@ -9,7 +9,7 @@ const { ah, parse, idParam, HttpError } = require('../lib/http');
 const { requirePermission } = require('../auth');
 const pf = require('../services/portfolio');
 const { canAssignLeads, canDecideTransfers, leadInScope, seesAllLeads, assertSeller } = require('../services/commercial');
-const { inform, notify } = require('../services/notifications');
+const { inform, resolve } = require('../services/notifications');
 const { effectivePermissions } = require('../services/permissions');
 const { isTest } = require('../config');
 
@@ -73,8 +73,8 @@ module.exports = function portfolioRoutes(db) {
     : !t.manager_by ? (manager ? 'responsable' : 'administrateur') : !t.admin_by ? 'administrateur' : null);
   const withStep = async rows => { const manager = await hasManager(); return rows.map(t => ({ ...t, client: !!t.client, awaiting: awaiting(t, manager) })); };
   const oneRow = async id => (await withStep(await transferRows(db('lead_transfer_requests as t')).where('t.id', id)))[0];
-  const notifyAdmins = async (t, lead, by) => notify(db, {
-    to: await db('users').where({ role: 'super_admin', active: true }).pluck('id'), except: by.id, module: 'commercial', event: 'prospect.transfert_demande',
+  const notifyAdmins = async (t, lead, by) => inform(db, 'prospect.transfert_demande', {
+    direct: await db('users').where({ role: 'super_admin', active: true }).pluck('id'), except: by.id, circuit: false,
     key: `transfert:${t.id}:admin`, priority: 'action', link: '/commercial/pipeline',
     title: `Changement de commercial à approuver : ${lead?.name || 'client'}`, body: `Accord du responsable commercial donné. Motif : ${t.reason}`,
   });
@@ -122,14 +122,14 @@ module.exports = function portfolioRoutes(db) {
     }
     const target = to ? (await db('users').where({ id: to }).first('name')).name : 'le responsable';
     await inform(db, 'prospect.transfert_demande', {
-      except: req.user.id, key: `transfert:${tId}`,
+      except: req.user.id, key: `transfert:${tId}:demande`,
       title: `Transfert demandé par ${req.user.name}${mine ? '' : ' (personne suivie par un collègue)'}`,
       body: `${mine ? lead.name : 'Une personne de votre portefeuille'} → ${target} · ${data.reason}`,
       link: '/commercial/pipeline',
     });
     // Le commercial actuel est prévenu qu'un collègue demande à reprendre son prospect
     if (!mine && lead.assigned_to) {
-      await notify(db, { to: [lead.assigned_to], module: 'commercial', event: 'prospect.transfert_demande', key: `transfert:${tId}:titulaire`,
+      await inform(db, 'prospect.transfert_demande', { direct: [lead.assigned_to], circuit: false, except: req.user.id, key: `transfert:${tId}:titulaire`,
         title: `${req.user.name} demande à reprendre ${lead.name}`, body: 'Le responsable décidera.', link: '/commercial/pipeline' });
     }
     // Une personne suivie par un collègue, hors de sa portée : ni nom ni code client dans la réponse (audit du 30/10)
@@ -146,8 +146,10 @@ module.exports = function portfolioRoutes(db) {
   const decided = async (t, user, status, note) => {
     const lead = await db('leads').where({ id: t.lead_id }).first('name');
     const verb = status === 'validee' ? 'accepté' : 'refusé';
-    await notify(db, {
-      to: [t.requested_by, t.from_user_id, t.to_user_id], module: 'commercial', event: 'prospect.transfert_decide', except: user.id, key: `transfert:${t.id}:decision`,
+    // Décision prise : les alertes de la demande (responsables, administrateur, ancien commercial) sont lues pour tous
+    await resolve(db, `transfert:${t.id}:`);
+    await inform(db, 'prospect.transfert_decide', {
+      direct: [t.requested_by, t.from_user_id, t.to_user_id], circuit: false, except: user.id, key: `transfert:${t.id}:decision`,
       title: `Transfert ${verb} : ${lead?.name || 'prospect'}`, body: note ? `Note du responsable : ${note}` : null, link: '/commercial/pipeline',
     });
   };
@@ -166,7 +168,13 @@ module.exports = function portfolioRoutes(db) {
       await db('lead_transfer_requests').where({ id: t.id }).update({ ...patch, to_user_id: to, updated_at: now });
       const next = { ...t, ...patch, to_user_id: to };
       if (!next.admin_by) {
-        await notifyAdmins(next, await db('leads').where({ id: t.lead_id }).first('name'), req.user);
+        const named = await db('leads').where({ id: t.lead_id }).first('name');
+        await notifyAdmins(next, named, req.user);
+        // Le demandeur est prévenu de l'accord du responsable (il reste l'approbation de l'administrateur général)
+        await inform(db, 'prospect.transfert_accord', {
+          direct: [t.requested_by], circuit: false, except: req.user.id, key: `transfert:${t.id}:accord`,
+          title: `Accord du responsable sur le changement de commercial : ${named?.name || 'client'}`, body: 'En attente de l’approbation de l’administrateur général.', link: '/commercial/pipeline',
+        });
         return res.json(await oneRow(t.id));
       }
     }

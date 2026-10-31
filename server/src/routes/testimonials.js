@@ -45,6 +45,8 @@ function publicTestimonials(db) {
     const { website, ...row } = data;
     const [id] = await db('testimonials').insert({ ...row, status: 'en_attente', source: 'site' });
     notifyTeam('Nouveau témoignage à valider', `${data.name} (${data.rating}/5)\n\n${data.message}`);
+    // Cloche des comptes qui modèrent (circuit d'information)
+    await require('../services/notifications').inform(db, 'temoignage.recu', { key: `temoignage:${id}`, title: `Témoignage à modérer : ${data.name} (${data.rating}/5)`, body: data.message, link: '/marketing', priority: 'action' }).catch(() => {});
     res.status(201).json({ ok: true, id, message: 'Merci ! Votre témoignage sera publié après validation par notre équipe.' });
   }));
 

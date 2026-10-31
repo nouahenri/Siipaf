@@ -9,7 +9,7 @@ const {
   WARRANTIES, SAV_INTERVENTION_STATUSES, warrantyDates,
 } = require('../../lib/domain');
 const sav = require('../../services/sav');
-const { notify, resolve } = require('../../services/notifications');
+const { inform, resolve } = require('../../services/notifications');
 
 const category = z.enum(Object.keys(SAV_CATEGORIES));
 const priority = z.enum(Object.keys(SAV_PRIORITIES));
@@ -103,6 +103,7 @@ module.exports = function savRoutes(db) {
     data.media_ids = await sav.checkFiles(db, data.media_ids);
     const t = await sav.createTicket(db, data, { userId: req.user.id, source: data.source || 'equipe' });
     await sav.shareFiles(db, data.media_ids, t.lead_id);
+    await sav.announceTicket(db, t, { by: req.user.id }); // aussi pour une réclamation saisie par l'équipe
     res.status(201).json(await sav.ticketDetail(db, t.id));
   }));
 
@@ -141,8 +142,8 @@ module.exports = function savRoutes(db) {
     });
     if (data.assigned_to && data.assigned_to !== t.assigned_to) {
       await resolve(db, `sav:${id}:ouverte`);
-      await notify(db, {
-        to: data.assigned_to, except: req.user.id, module: 'sav', event: 'reclamation.confiee', title: `Réclamation ${t.ref} vous est confiée`,
+      await inform(db, 'reclamation.confiee', {
+        direct: [data.assigned_to], except: req.user.id, title: `Réclamation ${t.ref} vous est confiée`,
         body: data.title || t.title, link: `/sav/reclamations?t=${id}`, priority: t.priority === 'urgente' ? 'urgent' : 'action', key: `sav:${id}:confiee:${data.assigned_to}`,
       });
     }
@@ -152,7 +153,8 @@ module.exports = function savRoutes(db) {
   r.post('/tickets/:id/status', statusRight, ah(async (req, res) => {
     const { status, note } = parse(z.object({ status: z.enum(SAV_STATUSES), note: optText(1000) }), req.body);
     await sav.ticketInScope(db, idParam(req), req.user);
-    await sav.changeStatus(db, idParam(req), status, { userId: req.user.id, note });
+    const changed = await sav.changeStatus(db, idParam(req), status, { userId: req.user.id, note });
+    await sav.announceTicketStatus(db, changed, status, { by: req.user.id });
     res.json(await sav.ticketDetail(db, idParam(req)));
   }));
 
@@ -207,12 +209,8 @@ module.exports = function savRoutes(db) {
   r.patch('/sales/:id/delivery', deliveryRight, ah(async (req, res) => {
     const { delivered_at } = parse(z.object({ delivered_at: day.nullable() }), req.body);
     await sav.saleInScope(db, idParam(req), req.user);
-    const n = await db('sales').where({ id: idParam(req) }).update({ delivered_at, updated_at: new Date() });
-    if (!n) throw new HttpError(404, 'Dossier introuvable.');
-    if (delivered_at) {
-      const sale = await db('sales').where({ id: idParam(req) }).first('lead_id');
-      await db('leads').where({ id: sale.lead_id }).whereIn('stage', ['contrat', 'notaire', 'paiement', 'choix_bien']).update({ stage: 'livraison', updated_at: new Date() });
-    }
+    // Une seule porte avec le PV de réception des Chantiers (PV, étape, garanties, message au client, services prévenus)
+    await require('../../services/chantiersLivraison').deliverFromSav(db, idParam(req), delivered_at, { userId: req.user.id });
     res.json({ delivered_at, warranty_ends: delivered_at ? warrantyDates(delivered_at) : null });
   }));
 
@@ -255,7 +253,10 @@ module.exports = function savRoutes(db) {
       const n = await db('sav_reserves').where({ id }).update({ ...rest, updated_at: new Date() });
       if (!n) throw new HttpError(404, 'Réserve introuvable.');
     }
-    if (status) await sav.setReserveStatus(db, id, status, { userId: req.user.id, note });
+    if (status) {
+      await sav.setReserveStatus(db, id, status, { userId: req.user.id, note });
+      if (status === 'levee') await sav.announceReserveLifted(db, id, req.user.id);
+    }
     else if (note !== undefined) await db('sav_reserves').where({ id }).update({ note, updated_at: new Date() });
     const row = await db('sav_reserves').where({ id }).first();
     if (!row) throw new HttpError(404, 'Réserve introuvable.');
@@ -265,6 +266,7 @@ module.exports = function savRoutes(db) {
   r.post('/reserves/:id/ticket', create, ah(async (req, res) => {
     await sav.reserveInScope(db, idParam(req), req.user);
     const t = await sav.reserveToTicket(db, idParam(req), { userId: req.user.id });
+    await sav.announceTicket(db, t, { by: req.user.id });
     res.status(201).json(await sav.ticketDetail(db, t.id));
   }));
 
@@ -302,7 +304,9 @@ module.exports = function savRoutes(db) {
     }), req.body);
     if (data.ticket_id) await sav.ticketInScope(db, data.ticket_id, req.user);
     if (data.reserve_id) await sav.reserveInScope(db, data.reserve_id, req.user);
-    res.status(201).json(await sav.createIntervention(db, data, { userId: req.user.id }));
+    const created = await sav.createIntervention(db, data, { userId: req.user.id });
+    await sav.announceIntervention(db, created, null, req.user.id);
+    res.status(201).json(created);
   }));
 
   r.patch('/interventions/:id', interventionsRight, ah(async (req, res) => {
@@ -316,7 +320,9 @@ module.exports = function savRoutes(db) {
     if (data.media_before) data.media_before = await sav.checkFiles(db, data.media_before);
     if (data.media_after) data.media_after = await sav.checkFiles(db, data.media_after);
     await sav.shareFiles(db, [...(data.media_before || []), ...(data.media_after || [])], i.lead_id);
+    const before = await db('sav_interventions').where({ id: i.id }).first();
     const row = await sav.updateIntervention(db, i.id, data, { userId: req.user.id });
+    await sav.announceIntervention(db, row, before, req.user.id);
     res.json({ ...row, media_before: json(row.media_before, []), media_after: json(row.media_after, []) });
   }));
 

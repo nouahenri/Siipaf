@@ -6,7 +6,7 @@
  */
 const { isoDay } = require('../lib/http');
 const { SAV_OPEN_STATUSES } = require('../lib/domain');
-const { notify, usersWith, inform } = require('./notifications');
+const { usersWith, inform } = require('./notifications');
 
 const n = async q => Number((await q.count({ n: '*' }).first()).n || 0);
 
@@ -68,23 +68,34 @@ async function notifyDeparture(db, e, { user }) {
     title: `Départ de ${who}${r.employee.end_date ? ` le ${new Date(r.employee.end_date).toLocaleDateString('fr-FR')}` : ''}`,
     body: [r.assets.length ? `${r.assets.length} bien(s) du parc à récupérer` : null, r.items.length ? 'dossiers à réaffecter' : null].filter(Boolean).join(' · ') || null,
   });
+  // Ceux qui ont déjà reçu l'avis du circuit (la Comptabilité par exemple) ne reçoivent pas une seconde notification pour le même départ
+  const already = await db('notifications').where({ dedupe_key: `${key}:info` }).pluck('user_id');
+  const skip = [user.id, ...already];
   if (r.account?.active) {
-    await notify(db, {
-      to: await usersWith(db, 'users:disable'), except: user.id, module: 'rh', event: 'depart.compte', priority: 'action',
+    await inform(db, 'depart.compte', {
+      direct: await usersWith(db, 'users:disable'), except: skip, priority: 'action',
       title: `Départ de ${who} : compte encore actif`, body: `${r.account.email} — à désactiver dans Comptes utilisateurs une fois ses dossiers repris`, link, key: `${key}:compte`,
     });
   }
   if (r.assets.length) {
-    await notify(db, {
-      to: await usersWith(db, 'parc:write'), except: user.id, module: 'administration', event: 'depart.materiel', priority: 'action',
+    await inform(db, 'depart.materiel', {
+      direct: await usersWith(db, 'parc:write'), except: skip, priority: 'action',
       title: `Départ de ${who} : matériel à récupérer`, body: r.assets.map(a => `${a.code} ${a.name}`).join(', '), link, key: `${key}:materiel`,
     });
   }
   if (r.items.length) {
-    await notify(db, {
-      to: await usersWith(db, ['direction:read', 'rh:files']), except: user.id, module: 'rh', event: 'depart.dossiers', priority: 'action',
+    await inform(db, 'depart.dossiers', {
+      direct: await usersWith(db, ['direction:read', 'rh:files']), except: skip, priority: 'action',
       title: `Départ de ${who} : dossiers à réaffecter`, body: r.items.map(x => `${x.count} ${x.label.toLowerCase()}`).join(' · '), link, key: `${key}:dossiers`,
     });
+    // Un commercial qui part : le responsable commercial réattribue ses prospects, clients, rendez-vous et activités
+    const sales = r.items.filter(x => ['leads', 'appointments', 'activities'].includes(x.key));
+    if (sales.length) {
+      await inform(db, 'depart.portefeuille', {
+        except: skip, priority: 'action', title: `Départ de ${who} : portefeuille commercial à réattribuer`,
+        body: sales.map(x => `${x.count} ${x.label.toLowerCase()}`).join(' · '), link: '/commercial/pipeline', key: `${key}:portefeuille`,
+      });
+    }
   }
   return r;
 }

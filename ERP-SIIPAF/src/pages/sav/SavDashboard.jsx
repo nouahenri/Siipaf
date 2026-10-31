@@ -7,6 +7,7 @@ import { dateTime, relative, num } from '@admin/lib/format';
 import { useSavMeta, Priority } from '../../components/SavBits';
 import { STATUS_COLORS } from '../../lib/sav';
 import ServiceRequests from '../../components/ServiceRequests';
+import DepartmentMail from '../../components/DepartmentMail';
 
 const Kpi = ({ icon: Icon, label, count, format = num, foot, to, tint }) => {
   const animated = useCountUp(count ?? 0);
@@ -112,6 +113,7 @@ export default function SavDashboard() {
           )}
         </Card>
       </div>
+      <DepartmentMail departments="sav" label="Client & SAV" />
     </div>
   );
 }

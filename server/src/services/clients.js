@@ -128,6 +128,30 @@ async function resetPassword(db, token, password) {
   return account;
 }
 
+/**
+ * Message de l'équipe dans l'espace client d'un acquéreur (client_messages). Quand son accès est ouvert et qu'il a une adresse,
+ * il reçoit l'e-mail « nouveau message », sans le contenu (qui reste dans son espace). Un seul chemin pour les messages écrits par
+ * l'équipe et pour les messages automatiques (appels de fonds VEFA, TMA, PV de réception, versement, réclamation, acte, document…).
+ * `target` : un dossier de vente (objet avec `lead_id` et `id`) ou { leadId, saleId }. Renvoie l'identifiant du message.
+ */
+async function tellClient(db, target, body, userId = null) {
+  const leadId = target.leadId ?? target.lead_id;
+  const saleId = target.saleId !== undefined ? target.saleId : (target.lead_id ? target.id : null);
+  const [id] = await db('client_messages').insert({ lead_id: leadId, sale_id: saleId || null, sender: 'equipe', user_id: userId || null, body });
+  const [lead, access] = await Promise.all([
+    db('leads').where({ id: leadId }).first('name', 'email'),
+    db('client_accounts').where({ lead_id: leadId, active: true }).first('id'),
+  ]);
+  if (access && lead?.email) {
+    sendMail({
+      to: lead.email,
+      subject: 'Nouveau message de SIIPAF dans votre espace client',
+      text: `Bonjour ${lead.name},\n\nL’équipe SIIPAF vous a écrit. Lisez et répondez depuis votre espace client :\n${clientAppUrl}\n\nSIIPAF SA`,
+    }).catch(() => {});
+  }
+  return typeof id === 'object' ? id.id : id;
+}
+
 // ─── Vues client (toujours limitées au lead connecté) ────────────────
 
 async function mediaList(db, ids) {
@@ -299,7 +323,7 @@ async function clientDocumentFile(db, leadId, docId) {
 }
 
 module.exports = {
-  generatePassword, normalizeCode, findAccountByCode, findAccountByLogin, grantAccess, accessStatus, requestReset, resetPassword,
+  generatePassword, normalizeCode, findAccountByCode, findAccountByLogin, grantAccess, accessStatus, requestReset, resetPassword, tellClient,
   mediaList, siteUpdatesQuery, progressIndex, clientsProgress, serializeUpdate, ownSale, saleContext, clientSales, clientSaleDetail, clientDocumentFile,
   receiptNumber,
 };

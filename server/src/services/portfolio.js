@@ -186,18 +186,22 @@ async function assign(db, ids, userId, by) {
     const u = await db('users').where({ id: userId, active: true }).first('id');
     if (!u) throw new HttpError(400, 'Commercial introuvable ou désactivé.');
   }
-  let changed = 0;
+  const done = [];
   await db.transaction(async trx => {
+    const { traceAssignment } = require('./commercial');
     for (const id of ids) {
-      const lead = await trx('leads').where({ id }).first('id', 'assigned_to');
+      const lead = await trx('leads').where({ id }).first('id', 'name', 'assigned_to');
       if (!lead || (lead.assigned_to || null) === (userId || null)) continue;
       await trx('leads').where({ id }).update({ assigned_to: userId || null, updated_at: new Date() });
       await followOwner(trx, id, userId);
+      await traceAssignment(trx, id, userId, { by }); // historique de la fiche (en plus du portefeuille)
       await syncLead(trx, id, { by });
-      changed += 1;
+      done.push({ id, name: lead.name });
     }
   });
-  return changed;
+  // Le commercial qui reçoit les prospects en est prévenu (une notification pour un lot), l'alerte « à attribuer » est lue
+  if (userId && done.length) await require('./liaisons').announceAssigned(db, userId, done, { by });
+  return done.length;
 }
 
 // ─── Listes importées ──────────────────────────────────────────

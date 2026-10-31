@@ -169,6 +169,8 @@ module.exports = function clientRoutes(db) {
     const [id] = await db('client_messages').insert({ lead_id: req.client.lead_id, sale_id: data.sale_id || null, sender: 'client', body: data.body });
     const lead = await db('leads').where({ id: req.client.lead_id }).first();
     notifyTeam(`Message client ${lead.client_code}`, `${lead.name} (${lead.client_code}) a écrit depuis l’espace client :\n\n${data.body}`).catch(() => {});
+    // Cloche du commercial attribué au client (en plus de l'e-mail à l'équipe)
+    await require('../services/liaisons').announceClientMessage(db, lead, typeof id === 'object' ? id.id : id, data.body).catch(() => {});
     const m = await db('client_messages').where({ id }).first();
     res.status(201).json({ id: m.id, sender: 'client', body: m.body, sale_id: m.sale_id, created_at: isoTime(m.created_at), author: null, read: false });
   }));

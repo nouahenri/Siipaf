@@ -5,7 +5,7 @@
  */
 const { HttpError } = require('../lib/http');
 const { DEPARTMENTS } = require('../lib/paie');
-const { notify } = require('./notifications');
+const { inform } = require('./notifications');
 
 /** Module de l'ERP où chaque service fait et suit ses demandes (absent : le service n'a pas de module propre). */
 const DEPARTMENT_MODULES = {
@@ -42,8 +42,8 @@ async function setHead(db, department, employeeId, { userId }) {
   else await db('department_heads').insert({ department, employee_id: e.id, updated_by: userId });
   if (before?.employee_id !== e.id) {
     const where = DEPARTMENT_MODULES[department];
-    await notify(db, {
-      to: e.user_id, except: userId, module: where?.module || 'rh', event: 'rh.chef_service', link: where ? `${where.link}/service` : '/rh/moi', key: `chef:${department}:${e.id}`,
+    await inform(db, 'rh.chef_service', {
+      direct: e.user_id, except: userId, module: where?.module || 'rh', link: where ? `${where.link}/service` : '/rh/moi', key: `chef:${department}:${e.id}`,
       title: `Vous êtes chef du service ${DEPARTMENTS[department]}`,
       body: where ? 'Vous faites les demandes au nom du service (achat, équipement, véhicule…) depuis « Demandes du service », dans le menu de son module.' : 'Vous faites les demandes au nom du service.',
     });

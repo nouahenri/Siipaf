@@ -13,7 +13,7 @@ const { notifyTeam } = require('../lib/mailer');
 const { SAV_CATEGORIES, SAV_STATUS_LABELS, SAV_OPEN_STATUSES, WARRANTIES } = require('../lib/domain');
 const { ownSale } = require('../services/clients');
 const sav = require('../services/sav');
-const { notify, usersWith, inform } = require('../services/notifications');
+const { inform, usersWith } = require('../services/notifications');
 
 const ids = z.array(z.number().int().positive()).max(6).optional();
 
@@ -60,11 +60,8 @@ module.exports = function clientSavRoutes(db) {
     const t = await sav.createTicket(db, { ...data, priority: 'normale' }, { source: 'client' });
     const lead = await db('leads').where({ id: req.client.lead_id }).first();
     notifyTeam(`Réclamation ${t.ref} — ${lead.client_code}`, `${lead.name} (${lead.client_code}) a signalé un problème depuis l’espace client :\n\n${t.title}\n${t.description || ''}`).catch(() => {});
-    // Les comptes qui attribuent les réclamations et les services du circuit (SAV, exploitation)
-    await inform(db, 'reclamation.ouverte', {
-      direct: await usersWith(db, 'sav:assign'), title: `Nouvelle réclamation ${t.ref} — ${lead.name}`,
-      body: t.title, link: `/sav/reclamations?t=${t.id}`, priority: 'action', key: `sav:${t.id}:ouverte`,
-    });
+    // Ceux qui attribuent les réclamations, le commercial du client, le conducteur du chantier et les services du circuit (SAV, exploitation)
+    await sav.announceTicket(db, t);
     res.status(201).json(await sav.ticketDetail(db, t.id, { forClient: true }));
   }));
 
@@ -80,8 +77,8 @@ module.exports = function clientSavRoutes(db) {
     const media = await sav.checkFiles(db, data.media_ids, { leadId: req.client.lead_id });
     await sav.addComment(db, t.id, { author: 'client', body: data.body, media });
     notifyTeam(`Réclamation ${t.ref} : réponse du client`, data.body).catch(() => {});
-    await notify(db, {
-      to: t.assigned_to || await usersWith(db, 'sav:assign'), module: 'sav', event: 'reclamation.reponse_client',
+    await inform(db, 'reclamation.reponse_client', {
+      direct: t.assigned_to ? [t.assigned_to] : await usersWith(db, 'sav:assign'), key: `sav:${t.id}:reponse:${Date.now()}`,
       title: `Réclamation ${t.ref} : réponse du client`, body: data.body, link: `/sav/reclamations?t=${t.id}`, priority: 'action',
     });
     res.status(201).json(await sav.ticketDetail(db, t.id, { forClient: true }));
@@ -94,7 +91,8 @@ module.exports = function clientSavRoutes(db) {
       comment: z.string().trim().max(500).optional(),
     }), req.body);
     if (t.satisfaction) throw new HttpError(409, 'Vous avez déjà donné votre avis sur cette demande.');
-    await sav.rate(db, t.id, { satisfaction: data.satisfaction, comment: data.comment || null });
+    const rated = await sav.rate(db, t.id, { satisfaction: data.satisfaction, comment: data.comment || null });
+    await sav.announceSatisfaction(db, rated); // le commercial du client et le responsable de la réclamation sont prévenus
     res.json(await sav.ticketDetail(db, t.id, { forClient: true }));
   }));
 

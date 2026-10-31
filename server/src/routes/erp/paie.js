@@ -60,6 +60,7 @@ module.exports = function paieRoutes(db) {
     });
     // Modèles d'objectifs du service et du poste appliqués pour l'année en cours (RH › Référentiel KPI)
     await kpi.applyForEmployee(db, id, { user: req.user });
+    await require('../../services/rh').announceHire(db, id, req.user.id);
     res.status(201).json(paie.serializeEmployee(await db('employees').where({ id }).first(), { withPay: true }));
   }));
 

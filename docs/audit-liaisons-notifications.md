@@ -76,3 +76,41 @@ Mécanismes : `notify` (destinataires directs) et `inform` (événement + audien
 **Moyenne** : 10) options et rendez-vous (prospect et commercial) ; 11) tâche horaire commerciale ; 12) embauche et échéances des contrats de travail ; 13) alertes Contrats/Parc par droits ; 14) étapes de l'acte et honoraires du notaire ; 15) Compta : opérations à synchroniser, engagé dans le budget ; 16) relances d'impayés ; 17) cloche du dashboard et « Mes notifications » ; 18) encart courrier par service ; 19) Vue Direction ; 20) passer les `notify` directs au catalogue ; 21) droits du rôle conducteur de travaux.
 
 **Basse** : 22) mettre à jour le document des liaisons ; 23) doublons et bruit ; 24) échéancier, point d'avancement, document mis en ligne ; 25) traces d'historique (SAV, visite) ; 26) candidatures, témoignages, newsletter dans la cloche.
+
+## E) Suivi des corrections — 31/10/2026
+
+Code livré sans lancer les tests (consigne du client : tests ensemble à la fin du projet) ; test écrit : `server/test/liaisons-notifications.test.js`. Mécanismes : `services/notifications.js` (`inform`, `linkFor`, `usersWithAny`), `services/liaisons.js` (parcours commercial), `services/clients.js` (`tellClient`), `services/sav.js` (`announce*`), catalogue `INFO_EVENTS` (86 nouveaux événements, tous réglables dans le Circuit d'information). Migration : `20261203000000_liaisons_notifications.js` (`liaison_marks`).
+
+**Hautes**
+- [x] 1) Repli des audiences sans titulaire sur le super administrateur (`audienceUsers`).
+- [x] 2) Liens accessibles à chaque destinataire (`linkFor` : un commercial n'a plus `/chantiers/<id>`, lien par destinataire direct, liens SAV pour les audiences SAV).
+- [x] 3) `prospect.nouveau` / `prospect.demande` (site, plan, rendez-vous, contact ; prêt pour l'assistante IA : `announceInbound`), attribution notifiée et tracée partout (`prospect.attribue`, `traceAssignment`), import de liste, accord de transfert au demandeur.
+- [x] 4) `tellClient` unique avec e-mail « nouveau message » (appels de fonds VEFA, TMA, PV de réception, versement, statut de réclamation, étapes de l'acte, document, avancement, échéancier, relance).
+- [x] 5) `vente.desistee` (Compta, Juridique, Chantiers, SAV, commercial) ; `lot.sans_dossier` (notifié, lu à l'ouverture du dossier — le statut n'est pas bloqué).
+- [x] 6) SAV : `reclamation.ouverte` pour toute création, commercial et conducteur prévenus, `reclamation.resolue`, `satisfaction.recue`, `reserve.levee`, `intervention.confiee`, `intervention.cout`, `reclamation.retard` (tâche horaire). Partiel : l'« entreprise responsable » d'une réserve n'est pas prévenue (le conducteur l'est).
+- [x] 7) `message.client` → cloche du commercial attribué.
+- [x] 8) `PATCH /sav/sales/:id/delivery` passe par `chantiersLivraison.deliverFromSav` (PV si un chantier couvre le lot, sinon mêmes effets reproduits).
+- [x] 9) `imports.js` : `[^\d]` corrigé (le contrôle de droit ne refusait jamais) ; `import.versements` prévient la Compta.
+
+**Moyennes**
+- [x] 10) Options (`option.proche`, `option.expiree` : commercial et prospect), confirmation de rendez-vous et accusés des formulaires par e-mail.
+- [x] 11) Tâche horaire commerciale (`activite.echue`, `rdv.demain`).
+- [x] 12) `employe.embauche` (comptes, services généraux, Compta) et `contrat_travail.echeance` (essai, CDD → responsable, RH, Juridique).
+- [x] 13) Alertes Contrats et Parc par droits ; `contrat.echeance_juridique` pour la sous-traitance.
+- [~] 14) `acte.etape` (commercial et client) ; honoraires du notaire : notification à la Compta (`acte.honoraires`) sans montant ni facture brouillon (le Juridique ne saisit aucun montant).
+- [~] 15) `compta.a_synchroniser` (tâche horaire, lue après « Synchroniser ») ; engagé compté dans l'alerte de budget et affiché dans la liste des chantiers. Partiel : l'onglet Budget de la fiche chantier n'affiche pas encore l'engagé (`costs().committed_fcfa` est fourni).
+- [x] 16) `echeance.relance` (30 et 60 jours : commercial et client).
+- [x] 17) Cloche du dashboard : « Mes notifications » respecté (compteur et son).
+- [~] 18) Encart « Courriers affectés au service » dans Compta, SAV, RH, Achats (service « administratif »), Chantiers (« chantier » et « technique »), lien vers la fiche du courrier.
+- [x] 19) Vue Direction : SAV en retard, prospects à attribuer, impayés.
+- [x] 20) Tous les `notify` directs passés au catalogue (congés, frais, courrier, contrats, parc, départs, demandes, documents, postes, objectifs, chantiers, besoins, litiges, cautions, `vefa.appel_emis`, `reclamation.confiee`…).
+- [ ] 21) Ignoré : décision du client (rôle `conducteur_travaux` inchangé).
+
+**Basses**
+- [x] 22) `docs/analyse-liaisons-inter-services.md` mis à jour (§2, §10, « Reste à faire »).
+- [x] 23) Doublons de départ (exclusion de ceux déjà prévenus) et de transfert (alertes lues à la décision) ; `usersWithAny` partagé ; bruit réduit (`vente.versement` : plus de responsables commerciaux par défaut ; `commande.confirmee` : sans l'exploitation).
+- [x] 24) `echeancier.modifie`, `avancement.publie`, document mis en ligne (client prévenu).
+- [x] 25) Traces d'historique : passage en visite, en livraison, en SAV.
+- [x] 26) `candidature.recue`, `temoignage.recu`, `newsletter.inscrit`.
+
+Hors des 26 points, restent à décider : avis à la validation et au paiement de la paie, bouton « Ouvrir un litige » depuis le SAV, mouvement de dépôt ↔ chantier du parc, caution libérée annoncée à l'acheteur, seuil de trésorerie dans la Vue Direction.

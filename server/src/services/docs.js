@@ -12,7 +12,7 @@ const { HttpError, isoDay, isoTime, json } = require('../lib/http');
 const { uploadsDir } = require('../config');
 const { DOC_KINDS, DOC_AUDIENCES, DOC_STATUSES, DOC_ACTION_STATUSES, docReference, readReminder } = require('../lib/domain');
 const { DEPARTMENTS } = require('../lib/paie');
-const { notify, resolve } = require('./notifications');
+const { inform, resolve } = require('./notifications');
 
 const insertedId = r => (typeof r === 'object' ? r.id : r);
 const filesDir = path.join(uploadsDir, 'private', 'documents');
@@ -157,8 +157,8 @@ async function syncRecipients(db, id, { notifyNew = false, title = null } = {}) 
 async function announce(db, d, to, title = null) {
   const doc = serialize(d);
   if (!to.length) return;
-  await notify(db, {
-    to, except: d.author_id, module: 'rh', event: 'document.publie',
+  await inform(db, 'document.publie', {
+    direct: to, except: d.author_id,
     title: title || `${doc.kind_label} : ${doc.title}`,
     body: doc.ack_required ? `À lire et à confirmer${doc.ack_deadline ? ` avant le ${fr(doc.ack_deadline)}` : ''}.` : 'Disponible dans Mon espace.',
     link: `/rh/moi?document=${d.id}`, priority: doc.ack_required ? 'action' : 'info', key: `doc:${d.id}:v${d.version}:publie`, email: doc.ack_required,
@@ -267,8 +267,8 @@ async function addAction(db, d, data, { s }) {
   return id;
 }
 async function notifyAction(db, d, a, except) {
-  await notify(db, {
-    to: a.owner_id, except, module: 'administration', event: 'pv.action', title: `Action à mener (${d.reference}) : ${a.label}`,
+  await inform(db, 'pv.action', {
+    direct: a.owner_id, except, title: `Action à mener (${d.reference}) : ${a.label}`,
     body: a.due_date ? `Échéance : ${fr(a.due_date)}` : null, link: `/administration/documents?fiche=${d.id}`, priority: 'action',
     key: `pvaction:${a.id}:affectee`, email: true,
   });
@@ -302,14 +302,14 @@ async function tick(db, day = today()) {
     const unread = await db('internal_doc_recipients as r').leftJoin('internal_doc_reads as x', function on() { this.on('x.doc_id', 'r.doc_id').andOn('x.user_id', 'r.user_id').andOn('x.version', db.raw('?', [d.version])); })
       .where('r.doc_id', d.id).whereNull('x.id').pluck('r.user_id');
     if (!unread.length) continue;
-    sent += await notify(db, {
-      to: unread, module: 'rh', event: `document.${kind}`, link: `/rh/moi?document=${d.id}`, priority: kind === 'retard' ? 'urgent' : 'action',
+    sent += await inform(db, `document.${kind}`, {
+      direct: unread, module: 'rh', link: `/rh/moi?document=${d.id}`, priority: kind === 'retard' ? 'urgent' : 'action',
       title: kind === 'retard' ? `Lecture en retard : ${d.title}` : `À lire avant le ${fr(deadline)} : ${d.title}`,
       body: 'Ouvrez le document et confirmez « J’ai lu et compris ».', key: `doc:${d.id}:v${d.version}:${kind}`, email: true,
     });
     if (kind === 'retard') {
-      await notify(db, {
-        to: d.author_id, module: 'administration', event: 'document.retard', link: `/administration/documents?fiche=${d.id}`, priority: 'action',
+      await inform(db, 'document.retard', {
+        direct: d.author_id, module: 'administration', link: `/administration/documents?fiche=${d.id}`, priority: 'action',
         title: `${unread.length} lecture(s) en retard : ${d.reference}`, body: d.title, key: `doc:${d.id}:v${d.version}:auteur-retard`,
       });
     }
@@ -319,8 +319,8 @@ async function tick(db, day = today()) {
   for (const a of actions) {
     const kind = readReminder(isoDay(a.due_date), day);
     if (!kind) continue;
-    sent += await notify(db, {
-      to: kind === 'retard' ? [a.owner_id, a.author_id] : a.owner_id, module: 'administration', event: `pv.action.${kind}`,
+    sent += await inform(db, `pv.action.${kind}`, {
+      direct: kind === 'retard' ? [a.owner_id, a.author_id] : a.owner_id, module: 'administration',
       title: kind === 'retard' ? `Action en retard (${a.reference}) : ${a.label}` : `Action à mener avant le ${fr(isoDay(a.due_date))} : ${a.label}`,
       link: `/administration/documents?fiche=${a.doc_id}`, priority: kind === 'retard' ? 'urgent' : 'action', key: `pvaction:${a.id}:${kind}`, email: true,
     });

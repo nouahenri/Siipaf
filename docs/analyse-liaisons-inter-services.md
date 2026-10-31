@@ -46,13 +46,14 @@ Flèches relevées (sens = qui fournit → qui reçoit) :
 | Administration (Parc) → Comptabilité | coût du parc lié **facultativement** à la facture d'achat | ✅ (non committé) |
 | Administration (Parc) → Chantiers | affectation d'un bien à un **projet**, coût par chantier | 🟡 chantier = `projects` en attendant le module |
 | RH (Mon espace) → Administration (Parc) | l'employé demande un véhicule, les services généraux accordent | ✅ (non committé) |
-| Tous → Administration (Direction) | `direction.js` agrège commercial, portefeuille, compta, RH, performance, SAV | 🟡 pas encore Courrier, Contrats, Parc |
+| Tous → Administration (Direction) | `direction.js` agrège commercial, portefeuille, compta, RH, performance, SAV, courrier, contrats, parc, documents, juridique, chantiers, QHSE, achats ; « À traiter en priorité » reprend aussi les réclamations SAV en retard, les prospects à attribuer et les clients en retard de paiement | ✅ |
 | Performance (RH) ← Commercial, SAV | `performance.js` lit ventes, rendez-vous, tickets et interventions SAV pour noter les employés | ✅ (non dessiné) |
 
-**Notifications aujourd'hui** : il n'existe **pas de centre de notifications commun**.
-- Cloche du dashboard : seulement **nouveaux prospects** et **rendez-vous** (`leads.alert_at`, `seen_at`).
-- Chaque module envoie **ses propres e-mails** avec sa propre table anti-doublon : `contract_alerts`, `asset_alerts`, relances du courrier, `notifyTeam` (messages et réclamations de l'espace client).
-- Rien ne s'affiche **dans l'ERP** pour Contrats, Parc, Courrier, RH (congés, frais) : l'utilisateur ne voit l'alerte qu'en ouvrant sa boîte mail.
+**Notifications (mis à jour le 31/10/2026, après l'audit du 30/10)** : le centre de notifications commun existe (§10).
+- Cloche du dashboard : **nouveaux prospects** (`leads.alert_at`, `seen_at`) **et** notifications des services de l'ERP ; elle respecte « Mes notifications » (module Service commercial coupé : ni compteur ni son).
+- Tout passe par `inform` et le catalogue `INFO_EVENTS` (réglable dans le Circuit d'information) : congés, frais, courrier, contrats, parc, départs, demandes internes, documents, SAV, commercial… L'ancienne fonction `notify` n'est plus appelée que par `inform`.
+- Les tables anti-doublon propres aux modules (`contract_alerts`, `asset_alerts`, relances du courrier) restent pour leurs paliers ; les messages automatiques au client ou au prospect (rappel d'option, relance d'impayé, avis de document…) s'inscrivent dans `liaison_marks`.
+- Un destinataire ne reçoit que des **liens qu'il peut ouvrir** (`linkFor` dans `services/notifications.js` : un commercial sans droit sur les chantiers est renvoyé vers ses ventes).
 
 ---
 
@@ -268,7 +269,16 @@ Une notification ne contient **que le titre et le lien** ; le détail s'ouvre av
 
 **Règle de développement** (client, 25/10) : tout nouveau module ou fonctionnalité relit ce document, déclare ses événements dans `INFO_EVENTS`, passe par `inform` pour informer les autres services, reçoit un menu Réglages, et met à jour cet état.
 
-Reste à faire (modules à venir) : `chantier.besoin_materiel`, `commande.validee`, `livraison.recue`, `stock.seuil_bas` (Achats & stocks), `lot.livre` → SAV (réception, lot 5 des chantiers), `tma.demandee`, `tresorerie.seuil`, journal des événements (§6.2).
+### Mise à jour du 31/10/2026 — corrections de l'audit des liaisons (docs/audit-liaisons-notifications.md)
+
+- **Mécanique** : `audienceUsers` retombe sur le super administrateur comme `usersWith` ; `inform` accepte un lien par destinataire direct (`directLink`, ou `{ id, link }`), `module`, `circuit: false` (personnes directes seulement) et une liste d'exclus (`except`) ; `usersWithAny` est partagé ; les liens sont adaptés aux droits de chaque destinataire.
+- **Client** : `tellClient` (`services/clients.js`) est la seule porte pour écrire dans l'espace client (message + e-mail « nouveau message » sans contenu) : appels de fonds VEFA, TMA, PV de réception, versement confirmé, statut d'une réclamation, étapes de l'acte, document mis en ligne, point d'avancement, échéancier modifié, relance d'impayé.
+- **Commercial** (`services/liaisons.js`) : prospect entrant (`prospect.nouveau` / `prospect.demande`, prêt pour l'assistante IA du site), attribution notifiée et tracée dans l'historique partout, accord de transfert notifié au demandeur, activité ou rendez-vous confié, options (veille et expiration, au commercial et au prospect), confirmation de rendez-vous au prospect, accusés des formulaires du site, désistement (`vente.desistee`), lot réservé ou vendu sans dossier, message d'un client (`message.client`), tâche horaire (activités échues, rendez-vous du lendemain).
+- **SAV** : `reclamation.ouverte` pour toute réclamation (équipe, client, réserve), commercial et conducteur prévenus, changement de statut au client, `reclamation.resolue`, `satisfaction.recue`, `reserve.levee`, `intervention.confiee`, `intervention.cout` (Compta), échéance dépassée (`reclamation.retard`, tâche horaire). La date de livraison saisie dans SAV passe par `chantiersLivraison.deliverFromSav` (une seule porte avec le PV).
+- **Compta / Juridique / RH** : `compta.a_synchroniser` (tâche horaire), `import.versements`, `acte.etape`, `acte.honoraires`, `echeance.relance` (30 et 60 jours), `employe.embauche`, `contrat_travail.echeance` (essai, CDD), `candidature.recue`, `temoignage.recu`, `newsletter.inscrit`. Alertes Contrats et Parc calculées par droits ; le Juridique est prévenu pour la sous-traitance. Engagé (commandes confirmées) dans l'alerte de budget d'un chantier.
+- **Écrans** : encart « Courriers affectés au service » dans Comptabilité, SAV, RH, Achats, Chantiers (`GET /erp/courrier/service`) ; Vue Direction : SAV en retard, prospects à attribuer, impayés.
+
+Reste à faire (modules à venir) : `tresorerie.seuil` (seuil de trésorerie), journal des événements (§6.2), avis à la validation et au paiement de la paie, bouton « Ouvrir un litige » depuis le SAV, mouvement de dépôt ↔ chantier du parc, annonce à l'acheteur d'une caution libérée.
 
 
 ## QHSE (module du 31/10/2026)

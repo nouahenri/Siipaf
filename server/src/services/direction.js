@@ -244,6 +244,26 @@ async function worksitesPart(db, now = new Date()) {
   };
 }
 
+/**
+ * Ce que la Direction doit voir sans chercher (audit du 30/10) : réclamations SAV dont l'échéance est dépassée, prospects arrivés et pas
+ * encore attribués, clients en retard de paiement. Même forme que les autres lignes de « À traiter en priorité ».
+ */
+async function serviceAttention(db, collections, now) {
+  const { SAV_OPEN_STATUSES } = require('../lib/domain');
+  const out = [];
+  const late = await db('sav_tickets as t').leftJoin('leads as ld', 'ld.id', 't.lead_id').whereIn('t.status', SAV_OPEN_STATUSES).whereNotNull('t.due_at').where('t.due_at', '<', now)
+    .orderBy('t.due_at').limit(10).select('t.id', 't.ref', 't.title', 't.due_at', 'ld.name as client_name');
+  for (const t of late) out.push({ module: 'sav', label: `Réclamation ${t.ref} en retard`, detail: [t.client_name, t.title].filter(Boolean).join(' · '), date: isoDay(t.due_at), link: `/sav/reclamations?t=${t.id}` });
+  const toAssign = await db('leads').whereNull('assigned_to').whereNull('client_code').whereNot('stage', 'perdu').orderBy('created_at').select('id', 'created_at');
+  if (toAssign.length) {
+    out.push({ module: 'prospects', label: `${toAssign.length} prospect(s) à attribuer`, detail: 'Aucun commercial n’a été désigné par le responsable', date: isoDay(toAssign[0].created_at), link: '/commercial/pipeline?assigned_to=aucun' });
+  }
+  if (collections.late_clients) {
+    out.push({ module: 'impayes', label: `${collections.late_clients} client(s) en retard de paiement`, detail: `${collections.overdue_installments} échéance(s) · ${Math.round(collections.overdue_fcfa).toLocaleString('fr-FR')} FCFA`, date: null, link: '/juridique/impayes' });
+  }
+  return out;
+}
+
 async function overview(db, now = new Date()) {
   const ct = require('./compta');
   const rh = require('./rh');
@@ -257,8 +277,9 @@ async function overview(db, now = new Date()) {
     require('./qhseSuivi').directionPart(db, now),
   ]);
   // « À traiter en priorité » : les délais dépassés du Juridique et les décisions des chantiers rejoignent ceux de l'Administration générale
-  const attention = [...administration.attention, ...juridique.attention, ...worksites.attention, ...qhse.attention].sort((a, b) => String(a.date || '').localeCompare(String(b.date || '')));
-  administration.attention_total += juridique.attention.length + worksites.attention.length + qhse.attention.length;
+  const services = await serviceAttention(db, collections, now);
+  const attention = [...administration.attention, ...juridique.attention, ...worksites.attention, ...qhse.attention, ...services].sort((a, b) => String(a.date || '').localeCompare(String(b.date || '')));
+  administration.attention_total += juridique.attention.length + worksites.attention.length + qhse.attention.length + services.length;
   delete worksites.attention;
   administration.attention = attention.slice(0, 15);
   delete juridique.attention;

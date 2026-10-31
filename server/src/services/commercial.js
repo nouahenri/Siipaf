@@ -56,6 +56,21 @@ async function logActivity(trx, leadId, { kind, summary, note = null, userId = n
   return insertedId(id);
 }
 
+/**
+ * Trace dans l'historique de la fiche qu'elle est attribuée à un commercial (ou n'en a plus), quel que soit le chemin :
+ * attribution du responsable, saisie, import, transfert accepté, planification. `why` : précision entre parenthèses.
+ */
+async function traceAssignment(trx, leadId, userId, { by = null, why = null } = {}) {
+  const u = userId ? await trx('users').where({ id: userId }).first('name') : null;
+  const suffix = why ? ` (${why})` : '';
+  await logActivity(trx, leadId, { kind: 'systeme', summary: u ? `Attribué à ${u.name}${suffix}` : `Plus de commercial attribué${suffix}`, userId: by });
+}
+
+/** Trace un changement d'étape fait par le système (passage en visite, livraison, SAV) dans l'historique de la fiche. */
+async function traceStage(trx, leadId, from, to, why, userId = null) {
+  await logActivity(trx, leadId, { kind: 'etape', summary: `Étape : ${STAGE_LABELS[from] || from} → ${STAGE_LABELS[to] || to}`, note: why || null, userId });
+}
+
 /** Changement d'étape : « perdu » exige un motif ; quitter « perdu » efface le motif. Journalisé. */
 async function changeStage(db, lead, { stage, lost_reason = null, lost_note = null }, userId) {
   return db.transaction(async trx => {
@@ -186,11 +201,14 @@ async function plannedFor(trx, lead, assignedTo, user) {
   // Une fiche déjà cliente (code client) ne change pas de commercial ainsi : demande de changement validée par la hiérarchie
   if (!lead.assigned_to && !lead.client_code && assignedTo && canAssignLeads(user)) {
     await trx('leads').where({ id: lead.id }).update({ assigned_to: chosen, updated_at: new Date() });
-    await logActivity(trx, lead.id, { kind: 'systeme', summary: `Attribué à ${(await trx('users').where({ id: chosen }).first('name'))?.name || 'un commercial'} en planifiant`, userId: user.id });
+    await traceAssignment(trx, lead.id, chosen, { by: user.id, why: 'en planifiant' });
     await require('./portfolio').syncLead(trx, lead.id, { by: user.id });
   }
   return chosen;
 }
+
+/** Planifier pour un commercial a-t-il attribué la fiche (fiche à attribuer, choix du responsable) ? Le commercial en est alors à prévenir. */
+const attributedByPlanning = (lead, assignedTo, user) => !lead.assigned_to && !lead.client_code && !!assignedTo && canAssignLeads(user);
 
 /** Le destinataire d'une attribution est un commercial actif (audit du 30/10), pas n'importe quel compte. */
 async function assertSeller(db, userId, message = 'Commercial introuvable ou inactif.') {
@@ -294,4 +312,4 @@ async function dashboard(db, user, now = new Date()) {
   };
 }
 
-module.exports = { STAGE_LABELS, plannedFor, assertSeller, seesAllLeads, canAssignLeads, canDecideTransfers, scopeLeads, leadInScope, saleInScope, logActivity, changeStage, serializeActivity, leadHistory, pipeline, achieved, sellers, targetsReport, dashboard, monthKey, monthRange, isoDay };
+module.exports = { STAGE_LABELS, plannedFor, attributedByPlanning, traceAssignment, traceStage, assertSeller, seesAllLeads, canAssignLeads, canDecideTransfers, scopeLeads, leadInScope, saleInScope, logActivity, changeStage, serializeActivity, leadHistory, pipeline, achieved, sellers, targetsReport, dashboard, monthKey, monthRange, isoDay };

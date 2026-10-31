@@ -17,7 +17,7 @@ const settingsService = require('./marketingSettings');
 const ai = require('./marketingAi');
 const templates = require('./marketingTemplates');
 const { buildContext } = require('./marketingContext');
-const { inform, notify } = require('./notifications');
+const { inform } = require('./notifications');
 
 const SITE_URL = (process.env.SITE_URL || 'https://siipaf.com').replace(/\/$/, '');
 const insertedId = r => (typeof r === 'object' ? r.id : r);
@@ -132,7 +132,7 @@ async function validateCampaign(db, id, user) {
   await db('marketing_campaigns').where({ id }).update({ status: 'validee', validated_by: user.id, validated_at: new Date(), updated_at: new Date() });
   await logEvent(db, { campaignId: id, action: 'validate', user });
   if (c.created_by && c.created_by !== user.id) {
-    await notify(db, { to: [c.created_by], module: 'marketing', event: 'marketing.valide', title: `Campagne « ${c.name} » validée`, link: `/marketing/campagnes/${id}`, key: `marketing-campagne-ok:${id}`, except: user.id });
+    await inform(db, 'marketing.valide', { direct: [c.created_by], title: `Campagne « ${c.name} » validée`, link: `/marketing/campagnes/${id}`, key: `marketing-campagne-ok:${id}`, except: user.id });
   }
   return serializeCampaign(await requireCampaign(db, id));
 }

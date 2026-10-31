@@ -15,6 +15,7 @@ const { getSettings } = require('../services/settings');
 const { isTest } = require('../config');
 const { publicSiteImages } = require('../services/siteImages');
 const { resolveUtm } = require('../services/marketing');
+const liaisons = require('../services/liaisons');
 
 const phone = z.string().trim().min(6, 'Téléphone trop court').max(40);
 const contactFields = {
@@ -133,14 +134,19 @@ module.exports = function publicRoutes(db) {
 
   r.post('/interest', formLimiter, ah(async (req, res) => {
     const data = parse(interestSchema, req.body);
+    let lotCode = null;
     if (data.lot_id) {
       const lot = await db('lots').where({ id: data.lot_id }).first();
       if (!lot) throw new HttpError(404, 'Lot introuvable.');
       data.project_id = lot.project_id;
+      lotCode = lot.code;
     }
     const utm = await resolveUtm(db, data.utm);
     const lead = await db.transaction(trx => findOrCreateLead(trx, { ...data, utm, source: data.lot_id ? 'plan' : 'site' }));
     notifyTeam('Nouvelle manifestation d’intérêt', `${data.name} — ${data.phone || ''} ${data.email || ''}\nLot : ${data.lot_id || '—'}\n${data.message || ''}`);
+    // Responsables commerciaux (prospect à attribuer) ou commercial de la fiche, et accusé de réception au prospect
+    await liaisons.announceInbound(db, lead, { what: lotCode ? `manifestation d’intérêt pour le lot ${lotCode}` : 'manifestation d’intérêt', source: data.lot_id ? 'plan' : 'site' }).catch(() => {});
+    liaisons.acknowledge(data, 'Nous avons bien reçu votre demande — SIIPAF', ['Merci de l’intérêt que vous portez à nos programmes : votre demande est bien reçue.', 'Un conseiller SIIPAF vous contacte très prochainement. Une question ? +225 01 02 27 95 95.']);
     res.status(201).json({ ok: true, lead_id: lead.id });
   }));
 
@@ -152,6 +158,7 @@ module.exports = function publicRoutes(db) {
     const result = await placeOption(db, { lotId: Number(req.params.id), leadData: { ...data, utm: await resolveUtm(db, data.utm), source: 'plan' } });
     const lot = await db('lots').where({ id: result.lot_id }).first();
     notifyTeam('Nouvelle pré-réservation', `${data.name} — ${data.phone || ''} ${data.email || ''}\nLot ${lot.code} — expire le ${result.expires_at.toLocaleString('fr-FR')}`);
+    await liaisons.announceInbound(db, result.lead, { what: `pré-réservation du lot ${lot.code} (jusqu’au ${result.expires_at.toLocaleDateString('fr-FR')})`, source: 'plan' }).catch(() => {});
     if (data.email) {
       sendMail({
         to: data.email,
@@ -174,8 +181,10 @@ module.exports = function publicRoutes(db) {
   r.post('/appointments', formLimiter, ah(async (req, res) => {
     const data = parse(appointmentSchema, req.body);
     const utm = await resolveUtm(db, data.utm);
+    let leadId = null;
     const id = await db.transaction(async trx => {
       const lead = await findOrCreateLead(trx, { ...data, utm, source: 'site' });
+      leadId = lead.id;
       const [apptId] = await trx('appointments').insert({
         lead_id: lead.id, kind: data.kind, starts_at: data.starts_at, project_id: data.project_id || null,
         lot_id: data.lot_id || null, source: 'site', notes: data.message || null,
@@ -183,6 +192,8 @@ module.exports = function publicRoutes(db) {
       return apptId;
     });
     notifyTeam('Demande de rendez-vous', `${data.name} — ${data.kind} le ${data.starts_at.toLocaleString('fr-FR')}`);
+    await liaisons.announceInbound(db, leadId, { what: `demande de rendez-vous (${data.kind}) le ${data.starts_at.toLocaleString('fr-FR')}`, source: 'site' }).catch(() => {});
+    liaisons.acknowledge(data, 'Votre demande de rendez-vous — SIIPAF', [`Nous avons bien reçu votre demande de rendez-vous du ${data.starts_at.toLocaleString('fr-FR')}.`, 'Un conseiller SIIPAF vous le confirmera très vite par e-mail ou par téléphone.']);
     res.status(201).json({ ok: true, appointment_id: id });
   }));
 
@@ -198,8 +209,10 @@ module.exports = function publicRoutes(db) {
     const data = parse(contactSchema, req.body);
     const project = data.project ? await db('projects').whereRaw('LOWER(slug) = ?', [data.project.toLowerCase()]).first() : null;
     const utm = await resolveUtm(db, data.utm);
+    let contactLeadId = null;
     const id = await db.transaction(async trx => {
       const lead = await findOrCreateLead(trx, { ...data, utm, project_id: project && project.id, source: 'site' });
+      contactLeadId = lead.id;
       const [msgId] = await trx('contact_messages').insert({
         name: data.name, email: data.email || null, phone: data.phone || null, subject: data.subject || null,
         message: data.message, project_id: project ? project.id : null, lead_id: lead.id, property_type: data.property_type || null,
@@ -207,6 +220,8 @@ module.exports = function publicRoutes(db) {
       return msgId;
     });
     notifyTeam('Nouveau message de contact', `${data.name} — ${data.phone || ''} ${data.email || ''}\n${[project && project.name, data.property_type, data.subject].filter(Boolean).join(' · ')}\n\n${data.message}`);
+    await liaisons.announceInbound(db, contactLeadId, { what: `message de contact${data.subject ? ` : ${data.subject}` : ''}`, source: 'site' }).catch(() => {});
+    liaisons.acknowledge(data, 'Nous avons bien reçu votre message — SIIPAF', ['Merci pour votre message : il est bien arrivé à notre équipe, qui vous répond très prochainement.', 'Une urgence ? +225 01 02 27 95 95.']);
     res.status(201).json({ ok: true, message_id: id });
   }));
 
@@ -219,6 +234,8 @@ module.exports = function publicRoutes(db) {
       }
     } else {
       await db('newsletter_subscribers').insert({ email, unsubscribe_token: crypto.randomBytes(24).toString('hex') });
+      // Nouvel abonné : cloche des comptes qui suivent la newsletter (circuit d'information)
+      await require('../services/notifications').inform(db, 'newsletter.inscrit', { key: `newsletter:${email}`, title: 'Nouvel abonné à la newsletter', body: email, link: '/marketing' }).catch(() => {});
     }
     res.status(201).json({ ok: true });
   }));

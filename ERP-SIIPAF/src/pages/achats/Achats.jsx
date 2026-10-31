@@ -9,6 +9,7 @@ import ApproSummary from './ApproSummary';
 import NotificationPrefs from '../../components/NotificationPrefs';
 import { APPRO, qty, tone, useApproRefs, useApproAction } from '../../lib/appro';
 import { Select, DocumentForm, DocumentDrawer, MovementForm, MovementDrawer, ArticleForm, LocationForm, MinimumForm } from './ApproForms';
+import DepartmentMail from '../../components/DepartmentMail';
 
 function Loading({ res }) { return res.error ? <ErrorBox error={res.error} /> : <Skeleton h={220} />; }
 function SearchBox({ value, onChange, placeholder = 'Rechercher…' }) { return <label className="search"><Search aria-hidden="true" /><input className="input" type="search" aria-label="Rechercher" placeholder={placeholder} value={value} onChange={e => onChange(e.target.value)} /></label>; }
@@ -19,6 +20,7 @@ export function ApproDashboard() {
   const res = useResource(`${APPRO}/dashboard`), navigate = useNavigate(); if (!res.data) return <Loading res={res} />; const d = res.data;
   return <div className="stack"><ApproSummary data={d} />
     <Card title="Commandes récentes" bodyClass=""><OrdersTable rows={d.recent_orders} onOpen={id => navigate(`/achats/commandes?fiche=${id}`)} /></Card>
+    <DepartmentMail departments="administratif" label="administratif (Achats & stocks)" />
     {d.low_stock.length > 0 && <Card title="Stocks bas et ruptures" bodyClass=""><div className="table-wrap"><table className="table"><thead><tr><th>Emplacement</th><th>Article</th><th className="right">Disponible</th><th className="right">Seuil</th></tr></thead><tbody>{d.low_stock.map(b => <tr key={`${b.article_id}:${b.location_id}`}><td>{b.location_name}</td><td>{b.label}</td><td className="right tabular">{qty(b.quantity)} {b.unit}</td><td className="right tabular">{qty(b.min_quantity)}</td></tr>)}</tbody></table></div></Card>}
   </div>;
 }

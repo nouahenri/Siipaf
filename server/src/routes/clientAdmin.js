@@ -6,14 +6,13 @@ const express = require('express');
 const { z } = require('zod');
 const { ah, parse, idParam, HttpError, json, isoTime } = require('../lib/http');
 const { requirePermission } = require('../auth');
-const { sendMail } = require('../lib/mailer');
-const { clientAppUrl } = require('../config');
 const { ALL_SITE_STAGES, siteStagesFor, siteStageError } = require('../lib/domain');
-const { grantAccess, accessStatus, siteUpdatesQuery, serializeUpdate, progressIndex } = require('../services/clients');
+const { grantAccess, accessStatus, siteUpdatesQuery, serializeUpdate, progressIndex, tellClient } = require('../services/clients');
 const { totals } = require('../services/sales');
 const { scheduleStatus } = require('../services/schedule');
 const { createClient } = require('../services/importer');
 const { scopeLeads, leadInScope } = require('../services/commercial');
+const liaisons = require('../services/liaisons');
 
 module.exports = function clientAdminRoutes(db) {
   const r = express.Router();
@@ -173,7 +172,10 @@ module.exports = function clientAdminRoutes(db) {
     const [id] = await db('site_updates').insert({ ...toRow(data), project_id: projectId, created_by: req.user.id });
     // Information de l'acquéreur seulement : les appels de fonds partent de l'étape déclarée par la Direction (ERP › Chantiers)
     const update = await db('site_updates').where({ id }).first();
-    res.status(201).json(await adminUpdate(update, project.category));
+    const out = await adminUpdate(update, project.category);
+    // Point visible des clients : chaque acquéreur concerné est prévenu dans son espace, et leurs commerciaux dans la cloche
+    await liaisons.announceProgress(db, update, req.user, out.stage_label).catch(() => {});
+    res.status(201).json(out);
   }));
 
   r.patch('/site-updates/:id', requirePermission('site_updates:write'), ah(async (req, res) => {
@@ -185,7 +187,11 @@ module.exports = function clientAdminRoutes(db) {
     if (data.stage !== u.stage) checkStage(category, data.stage);
     await checkScope(u.project_id, data);
     await db('site_updates').where({ id }).update({ ...toRow(data), updated_at: new Date() });
-    res.json(await adminUpdate(await db('site_updates').where({ id }).first(), category));
+    const after = await db('site_updates').where({ id }).first();
+    const out = await adminUpdate(after, category);
+    // Point rendu visible après coup : les clients concernés en sont prévenus (une fois par point)
+    if (after.visible_client && !u.visible_client) await liaisons.announceProgress(db, after, req.user, out.stage_label).catch(() => {});
+    res.json(out);
   }));
 
   r.delete('/site-updates/:id', requirePermission('site_updates:write'), ah(async (req, res) => {
@@ -220,18 +226,8 @@ module.exports = function clientAdminRoutes(db) {
   }));
 
   // Écrit à un client ; il est prévenu par e-mail (sans le contenu, qui reste dans son espace)
-  const sendToClient = async (lead, { body, sale_id = null }, user) => {
-    const [id] = await db('client_messages').insert({ lead_id: lead.id, sale_id, sender: 'equipe', user_id: user.id, body });
-    const access = await db('client_accounts').where({ lead_id: lead.id, active: true }).first();
-    if (access && lead.email) {
-      sendMail({
-        to: lead.email,
-        subject: 'Nouveau message de SIIPAF dans votre espace client',
-        text: `Bonjour ${lead.name},\n\nL’équipe SIIPAF vous a écrit. Lisez et répondez depuis votre espace client :\n${clientAppUrl}\n\nSIIPAF SA`,
-      }).catch(() => {});
-    }
-    return id;
-  };
+  // (même chemin que les messages automatiques : appels de fonds, TMA, PV, versements, réclamations…)
+  const sendToClient = (lead, { body, sale_id = null }, user) => tellClient(db, { leadId: lead.id, saleId: sale_id }, body, user.id);
 
   // Même message à plusieurs clients (chacun le reçoit dans sa propre conversation) : ses clients seulement
   r.post('/client-messages/groupe', requirePermission('client_messages:group'), ah(async (req, res) => {

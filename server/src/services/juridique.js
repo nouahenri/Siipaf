@@ -17,7 +17,8 @@ const {
 } = require('../lib/domain');
 const { DEPARTMENTS } = require('../lib/paie');
 const { sendMail } = require('../lib/mailer');
-const { notify, usersWith, resolve, inform } = require('./notifications');
+const { usersWith, resolve, inform } = require('./notifications');
+const liaisons = require('./liaisons');
 
 const insertedId = r => (typeof r === 'object' ? r.id : r);
 const today = () => new Date().toISOString().slice(0, 10);
@@ -150,12 +151,17 @@ async function announceDeed(db, saleId, userId) {
   const d = await deedDetail(db, saleId);
   const what = `${d.client_name} — ${d.project_name}, lot ${d.lot_code}`;
   const date = fr(d.steps.find(s => s.key === 'acte').date);
-  const base = { event: 'acte.signe', title: `Acte signé le ${date} : ${what}`, body: d.notary_name ? `Notaire : ${d.notary_name}${d.deed_number ? ` · acte n° ${d.deed_number}` : ''}` : null, key: `acte:${saleId}`, except: userId };
-  await notify(db, { ...base, to: d.commercial_id, module: 'commercial', link: '/commercial/ventes', priority: 'info' });
-  // Circuit d'information : Direction générale, exploitation, Comptabilité (écriture « CA à l'acte »), SAV (réglable)
+  const base = { title: `Acte signé le ${date} : ${what}`, body: d.notary_name ? `Notaire : ${d.notary_name}${d.deed_number ? ` · acte n° ${d.deed_number}` : ''}` : null, key: `acte:${saleId}`, except: userId };
+  // Le commercial du client (lien vers ses ventes) et les services du circuit : Direction générale, exploitation, Comptabilité
+  // (écriture « CA à l'acte »), SAV (réglable)
   await inform(db, 'acte.signe', {
-    title: base.title, body: base.body, key: base.key, except: userId,
+    ...base, direct: d.commercial_id ? [d.commercial_id] : [], directLink: '/commercial/ventes',
     link: `/juridique/actes?fiche=${saleId}`, links: { compta: '/compta/ecritures', sav: '/sav/reserves' },
+  });
+  // Honoraires et frais d'acte du notaire : la Comptabilité attend sa facture (aucun montant n'est saisi au Juridique)
+  await inform(db, 'acte.honoraires', {
+    except: userId, key: `acte:${saleId}:honoraires`, title: `Honoraires du notaire à attendre : ${what}`,
+    body: `Acte signé le ${date}${d.notary_name ? ` chez ${d.notary_name}` : ''} : enregistrez la facture du notaire (honoraires, droits et frais d'acte) à réception.`, link: '/compta/achats',
   });
   if (d.client_email) {
     await sendMail({
@@ -211,6 +217,8 @@ async function setStep(db, saleId, { key, date = null, notary_supplier_id, notar
     if (key === 'remise' && date) await documentAtLeast(trx, saleId, 'acte_notarie', 'delivre', user.id);
   });
   if (signedNow) await announceDeed(db, saleId, user.id);
+  // Étape intermédiaire datée (réservation, pièces, notaire, projet d'acte, expédition) : commercial prévenu, client informé
+  if (key && key !== 'acte' && date) await liaisons.announceDeedStep(db, saleId, key, date, user).catch(() => {});
   return deedDetail(db, saleId);
 }
 
@@ -471,13 +479,7 @@ async function unpaid(db, { day = today(), commercialId = null } = {}) {
 
 /** Courriers affectés au service Juridique : en cours, et traités depuis 30 jours (choix du client du 23/10). */
 async function departmentMail(db, user, can) {
-  const courrier = require('./courrier');
-  const v = await courrier.viewer(db, user, can);
-  const since = new Date(Date.now() - 30 * 86400000);
-  const rows = await courrier.query(db).where('m.assigned_department', 'juridique')
-    .where(w => w.where('m.status', 'affecte').orWhere(x => x.where('m.status', 'traite').where('m.done_at', '>=', since)))
-    .orderBy('m.date', 'desc').limit(50);
-  return rows.map(m => courrier.serialize(m, v));
+  return require('./courrier').departmentMail(db, 'juridique', user, can);
 }
 
 // ─── Tableau de bord, pastilles ───────────────────────────────────────────
@@ -542,8 +544,8 @@ async function tick(db, day = today()) {
     const kind = litigationReminder(l.next_date, day);
     if (!kind) continue;
     const title = `Litige ${l.reference} : ${l.next_label || 'échéance'} ${kind === 'veille' ? 'demain' : l.days_left === 0 ? 'aujourd’hui' : `dépassée depuis ${-l.days_left} jour(s)`} (${fr(l.next_date)})`;
-    const n = await notify(db, {
-      to: l.owner_id ? [l.owner_id] : jurists, module: 'juridique', event: `litige.${kind}`, title, body: `${l.title} · ${l.opponent}`,
+    const n = await inform(db, `litige.${kind}`, {
+      direct: l.owner_id ? [l.owner_id] : jurists, title, body: `${l.title} · ${l.opponent}`,
       link: `/juridique/litiges?fiche=${l.id}`, priority: kind === 'veille' ? 'action' : 'urgent', key: `litige:${l.id}:${kind}:${l.next_date}`,
       email: { subject: `[SIIPAF] ${title}`, text: u => `Bonjour ${u.name},\n\n${title}\n${l.title} — partie adverse : ${l.opponent}\n\nOuvrir dans l’ERP : ${erpUrl}/juridique/litiges?fiche=${l.id}` },
     });
@@ -559,8 +561,8 @@ async function tick(db, day = today()) {
     const when = left < 0 ? `dépassée depuis ${-left} jour(s)` : left === 0 ? 'aujourd’hui' : `dans ${left} jour(s)`;
     const title = `${g.reference} : ${g.deadline.label.toLowerCase()} le ${fr(g.deadline.date)}`;
     // La retenue libérée se rembourse au sous-traitant : le comptable est prévenu avec le juriste
-    const n = await notify(db, {
-      to: [...(g.owner_id ? [g.owner_id] : []), ...jurists, ...(g.direction === 'retenue' ? accountants : [])], module: 'juridique', event: 'caution.echeance',
+    const n = await inform(db, 'caution.echeance', {
+      direct: [...(g.owner_id ? [g.owner_id] : []), ...jurists, ...(g.direction === 'retenue' ? accountants : [])],
       title, body: `${g.kind_label} · ${g.counterparty_name || '—'} · ${money(g.amount_fcfa)} — ${when}`, link: `/juridique/cautions?fiche=${g.id}`,
       priority: left <= 7 ? 'urgent' : 'action', key: `caution:${g.id}:${g.deadline.date}:${stage}`,
       email: { subject: `[SIIPAF] ${title}`, text: u => `Bonjour ${u.name},\n\n${g.deadline.label} (${when}) : ${g.reference} — ${g.kind_label}\nTiers : ${g.counterparty_name || '—'}${g.bank ? ` · banque : ${g.bank}` : ''}\nMontant : ${money(g.amount_fcfa)}\n\nOuvrir dans l’ERP : ${erpUrl}/juridique/cautions?fiche=${g.id}` },
@@ -575,6 +577,18 @@ async function tick(db, day = today()) {
       direct: u.commercial_id ? [u.commercial_id] : [], title: `Échéance impayée : ${what}`,
       body: `${money(u.overdue_fcfa)} en retard depuis le ${fr(u.oldest_due)}`, link: '/commercial/ventes', links: { compta: '/compta' }, key: `impaye:${u.sale_id}:${u.oldest_due}`,
     }) && u.commercial_id) stats.unpaid_commercial++;
+    // Relances périodiques : le commercial à 30 puis 60 jours de retard, et le client dans son espace (une fois par palier)
+    const relance = u.days_late >= 60 ? 60 : u.days_late >= 30 ? 30 : null;
+    if (relance) {
+      if (await inform(db, 'echeance.relance', {
+        direct: u.commercial_id ? [u.commercial_id] : [], title: `Relance à faire (${relance} jours) : ${what}`,
+        body: `${money(u.overdue_fcfa)} impayés depuis le ${fr(u.oldest_due)} (${u.days_late} jours)`, link: '/commercial/ventes', key: `relance:${u.sale_id}:${relance}:${u.oldest_due}`,
+      })) stats.unpaid_reminders = (stats.unpaid_reminders || 0) + 1;
+      if (await liaisons.sentOnce(db, `relance:${u.sale_id}:${relance}:${u.oldest_due}:client`)) {
+        const sale = await db('sales').where({ id: u.sale_id }).first('id', 'lead_id');
+        if (sale) await require('./clients').tellClient(db, sale, `Rappel : une échéance de votre dossier (lot ${u.lot_code}) est impayée depuis le ${fr(u.oldest_due)}, soit ${money(u.overdue_fcfa)}. Merci de régulariser votre situation ou de contacter votre conseiller.`);
+      }
+    }
     if (u.transmitted && !u.litigation && await inform(db, 'impaye.transmis', {
       direct: jurists, title: `Impayé de ${u.days_late} jours transmis au Juridique : ${what}`,
       body: `${money(u.overdue_fcfa)} en retard · commercial : ${u.commercial_name || '—'}`, link: '/juridique/impayes', priority: 'action', key: `impaye-jur:${u.sale_id}:${u.oldest_due}`,

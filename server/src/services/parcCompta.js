@@ -11,7 +11,7 @@ const {
 } = require('../lib/domain');
 const { splitVat } = require('../lib/compta');
 const ct = require('./compta');
-const { notify, usersWith, resolve } = require('./notifications');
+const { inform, usersWith, resolve } = require('./notifications');
 
 const insertedId = r => (typeof r === 'object' ? r.id : r);
 const today = () => new Date().toISOString().slice(0, 10);
@@ -130,8 +130,8 @@ async function bookCost(trx, asset, costId, data, userId) {
 async function announceCost(db, costId, userId) {
   const c = serializeCost(await loadCost(db, costId));
   if (c.status !== 'a_valider') return;
-  await notify(db, {
-    to: await usersWith(db, 'achats:validate'), except: userId, module: 'compta', event: 'parc.depense',
+  await inform(db, 'parc.depense', {
+    direct: await usersWith(db, 'achats:validate'), except: userId,
     title: `Dépense du parc à valider : ${c.asset_code} — ${c.kind_label}`, body: `${money(c.amount)} · ${c.payment_label}${c.project_name ? ` · ${c.project_name}` : ''}`,
     link: `/compta/parc?onglet=valider`, priority: 'action', key: `parc_cost:${c.id}`,
   });
@@ -158,8 +158,8 @@ async function rejectCost(db, id, reason, user) {
   });
   await resolve(db, `parc_cost:${c.id}`);
   const raw = await db('asset_costs').where({ id: c.id }).first('created_by');
-  await notify(db, {
-    to: raw.created_by, except: user.id, module: 'administration', event: 'parc.depense_rejetee', title: `Dépense rejetée par la Comptabilité : ${c.asset_code} — ${c.kind_label}`,
+  await inform(db, 'parc.depense_rejetee', {
+    direct: raw.created_by, except: user.id, title: `Dépense rejetée par la Comptabilité : ${c.asset_code} — ${c.kind_label}`,
     body: `${money(c.amount)} · ${reason}`, link: `/administration/parc?fiche=${c.asset_id}`, priority: 'action', key: `parc_cost_rejet:${c.id}`,
   });
   return serializeCost(await loadCost(db, id));

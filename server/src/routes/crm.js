@@ -115,9 +115,12 @@ module.exports = function crmRoutes(db) {
       // Attribué d'office à celui qui a établi le contact ; une personne déjà connue garde son commercial
       if (found.created || !found.assigned_to) patch.assigned_to = data.assigned_to ?? (canAssignLeads(req.user) ? null : req.user.id);
       if (Object.keys(patch).length) await trx('leads').where({ id: found.id }).update(patch);
+      if (patch.assigned_to) await require('../services/commercial').traceAssignment(trx, found.id, patch.assigned_to, { by: req.user.id, why: found.created ? 'à la création' : null });
       await syncLead(trx, found.id, { by: req.user.id, reason: found.created ? 'creation' : 'attribution' });
-      return found;
+      return { ...found, newOwner: patch.assigned_to || null };
     });
+    // Confié à un collègue par le responsable : il en est prévenu
+    if (lead.newOwner) await require('../services/liaisons').announceAssigned(db, lead.newOwner, [{ id: lead.id, name: lead.name }], { by: req.user.id });
     res.status(201).json(await db('leads').where({ id: lead.id }).first());
   }));
 
@@ -141,11 +144,16 @@ module.exports = function crmRoutes(db) {
       throw new HttpError(403, 'Seul le responsable change le commercial d’un prospect ou d’un client : faites une demande de transfert.');
     }
     if (data.assigned_to && data.assigned_to !== lead.assigned_to) await require('../services/commercial').assertSeller(db, data.assigned_to);
+    const reassigned = 'assigned_to' in data && (data.assigned_to || null) !== (lead.assigned_to || null);
     await db.transaction(async trx => {
       await trx('leads').where({ id }).update({ ...data, updated_at: new Date() });
-      if ('assigned_to' in data && (data.assigned_to || null) !== (lead.assigned_to || null)) await require('../services/portfolio').followOwner(trx, id, data.assigned_to);
+      if (reassigned) {
+        await require('../services/portfolio').followOwner(trx, id, data.assigned_to);
+        await require('../services/commercial').traceAssignment(trx, id, data.assigned_to || null, { by: req.user.id });
+      }
       await syncLead(trx, id, { by: req.user.id });
     });
+    if (reassigned && data.assigned_to) await require('../services/liaisons').announceAssigned(db, data.assigned_to, [{ id, name: data.name || lead.name }], { by: req.user.id });
     // Historique du prospect (ERP · Commercial) : le changement d'étape y est inscrit
     if (data.stage && data.stage !== lead.stage) {
       const { logActivity, STAGE_LABELS } = require('../services/commercial');
@@ -230,11 +238,18 @@ module.exports = function crmRoutes(db) {
     if (data.status && !req.can('appointments:edit')) delete data.status;
     await checkSite(data.project_id, data.lot_id);
     // Par défaut le commercial de la fiche ; une fiche à attribuer est attribuée au commercial choisi par le responsable
+    let planned = null;
     const id = await db.transaction(async trx => {
       const assignedTo = await require('../services/commercial').plannedFor(trx, lead, data.assigned_to ?? null, req.user);
+      planned = assignedTo;
       const [newId] = await trx('appointments').insert({ ...data, source: 'admin', assigned_to: assignedTo });
       return typeof newId === 'object' ? newId.id : newId;
     });
+    // Le commercial choisi par le responsable est prévenu (de la fiche si elle était à attribuer, du rendez-vous dans tous les cas)
+    const liaisons = require('../services/liaisons');
+    if (require('../services/commercial').attributedByPlanning(lead, data.assigned_to, req.user)) await liaisons.announceAssigned(db, planned, [{ id: lead.id, name: lead.name }], { by: req.user.id });
+    await liaisons.announceTask(db, { userId: planned, leadId: lead.id, what: 'Rendez-vous', when: data.starts_at }, req.user.id);
+    if (data.status === 'confirme') await liaisons.confirmAppointment(db, id);
     res.status(201).json(await db('appointments').where({ id }).first());
   }));
 
@@ -245,7 +260,7 @@ module.exports = function crmRoutes(db) {
     const { status: _status, ...apptFields } = data;
     if (data.status === 'annule' && !req.can('appointments:cancel')) throw new HttpError(403, 'Annuler un rendez-vous demande le droit correspondant.');
     if (((data.status && data.status !== 'annule') || Object.keys(apptFields).length) && !req.can('appointments:edit')) throw new HttpError(403, 'Modifier un rendez-vous demande le droit correspondant.');
-    const current = await scopeLeads(db('appointments as a').join('leads as ld', 'ld.id', 'a.lead_id'), req.user).where('a.id', id).first('a.id', 'a.lead_id', 'a.assigned_to', 'a.project_id');
+    const current = await scopeLeads(db('appointments as a').join('leads as ld', 'ld.id', 'a.lead_id'), req.user).where('a.id', id).first('a.id', 'a.lead_id', 'a.assigned_to', 'a.project_id', 'a.status');
     if (!current) throw new HttpError(404, 'Rendez-vous introuvable.');
     if (!seesAllLeads(req.user)) {
       if (data.lead_id && data.lead_id !== current.lead_id) await leadInScope(db, data.lead_id, req.user);
@@ -259,8 +274,14 @@ module.exports = function crmRoutes(db) {
     // Une visite effectuée fait avancer le prospect à l'étape « visite »
     const appt = await db('appointments').where({ id }).first();
     if (data.status === 'effectue' && appt.kind === 'visite') {
-      await db('leads').where({ id: appt.lead_id, stage: 'prospection' }).update({ stage: 'visite', updated_at: new Date() });
+      const moved = await db('leads').where({ id: appt.lead_id, stage: 'prospection' }).update({ stage: 'visite', updated_at: new Date() });
+      // Le passage en « visite » est inscrit dans l'historique de la fiche (comme un changement d'étape à la main)
+      if (moved) await require('../services/commercial').traceStage(db, appt.lead_id, 'prospection', 'visite', 'Visite sur site effectuée', req.user.id);
     }
+    // Rendez-vous confié à un autre commercial : il est prévenu ; rendez-vous confirmé : le prospect reçoit sa confirmation par e-mail
+    const liaisons = require('../services/liaisons');
+    if (data.assigned_to && data.assigned_to !== current.assigned_to) await liaisons.announceTask(db, { userId: data.assigned_to, leadId: appt.lead_id, what: 'Rendez-vous', when: appt.starts_at }, req.user.id);
+    if (data.status === 'confirme' && current.status !== 'confirme') await liaisons.confirmAppointment(db, id);
     res.json(appt);
   }));
 
@@ -347,8 +368,10 @@ module.exports = function crmRoutes(db) {
   const countNewLeads = async user => Number((await scopeLeads(db('leads as ld'), user).whereNull('ld.seen_at').whereNotNull('ld.alert_at').count({ n: '*' }))[0].n);
 
   r.get('/notifications', requirePermission('leads:read'), ah(async (req, res) => {
-    const me = await db('users').where({ id: req.user.id }).first('notifications_seen_at');
+    const me = await db('users').where({ id: req.user.id }).first('notifications_seen_at', 'notif_prefs');
     const since = me && me.notifications_seen_at ? new Date(me.notifications_seen_at) : new Date(0);
+    // « Mes notifications » (Service commercial) coupées : la liste reste consultable, mais ni compteur de non-lus ni son (audit du 30/10)
+    const muted = require('../services/notifications').prefsOf(me).commercial?.enabled === false;
     // Un prospect saisi par soi-même ne sonne pas sa propre cloche
     const q = scopeLeads(db('leads as ld'), req.user).whereNotNull('ld.alert_at')
       .where(b => b.whereNull('ld.created_by').orWhereNot('ld.created_by', req.user.id));
@@ -361,9 +384,9 @@ module.exports = function crmRoutes(db) {
       countNewLeads(req.user),
     ]);
     res.json({
-      unread: Number(n), new_leads: newLeads, seen_until: since,
+      unread: muted ? 0 : Number(n), muted, new_leads: newLeads, seen_until: since,
       site_appointment_requests: req.can('appointments:read') ? await countSiteRequests(req.user) : 0,
-      items: rows.map(x => ({ ...x, unread: new Date(x.alert_at) > since })),
+      items: rows.map(x => ({ ...x, unread: !muted && new Date(x.alert_at) > since })),
     });
   }));
 

@@ -297,6 +297,36 @@ async function syncAutoEntries(db, userId = null) {
   return stats;
 }
 
+/**
+ * Opérations commerciales qui attendent leur écriture (versements, appels de fonds émis, travaux modificatifs acceptés) dans un
+ * exercice ouvert : ce que « Synchroniser » créerait. Les ventes constatées ne sont pas comptées (calcul propre au mode choisi).
+ */
+async function pendingSync(db) {
+  const years = await db('acc_fiscal_years').where({ status: 'ouvert' });
+  if (!years.length) return 0;
+  const open = date => years.some(y => date >= day(y.start_date) && date <= day(y.end_date) && !(y.lock_date && date <= day(y.lock_date)));
+  const has = new Set(await db('acc_entries').whereNotNull('source_key').pluck('source_key'));
+  const settings = await getSettings(db);
+  const [payments, calls, tmas] = await Promise.all([
+    db('payments').select('id', 'paid_at'),
+    settings.revenue_vefa === 'avancement' ? db('fund_calls').where({ status: 'appele' }).select('id', 'called_at') : [],
+    db('worksite_changes').whereIn('status', ['acceptee', 'realisee']).whereNotNull('answered_at').select('id', 'answered_at'),
+  ]);
+  return payments.filter(p => !has.has(`payment:${p.id}`) && open(day(p.paid_at))).length
+    + calls.filter(c => !has.has(`fund_call:${c.id}`) && open(day(c.called_at))).length
+    + tmas.filter(t => !has.has(`tma:${t.id}`) && open(day(t.answered_at))).length;
+}
+
+/** Tâche horaire : « N opérations à synchroniser » dans la cloche de la Comptabilité, une fois par jour tant qu'il en reste. */
+async function tick(db, now = new Date()) {
+  const n = await pendingSync(db);
+  if (!n) return 0;
+  return require('./notifications').inform(db, 'compta.a_synchroniser', {
+    key: `compta:sync:${isoDay(now)}`, title: `${n} opération(s) à synchroniser en Comptabilité`,
+    body: 'Versements, appels de fonds ou travaux modificatifs sans écriture : bouton « Synchroniser » dans Écritures.', link: '/compta/ecritures',
+  });
+}
+
 // ─── Achats ─────────────────────────────────────────────────
 async function nextPurchaseNumber(trx, date) {
   const prefix = `ACH-${date.slice(0, 4)}-`;
@@ -640,6 +670,6 @@ async function dashboard(db) {
 module.exports = { payOrderAdvance, applyOrderAdvances,
   dashboard,
   getSettings, saveSettings, fiscalYearFor, assertWritable, createEntry, validateEntry, updateDraft, deleteDraft, reverseEntry, entryDetail,
-  syncAutoEntries, nextPurchaseNumber, validatePurchase, payPurchase,
+  syncAutoEntries, pendingSync, tick, nextPurchaseNumber, validatePurchase, payPurchase,
   trialBalance, generalLedger, financialStatements, monthlySeries, vatReport, projectMargins, partnerBalances, treasury, sageExport, openingFromPrevious, linesQuery,
 };
