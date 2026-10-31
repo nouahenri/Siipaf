@@ -248,9 +248,13 @@ async function worksitesPart(db, now = new Date()) {
  * Ce que la Direction doit voir sans chercher (audit du 30/10) : réclamations SAV dont l'échéance est dépassée, prospects arrivés et pas
  * encore attribués, clients en retard de paiement. Même forme que les autres lignes de « À traiter en priorité ».
  */
-async function serviceAttention(db, collections, now) {
+async function serviceAttention(db, collections, now, treasury = null) {
   const { SAV_OPEN_STATUSES } = require('../lib/domain');
   const out = [];
+  // Trésorerie sous le seuil réglé par la Comptabilité : en tête de la liste (sans date)
+  if (treasury?.under) {
+    out.push({ module: 'tresorerie', label: 'Trésorerie sous le seuil d’alerte', detail: `${Math.round(treasury.total).toLocaleString('fr-FR')} FCFA pour un seuil de ${Math.round(treasury.threshold).toLocaleString('fr-FR')} FCFA`, date: null, link: '/compta/etats' });
+  }
   const late = await db('sav_tickets as t').leftJoin('leads as ld', 'ld.id', 't.lead_id').whereIn('t.status', SAV_OPEN_STATUSES).whereNotNull('t.due_at').where('t.due_at', '<', now)
     .orderBy('t.due_at').limit(10).select('t.id', 't.ref', 't.title', 't.due_at', 'ld.name as client_name');
   for (const t of late) out.push({ module: 'sav', label: `Réclamation ${t.ref} en retard`, detail: [t.client_name, t.title].filter(Boolean).join(' · '), date: isoDay(t.due_at), link: `/sav/reclamations?t=${t.id}` });
@@ -277,7 +281,8 @@ async function overview(db, now = new Date()) {
     require('./qhseSuivi').directionPart(db, now),
   ]);
   // « À traiter en priorité » : les délais dépassés du Juridique et les décisions des chantiers rejoignent ceux de l'Administration générale
-  const services = await serviceAttention(db, collections, now);
+  const treasury = await ct.treasuryStatus(db, { total: finance.treasury_total, fiscalYear: finance.fiscal_year });
+  const services = await serviceAttention(db, collections, now, treasury);
   const attention = [...administration.attention, ...juridique.attention, ...worksites.attention, ...qhse.attention, ...services].sort((a, b) => String(a.date || '').localeCompare(String(b.date || '')));
   administration.attention_total += juridique.attention.length + worksites.attention.length + qhse.attention.length + services.length;
   delete worksites.attention;
@@ -299,6 +304,7 @@ async function overview(db, now = new Date()) {
     },
     finance: {
       fiscal_year: finance.fiscal_year, treasury_total: finance.treasury_total, treasury: finance.treasury,
+      treasury_threshold: treasury.threshold, treasury_under: treasury.under,
       revenue: finance.revenue, result: finance.result, receivables: finance.receivables, advances: finance.advances, payables: finance.payables,
       margins: finance.margins, series: finance.series,
       overdue_fcfa: collections.overdue_fcfa, overdue_installments: collections.overdue_installments, late_clients: collections.late_clients,

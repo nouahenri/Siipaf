@@ -4,7 +4,7 @@ import { Save } from 'lucide-react';
 import { api } from '../lib/api';
 import { useAuth, useResource, useToast, useSaved } from '../lib/app-context';
 import { Modal, Field, ErrorBox, StatusBadge } from './ui';
-import { FINANCING, LOT_STATUSES, LOT_TRANSITIONS, lotStatus, bienKind, gridOfferFor } from '../lib/domain';
+import { FINANCING, LOT_STATUSES, LOT_TRANSITIONS, LOT_STATUS_BY_PROCESS, lotStatus, bienKind, gridOfferFor } from '../lib/domain';
 import { fcfa } from '../lib/format';
 
 /** Ligne de la grille de prix qui s'applique à la surface du lot ; propose de reprendre son prix si un autre a été saisi. */
@@ -31,6 +31,7 @@ export function LotStatusModal({ lot, onClose, onDone }) {
   // Les 6 statuts de la légende, dans le même ordre : ceux qui ne sont pas permis depuis le statut actuel restent grisés
   const why = s => (options.includes(s) ? null
     : s === lot.status ? 'Statut actuel'
+    : LOT_STATUS_BY_PROCESS[s] ? LOT_STATUS_BY_PROCESS[s]
     : LOT_TRANSITIONS[lot.status].includes(s) ? 'Réservé au super administrateur'
     : `Pas de passage direct de « ${lotStatus(lot.status).label} » à « ${lotStatus(s).label} »`);
   const [to, setTo] = useState(options[0] || '');
@@ -77,7 +78,7 @@ export function LotStatusModal({ lot, onClose, onDone }) {
                 );
               })}
             </div>
-            <p className="small muted">Grisé : passage impossible depuis « {lotStatus(lot.status).label} » (circuit de vente). Survolez un statut pour la raison.</p>
+            <p className="small muted">Grisé : passage impossible depuis « {lotStatus(lot.status).label} » (circuit de vente). « Réservé » et « Vendu » ne se posent pas ici : le dossier de vente réserve le lot, l’acte signé le vend. Survolez un statut pour la raison.</p>
           </fieldset>
           {to === 'option' ? (
             <div className="form-grid">

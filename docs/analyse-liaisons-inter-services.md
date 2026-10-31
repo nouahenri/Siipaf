@@ -168,7 +168,7 @@ Les événements sont nommés `module.fait` ; ils serviront de clé au centre de
 | `employe.depart` | date de sortie | Comptes, Parc, Commercial, Courrier, Contrats | administrateur · services généraux (restitution) · Direction (réaffectation des dossiers) |
 | `conge.demande` / `conge.decide` | dates, solde | responsable / employé | responsable · employé |
 | `frais.valide` | montant | Compta ✅ | employé |
-| `paie.cloturee` | masse salariale | Compta ✅, Direction | comptable |
+| `paie.validee` ✅ / `paie.payee` ✅ | masse salariale (net, coût employeur) | Compta, Direction | comptable (31/10) |
 | `contrat_travail.echeance` | CDD, période d'essai | Juridique, Direction | RH · responsable |
 
 ### Client & SAV
@@ -185,6 +185,8 @@ Les événements sont nommés `module.fait` ; ils serviront de clé au centre de
 |---|---|---|---|
 | `acte.signe` | vente, notaire | Commercial, Compta | commercial · comptable |
 | `caution.echeance` | sous-traitant, montant | Achats, Compta | acheteur · comptable |
+| `caution.liberee` ✅ | caution, montant | Compta, responsable ; acheteur (espace client) et sous-traitant (e-mail) | comptable (31/10) |
+| `tresorerie.seuil` ✅ | trésorerie, seuil | Direction générale, Compta | une alerte par passage sous le seuil (31/10) |
 | `contrat.echeance` ✅ | fin, préavis, pièce, révision | responsable nommé, exploitation | e-mail ✅ → à mettre aussi dans la cloche |
 | `contrat.paiement` ✅ | facture d'achat brouillon | Compta | comptable |
 | `courrier.affecte` ✅ | n° d'ordre, suite, délai | destinataire, service | e-mail ✅ → cloche + module concerné |
@@ -273,12 +275,14 @@ Une notification ne contient **que le titre et le lien** ; le détail s'ouvre av
 
 - **Mécanique** : `audienceUsers` retombe sur le super administrateur comme `usersWith` ; `inform` accepte un lien par destinataire direct (`directLink`, ou `{ id, link }`), `module`, `circuit: false` (personnes directes seulement) et une liste d'exclus (`except`) ; `usersWithAny` est partagé ; les liens sont adaptés aux droits de chaque destinataire.
 - **Client** : `tellClient` (`services/clients.js`) est la seule porte pour écrire dans l'espace client (message + e-mail « nouveau message » sans contenu) : appels de fonds VEFA, TMA, PV de réception, versement confirmé, statut d'une réclamation, étapes de l'acte, document mis en ligne, point d'avancement, échéancier modifié, relance d'impayé.
-- **Commercial** (`services/liaisons.js`) : prospect entrant (`prospect.nouveau` / `prospect.demande`, prêt pour l'assistante IA du site), attribution notifiée et tracée dans l'historique partout, accord de transfert notifié au demandeur, activité ou rendez-vous confié, options (veille et expiration, au commercial et au prospect), confirmation de rendez-vous au prospect, accusés des formulaires du site, désistement (`vente.desistee`), lot réservé ou vendu sans dossier, message d'un client (`message.client`), tâche horaire (activités échues, rendez-vous du lendemain).
+- **Commercial** (`services/liaisons.js`) : prospect entrant (`prospect.nouveau` / `prospect.demande`, prêt pour l'assistante IA du site), attribution notifiée et tracée dans l'historique partout, accord de transfert notifié au demandeur, activité ou rendez-vous confié, options (veille et expiration, au commercial et au prospect), confirmation de rendez-vous au prospect, accusés des formulaires du site, désistement (`vente.desistee`), message d'un client (`message.client`), tâche horaire (activités échues, rendez-vous du lendemain).
 - **SAV** : `reclamation.ouverte` pour toute réclamation (équipe, client, réserve), commercial et conducteur prévenus, changement de statut au client, `reclamation.resolue`, `satisfaction.recue`, `reserve.levee`, `intervention.confiee`, `intervention.cout` (Compta), échéance dépassée (`reclamation.retard`, tâche horaire). La date de livraison saisie dans SAV passe par `chantiersLivraison.deliverFromSav` (une seule porte avec le PV).
-- **Compta / Juridique / RH** : `compta.a_synchroniser` (tâche horaire), `import.versements`, `acte.etape`, `acte.honoraires`, `echeance.relance` (30 et 60 jours), `employe.embauche`, `contrat_travail.echeance` (essai, CDD), `candidature.recue`, `temoignage.recu`, `newsletter.inscrit`. Alertes Contrats et Parc calculées par droits ; le Juridique est prévenu pour la sous-traitance. Engagé (commandes confirmées) dans l'alerte de budget d'un chantier.
+- **Compta / Juridique / RH** : `compta.a_synchroniser` (tâche horaire), `import.versements`, `acte.etape`, `acte.honoraires` (montant saisi au Juridique, facture d'achat en brouillon au notaire), `paie.validee` / `paie.payee`, `caution.liberee` (acheteur, sous-traitant), `tresorerie.seuil` (seuil réglé dans Comptabilité › Paramètres), `echeance.relance` (30 et 60 jours), `employe.embauche`, `contrat_travail.echeance` (essai, CDD), `candidature.recue`, `temoignage.recu`, `newsletter.inscrit`. Alertes Contrats et Parc calculées par droits ; le Juridique est prévenu pour la sous-traitance. Engagé (commandes confirmées) dans l'alerte de budget d'un chantier.
 - **Écrans** : encart « Courriers affectés au service » dans Comptabilité, SAV, RH, Achats, Chantiers (`GET /erp/courrier/service`) ; Vue Direction : SAV en retard, prospects à attribuer, impayés.
 
-Reste à faire (modules à venir) : `tresorerie.seuil` (seuil de trésorerie), journal des événements (§6.2), avis à la validation et au paiement de la paie, bouton « Ouvrir un litige » depuis le SAV, mouvement de dépôt ↔ chantier du parc, annonce à l'acheteur d'une caution libérée.
+Compléments du 31/10 faits : honoraires du notaire (facture brouillon), « Réservé » et « Vendu » jamais posés à la main (dossier de vente et acte), avis de paie, « Ouvrir un litige » depuis le SAV (`sav:assign` ou `juridique:litigation`), caution libérée annoncée, seuil de trésorerie.
+
+Reste à faire (modules à venir) : journal des événements (§6.2), mouvement de dépôt ↔ chantier du parc.
 
 
 ## QHSE (module du 31/10/2026)

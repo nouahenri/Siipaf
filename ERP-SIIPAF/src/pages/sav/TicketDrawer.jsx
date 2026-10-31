@@ -1,5 +1,6 @@
 import { useState } from 'react';
-import { Phone, Mail, Lock, Send, CalendarPlus, CheckCircle2, XCircle, Star, User, Wrench } from 'lucide-react';
+import { Phone, Mail, Lock, Send, CalendarPlus, CheckCircle2, XCircle, Star, User, Wrench, Scale } from 'lucide-react';
+import { Link } from 'react-router-dom';
 import { api } from '@admin/lib/api';
 import { useAuth, useResource, useToast } from '@admin/lib/app-context';
 import { Drawer, Field, Skeleton, ErrorBox, Badge } from '@admin/components/ui';
@@ -118,6 +119,8 @@ export default function TicketDrawer({ id, onClose, onChange }) {
 
           <SavQhse ticket={d} />
 
+          <Litigation ticket={d} onDone={out => { t.setData(out); onChange?.(); }} />
+
           <section>
             <h3 className="erp-h3">Échanges</h3>
             <ol className="thread">
@@ -138,6 +141,63 @@ export default function TicketDrawer({ id, onClose, onChange }) {
         </div>
       )}
     </Drawer>
+  );
+}
+
+/**
+ * Transmettre au Juridique : « Ouvrir un litige » crée un litige d'origine « Réclamation SAV » lié à la réclamation, au client, au
+ * programme et au lot. Réservé au responsable du SAV (sav:assign) et au juriste (juridique:litigation) ; le lien vers le litige
+ * n'est cliquable que pour qui a accès au Juridique.
+ */
+function Litigation({ ticket, onDone }) {
+  const { can } = useAuth();
+  const toast = useToast();
+  const [form, setForm] = useState(null); // { amount, note } quand le formulaire est ouvert
+  const [busy, setBusy] = useState(false);
+  const canOpen = can('sav:assign') || can('juridique:litigation');
+  const seeLegal = can('juridique:read') || can('juridique:litigation') || can('direction:read');
+  const list = ticket.litigations || [];
+  const hasOpen = list.some(l => l.status === 'ouvert');
+  if (!list.length && !canOpen) return null;
+
+  const open = async e => {
+    e.preventDefault();
+    setBusy(true);
+    try {
+      const out = await api.post(`/admin/erp/sav/tickets/${ticket.id}/litige`, { amount_fcfa: form.amount === '' ? null : Math.round(Number(form.amount)), note: form.note.trim() || null });
+      setForm(null);
+      toast(`Litige ${out.litigation.reference} ouvert, le Juridique est prévenu`);
+      onDone(out.ticket);
+    } catch (err) { toast(err.message, 'err'); } finally { setBusy(false); }
+  };
+
+  return (
+    <section>
+      <div className="row-between">
+        <h3 className="erp-h3">Litige</h3>
+        {canOpen && !hasOpen && !form && <button className="btn btn-sm" onClick={() => setForm({ amount: '', note: '' })}><Scale />Ouvrir un litige</button>}
+      </div>
+      {list.map(l => (
+        <div key={l.id} className="row small" style={{ gap: 8, marginTop: 4 }}>
+          <Scale className="ico" aria-hidden="true" />
+          {seeLegal ? <Link className="link" to={`/juridique/litiges?fiche=${l.id}`}><b>{l.reference}</b></Link> : <b>{l.reference}</b>}
+          <Badge tone={l.status === 'ouvert' ? 'warn' : ''}>{l.status === 'ouvert' ? l.stage_label : 'Clos'}</Badge>
+        </div>
+      ))}
+      {!list.length && !form && <p className="small muted" style={{ margin: 0 }}>Aucun litige. « Ouvrir un litige » transmet le dossier au Juridique (client, programme et lot repris).</p>}
+      {form && (
+        <form className="erp-panel stack" style={{ gap: 12, marginTop: 8 }} onSubmit={open}>
+          <div className="form-grid">
+            <Field label="Montant en jeu (FCFA)" hint="Facultatif"><input className="input" type="number" min="0" step="1" value={form.amount} onChange={e => setForm(f => ({ ...f, amount: e.target.value }))} /></Field>
+            <Field label="Note pour le Juridique" className="full"><textarea className="textarea" rows={3} maxLength={2000} value={form.note} onChange={e => setForm(f => ({ ...f, note: e.target.value }))} placeholder="Ce qui a été tenté, position du client…" /></Field>
+          </div>
+          <div className="row" style={{ gap: 8 }}>
+            <button className="btn btn-sm btn-primary" disabled={busy}>Ouvrir le litige</button>
+            <button type="button" className="btn btn-sm btn-ghost" onClick={() => setForm(null)}>Annuler</button>
+          </div>
+        </form>
+      )}
+    </section>
   );
 }
 

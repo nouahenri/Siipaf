@@ -68,12 +68,23 @@ test("à expiration, l'option est libérée et le lot redevient disponible", asy
   assert.equal(opt.state, 'expiree');
 });
 
-test('circuit : réservé → vendu → désistement (super admin) → de nouveau vendable', async () => {
+test('circuit : « Réservé » par le dossier de vente, « Vendu » par l’acte, jamais à la main ; désistement (super admin) → de nouveau vendable', async () => {
   const commercial = await login(app, await createUser(db, 'commercial'), 'motdepasse-test-123');
   const a3 = await lot('A3');
-  assert.equal((await commercial.post(`/api/admin/lots/${a3.id}/status`).send({ status: 'vendu' })).status, 409, 'disponible → vendu interdit');
-  assert.equal((await commercial.post(`/api/admin/lots/${a3.id}/status`).send({ status: 'reserve' })).status, 200);
-  assert.equal((await commercial.post(`/api/admin/lots/${a3.id}/status`).send({ status: 'vendu' })).status, 200);
+  // Décision du client du 31/10 : ni « Réservé » ni « Vendu » ne se posent à la main (409 explicite)
+  const sold = await commercial.post(`/api/admin/lots/${a3.id}/status`).send({ status: 'vendu' });
+  assert.equal(sold.status, 409, 'vendu à la main interdit');
+  assert.match(sold.body.error, /signature de l’acte/);
+  const reserved = await commercial.post(`/api/admin/lots/${a3.id}/status`).send({ status: 'reserve' });
+  assert.equal(reserved.status, 409, 'réservé à la main interdit');
+  assert.match(reserved.body.error, /ouverture de son dossier/);
+  assert.equal((await lot('A3')).status, 'disponible');
+  // Le dossier de vente réserve le lot ; l'acte signé (Juridique) le vend
+  const sale = await commercial.post(`/api/admin/lots/${a3.id}/sale`).send({ name: 'Acquéreur A3', phone: '0709000333', financing: 'comptant' });
+  assert.equal(sale.status, 201, JSON.stringify(sale.body));
+  assert.equal((await lot('A3')).status, 'reserve');
+  await db('lots').where({ id: a3.id }).update({ status: 'vendu' }); // l'acte signé fait passer « vendu » (voir juridique.test.js)
+  await db('lot_status_history').insert({ lot_id: a3.id, from_status: 'reserve', to_status: 'vendu', reason: 'Acte notarié signé' });
   assert.equal((await commercial.post(`/api/admin/lots/${a3.id}/status`).send({ status: 'desistement' })).status, 409, 'réservé au super admin');
   assert.equal((await admin.post(`/api/admin/lots/${a3.id}/status`).send({ status: 'desistement', reason: 'Client désisté' })).status, 200);
 
@@ -87,11 +98,12 @@ test('circuit : réservé → vendu → désistement (super admin) → de nouvea
   assert.deepEqual(history.body.map(h => h.to_status), ['desistement', 'option', 'desistement', 'vendu', 'reserve', 'disponible']);
 });
 
-test("confirmer une option en réservation clôt l'option", async () => {
+test("confirmer une option en ouvrant le dossier de vente clôt l'option", async () => {
   const a4 = await lot('A4');
   await request(app).post(`/api/public/lots/${a4.id}/option`).send({ name: 'Marie', email: 'marie@example.com' });
-  const res = await admin.post(`/api/admin/lots/${a4.id}/status`).send({ status: 'reserve' });
-  assert.equal(res.status, 200);
+  assert.equal((await admin.post(`/api/admin/lots/${a4.id}/status`).send({ status: 'reserve' })).status, 409, 'plus de réservation à la main');
+  const res = await admin.post(`/api/admin/lots/${a4.id}/sale`).send({ name: 'Marie', email: 'marie@example.com', financing: 'comptant' });
+  assert.equal(res.status, 201, JSON.stringify(res.body));
   const opt = await db('lot_options').where({ lot_id: a4.id }).first();
   assert.equal(opt.state, 'confirmee');
 });

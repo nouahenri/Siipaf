@@ -26,12 +26,22 @@ const SELLABLE_STATUSES = ['disponible', 'desistement'];
  * Les options passent à « disponible » automatiquement à expiration.
  */
 const LOT_TRANSITIONS = {
-  disponible: { option: {}, reserve: {}, bloque: {} },
-  option: { disponible: {}, reserve: {} },
-  reserve: { vendu: {}, desistement: {}, disponible: {} },
+  disponible: { option: {}, bloque: {} },
+  option: { disponible: {} },
+  reserve: { desistement: {}, disponible: {} },
   vendu: { desistement: { superAdminOnly: true } },
-  desistement: { option: {}, reserve: {}, disponible: {} },
+  desistement: { option: {}, disponible: {} },
   bloque: { disponible: {} },
+};
+
+/**
+ * « Réservé » et « Vendu » ne se posent jamais à la main (décision du client du 31/10) : « Réservé » par l'ouverture du dossier
+ * d'acquisition (confirmation d'une option comprise), « Vendu » par la signature de l'acte au Juridique. Aucun lot n'est donc
+ * réservé ou vendu sans dossier.
+ */
+const LOT_STATUS_BY_PROCESS = {
+  reserve: 'Un lot ne passe « Réservé » que par l’ouverture de son dossier d’acquisition (fiche du lot › Ouvrir un dossier de vente).',
+  vendu: 'Un lot ne passe « Vendu » que par la signature de l’acte (Juridique › Ventes et actes, étape « Acte signé »).',
 };
 
 // Types de projets : promotions immobilières (logements) et lotissements (terrains nus)
@@ -885,6 +895,7 @@ function can(role, permission) {
 /** Vérifie un changement de statut. Renvoie null si autorisé, sinon le motif du refus. */
 function checkLotTransition(from, to, role) {
   if (from === to) return 'Le lot a déjà ce statut.';
+  if (LOT_STATUS_BY_PROCESS[to]) return LOT_STATUS_BY_PROCESS[to];
   const rule = (LOT_TRANSITIONS[from] || {})[to];
   if (!rule) return `Passage de « ${LOT_STATUS_LABELS[from]} » à « ${LOT_STATUS_LABELS[to]} » non autorisé.`;
   if (rule.superAdminOnly && role !== 'super_admin') return 'Seul le super administrateur peut effectuer ce changement.';
@@ -1729,7 +1740,6 @@ const INFO_EVENTS = {
   'rdv.demain': { module: 'commercial', label: 'Rendez-vous du lendemain (récapitulatif quotidien)', audiences: [], recipient_hint: 'Chaque commercial est prévenu de ses propres rendez-vous.' },
   'option.proche': { module: 'commercial', label: 'Option sur un lot qui expire demain', audiences: [], priority: 'action', recipient_hint: 'Le commercial du prospect est prévenu ; le prospect reçoit aussi un e-mail.' },
   'option.expiree': { module: 'commercial', label: 'Option sur un lot expirée (le lot est remis en vente)', audiences: [], recipient_hint: 'Le commercial du prospect est prévenu ; le prospect reçoit aussi un e-mail.' },
-  'lot.sans_dossier': { module: 'commercial', label: 'Lot passé « réservé » ou « vendu » sans dossier d’acquisition', audiences: ['commercial_resp'], priority: 'action', recipient_hint: 'Le commercial du prospect est prévenu ; l’alerte est lue dès que le dossier est ouvert.' },
   'vente.desistee': { module: 'commercial', label: 'Désistement d’un acquéreur (dossier clos, lot libéré)', audiences: ['compta', 'juridique', 'chantiers', 'sav'], priority: 'action', recipient_hint: 'Le commercial du client est toujours prévenu.' },
   'echeancier.modifie': { module: 'commercial', label: 'Échéancier d’un dossier recalculé ou modifié', audiences: [], recipient_hint: 'Le commercial du client est prévenu ; le client est informé dans son espace.' },
   'echeance.relance': { module: 'commercial', label: 'Échéance d’un client toujours impayée (relance à 30 puis 60 jours)', audiences: [], priority: 'action', recipient_hint: 'Le commercial du client est prévenu ; le client reçoit un rappel dans son espace.' },
@@ -1742,7 +1752,10 @@ const INFO_EVENTS = {
   // Comptabilité
   'import.versements': { module: 'compta', label: 'Versements repris par un import de clients (ancienne plateforme)', audiences: ['compta'], priority: 'action', recipient_hint: 'Les écritures restent à synchroniser.' },
   'compta.a_synchroniser': { module: 'compta', label: 'Opérations commerciales à synchroniser en Comptabilité', audiences: ['compta'], priority: 'action' },
-  'acte.honoraires': { module: 'compta', label: 'Acte signé chez le notaire : honoraires et frais d’acte à attendre', audiences: ['compta'], recipient_hint: 'Aucun montant n’est saisi au Juridique : la Comptabilité enregistre la facture du notaire à réception.' },
+  'tresorerie.seuil': { module: 'compta', label: 'Trésorerie passée sous le seuil d’alerte (réglé dans Comptabilité › Paramètres)', audiences: ['dg', 'compta'], priority: 'urgent', recipient_hint: 'Une seule alerte par passage sous le seuil ; elle est réarmée quand la trésorerie repasse au-dessus.' },
+  'paie.validee': { module: 'compta', label: 'Paie du mois validée (écriture de paie passée, salaires à payer)', audiences: ['compta', 'dg'], priority: 'action', requiredPerms: ['paie:read'], recipient_hint: 'Accès à la paie requis (consultation de la paie).' },
+  'paie.payee': { module: 'compta', label: 'Salaires du mois payés', audiences: ['compta', 'dg'], requiredPerms: ['paie:read'], recipient_hint: 'Accès à la paie requis (consultation de la paie).' },
+  'acte.honoraires': { module: 'compta', label: 'Honoraires du notaire saisis au Juridique : facture d’achat en brouillon à valider', audiences: ['compta'], priority: 'action', recipient_hint: 'Le montant est celui saisi dans le circuit de l’acte ; la facture est au nom du notaire du dossier, rattachée au programme.' },
   // Client & SAV
   'reclamation.confiee': { module: 'sav', label: 'Réclamation confiée à une personne', audiences: [], priority: 'action', recipient_hint: 'La personne désignée est prévenue.' },
   'reclamation.reponse_client': { module: 'sav', label: 'Réponse d’un client sur sa réclamation', audiences: [], priority: 'action', recipient_hint: 'Le responsable de la réclamation, sinon ceux qui les attribuent.' },
@@ -1809,6 +1822,7 @@ const INFO_EVENTS = {
   // Juridique
   'litige.veille': { module: 'juridique', label: 'Échéance d’un litige demain', audiences: [], priority: 'action', recipient_hint: 'Le juriste en charge, sinon les juristes.' },
   'litige.jour': { module: 'juridique', label: 'Échéance d’un litige aujourd’hui ou dépassée', audiences: [], priority: 'urgent', recipient_hint: 'Le juriste en charge, sinon les juristes.' },
+  'caution.liberee': { module: 'juridique', label: 'Caution ou retenue de garantie libérée (acheteur, sous-traitant et Comptabilité prévenus)', audiences: ['compta'], recipient_hint: 'Le responsable de la caution est toujours prévenu ; l’acheteur concerné l’est dans son espace client, le sous-traitant par e-mail.' },
   'caution.echeance': { module: 'juridique', label: 'Échéance d’une caution ou d’une retenue de garantie (30 puis 7 jours)', audiences: [], priority: 'action', recipient_hint: 'Le juriste en charge et les juristes ; le comptable pour une retenue.' },
 };
 
@@ -1833,6 +1847,9 @@ const MODULE_SETTINGS = {
     qhse_due_critique_days: { group: 'Actions correctives : échéance proposée', label: 'Gravité critique (jours)', hint: 'Échéance proposée à l’ouverture d’une action ; modifiable action par action', default: 3, min: 1, max: 90, perm: 'qhse:settings', who: 'la Direction générale, le directeur des exploitations et le Responsable QHSE' },
     qhse_due_majeure_days: { group: 'Actions correctives : échéance proposée', label: 'Gravité majeure (jours)', hint: 'Échéance proposée à l’ouverture d’une action ; modifiable action par action', default: 15, min: 1, max: 180, perm: 'qhse:settings', who: 'la Direction générale, le directeur des exploitations et le Responsable QHSE' },
     qhse_due_mineure_days: { group: 'Actions correctives : échéance proposée', label: 'Gravité mineure (jours)', hint: 'Échéance proposée à l’ouverture d’une action ; modifiable action par action', default: 30, min: 1, max: 365, perm: 'qhse:settings', who: 'la Direction générale, le directeur des exploitations et le Responsable QHSE' },
+  },
+  compta: {
+    compta_treasury_threshold_fcfa: { group: 'Trésorerie', label: 'Seuil d’alerte de trésorerie (FCFA)', hint: 'Quand le total des comptes de banque, de caisse et de Mobile Money passe sous ce seuil, la Direction générale et la Comptabilité sont prévenues (une seule fois par passage sous le seuil) et la Vue Direction le signale ; 0 désactive l’alerte', default: 5000000, min: 0, max: 100000000000, perm: 'compta:settings', who: 'la Comptabilité' },
   },
   commercial: {
     vefa_due_days: { group: 'Appels de fonds VEFA', label: 'Délai de paiement d’un appel de fonds (jours)', hint: 'Délai laissé à l’acquéreur pour régler un appel de fonds, pour les programmes sans plan VEFA propre (un plan de programme garde son délai)', default: 15, min: 1, max: 90, perm: 'vefa:write', who: 'le responsable des appels de fonds' },
@@ -2003,7 +2020,7 @@ module.exports = {
   contractDeadlines, contractAlertStage, renewedEnd, contractPaymentsDue, daysBetween,
   PORTFOLIO_EVENTS, PORTFOLIO_REASONS, portfolioState, replayPortfolio, portfolioDiff, portfolioCounts, conversionRate,
   SELF_SERVICE, SAV_ACTIONS, PRESENCE_ACTIONS, RH_SETTINGS_ACTIONS, RECRUIT_ACTIONS, KPI_ACTIONS, FORMATION_ACTIONS, COURRIER_ACTIONS, COMPTA_ACTIONS, PAIE_ACTIONS, RH_ACTIONS,
-  LOT_STATUSES, LOT_STATUS_LABELS, SELLABLE_STATUSES, LOT_TRANSITIONS,
+  LOT_STATUSES, LOT_STATUS_LABELS, SELLABLE_STATUSES, LOT_TRANSITIONS, LOT_STATUS_BY_PROCESS,
   LEAD_STAGES, CLIENT_STAGES, PUBLIC_LEAD_SOURCES, leadAlert, ROLES, ROLE_LABELS, PERMISSIONS, roleKey, can, checkLotTransition,
   SALE_STATUSES, PAYMENT_METHODS, DOCUMENT_STATUSES, DOCUMENT_TYPES, DEFAULT_DOCUMENTS,
   PERMISSION_CATALOG, PERMISSION_IDS, PERMISSION_SPLITS, splitPermissions,

@@ -9,7 +9,7 @@ const multer = require('multer');
 const { HttpError, json } = require('../lib/http');
 const { uploadsDir } = require('../config');
 const {
-  SAV_PRIORITIES, SAV_TRANSITIONS, SAV_OPEN_STATUSES, SAV_STATUS_LABELS, warrantyFor,
+  SAV_PRIORITIES, SAV_TRANSITIONS, SAV_OPEN_STATUSES, SAV_STATUS_LABELS, warrantyFor, LITIGATION_STAGES,
 } = require('../lib/domain');
 
 const HOUR = 3600 * 1000;
@@ -325,6 +325,11 @@ async function ticketDetail(db, ticketId, { forClient = false } = {}) {
     overdue: !!(SAV_OPEN_STATUSES.includes(t.status) && t.due_at && new Date(t.due_at) < new Date()),
     interventions: interventions.map((i, k) => ({ ...i, media_before: pick(files, media.before[k]), media_after: pick(files, media.after[k]) })),
   };
+  if (!forClient) {
+    // Litiges ouverts au Juridique à partir de cette réclamation
+    out.litigations = (await db('litigations').where({ sav_ticket_id: t.id }).orderBy('id', 'desc').select('id', 'reference', 'status', 'stage'))
+      .map(l => ({ ...l, stage_label: LITIGATION_STAGES[l.stage] || l.stage }));
+  }
   if (forClient) {
     delete out.assigned_to; delete out.assigned_name; delete out.created_by; delete out.client_phone; delete out.client_email;
     out.interventions = out.interventions.map(i => ({
@@ -333,6 +338,28 @@ async function ticketDetail(db, ticketId, { forClient = false } = {}) {
     }));
   }
   return out;
+}
+
+/**
+ * « Ouvrir un litige » depuis une réclamation (Client & SAV → Juridique) : litige d'origine « Réclamation SAV » lié à la
+ * réclamation, au dossier de vente, au client, au programme et au lot ; le Juridique et la Direction sont prévenus
+ * (événement litige.ouvert) ; trace dans le fil interne de la réclamation. Un seul litige ouvert par réclamation.
+ */
+async function openLitigation(db, ticketId, { amount_fcfa = null, note = null } = {}, user) {
+  const t = await db('sav_tickets as t').leftJoin('leads as ld', 'ld.id', 't.lead_id').leftJoin('lots as l', 'l.id', 't.lot_id').leftJoin('projects as p', 'p.id', 't.project_id')
+    .where('t.id', ticketId).first('t.id', 't.ref', 't.title', 't.description', 't.sale_id', 't.lead_id', 't.lot_id', 'ld.name as client_name', 'l.code as lot_code', 'p.name as project_name');
+  if (!t) throw new HttpError(404, 'Réclamation introuvable.');
+  const open = await db('litigations').where({ sav_ticket_id: t.id, status: 'ouvert' }).first('reference');
+  if (open) throw new HttpError(409, `Un litige est déjà ouvert pour cette réclamation (${open.reference}).`);
+  let saleId = t.sale_id;
+  if (!saleId && t.lead_id && t.lot_id) saleId = (await db('sales').where({ lead_id: t.lead_id, lot_id: t.lot_id }).whereNot('status', 'desiste').orderBy('id', 'desc').first('id'))?.id || null;
+  const context = [t.client_name && `Client : ${t.client_name}`, t.project_name && `Programme : ${t.project_name}`, t.lot_code && `Lot : ${t.lot_code}`].filter(Boolean).join(' · ');
+  const litigation = await require('./juridique').createLitigation(db, {
+    origin: 'sav', title: `Réclamation ${t.ref} — ${t.title}`.slice(0, 200), opponent: t.client_name || 'Client', sav_ticket_id: t.id, sale_id: saleId || null,
+    amount_fcfa: amount_fcfa || null, department: 'sav', notes: [context, note, t.description].filter(Boolean).join('\n\n').slice(0, 4000) || null,
+  }, user);
+  await addEvent(db, t.id, { kind: 'system', author: 'equipe', userId: user.id, internal: true, body: `Litige ${litigation.reference} ouvert au Juridique.` });
+  return litigation;
 }
 
 /** Indicateurs du tableau de bord SAV. */
@@ -594,7 +621,7 @@ async function tick(db, now = new Date()) {
 
 module.exports = {
   announceTicket, announceTicketStatus, announceSatisfaction, announceReserveLifted, announceIntervention, tick,
-  createTicket, changeStatus, addComment, rate, ticketDetail, savStats, dueFrom, addEvent, nextRef,
+  createTicket, changeStatus, addComment, rate, ticketDetail, openLitigation, savStats, dueFrom, addEvent, nextRef,
   createReserve, setReserveStatus, reserveToTicket, createIntervention, updateIntervention,
   seesAllSav, scopeTickets, scopeReserves, scopeInterventions, scopeSales, interventionQuery, ticketInScope, saleInScope, leadInSavScope, reserveInScope, interventionInScope, fileInScope,
   checkFiles, filesById, shareFiles, photoUpload, saveFiles, savFilesDir, FILE_URL,

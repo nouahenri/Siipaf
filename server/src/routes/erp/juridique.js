@@ -24,7 +24,7 @@ const litigationSchema = z.object({
   next_date: opt(day), next_label: opt(z.string().trim().max(160)), opened_on: opt(day), notes: opt(z.string().trim().max(4000)),
 });
 const guaranteeSchema = z.object({
-  kind_id: z.preprocess(v => Number(v), z.number().int().positive()), contract_id: id, supplier_id: id, counterparty: opt(z.string().trim().max(160)),
+  kind_id: z.preprocess(v => Number(v), z.number().int().positive()), contract_id: id, supplier_id: id, counterparty: opt(z.string().trim().max(160)), sale_id: id,
   bank: opt(z.string().trim().max(160)), amount_fcfa: z.preprocess(v => Number(v), z.number().int().positive()), issued_on: opt(day), expires_on: opt(day),
   reception_on: opt(day), release_on: opt(day), owner_id: id, notes: opt(z.string().trim().max(4000)),
 });
@@ -118,12 +118,16 @@ module.exports = function juridiqueRoutes(db) {
     if (!isJurist && !req.can('sales:read')) throw new HttpError(403, 'Accès refusé.');
     // L'équipe commerciale (sales:read seul) ne suit que les ventes de ses clients (audit du 30/10)
     if (!isJurist) await require('../../services/commercial').saleInScope(db, idParam(req), req.user);
-    res.json(await juridique.deedDetail(db, idParam(req)));
+    const detail = await juridique.deedDetail(db, idParam(req));
+    // Les honoraires du notaire restent au Juridique et à la Direction (la Comptabilité les voit sur la facture d'achat)
+    if (!isJurist) Object.assign(detail, { notary_fee_fcfa: null, notary_invoice_id: null, notary_invoice_number: null, notary_invoice_status: null });
+    res.json(detail);
   }));
   r.post('/actes/:id', deeds, ah(async (req, res) => {
     const data = parse(z.object({
       key: z.enum(juridique.DEED_STEP_KEYS).optional(), date: day.nullable().optional(), notary_supplier_id: z.number().int().positive().nullable().optional(),
       notary_ref: z.string().trim().max(100).nullable().optional(), deed_number: z.string().trim().max(60).nullable().optional(), notes: z.string().trim().max(4000).nullable().optional(),
+      notary_fee_fcfa: z.number().int().min(0).max(10000000000).nullable().optional(),
     }), req.body);
     res.json(await juridique.setStep(db, idParam(req), data, req.user));
   }));
@@ -194,7 +198,7 @@ module.exports = function juridiqueRoutes(db) {
   }));
   r.post('/cautions/:id/close', guarantees, ah(async (req, res) => {
     const g = await juridique.loadGuarantee(db, idParam(req));
-    await juridique.closeGuarantee(db, g, parse(z.object({ status: z.enum(['liberee', 'appelee', 'expiree']), date: day, note: z.string().trim().max(255).optional() }), req.body));
+    await juridique.closeGuarantee(db, g, parse(z.object({ status: z.enum(['liberee', 'appelee', 'expiree']), date: day, note: z.string().trim().max(255).optional() }), req.body), req.user.id);
     res.json(juridique.serializeGuarantee(await juridique.loadGuarantee(db, g.id)));
   }));
   r.post('/cautions/:id/reopen', guarantees, ah(async (req, res) => {

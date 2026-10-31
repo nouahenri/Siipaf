@@ -109,6 +109,7 @@ function GuaranteeDrawer({ id, onClose, onChange, onEdit }) {
             {g.bank && <div className="kv"><span>Banque</span><b>{g.bank}</b></div>}
             <div className="kv"><span>Montant</span><b>{fcfa(g.amount_fcfa)}</b></div>
             {g.contract_label && <div className="kv"><span>Contrat</span><b>{g.contract_label}</b></div>}
+            {g.buyer_label && <div className="kv"><span>Acheteur concerné</span><b>{g.buyer_label}</b></div>}
             {g.issued_on && <div className="kv"><span>Émise le</span><b>{date(g.issued_on)}</b></div>}
             {retenue ? (
               <>
@@ -153,7 +154,7 @@ function GuaranteeForm({ guarantee: g, refs, onClose, onSaved }) {
   const links = useResource(`${JUR}/liens`);
   const kinds = refs.guarantee_kinds.filter(k => k.active || k.id === g?.kind_id);
   const [f, setF] = useState({
-    kind_id: g?.kind_id || kinds[0]?.id || '', contract_id: g?.contract_id || '', supplier_id: g?.supplier_id || '', counterparty: g?.counterparty || '',
+    kind_id: g?.kind_id || kinds[0]?.id || '', contract_id: g?.contract_id || '', sale_id: g?.sale_id || '', supplier_id: g?.supplier_id || '', counterparty: g?.counterparty || '',
     bank: g?.bank || '', amount_fcfa: g?.amount_fcfa ?? '', issued_on: g?.issued_on || '', expires_on: g?.expires_on || '',
     reception_on: g?.reception_on || '', release_on: g?.release_on || '', owner_id: g?.owner_id || '', notes: g?.notes || '',
   });
@@ -191,8 +192,11 @@ function GuaranteeForm({ guarantee: g, refs, onClose, onSaved }) {
         <Field label="Contrat" className="full" hint={retenue ? 'Le montant est proposé d’après le marché et le taux de retenue du contrat' : null}>
           <select className="select" value={f.contract_id} onChange={pickContract}><option value="">— Aucun —</option>{(links.data?.contracts || []).map(c => <option key={c.id} value={c.id}>{c.label}</option>)}</select>
         </Field>
-        <Field label="Fournisseur"><select className="select" value={f.supplier_id} onChange={set('supplier_id')}><option value="">— Aucun —</option>{refs.suppliers.map(s => <option key={s.id} value={s.id}>{s.name}</option>)}</select></Field>
+        <Field label="Fournisseur ou sous-traitant" hint="Prévenu par e-mail à la libération, s’il a une adresse"><select className="select" value={f.supplier_id} onChange={set('supplier_id')}><option value="">— Aucun —</option>{refs.suppliers.map(s => <option key={s.id} value={s.id}>{s.name}</option>)}</select></Field>
         <Field label="Autre tiers" hint="S’il n’est pas dans les fournisseurs"><input className="input" maxLength={160} value={f.counterparty} onChange={set('counterparty')} /></Field>
+        <Field label="Acheteur concerné" className="full" hint="Facultatif : dossier de vente couvert par la garantie. À la libération, l’acheteur en est informé dans son espace client (message et e-mail).">
+          <select className="select" value={f.sale_id} onChange={set('sale_id')}><option value="">— Aucun —</option>{(links.data?.sales || []).map(s => <option key={s.id} value={s.id}>{s.label}</option>)}</select>
+        </Field>
         <Field label="Montant (FCFA)"><input className="input" type="number" min="1" required value={f.amount_fcfa} onChange={set('amount_fcfa')} /></Field>
         {retenue ? <div /> : <Field label="Banque"><input className="input" maxLength={160} value={f.bank} onChange={set('bank')} /></Field>}
         {retenue ? (

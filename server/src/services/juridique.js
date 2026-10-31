@@ -72,11 +72,12 @@ async function saveSettings(db, values) {
 const deedQuery = db => db('sales as s')
   .join('lots as l', 'l.id', 's.lot_id').join('projects as p', 'p.id', 'l.project_id').join('leads as c', 'c.id', 's.lead_id')
   .leftJoin('users as u', 'u.id', 'c.assigned_to').leftJoin('legal_sale_files as f', 'f.sale_id', 's.id')
-  .leftJoin('suppliers as n', 'n.id', 'f.notary_supplier_id')
+  .leftJoin('suppliers as n', 'n.id', 'f.notary_supplier_id').leftJoin('purchase_invoices as pi', 'pi.id', 'f.notary_invoice_id')
   .select('s.id', 's.status', 's.price_fcfa', 's.reserved_at', 's.signed_at', 's.vefa', 's.lead_id', 'l.id as lot_id', 'l.code as lot_code', 'l.ilot',
     'l.status as lot_status', 'p.id as project_id', 'p.name as project_name', 'c.name as client_name', 'c.client_code', 'c.phone as client_phone',
     'c.email as client_email', 'c.assigned_to', 'u.name as commercial_name', 'f.reservation_on', 'f.pieces_on', 'f.notaire_on', 'f.notary_supplier_id',
-    'f.notary_ref', 'f.projet_on', 'f.deed_number', 'f.remise_on', 'f.notes as legal_notes', 'f.updated_at as legal_updated_at', 'n.name as notary_name');
+    'f.notary_ref', 'f.notary_fee_fcfa', 'f.notary_invoice_id', 'f.projet_on', 'f.deed_number', 'f.remise_on', 'f.notes as legal_notes', 'f.updated_at as legal_updated_at', 'n.name as notary_name',
+    'pi.number as notary_invoice_number', 'pi.status as notary_invoice_status');
 
 const deedDates = r => ({
   reservation: isoDay(r.reservation_on), pieces: isoDay(r.pieces_on), notaire: isoDay(r.notaire_on), projet: isoDay(r.projet_on),
@@ -91,6 +92,8 @@ function serializeDeed(r) {
     project_id: r.project_id, project_name: r.project_name, lead_id: r.lead_id, client_name: r.client_name, client_code: r.client_code,
     client_phone: r.client_phone, client_email: r.client_email, commercial_id: r.assigned_to, commercial_name: r.commercial_name,
     notary_supplier_id: r.notary_supplier_id, notary_name: r.notary_name, notary_ref: r.notary_ref, deed_number: r.deed_number,
+    notary_fee_fcfa: r.notary_fee_fcfa == null ? null : Number(r.notary_fee_fcfa), notary_invoice_id: r.notary_invoice_id || null,
+    notary_invoice_number: r.notary_invoice_number || null, notary_invoice_status: r.notary_invoice_status || null,
     notes: r.legal_notes, updated_at: isoTime(r.legal_updated_at), ...p,
   };
 }
@@ -158,11 +161,6 @@ async function announceDeed(db, saleId, userId) {
     ...base, direct: d.commercial_id ? [d.commercial_id] : [], directLink: '/commercial/ventes',
     link: `/juridique/actes?fiche=${saleId}`, links: { compta: '/compta/ecritures', sav: '/sav/reserves' },
   });
-  // Honoraires et frais d'acte du notaire : la Comptabilité attend sa facture (aucun montant n'est saisi au Juridique)
-  await inform(db, 'acte.honoraires', {
-    except: userId, key: `acte:${saleId}:honoraires`, title: `Honoraires du notaire à attendre : ${what}`,
-    body: `Acte signé le ${date}${d.notary_name ? ` chez ${d.notary_name}` : ''} : enregistrez la facture du notaire (honoraires, droits et frais d'acte) à réception.`, link: '/compta/achats',
-  });
   if (d.client_email) {
     await sendMail({
       to: d.client_email,
@@ -173,12 +171,60 @@ async function announceDeed(db, saleId, userId) {
 }
 
 /**
+ * Honoraires du notaire (FCFA, TTC) : facture d'achat en BROUILLON au notaire du dossier (fournisseur), rattachée au programme,
+ * que la Comptabilité contrôle et valide. Un seul brouillon par dossier : modifier le montant (ou le notaire) le met à jour
+ * tant qu'il n'est pas validé ; effacer le montant le supprime ; une fois validée, la facture ne se modifie plus ici.
+ * Renvoie { invoiceId, number, amount, changed }. À appeler dans la transaction de setStep.
+ */
+async function syncNotaryInvoice(trx, sale, file, amount, userId) {
+  const inv = file.notary_invoice_id ? await trx('purchase_invoices').where({ id: file.notary_invoice_id }).first() : null;
+  const live = inv && inv.status !== 'annulee' ? inv : null;
+  if (live && live.status !== 'brouillon') {
+    if (Number(live.amount_ttc) === Number(amount) && live.supplier_id === file.notary_supplier_id) return { invoiceId: live.id, number: live.number, amount: Number(amount), changed: false };
+    throw new HttpError(409, `La facture ${live.number} du notaire est déjà validée par la Comptabilité : le montant ou le notaire ne se modifient plus ici (annulation à demander à la Comptabilité).`);
+  }
+  if (!amount) {
+    if (live) await trx('purchase_invoices').where({ id: live.id }).del();
+    return { invoiceId: null, number: null, amount: null, changed: false };
+  }
+  const lot = await trx('lots').where({ id: sale.lot_id }).first('code', 'project_id');
+  const client = await trx('leads').where({ id: sale.lead_id }).first('name');
+  const patch = {
+    supplier_id: file.notary_supplier_id, supplier_ref: String(file.notary_ref || file.deed_number || `ACTE-${sale.id}`).slice(0, 60),
+    label: `Honoraires de notaire — ${client?.name || 'client'}, lot ${lot?.code || sale.lot_id}`.slice(0, 255), project_id: lot?.project_id || null,
+    amount_ht: amount, vat_rate: 0, vat_amount: 0, amount_ttc: amount,
+  };
+  if (live) {
+    const changed = Number(live.amount_ttc) !== Number(amount) || live.supplier_id !== file.notary_supplier_id;
+    await trx('purchase_invoices').where({ id: live.id }).update({ ...patch, updated_at: new Date() });
+    return { invoiceId: live.id, number: live.number, amount, changed };
+  }
+  const account = await trx('acc_accounts').where({ code: '632200' }).first('id');
+  if (!account) throw new HttpError(400, 'Compte 632200 (frais de notaire) absent du plan comptable : à créer en Comptabilité avant de saisir des honoraires.');
+  const day = today();
+  const number = await require('./compta').nextPurchaseNumber(trx, day);
+  const [r] = await trx('purchase_invoices').insert({ number, date: day, expense_account_id: account.id, status: 'brouillon', created_by: userId, ...patch });
+  return { invoiceId: insertedId(r), number, amount, changed: true };
+}
+
+/** Honoraires saisis ou modifiés : la Comptabilité est prévenue (facture brouillon à valider), avec le montant. */
+async function announceNotaryFee(db, saleId, fee, userId) {
+  const d = await deedDetail(db, saleId);
+  return inform(db, 'acte.honoraires', {
+    except: userId, key: `acte:${saleId}:honoraires:${fee.invoiceId}:${fee.amount}`, priority: 'action',
+    title: `Honoraires du notaire : ${money(fee.amount)} — ${d.client_name}, lot ${d.lot_code}`,
+    body: `${d.notary_name || 'Notaire'} · ${d.project_name} · facture ${fee.number} en brouillon, à contrôler et valider.`, link: '/compta/achats',
+  });
+}
+
+/**
  * Date (ou efface) une étape et les informations qui l'accompagnent (notaire, référence de l'étude, n° d'acte).
  * Effets : réservation signée → pièce « Contrat de réservation » signée, prospect à l'étape Contrat ; transmis au
  * notaire → prospect à l'étape Notaire ; acte → deedSigned ; expédition remise → pièce « Acte notarié » délivrée.
  */
-async function setStep(db, saleId, { key, date = null, notary_supplier_id, notary_ref, deed_number, notes }, user) {
+async function setStep(db, saleId, { key, date = null, notary_supplier_id, notary_ref, deed_number, notes, notary_fee_fcfa }, user) {
   let signedNow = false;
+  let fee = null; // honoraires du notaire : facture brouillon créée ou mise à jour
   await db.transaction(async trx => {
     const sale = await trx('sales').where({ id: saleId }).first();
     if (!sale) throw new HttpError(404, 'Dossier de vente introuvable.');
@@ -203,6 +249,15 @@ async function setStep(db, saleId, { key, date = null, notary_supplier_id, notar
     if (deed_number !== undefined) patch.deed_number = deed_number;
     if (notes !== undefined) patch.notes = notes;
     if (key && key !== 'acte') patch[`${key}_on`] = date;
+    // Honoraires du notaire : facture d'achat en brouillon pour la Comptabilité (montant et notaire suivis tant qu'elle n'est pas validée)
+    if (notary_fee_fcfa !== undefined || (notary_supplier_id !== undefined && file.notary_invoice_id)) {
+      const notaryId = notary_supplier_id !== undefined ? notary_supplier_id : file.notary_supplier_id;
+      const amount = notary_fee_fcfa !== undefined ? notary_fee_fcfa : (file.notary_fee_fcfa == null ? null : Number(file.notary_fee_fcfa));
+      if (amount && !notaryId) throw new HttpError(400, 'Choisissez le notaire (fiche fournisseur de la Comptabilité) avant de saisir ses honoraires.');
+      patch.notary_fee_fcfa = amount || null;
+      fee = await syncNotaryInvoice(trx, sale, { ...file, ...patch, notary_supplier_id: notaryId }, amount || null, user.id);
+      patch.notary_invoice_id = fee.invoiceId;
+    }
     await trx('legal_sale_files').where({ id: file.id }).update(patch);
 
     if (key === 'acte') {
@@ -217,6 +272,7 @@ async function setStep(db, saleId, { key, date = null, notary_supplier_id, notar
     if (key === 'remise' && date) await documentAtLeast(trx, saleId, 'acte_notarie', 'delivre', user.id);
   });
   if (signedNow) await announceDeed(db, saleId, user.id);
+  if (fee?.changed) await announceNotaryFee(db, saleId, fee, user.id).catch(() => {});
   // Étape intermédiaire datée (réservation, pièces, notaire, projet d'acte, expédition) : commercial prévenu, client informé
   if (key && key !== 'acte' && date) await liaisons.announceDeedStep(db, saleId, key, date, user).catch(() => {});
   return deedDetail(db, saleId);
@@ -362,7 +418,9 @@ async function reopenLitigation(db, l, userId) {
 const guaranteeQuery = db => db('guarantees as g')
   .join('guarantee_kinds as k', 'k.id', 'g.kind_id').leftJoin('suppliers as s', 's.id', 'g.supplier_id')
   .leftJoin('contracts as c', 'c.id', 'g.contract_id').leftJoin('users as o', 'o.id', 'g.owner_id')
-  .select('g.*', 'k.label as kind_label', 's.name as supplier_name', 'c.reference as contract_reference', 'c.title as contract_title', 'o.name as owner_name');
+  .leftJoin('sales as sv', 'sv.id', 'g.sale_id').leftJoin('leads as bl', 'bl.id', 'sv.lead_id').leftJoin('lots as bt', 'bt.id', 'sv.lot_id')
+  .select('g.*', 'k.label as kind_label', 's.name as supplier_name', 'c.reference as contract_reference', 'c.title as contract_title', 'o.name as owner_name',
+    'bl.name as buyer_name', 'bt.code as buyer_lot_code');
 
 /** Voit les cautions : juriste, Direction, et la Comptabilité (elle paie les retenues libérées). */
 const canSeeGuarantees = v => isLegal(v) || v.can('compta:read');
@@ -375,7 +433,7 @@ function serializeGuarantee(g, day = today()) {
   const deadline = guaranteeDeadline(x);
   return {
     ...x, file_filename: undefined, direction_label: GUARANTEE_DIRECTIONS[g.direction], status_label: GUARANTEE_STATUSES[g.status],
-    counterparty_name: g.supplier_name || g.counterparty, contract_label: g.contract_id ? `${g.contract_reference} — ${g.contract_title}` : null,
+    counterparty_name: g.supplier_name || g.counterparty || g.buyer_name, buyer_label: g.sale_id && g.buyer_name ? `${g.buyer_name} — lot ${g.buyer_lot_code}` : null, contract_label: g.contract_id ? `${g.contract_reference} — ${g.contract_title}` : null,
     deadline: deadline ? { ...deadline, days_left: daysBetween(day, deadline.date) } : null,
     file_url: g.file_filename ? `/api/admin/erp/juridique/cautions/${g.id}/fichier` : null,
   };
@@ -407,9 +465,10 @@ async function guaranteeFields(db, data, current = {}) {
   const kind = await db('guarantee_kinds').where({ id: m.kind_id }).first();
   if (!kind) throw new HttpError(400, 'Sorte de caution inconnue.');
   if (!current.id && !kind.active) throw new HttpError(400, 'Cette sorte de caution est archivée.');
-  if (!m.supplier_id && !m.counterparty) throw new HttpError(400, 'Indiquez le tiers (fournisseur ou nom).');
+  if (!m.supplier_id && !m.counterparty && !m.sale_id) throw new HttpError(400, 'Indiquez le tiers (fournisseur, nom ou acheteur).');
   if (data.supplier_id && !(await db('suppliers').where({ id: data.supplier_id }).first())) throw new HttpError(404, 'Fournisseur introuvable.');
   if (data.contract_id && !(await db('contracts').where({ id: data.contract_id }).first())) throw new HttpError(404, 'Contrat introuvable.');
+  if (data.sale_id && !(await db('sales').where({ id: data.sale_id }).first())) throw new HttpError(404, 'Dossier de vente introuvable.');
   if (data.owner_id && !(await db('users').where({ id: data.owner_id, active: true }).first())) throw new HttpError(400, 'Responsable introuvable ou inactif.');
   const out = { ...data, direction: kind.direction };
   if (kind.direction === 'retenue') {
@@ -435,10 +494,43 @@ async function updateGuarantee(db, g, data, { file }) {
   await db('guarantees').where({ id: g.id }).update({ ...row, updated_at: new Date() });
 }
 
-async function closeGuarantee(db, g, { status, date, note }) {
+async function closeGuarantee(db, g, { status, date, note }, userId = null) {
   if (g.status !== 'active') throw new HttpError(409, 'Caution déjà close.');
   await db('guarantees').where({ id: g.id }).update({ status, closed_on: date, close_note: note || null, updated_at: new Date() });
   await resolve(db, `caution:${g.id}:`);
+  if (status === 'liberee') await announceGuaranteeReleased(db, g, date, userId).catch(() => {});
+}
+
+/**
+ * Caution ou retenue libérée : l'acheteur concerné (dossier de vente de la caution) est prévenu dans son espace client (message et
+ * e-mail « nouveau message »), le sous-traitant ou fournisseur concerné (celui de la caution ou de son contrat) par e-mail s'il a
+ * une adresse, et la Comptabilité (retenue à rembourser) et le responsable de la caution dans la cloche (circuit réglable).
+ */
+async function announceGuaranteeReleased(db, g, date, userId) {
+  const what = `${g.kind_label} ${g.reference} (${money(g.amount_fcfa)})`;
+  const when = fr(isoDay(date));
+  const told = [];
+  if (g.sale_id) {
+    const sale = await db('sales as s').join('lots as l', 'l.id', 's.lot_id').where('s.id', g.sale_id).first('s.id', 's.lead_id', 'l.code as lot_code');
+    if (sale) {
+      await require('./clients').tellClient(db, { leadId: sale.lead_id, saleId: sale.id }, `La garantie qui couvrait votre dossier du lot ${sale.lot_code} (${g.kind_label}, ${money(g.amount_fcfa)}) a été libérée le ${when}.`, userId);
+      told.push('acheteur');
+    }
+  }
+  const supplierId = g.supplier_id || (g.contract_id ? (await db('contracts').where({ id: g.contract_id }).first('supplier_id'))?.supplier_id : null);
+  const supplier = supplierId ? await db('suppliers').where({ id: supplierId }).first('name', 'email') : null;
+  if (supplier?.email) {
+    await sendMail({
+      to: supplier.email, subject: `[SIIPAF] ${g.kind_label} libérée : ${g.reference}`,
+      text: `Bonjour ${supplier.name},\n\nSIIPAF vous informe que la garantie ${g.reference} (${g.kind_label}) d’un montant de ${money(g.amount_fcfa)}${g.contract_reference ? ` (contrat ${g.contract_reference})` : ''} est libérée depuis le ${when}.\nPour toute question, répondez à ce message.\n\nSIIPAF SA`,
+    });
+    told.push('sous-traitant');
+  }
+  await inform(db, 'caution.liberee', {
+    direct: [g.owner_id].filter(Boolean), except: userId, key: `caution-liberee:${g.id}:${when}`, link: `/juridique/cautions?fiche=${g.id}`, links: { compta: '/compta/achats' },
+    title: `Caution libérée : ${what}`,
+    body: [g.supplier_name || g.counterparty || g.buyer_name, told.length ? `${told.join(' et ')} prévenu(s)` : 'aucun tiers prévenu (pas de dossier de vente ni d’e-mail)'].filter(Boolean).join(' · '),
+  });
 }
 async function reopenGuarantee(db, g) {
   if (g.status === 'active') throw new HttpError(409, 'Caution déjà en cours.');

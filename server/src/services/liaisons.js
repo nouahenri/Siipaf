@@ -138,7 +138,7 @@ async function announceImportedPayments(db, count, total, user) {
   });
 }
 
-// ─── Désistement, lot sans dossier ────────────────────────────────────────
+// ─── Désistement ────────────────────────────────────────
 
 /** Dossiers clos par un désistement : Comptabilité, Juridique, Chantiers, SAV et commercial du client sont prévenus (circuit réglable). */
 async function announceDesistement(db, saleIds, user) {
@@ -156,21 +156,6 @@ async function announceDesistement(db, saleIds, user) {
     });
   }
   return n;
-}
-
-/**
- * Lot passé « réservé » ou « vendu » à la main, sans dossier d'acquisition : le commercial du prospect (à défaut les responsables)
- * est prévenu qu'il reste à ouvrir le dossier. L'alerte est lue à l'ouverture du dossier (`resolve`).
- */
-async function announceLotWithoutSale(db, lotId, status, { user, leadId = null }) {
-  if (await db('sales').where({ lot_id: lotId }).whereIn('status', ['en_cours', 'solde']).first('id')) return 0;
-  const lot = await db('lots as l').join('projects as p', 'p.id', 'l.project_id').where('l.id', lotId).first('l.code', 'p.name as project_name');
-  const lead = leadId ? await db('leads').where({ id: leadId }).first('assigned_to', 'name') : null;
-  return inform(db, 'lot.sans_dossier', {
-    direct: lead?.assigned_to ? [lead.assigned_to] : [], except: user.id, key: `lot:${lotId}:sans_dossier`,
-    title: `Lot ${lot.code} passé « ${status === 'vendu' ? 'vendu' : 'réservé'} » sans dossier d’acquisition`, body: `${lot.project_name}${lead ? ` · ${lead.name}` : ''} — ouvrez le dossier pour suivre les versements et l’acte.`,
-    link: '/commercial/parc',
-  });
 }
 
 // ─── Espace client ────────────────────────────────────────────────────────
@@ -316,6 +301,6 @@ async function tick(db, now = new Date()) {
 
 module.exports = {
   leadLink, sentOnce, mailPerson, announceInbound, acknowledge, announceAssigned, announceImportedPayments, announceTask, confirmAppointment, announceOption,
-  announceDesistement, announceLotWithoutSale, announceClientMessage, announceProgress, announceDocument, announceSchedule, announcePayment,
+  announceDesistement, announceClientMessage, announceProgress, announceDocument, announceSchedule, announcePayment,
   announceDeedStep, tick,
 };

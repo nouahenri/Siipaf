@@ -366,6 +366,7 @@ module.exports = function catalogRoutes(db) {
       const touched = [];
       for (const l of lots) {
         const { status, ...fields } = l;
+        if (['reserve', 'vendu'].includes(status)) throw new HttpError(400, `Lot ${l.code} : un lot ne se crée pas « ${status === 'vendu' ? 'Vendu' : 'Réservé'} » — le statut vient du dossier de vente (réservé) et de l'acte signé (vendu).`);
         if (fields.property_type_id) await checkLotType(trx, projectId, fields.property_type_id);
         const existing = await trx('lots').where({ project_id: projectId, code: l.code }).first();
         if (existing) {
@@ -443,6 +444,7 @@ module.exports = function catalogRoutes(db) {
     res.json({ ok: true });
   }));
 
+  // « Réservé » (ouverture du dossier de vente) et « Vendu » (acte signé) ne se posent pas ici : refusés par changeLotStatus (409)
   r.post('/lots/:id/status', requirePermission('lots:reserve', 'lots:desist', 'lots:option'), ah(async (req, res) => {
     const data = parse(z.object({
       status: z.enum(LOT_STATUSES),
@@ -456,8 +458,6 @@ module.exports = function catalogRoutes(db) {
     if (data.lead_id) await leadInScope(db, data.lead_id, req.user);
     await lotOfMyClient(idParam(req), req.user);
     const lot = await changeLotStatus(db, { lotId: idParam(req), to: data.status, user: req.user, leadId: data.lead_id, reason: data.reason });
-    // Réservé ou vendu à la main, sans dossier d'acquisition : le commercial (à défaut les responsables) est prévenu qu'il reste à l'ouvrir
-    if (['reserve', 'vendu'].includes(data.status)) await require('../services/liaisons').announceLotWithoutSale(db, lot.id, data.status, { user: req.user, leadId: data.lead_id }).catch(() => {});
     res.json(decodeLot(lot));
   }));
 

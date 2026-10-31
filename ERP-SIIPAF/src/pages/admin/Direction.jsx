@@ -26,7 +26,7 @@ const ATTENTION = {
   parc: { icon: Truck, label: 'Parc' }, documents: { icon: FileText, label: 'Documents internes' },
   litiges: { icon: Scale, label: 'Litiges' }, cautions: { icon: ShieldHalf, label: 'Cautions' }, impayes: { icon: AlarmClock, label: 'Impayés' },
   chantiers: { icon: HardHat, label: 'Chantiers' }, qhse: { icon: ShieldAlert, label: 'QHSE' },
-  sav: { icon: LifeBuoy, label: 'Client & SAV' }, prospects: { icon: Users, label: 'Prospects' },
+  sav: { icon: LifeBuoy, label: 'Client & SAV' }, prospects: { icon: Users, label: 'Prospects' }, tresorerie: { icon: Landmark, label: 'Trésorerie' },
 };
 
 /** Performance par service sur la période choisie (année, trimestre, mois) : mêmes scores que RH › Performance et entretiens. */
@@ -80,7 +80,7 @@ export default function Direction() {
       <div className="grid grid-4">
         <Kpi icon={Banknote} label="CA signé depuis janvier" count={c.ytd.ca_fcfa} format={money} foot={`${num(c.ytd.ventes)} ventes`} tint="blue" />
         <Kpi icon={Wallet} label="Encaissé depuis janvier" count={c.ytd.encaissements_fcfa} format={money} foot="versements des clients" tint="green" />
-        <Kpi icon={Landmark} label="Trésorerie" count={f.fiscal_year ? f.treasury_total : null} format={money} foot={f.fiscal_year ? `exercice ${f.fiscal_year.label}` : 'aucun exercice comptable ouvert'} tint="violet" />
+        <Kpi icon={Landmark} label="Trésorerie" count={f.fiscal_year ? f.treasury_total : null} format={money} foot={f.fiscal_year ? (f.treasury_under ? `sous le seuil d’alerte (${money(f.treasury_threshold)})` : `exercice ${f.fiscal_year.label}`) : 'aucun exercice comptable ouvert'} tint={f.treasury_under ? 'amber' : 'violet'} to={f.treasury_under ? '/compta/etats' : undefined} />
         <Kpi icon={HardHat} label="Avancement moyen des dossiers" count={ch.dossiers_progress_pct} format={v => `${v} %`} foot="dossiers en cours, d’après le journal de chantier" tint="amber" />
       </div>
 

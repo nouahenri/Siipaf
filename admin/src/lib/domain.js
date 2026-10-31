@@ -56,13 +56,18 @@ export function gridOfferFor(offers, surface, offerId = null) {
 }
 
 // Transitions autorisées (le serveur reste l'arbitre final)
+// « Réservé » et « Vendu » ne se posent jamais à la main : ouverture du dossier de vente / acte signé au Juridique
 export const LOT_TRANSITIONS = {
-  disponible: ['option', 'reserve', 'bloque'],
-  option: ['disponible', 'reserve'],
-  reserve: ['vendu', 'desistement', 'disponible'],
+  disponible: ['option', 'bloque'],
+  option: ['disponible'],
+  reserve: ['desistement', 'disponible'],
   vendu: ['desistement'],
-  desistement: ['option', 'reserve', 'disponible'],
+  desistement: ['option', 'disponible'],
   bloque: ['disponible'],
+};
+export const LOT_STATUS_BY_PROCESS = {
+  reserve: 'Se pose en ouvrant le dossier de vente du lot',
+  vendu: 'Se pose à la signature de l’acte (Juridique)',
 };
 
 export const LEAD_STAGES = [

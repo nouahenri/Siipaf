@@ -171,16 +171,16 @@ test('désistement : Comptabilité et commercial du client sont prévenus', asyn
   assert.ok((await unread(comptableId, 'vente.desistee')).some(n => n.dedupe_key === `vente:${sale.id}:desistee`), 'la Comptabilité est un service du circuit');
 });
 
-test('lot passé « réservé » sans dossier : les responsables sont prévenus, puis l’alerte est lue à l’ouverture du dossier', async () => {
+test('lot « réservé » ou « vendu » sans dossier : refusé (409), le statut ne vient que du dossier de vente et de l’acte', async () => {
   await admin.put(`/api/admin/projects/${project.id}/lots`).send([{ code: 'L1', price_fcfa: 10000000 }, { code: 'L2', price_fcfa: 10000000 }, { code: 'L3', price_fcfa: 10000000 }, { code: 'N1', price_fcfa: 5000000 }]);
   const lot = await db('lots').where({ project_id: project.id, code: 'N1' }).first();
-  const res = await admin.post(`/api/admin/lots/${lot.id}/status`).send({ status: 'reserve' });
-  assert.equal(res.status, 200, JSON.stringify(res.body));
-  const key = `lot:${lot.id}:sans_dossier`;
-  assert.ok((await db('notifications').where({ dedupe_key: key })).length >= 1);
-  const sale = await admin.post(`/api/admin/lots/${lot.id}/sale`).send({ name: 'Acquéreur Tardif', phone: '0709000009' });
-  assert.equal(sale.status, 201, JSON.stringify(sale.body));
-  assert.ok((await db('notifications').where({ dedupe_key: key })).every(n => n.read_at), 'alerte lue');
+  for (const status of ['reserve', 'vendu']) {
+    const res = await admin.post(`/api/admin/lots/${lot.id}/status`).send({ status });
+    assert.equal(res.status, 409, JSON.stringify(res.body));
+  }
+  assert.equal((await db('lots').where({ id: lot.id }).first()).status, 'disponible');
+  assert.equal((await admin.put(`/api/admin/projects/${project.id}/lots`).send([{ code: 'N2', status: 'reserve' }])).status, 400, 'pas de lot créé « réservé » par import');
+  assert.equal((await db('notifications').where('dedupe_key', 'like', 'lot:%:sans_dossier')).length, 0, 'plus d’alerte « lot sans dossier »');
 });
 
 test('cloche du dashboard : « Mes notifications » coupées = ni compteur de non-lus ni son', async () => {

@@ -8,7 +8,7 @@ const { openSale, refreshSaleStatus, totals, ACTIVE } = require('../services/sal
 const { regenerateSchedule, replaceSchedule, scheduleStatus } = require('../services/schedule');
 const { receiptNumber } = require('../services/clients');
 const juridique = require('../services/juridique');
-const { inform, resolve } = require('../services/notifications');
+const { inform } = require('../services/notifications');
 const liaisons = require('../services/liaisons');
 const { seesAllLeads, saleInScope, leadInScope } = require('../services/commercial');
 
@@ -107,7 +107,6 @@ module.exports = function salesRoutes(db) {
     // L'acte se date dans ERP › Juridique (ou avec le droit Juridique)
     if (rest.signed_at && !req.can('juridique:deeds')) throw new HttpError(403, 'La date de signature de l’acte se saisit dans ERP › Juridique.');
     const sale = await openSale(db, { lotId: idParam(req), leadId: lead_id, leadData: { name, phone, email }, ...rest, user: req.user });
-    await resolve(db, `lot:${idParam(req)}:sans_dossier`); // le dossier existe : l'alerte « lot réservé sans dossier » est lue
     // Circuit d'information : Direction générale, exploitation, Comptabilité, Juridique (réglable dans l'ERP)
     const info = await db('sales as s').join('lots as l', 'l.id', 's.lot_id').join('projects as p', 'p.id', 'l.project_id').join('leads as c', 'c.id', 's.lead_id')
       .where('s.id', sale.id).first('c.name as client_name', 'c.assigned_to', 'p.name as project_name', 'l.code as lot_code', 's.price_fcfa', 's.vefa');

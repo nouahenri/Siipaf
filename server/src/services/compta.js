@@ -317,8 +317,50 @@ async function pendingSync(db) {
     + tmas.filter(t => !has.has(`tma:${t.id}`) && open(day(t.answered_at))).length;
 }
 
-/** Tâche horaire : « N opérations à synchroniser » dans la cloche de la Comptabilité, une fois par jour tant qu'il en reste. */
+/**
+ * Seuil d'alerte de trésorerie (Comptabilité › Paramètres, 0 = désactivé) : { threshold, total, under }. Le total est celui de la
+ * Vue Direction (banque, caisse et Mobile Money, brouillons compris) ; sans exercice ouvert (comptabilité pas encore commencée),
+ * l'alerte ne se déclenche pas. `total` peut être fourni quand il est déjà calculé.
+ */
+async function treasuryStatus(db, { total = null, fiscalYear = undefined, now = new Date() } = {}) {
+  const threshold = await require('./moduleSettings').value(db, 'compta_treasury_threshold_fcfa');
+  const fy = fiscalYear !== undefined ? fiscalYear : await fiscalYearFor(db, isoDay(now));
+  const sum = total != null ? total : (await treasury(db, { includeDraft: true })).reduce((t, j) => t + j.balance, 0);
+  return { threshold, total: sum, under: threshold > 0 && !!fy && sum < threshold };
+}
+
+/**
+ * Alerte `tresorerie.seuil` : une seule fois par passage sous le seuil. L'état est gardé dans app_settings
+ * (« treasury_alert_state » : sous / ok) ; il est réarmé quand la trésorerie repasse au-dessus du seuil (ou que l'alerte est
+ * désactivée) et l'alerte précédente est alors marquée lue.
+ */
+async function treasuryTick(db, now = new Date()) {
+  const key = 'treasury_alert_state';
+  const s = await treasuryStatus(db, { now });
+  const row = await db('app_settings').where({ key }).first();
+  const wasUnder = row?.value === 'sous';
+  const save = async value => {
+    if (row) await db('app_settings').where({ key }).update({ value, updated_at: new Date() });
+    else await db('app_settings').insert({ key, value });
+  };
+  const notifications = require('./notifications');
+  if (!s.under) {
+    if (wasUnder) { await save('ok'); await notifications.resolve(db, 'tresorerie:seuil:'); }
+    return 0;
+  }
+  if (wasUnder) return 0;
+  await save('sous');
+  const money = n => `${Number(n || 0).toLocaleString('fr-FR').replace(/[  ]/g, ' ')} FCFA`;
+  return notifications.inform(db, 'tresorerie.seuil', {
+    key: `tresorerie:seuil:${now.toISOString()}`, link: '/compta/etats',
+    title: `Trésorerie sous le seuil d’alerte : ${money(s.total)}`,
+    body: `Seuil réglé à ${money(s.threshold)} (Comptabilité › Paramètres) : banque, caisse et Mobile Money. Prochaine alerte quand elle repassera au-dessus puis sous le seuil.`,
+  });
+}
+
+/** Tâche horaire : « N opérations à synchroniser » dans la cloche de la Comptabilité, une fois par jour tant qu'il en reste ; seuil de trésorerie. */
 async function tick(db, now = new Date()) {
+  await treasuryTick(db, now).catch(e => console.error('[compta] seuil de trésorerie :', e.message));
   const n = await pendingSync(db);
   if (!n) return 0;
   return require('./notifications').inform(db, 'compta.a_synchroniser', {
@@ -670,6 +712,6 @@ async function dashboard(db) {
 module.exports = { payOrderAdvance, applyOrderAdvances,
   dashboard,
   getSettings, saveSettings, fiscalYearFor, assertWritable, createEntry, validateEntry, updateDraft, deleteDraft, reverseEntry, entryDetail,
-  syncAutoEntries, pendingSync, tick, nextPurchaseNumber, validatePurchase, payPurchase,
+  syncAutoEntries, pendingSync, tick, treasuryStatus, treasuryTick, nextPurchaseNumber, validatePurchase, payPurchase,
   trialBalance, generalLedger, financialStatements, monthlySeries, vatReport, projectMargins, partnerBalances, treasury, sageExport, openingFromPrevious, linesQuery,
 };

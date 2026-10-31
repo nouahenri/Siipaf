@@ -6,6 +6,22 @@ const { HttpError, isoDay, json } = require('../lib/http');
 const { DEFAULT_PAYROLL, computePayslip, checkPayroll, suggestedParts } = require('../lib/paie');
 const compta = require('./compta');
 const rh = require('./rh');
+const { inform } = require('./notifications');
+
+const money = n => `${Number(n || 0).toLocaleString('fr-FR').replace(/[  ]/g, ' ')} FCFA`;
+const periodLabel = period => { const [y, m] = period.split('-').map(Number); return new Date(Date.UTC(y, m - 1, 1)).toLocaleDateString('fr-FR', { month: 'long', year: 'numeric', timeZone: 'UTC' }); };
+
+/** Paie validée ou payée : la Comptabilité et la Direction générale sont prévenues (réglable dans le Circuit d'information). */
+async function announceRun(db, detail, kind, userId) {
+  const label = periodLabel(detail.period);
+  const link = `/compta/paie/${detail.id}`;
+  const n = detail.slips.length;
+  return inform(db, kind === 'payee' ? 'paie.payee' : 'paie.validee', {
+    except: userId, key: `paie:${detail.id}:${kind}`, link,
+    title: kind === 'payee' ? `Salaires de ${label} payés` : `Paie de ${label} validée`,
+    body: kind === 'payee' ? `${n} bulletin(s) · net payé ${money(detail.totals.net)}` : `${n} bulletin(s) · net à payer ${money(detail.totals.net)} · coût employeur ${money(detail.totals.employer_cost)} : écriture de paie passée, salaires à payer.`,
+  });
+}
 
 const insertedId = r => (typeof r === 'object' ? r.id : r);
 const lastDay = period => { const [y, m] = period.split('-').map(Number); return new Date(Date.UTC(y, m, 0)).toISOString().slice(0, 10); };
@@ -227,6 +243,7 @@ async function validateRun(db, runId, userId) {
     });
     await trx('payroll_runs').where({ id: detail.id }).update({ status: 'valide', validated_by: userId, validated_at: new Date(), updated_at: new Date() });
   });
+  await announceRun(db, detail, 'validee', userId).catch(() => {});
   return runDetail(db, runId);
 }
 
@@ -250,6 +267,7 @@ async function payRun(db, runId, { date }, userId) {
     }
     await trx('payroll_runs').where({ id: detail.id }).update({ status: 'paye', paid_at: date, updated_at: new Date() });
   });
+  await announceRun(db, detail, 'payee', userId).catch(() => {});
   return runDetail(db, runId);
 }
 

@@ -5,6 +5,7 @@ import { useAuth, useToast, useSaved } from '@admin/lib/app-context';
 import { Card, Skeleton, Field, ErrorBox, Badge, Modal } from '@admin/components/ui';
 import { date } from '@admin/lib/format';
 import { useComptaMeta, AccountInput, amt } from '../../lib/compta';
+import ModuleSettings from '../ModuleSettings';
 
 const ACCOUNT_LABELS = {
   client: 'Clients', client_advance: 'Avances et acomptes reçus des clients', supplier: 'Fournisseurs', supplier_advance: 'Acomptes versés aux fournisseurs (bons de commande)', vat_collected: 'TVA facturée sur ventes',
@@ -34,6 +35,7 @@ export default function Settings() {
         <Rules meta={meta} write={can('compta:settings')} onChange={reload} />
         <Journals meta={meta} write={can('compta:plan')} onChange={reload} />
       </div>
+      <ModuleSettings module="compta" prefs={false} />
     </div>
   );
 }
