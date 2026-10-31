@@ -87,6 +87,7 @@ function createApp(db) {
   admin.use('/erp/juridique', require('./routes/erp/juridique')(db));
   admin.use('/erp/marketing', require('./routes/erp/marketing')(db));
   admin.use('/erp/chantiers', require('./routes/erp/chantiers')(db));
+  admin.use('/erp/qhse', require('./routes/erp/qhse')(db));
   admin.use('/erp/achats', require('./routes/erp/appro')(db));
   admin.use('/erp/lieux', require('./routes/erp/lieux')(db));
   admin.use('/erp/demarrage', require('./routes/erp/onboarding')(db));
@@ -187,6 +188,8 @@ function createApp(db) {
     // Marketing & Communication : l'IA prépare chaque semaine le calendrier et les contenus (une seule fois par semaine et par campagne
     // validée, aucun envoi ni publication) ; rappel des contenus validés à publier
     setInterval(() => require('./services/marketing').tick(db).catch(e => console.error('[marketing]', e.message)), 60 * 60 * 1000).unref();
+    // QHSE : contrôle du jour manquant (jours ouvrés, à l'heure réglée) et actions correctives en retard, sans doublon
+    setInterval(() => require('./services/qhseSuivi').tick(db).catch(e => console.error('[qhse]', e.message)), 60 * 60 * 1000).unref();
     // Changements de poste planifiés : appliqués à leur date d'effet
     const positions = require('./services/positions');
     setInterval(() => positions.tick(db).catch(e => console.error('[postes]', e.message)), 60 * 60 * 1000).unref();

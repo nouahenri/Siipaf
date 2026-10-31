@@ -38,6 +38,12 @@ import CampaignDetail from './pages/marketing/CampaignDetail';
 import MarketingCalendar from './pages/marketing/Calendar';
 import MarketingLibrary from './pages/marketing/Library';
 import MarketingSettings from './pages/marketing/MarketingSettings';
+import QhseDashboard from './pages/qhse/QhseDashboard';
+import Controls, { ControlPage } from './pages/qhse/Controls';
+import Weekly, { WeeklyPage } from './pages/qhse/Weekly';
+import Audits, { AuditPage } from './pages/qhse/Audits';
+import QhseActions from './pages/qhse/Actions';
+import QhseSettings from './pages/qhse/QhseSettings';
 import Chantiers from './pages/chantiers/Chantiers';
 import Chantier from './pages/chantiers/Chantier';
 import ChantiersSettings from './pages/chantiers/ChantiersSettings';
@@ -196,6 +202,16 @@ function App() {
         <Route path="marketing/contenus" element={<Guard perm="marketing:read"><MarketingLibrary /></Guard>} />
         <Route path="marketing/reglages" element={<Settings module="marketing" perm="marketing:settings" who="la Direction générale"><MarketingSettings /></Settings>} />
         <Route path="marketing/acces" element={<Guard perm="users:read"><ModuleAccess module="marketing" label="Marketing & Communication" /></Guard>} />
+        <Route path="qhse" element={<Guard perm="qhse:read"><QhseDashboard /></Guard>} />
+        <Route path="qhse/controles" element={<Guard perm="qhse:read"><Controls /></Guard>} />
+        <Route path="qhse/controles/:id" element={<Guard perm="qhse:read"><ControlPage /></Guard>} />
+        <Route path="qhse/hebdomadaires" element={<Guard perm="qhse:read"><Weekly /></Guard>} />
+        <Route path="qhse/hebdomadaires/:id" element={<Guard perm="qhse:read"><WeeklyPage /></Guard>} />
+        <Route path="qhse/audits" element={<Guard perm="qhse:read"><Audits /></Guard>} />
+        <Route path="qhse/audits/:id" element={<Guard perm="qhse:read"><AuditPage /></Guard>} />
+        <Route path="qhse/actions" element={<Guard perm="qhse:read"><QhseActions /></Guard>} />
+        <Route path="qhse/reglages" element={<Settings module="qhse" perm="qhse:settings" who="la Direction générale"><QhseSettings /></Settings>} />
+        <Route path="qhse/acces" element={<Guard perm="users:read"><ModuleAccess module="qhse" label="QHSE" /></Guard>} />
         <Route path="chantiers" element={<Navigate to="/chantiers/liste" replace />} />
         <Route path="chantiers/liste" element={<Chantiers />} />
         <Route path="chantiers/reglages" element={<Settings module="chantiers" perm={['chantiers:read', 'chantiers:create', 'chantiers:plan', 'chantiers:budget', 'chantiers:settings', 'chantiers:tma', 'chantiers:stages', 'chantiers:situations', 'direction:read']} who="les gestionnaires des chantiers"><ChantiersSettings /></Settings>} />

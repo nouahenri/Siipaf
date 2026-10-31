@@ -409,6 +409,7 @@ const DOCS_ACTIONS = ['docs:publish'];
 const REQUEST_ACTIONS = ['demandes:handle'];
 const LEGAL_ACTIONS = ['juridique:read', 'juridique:write'];
 const MARKETING_ACTIONS = ['marketing:read', 'marketing:generate', 'marketing:validate', 'marketing:settings'];
+const QHSE_ACTIONS = ['qhse:read', 'qhse:control', 'qhse:all', 'qhse:audit', 'qhse:actions', 'qhse:validate', 'qhse:settings'];
 // Actions découpées (30/10), pour les listes « l'un de ces droits » (voir PERMISSION_SPLITS)
 const PRESENCE_ACTIONS = ['presence:sheets', 'presence:kiosk', 'presence:correct'];
 const RH_SETTINGS_ACTIONS = ['rh:rules', 'rh:positions', 'rh:heads', 'rh:holidays'];
@@ -514,13 +515,13 @@ const PERMISSIONS = {
     ...APPRO_ACTIONS,
     'projects:read', 'lots:read', 'sales:read', 'documents:write', 'site_updates:write', 'client_messages',
     'sav:read', 'sav:all', 'sav:create', 'sav:handle', 'sav:reserves', 'sav:interventions', 'vefa:write', 'presence:write', ...CONTRACT_ACTIONS, ...LEGAL_ACTIONS, 'leads:all',
-    'chantiers:read', 'chantiers:write', ...SELF_SERVICE,
+    'chantiers:read', 'chantiers:write', 'qhse:read', 'qhse:control', ...SELF_SERVICE,
   ]),
   comptable: splitPermissions([
     ...APPRO_ACTIONS, 'appro:articles',
     'projects:read', 'lots:read', 'leads:read', 'appointments:read', 'sales:read', 'payments:write',
     'schedule:write', 'client_messages', 'commercial:read', 'leads:all', 'compta:read', ...COMPTA_ACTIONS,
-    'rh:read', ...RH_ACTIONS, 'kpi:write', 'presence:write', 'paie:read', ...PAIE_ACTIONS, 'contrats:read', 'parc:read', 'chantiers:read', 'lieux:write', ...SELF_SERVICE,
+    'rh:read', ...RH_ACTIONS, 'kpi:write', 'presence:write', 'paie:read', ...PAIE_ACTIONS, 'contrats:read', 'parc:read', 'chantiers:read', 'lieux:write', 'qhse:read', 'qhse:all', 'qhse:validate', ...SELF_SERVICE,
   ]),
   resp_exploitation: splitPermissions([
     ...APPRO_ACTIONS, 'appro:direction', 'appro:articles',
@@ -530,7 +531,8 @@ const PERMISSIONS = {
     'client_access:write', 'client_messages', 'site_updates:write', 'schedule:write', 'settings:write',
     'leads:all', 'leads:assign', 'clients:edit', 'sav:read', ...SAV_ACTIONS, 'commercial:read', 'targets:write', 'vefa:write', 'property:write', 'compta:read',
     'rh:read', ...RH_ACTIONS, 'kpi:write', 'presence:write', 'direction:read', ...COURRIER_ACTIONS, ...CONTRACT_ACTIONS, ...PARC_ACTIONS, ...DOCS_ACTIONS, ...REQUEST_ACTIONS, ...LEGAL_ACTIONS,
-    'chantiers:read', 'chantiers:write', 'lieux:write', 'marketing:read', 'marketing:generate', 'marketing:validate', ...SELF_SERVICE,
+    'chantiers:read', 'chantiers:write', 'lieux:write', 'marketing:read', 'marketing:generate', 'marketing:validate',
+    ...QHSE_ACTIONS.filter(p => p !== 'qhse:settings'), ...SELF_SERVICE, // QHSE : tout sauf les réglages (Direction générale)
   ]),
 };
 
@@ -716,6 +718,15 @@ const PERMISSION_CATALOG = [
     ['marketing:generate', 'Faire préparer et rédiger des contenus', 'Créer une campagne, demander à l’IA un concept, un calendrier ou des variantes, modifier un contenu, le soumettre à validation, créer le brouillon de newsletter (avec le droit Newsletter)'],
     ['marketing:validate', 'Valider, refuser et marquer publié ou planifié', 'Responsable de la communication : relire les contenus préparés par l’IA, les valider ou les refuser avec un motif, puis les marquer planifiés ou publiés (aucune publication automatique)'],
     ['marketing:settings', 'Superviser le Marketing & Communication', 'Direction générale : modèle de l’IA, plafond de dépense, taux, arrêt d’urgence, ton de la marque, validation des campagnes'],
+  ] },
+  { group: 'ERP · QHSE', items: [
+    ['qhse:read', 'Consulter le QHSE', 'Tableau de bord, contrôles journaliers et hebdomadaires, inspections et audits, actions correctives (les chantiers dont on est le conducteur, ou tous avec la portée « tous les chantiers »)'],
+    ['qhse:control', 'Saisir les contrôles de chantier', 'Contrôle journalier (qualité, hygiène, sécurité, environnement) et synthèse hebdomadaire de ses chantiers ; photos et remarques ; ouvriers ne respectant pas les consignes'],
+    ['qhse:all', 'Portée : tous les chantiers', 'Contrôles, audits et actions de tous les chantiers (service des ressources humaines, directeur des exploitations) ; remarques de sécurité de la fiche employé. Sans ce droit, on ne voit que les chantiers dont on est le conducteur'],
+    ['qhse:audit', 'Inspections et audits', 'Planifier ou mener une inspection (planifiée ou inopinée) sur un chantier ou au siège : grille Q/H/S/E, constats avec gravité'],
+    ['qhse:actions', 'Actions correctives', 'Ouvrir une action corrective (responsable, échéance), la modifier, la lever avec sa preuve ou l’annuler ; le responsable d’une action la fait avancer sans ce droit'],
+    ['qhse:validate', 'Valider les contrôles hebdomadaires et les audits', 'Valider ou refuser (motif) la synthèse hebdomadaire d’un chantier et les audits réalisés'],
+    ['qhse:settings', 'Régler le QHSE', 'Grilles de contrôle de chaque volet, seuil de sécurité, heure du contrôle du jour, délais des actions correctives'],
   ] },
   { group: 'ERP · Chantiers', items: [
     ['chantiers:read', 'Consulter les chantiers', 'Planning, phases, tâches, budget et coûts de tous les chantiers (le conducteur nommé voit et gère le sien sans autre droit)'],
@@ -1636,6 +1647,7 @@ const INFO_AUDIENCES = {
   compta: { label: 'Comptabilité', hint: 'Comptes qui saisissent les écritures ou les achats', perms: ['compta:entries', 'achats:write', 'achats:validate'], module: 'compta' },
   juridique: { label: 'Juridique', hint: 'Comptes qui gèrent le Juridique', perms: ['juridique:deeds', 'juridique:litigation', 'juridique:guarantees', 'juridique:settings'], module: 'juridique' },
   marketing: { label: 'Marketing & Communication', hint: 'Comptes qui valident les contenus (responsable de la communication)', perms: ['marketing:validate'], module: 'marketing' },
+  qhse: { label: 'QHSE', hint: 'Comptes qui valident les contrôles hebdomadaires et les audits (direction des exploitations, ressources humaines, responsable QHSE)', perms: ['qhse:validate'], module: 'qhse' },
   sav: { label: 'Client & SAV', hint: 'Comptes qui traitent les réclamations', perms: ['sav:edit', 'sav:status', 'sav:comment'], module: 'sav' },
   chantiers: { label: 'Chantiers', hint: 'Gestionnaires des chantiers', perms: ['chantiers:create', 'chantiers:plan', 'chantiers:budget', 'chantiers:settings', 'chantiers:tma'], module: 'chantiers' },
   rh: { label: 'Ressources humaines', hint: 'Comptes qui tiennent les dossiers du personnel', perms: ['rh:files'], module: 'rh' },
@@ -1688,6 +1700,17 @@ const INFO_EVENTS = {
   'marketing.refuse': { module: 'marketing', label: 'Contenu refusé avec motif (le proposant est prévenu)', audiences: [], priority: 'action', requiredPerms: ['marketing:read'] },
   'marketing.plafond': { module: 'marketing', label: 'Dépense de l’IA au seuil d’alerte ou plafond mensuel atteint', audiences: ['dg'], priority: 'urgent', requiredPerms: ['marketing:read'], recipient_hint: 'Accès au Marketing & Communication requis.' },
   'marketing.a_publier': { module: 'marketing', label: 'Contenu validé à publier ou à planifier aujourd’hui', audiences: ['marketing'], priority: 'action', requiredPerms: ['marketing:read'] },
+  'qhse.note_mauvaise': { module: 'qhse', label: 'Contrôle journalier : note « Mauvais » sur la qualité ou l’hygiène', audiences: ['qhse', 'exploitation'], priority: 'action', requiredPerms: ['qhse:read'], recipient_hint: 'Le conducteur du chantier est toujours prévenu ; accès au QHSE requis.' },
+  'qhse.securite_basse': { module: 'qhse', label: 'Contrôle journalier : ouvriers respectant la sécurité sous le seuil réglé', audiences: ['qhse', 'exploitation'], priority: 'urgent', requiredPerms: ['qhse:read'], recipient_hint: 'Le conducteur du chantier est toujours prévenu ; accès au QHSE requis.' },
+  'qhse.controle_manquant': { module: 'qhse', label: 'Contrôle du jour manquant sur un chantier actif (à l’heure réglée)', audiences: [], priority: 'action', requiredPerms: ['qhse:read'], recipient_hint: 'Le conducteur du chantier est prévenu ; services en plus à cocher.' },
+  'qhse.action_retard': { module: 'qhse', label: 'Action corrective en retard', audiences: ['qhse'], priority: 'action', requiredPerms: ['qhse:read'], recipient_hint: 'Le responsable de l’action et le conducteur du chantier sont toujours prévenus.' },
+  'qhse.action_assignee': { module: 'qhse', label: 'Action corrective confiée à une personne (elle est prévenue)', audiences: [], priority: 'action', requiredPerms: ['qhse:read'] },
+  'qhse.action_levee': { module: 'qhse', label: 'Action corrective levée avec sa preuve (l’auteur est prévenu)', audiences: [], requiredPerms: ['qhse:read'] },
+  'qhse.hebdo_a_valider': { module: 'qhse', label: 'Contrôle hebdomadaire soumis, à valider', audiences: ['qhse'], priority: 'action', requiredPerms: ['qhse:read'], recipient_hint: 'Accès au QHSE requis.' },
+  'qhse.audit_planifie': { module: 'qhse', label: 'Inspection ou audit planifié (auditeur et conducteur prévenus)', audiences: [], requiredPerms: ['qhse:read'] },
+  'qhse.audit_a_valider': { module: 'qhse', label: 'Audit réalisé, à valider', audiences: ['qhse'], priority: 'action', requiredPerms: ['qhse:read'], recipient_hint: 'Accès au QHSE requis.' },
+  'qhse.constat_critique': { module: 'qhse', label: 'Constat critique relevé lors d’un audit', audiences: ['qhse', 'exploitation', 'dg'], priority: 'urgent', requiredPerms: ['qhse:read'], recipient_hint: 'Accès au QHSE requis.' },
+  'qhse.decision': { module: 'qhse', label: 'Contrôle hebdomadaire ou audit validé ou refusé (l’auteur est prévenu)', audiences: [], priority: 'action', requiredPerms: ['qhse:read'] },
   'rh.depart': { module: 'rh', label: 'Départ d’un employé (solde de tout compte)', audiences: ['compta'] },
 };
 
@@ -1704,6 +1727,14 @@ const MODULE_SETTINGS = {
     marketing_weekly_prep: { group: 'Préparation hebdomadaire', label: 'L’IA prépare chaque semaine le calendrier et les contenus (1 = oui, 0 = non)', hint: 'Tâche planifiée : une seule préparation par semaine et par campagne validée ; la responsable de la communication relit et valide', default: 1, min: 0, max: 1, perm: 'marketing:settings', who: 'la Direction générale' },
     marketing_prep_weekday: { group: 'Préparation hebdomadaire', label: 'Jour de la préparation (1 = lundi … 7 = dimanche)', hint: 'Le jour choisi, l’IA prépare la semaine suivante ; rattrapée les jours suivants si le serveur était arrêté', default: 5, min: 1, max: 7, perm: 'marketing:settings', who: 'la Direction générale' },
     marketing_posts_per_week: { group: 'Préparation hebdomadaire', label: 'Contenus préparés par semaine et par campagne', hint: 'Nombre de publications du calendrier de la semaine', default: 4, min: 1, max: 14, perm: 'marketing:settings', who: 'la Direction générale' },
+  },
+  qhse: {
+    qhse_safety_threshold_pct: { group: 'Alertes', label: 'Seuil de sécurité (% d’ouvriers respectant les consignes)', hint: 'Sous ce taux, le conducteur, la direction des exploitations et le service QHSE sont prévenus et le chantier remonte dans « À traiter en priorité »', default: 90, min: 50, max: 100, perm: 'qhse:settings', who: 'la Direction générale' },
+    qhse_daily_check_hour: { group: 'Alertes', label: 'Heure limite du contrôle du jour (0-23)', hint: 'Un chantier en cours sans contrôle journalier à cette heure (jours ouvrés) prévient son conducteur', default: 17, min: 6, max: 23, perm: 'qhse:settings', who: 'la Direction générale' },
+    qhse_work_saturday: { group: 'Alertes', label: 'Le samedi est un jour de contrôle (1 = oui, 0 = non)', hint: 'Par défaut, du lundi au vendredi hors jours fériés (calendrier des Ressources humaines)', default: 0, min: 0, max: 1, perm: 'qhse:settings', who: 'la Direction générale' },
+    qhse_due_critique_days: { group: 'Actions correctives : échéance proposée', label: 'Gravité critique (jours)', hint: 'Échéance proposée à l’ouverture d’une action ; modifiable action par action', default: 3, min: 1, max: 90, perm: 'qhse:settings', who: 'la Direction générale' },
+    qhse_due_majeure_days: { group: 'Actions correctives : échéance proposée', label: 'Gravité majeure (jours)', hint: 'Échéance proposée à l’ouverture d’une action ; modifiable action par action', default: 15, min: 1, max: 180, perm: 'qhse:settings', who: 'la Direction générale' },
+    qhse_due_mineure_days: { group: 'Actions correctives : échéance proposée', label: 'Gravité mineure (jours)', hint: 'Échéance proposée à l’ouverture d’une action ; modifiable action par action', default: 30, min: 1, max: 365, perm: 'qhse:settings', who: 'la Direction générale' },
   },
   commercial: {
     vefa_due_days: { group: 'Appels de fonds VEFA', label: 'Délai de paiement d’un appel de fonds (jours)', hint: 'Délai laissé à l’acquéreur pour régler un appel de fonds, pour les programmes sans plan VEFA propre (un plan de programme garde son délai)', default: 15, min: 1, max: 90, perm: 'vefa:write', who: 'le responsable des appels de fonds' },
@@ -1861,7 +1892,7 @@ module.exports = {
   APPRO_ACTIONS, APPRO_ORDER_STATUSES, APPRO_PENDING_STATUSES, APPRO_QUOTE_STATUSES, APPRO_MOVE_KINDS, stockQuantityUnits, approAmounts, approRequiresDirection, approApproverRefusal, approDeciderRefusal, approParties, stockHistoryAllows, approReceiptAmounts, stockPostingDateRefusal,
   CHANTIER_ACTIONS, WORKSITE_STATUSES, WORKSITE_OPEN, WORKSITE_ZONES, TASK_STATUSES, PHASE_STATES, lotInZone, phaseState, worksiteProgress, phaseRefusal,
   CHANTIER_SETTINGS, budgetAlertLevel, PLACE_KINDS, DECLARATION_STATUSES, deliveryForecast, deliveryDelay, SITUATION_STATUSES, situationAmounts,
-  INFO_AUDIENCES, INFO_EVENTS, NOTIF_SOUNDS, MARKETING_ACTIONS,
+  INFO_AUDIENCES, INFO_EVENTS, NOTIF_SOUNDS, MARKETING_ACTIONS, QHSE_ACTIONS,
   DEED_STEPS, DEED_STEP_KEYS, deedProgress, deedStepRefusal, LITIGATION_ORIGINS, LITIGATION_STAGES, LITIGATION_OUTCOMES, litigationReminder,
   GUARANTEE_DIRECTIONS, DEFAULT_GUARANTEE_KINDS, GUARANTEE_STATUSES, guaranteeDeadline, LEGAL_SETTINGS, unpaidAge, LEGAL_ACTIONS,
   DOC_KINDS, DOC_AUDIENCES, DOC_STATUSES, DOC_ACTION_STATUSES, docReference, readReminder,

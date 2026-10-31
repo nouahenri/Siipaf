@@ -249,18 +249,20 @@ async function overview(db, now = new Date()) {
   const rh = require('./rh');
   const { departmentReport } = require('./performance');
   const { savStats } = require('./sav');
-  const [commercial, projects, collections, finance, staff, payroll, performance, sav, administration, juridique, worksites, achats] = await Promise.all([
+  const [commercial, projects, collections, finance, staff, payroll, performance, sav, administration, juridique, worksites, achats, qhse] = await Promise.all([
     commercialPart(db, now), projectsPart(db, now), collectionsPart(db), ct.dashboard(db),
     rh.dashboard(db, isoDay(now)), payrollPart(db, now), departmentReport(db, now.getFullYear(), { now }), savStats(db, now), adminPart(db, now), legalPart(db),
     worksitesPart(db, now),
     require('./appro').dashboard(db),
+    require('./qhseSuivi').directionPart(db, now),
   ]);
   // « À traiter en priorité » : les délais dépassés du Juridique et les décisions des chantiers rejoignent ceux de l'Administration générale
-  const attention = [...administration.attention, ...juridique.attention, ...worksites.attention].sort((a, b) => String(a.date || '').localeCompare(String(b.date || '')));
-  administration.attention_total += juridique.attention.length + worksites.attention.length;
+  const attention = [...administration.attention, ...juridique.attention, ...worksites.attention, ...qhse.attention].sort((a, b) => String(a.date || '').localeCompare(String(b.date || '')));
+  administration.attention_total += juridique.attention.length + worksites.attention.length + qhse.attention.length;
   delete worksites.attention;
   administration.attention = attention.slice(0, 15);
   delete juridique.attention;
+  delete qhse.attention;
   const withSales = projects.filter(p => p.dossiers);
   return {
     at: isoTime(now),
@@ -292,6 +294,7 @@ async function overview(db, now = new Date()) {
     },
     administration,
     juridique,
+    qhse,
   };
 }
 

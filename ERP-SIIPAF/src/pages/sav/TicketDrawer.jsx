@@ -6,6 +6,7 @@ import { Drawer, Field, Skeleton, ErrorBox, Badge } from '@admin/components/ui';
 import { date, dateTime, fcfa, relative } from '@admin/lib/format';
 import { useSavMeta, SavStatus, Priority, Overdue } from '../../components/SavBits';
 import { PhotoPicker, Thumbs } from '../../components/Photos';
+import { SavQhse } from '../qhse/Links';
 import { SOURCE_LABELS, WARRANTY_SHORT, INTERVENTION_LABELS } from '../../lib/sav';
 
 // Libellé des boutons de passage de statut
@@ -114,6 +115,8 @@ export default function TicketDrawer({ id, onClose, onChange }) {
           )}
 
           <Interventions ticket={d} write={can('sav:interventions')} onDone={() => run(() => Promise.resolve(), null)} />
+
+          <SavQhse ticket={d} />
 
           <section>
             <h3 className="erp-h3">Échanges</h3>

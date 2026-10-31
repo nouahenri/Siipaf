@@ -5,7 +5,7 @@
  */
 import {
   Banknote, Wallet, Landmark, HardHat, Gauge, Target, Users, UserMinus, LifeBuoy, AlarmClock, Star, Scale, ReceiptText, Briefcase,
-  Building, Mail, FileClock, Truck, Inbox, FileText, ListChecks, Stamp, ShieldHalf, Flag, Handshake, CalendarClock, Boxes,
+  Building, Mail, FileClock, Truck, Inbox, FileText, ListChecks, Stamp, ShieldHalf, Flag, Handshake, CalendarClock, Boxes, ShieldAlert, SprayCan, Leaf, ClipboardCheck,
 } from 'lucide-react';
 import { useState } from 'react';
 import { Link } from 'react-router-dom';
@@ -25,7 +25,7 @@ const ATTENTION = {
   courrier: { icon: Mail, label: 'Courrier' }, contrats: { icon: FileClock, label: 'Contrats' },
   parc: { icon: Truck, label: 'Parc' }, documents: { icon: FileText, label: 'Documents internes' },
   litiges: { icon: Scale, label: 'Litiges' }, cautions: { icon: ShieldHalf, label: 'Cautions' }, impayes: { icon: AlarmClock, label: 'Impayés' },
-  chantiers: { icon: HardHat, label: 'Chantiers' },
+  chantiers: { icon: HardHat, label: 'Chantiers' }, qhse: { icon: ShieldAlert, label: 'QHSE' },
 };
 
 /** Performance par service sur la période choisie (année, trimestre, mois) : mêmes scores que RH › Performance et entretiens. */
@@ -68,7 +68,7 @@ export default function Direction() {
   const d = res.data;
   if (res.error) return <ErrorBox error={res.error} />;
   if (!d) return <div className="grid grid-4">{[1, 2, 3, 4].map(i => <Skeleton key={i} h={110} />)}</div>;
-  const { commercial: c, chantiers: ch, finance: f, rh, sav, administration: a, juridique: j } = d;
+  const { commercial: c, chantiers: ch, finance: f, rh, sav, administration: a, juridique: j, qhse: q } = d;
   const lastPay = rh.payroll[rh.payroll.length - 1];
   const withSales = ch.projects.filter(p => p.dossiers || p.lots);
   const w = ch.worksites;
@@ -241,6 +241,23 @@ export default function Direction() {
           </Card>
         )}
       </Section>
+
+      {q && (
+        <Section icon={ShieldAlert} title="QHSE — qualité, hygiène, sécurité, environnement" to="/qhse">
+          <div className="grid grid-4">
+            <Kpi to="/qhse" icon={Gauge} label="Qualité (note moyenne, 30 j)" count={q.qualite_avg == null ? null : Math.round(q.qualite_avg * 10)} format={v => (v / 10).toLocaleString('fr-FR', { minimumFractionDigits: 1 })} foot={`${num(q.worksites)} chantier(s) suivi(s) · ${num(q.bad_7d)} note(s) « Mauvais » sur 7 jours`} />
+            <Kpi to="/qhse" icon={SprayCan} label="Hygiène (note moyenne, 30 j)" count={q.hygiene_avg == null ? null : Math.round(q.hygiene_avg * 10)} format={v => (v / 10).toLocaleString('fr-FR', { minimumFractionDigits: 1 })} foot="de 1 (Mauvais) à 4 (Très bon)" />
+            <Kpi to="/qhse" icon={ShieldAlert} label="Sécurité : ouvriers conformes" count={q.safety_avg == null ? null : Math.round(q.safety_avg)} format={v => `${v} %`} tint={q.safety_avg != null && q.safety_avg < q.threshold ? 'amber' : undefined} foot={`seuil ${q.threshold} % · ${num(q.low_safety_7d)} contrôle(s) sous le seuil sur 7 jours`} />
+            <Kpi to="/qhse" icon={Leaf} label="Environnement : conformité" count={q.env_avg == null ? null : Math.round(q.env_avg)} format={v => `${v} %`} foot="points de contrôle conformes" />
+          </div>
+          <div className="grid grid-4">
+            <Kpi to="/qhse/controles" icon={ClipboardCheck} label="Contrôles du jour manquants" count={q.missing_today} tint={q.missing_today ? 'amber' : undefined} foot="chantiers en cours sans contrôle aujourd’hui" />
+            <Kpi to="/qhse/actions" icon={ListChecks} label="Actions correctives ouvertes" count={q.open_actions} tint={q.late_actions ? 'amber' : undefined} foot={`${num(q.late_actions)} en retard`} />
+            <Kpi to="/qhse/hebdomadaires?etat=a_valider" icon={ShieldHalf} label="Synthèses hebdomadaires à valider" count={q.weekly_to_validate} />
+            <Kpi to="/qhse/audits?etat=a_valider" icon={Stamp} label="Audits à valider" count={q.audits_to_validate} />
+          </div>
+        </Section>
+      )}
 
       {d.achats && <Section icon={Boxes} title="Achats & stocks" to="/achats">
         <ApproSummary data={d.achats} />

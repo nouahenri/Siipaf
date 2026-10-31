@@ -468,3 +468,32 @@ button.gantt-row:focus-visible { outline: 2px solid var(--focus); outline-offset
   .mk-brief { grid-template-columns: minmax(0, 1fr); gap: 2px; }
   .mk-brief dd { margin-bottom: 8px; }
 }
+
+/* QHSE : notes Mauvais / Passable / Bon / Très bon (gros boutons au pouce sur téléphone), points de contrôle, tendances */
+.qhse-rate { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 8px; }
+.qhse-rate button { min-height: 44px; padding: 6px 8px; border: 2px solid var(--border); border-radius: var(--radius-sm); background: var(--surface); color: var(--ink-2); font: inherit; font-weight: 600; font-size: 14px; cursor: pointer; line-height: 1.2; }
+.qhse-rate.big button { min-height: 56px; font-size: 16px; }
+.qhse-rate.small { grid-template-columns: repeat(auto-fit, minmax(84px, 1fr)); gap: 6px; }
+.qhse-rate.small button { min-height: 36px; font-size: 13px; border-width: 1px; }
+.qhse-rate button:hover:not(:disabled) { border-color: var(--border-strong); color: var(--ink); }
+.qhse-rate button:focus-visible { outline: 2px solid var(--focus); outline-offset: 2px; }
+.qhse-rate button:disabled { opacity: .6; cursor: default; }
+.qhse-rate button.on { color: #fff; border-color: transparent; }
+.qhse-rate button[data-r="1"].on, .qhse-rate button[data-a="non_conforme"].on { background: var(--danger); }
+.qhse-rate button[data-r="2"].on { background: var(--warn); }
+.qhse-rate button[data-r="3"].on, .qhse-rate button[data-a="conforme"].on { background: var(--ok); }
+.qhse-rate button[data-r="4"].on { background: color-mix(in srgb, var(--ok) 70%, #000); }
+.qhse-rate button[data-a="sans_objet"].on { background: var(--ink-3); }
+.qhse-points { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; }
+.qhse-points li { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 360px); gap: 8px 16px; align-items: center; padding: 8px 0; border-top: 1px solid var(--border); }
+.qhse-points li:first-child { border-top: 0; }
+.qhse-point-label { overflow-wrap: anywhere; font-size: 14px; }
+.qhse-pillar { display: flex; flex-direction: column; gap: 12px; }
+.qhse-pct { font-size: 28px; font-weight: 700; line-height: 1; }
+.qhse-worker-row { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1.4fr) auto; gap: 8px; align-items: center; }
+.qhse-sticky { position: sticky; bottom: 0; z-index: 5; display: flex; gap: 8px; padding: 12px 0; background: linear-gradient(to top, var(--bg) 70%, transparent); }
+@media (max-width: 760px) {
+  .qhse-points li { grid-template-columns: minmax(0, 1fr); }
+  .qhse-rate.big button { min-height: 60px; }
+  .qhse-worker-row { grid-template-columns: minmax(0, 1fr); }
+}

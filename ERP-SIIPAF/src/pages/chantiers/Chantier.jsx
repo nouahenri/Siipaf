@@ -5,7 +5,7 @@
  */
 import { useState } from 'react';
 import { Link, useNavigate, useParams, useSearchParams } from 'react-router-dom';
-import { ArrowLeft, Pencil, Plus, Check, Trash2, CalendarRange, ListChecks, Wallet, Flag, BookText, Megaphone, Truck, Handshake, ArrowUp, ArrowDown, HardHat, MapPin, Gauge, AlertTriangle, Wrench, ShoppingCart } from 'lucide-react';
+import { ArrowLeft, Pencil, Plus, Check, Trash2, CalendarRange, ListChecks, Wallet, Flag, BookText, Megaphone, Truck, Handshake, ArrowUp, ArrowDown, HardHat, MapPin, Gauge, AlertTriangle, Wrench, ShoppingCart, ShieldAlert } from 'lucide-react';
 import { api } from '@admin/lib/api';
 import { useAuth, useResource, useSaved, useToast } from '@admin/lib/app-context';
 import { Card, Empty, Skeleton, ErrorBox, Field, Modal, Badge, Advance } from '@admin/components/ui';
@@ -16,11 +16,12 @@ import { WorksiteForm } from './Chantiers';
 import { Journal, Progress, Stages, Deliveries } from './Suivi';
 import SousTraitance from './SousTraitance';
 import { Tma, Needs } from './Livraison';
+import { WorksiteQhse } from '../qhse/Links';
 
 const TABS = [
   ['planning', 'Planning', CalendarRange], ['taches', 'Tâches', ListChecks], ['journal', 'Journal', BookText], ['avancement', 'Avancement client', Megaphone],
   ['etapes', 'Étapes et appels de fonds', Flag], ['sous-traitants', 'Sous-traitants', Handshake], ['besoins', 'Besoins en matériaux', ShoppingCart], ['tma', 'TMA', Wrench],
-  ['livraisons', 'Livraisons et réception', Truck], ['budget', 'Budget', Wallet],
+  ['livraisons', 'Livraisons et réception', Truck], ['budget', 'Budget', Wallet], ['qhse', 'QHSE', ShieldAlert],
 ];
 
 export default function Chantier() {
@@ -31,7 +32,8 @@ export default function Chantier() {
   const refs = useChantierRefs();
   const res = useResource(`${CH}/${id}`);
   const [editing, setEditing] = useState(false);
-  const tab = TABS.some(t => t[0] === params.get('onglet')) ? params.get('onglet') : 'planning';
+  const tabs = TABS.filter(t => t[0] !== 'qhse' || can('qhse:read'));
+  const tab = tabs.some(t => t[0] === params.get('onglet')) ? params.get('onglet') : 'planning';
   const setTab = t => setParams(t === 'planning' ? {} : { onglet: t }, { replace: true });
   const w = res.data;
   if (res.error) return <div className="stack"><BackLink /><ErrorBox error={res.error} /></div>;
@@ -68,7 +70,7 @@ export default function Chantier() {
       </Card>
 
       <div className="tabs" role="tablist">
-        {TABS.map(([k, l, Icon]) => <button key={k} role="tab" aria-selected={tab === k} className={`tab ${tab === k ? 'active' : ''}`} onClick={() => setTab(k)}><Icon className="ico" />{l}</button>)}
+        {tabs.map(([k, l, Icon]) => <button key={k} role="tab" aria-selected={tab === k} className={`tab ${tab === k ? 'active' : ''}`} onClick={() => setTab(k)}><Icon className="ico" />{l}</button>)}
       </div>
       {tab === 'planning' && <Planning w={w} refs={refs} onChange={update} />}
       {tab === 'taches' && <Tasks w={w} refs={refs} onChange={update} />}
@@ -80,6 +82,7 @@ export default function Chantier() {
       {tab === 'tma' && <Tma w={w} />}
       {tab === 'livraisons' && <Deliveries w={w} refs={refs} />}
       {tab === 'budget' && <Budget w={w} refs={refs} onChange={update} />}
+      {tab === 'qhse' && <WorksiteQhse w={w} />}
 
       {editing && <WorksiteForm worksite={w} refs={refs} onClose={() => setEditing(false)} onSaved={data => { setEditing(false); update(data); }} />}
       {can('chantiers:create') && <DeleteWorksite w={w} onDeleted={() => navigate('/chantiers/liste')} />}

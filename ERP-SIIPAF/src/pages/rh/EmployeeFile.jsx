@@ -3,6 +3,7 @@ import { useParams, useSearchParams, useLocation, Link } from 'react-router-dom'
 import { ArrowLeft, Pencil, Upload, Trash2, FileText, Plus, CalendarPlus, Star, Briefcase, KeyRound, ExternalLink, UserX, Truck } from 'lucide-react';
 import { api } from '@admin/lib/api';
 import { useAuth, useResource, useToast, useSaved } from '@admin/lib/app-context';
+import { SafetyRemarks } from '../qhse/Links';
 import { Card, Empty, Skeleton, ErrorBox, Modal, Field, Badge } from '@admin/components/ui';
 import { date, fcfa, initials } from '@admin/lib/format';
 import { RH, hours, hm, today, formData, useRhMeta, thisMonth } from '../../lib/rh';
@@ -48,6 +49,7 @@ export default function EmployeeFile() {
       </div>
       {tab === 'dossier' && !e.active && (can('rh:read') || can('direction:read')) && <Departure employeeId={e.id} />}
       {tab === 'dossier' && <Identity d={d} hr={hr} onSaved={file.reload} />}
+      {tab === 'dossier' && <SafetyRemarks employeeId={e.id} />}
       {tab === 'conges' && <LeaveTab d={d} hr={hr} onChange={file.reload} />}
       {tab === 'documents' && <Documents d={d} hr={can('rh:documents_write')} onChange={file.reload} />}
       {tab === 'carriere' && <Career d={d} hr={can('rh:career')} onChange={file.reload} />}

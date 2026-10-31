@@ -270,3 +270,11 @@ Une notification ne contient **que le titre et le lien** ; le détail s'ouvre av
 
 Reste à faire (modules à venir) : `chantier.besoin_materiel`, `commande.validee`, `livraison.recue`, `stock.seuil_bas` (Achats & stocks), `lot.livre` → SAV (réception, lot 5 des chantiers), `tma.demandee`, `tresorerie.seuil`, journal des événements (§6.2).
 
+
+## QHSE (module du 31/10/2026)
+
+- **Chantiers** : contrôles et audits rattachés au chantier (`qhse_controls.worksite_id`, `qhse_audits.worksite_id`), onglet « QHSE » de la fiche chantier, conducteur (`worksites.manager_id`) prévenu des alertes et de ses actions.
+- **Ressources humaines** : effectif du jour proposé depuis `hr_attendances` (par chantier) ; ouvriers nommés lors d'un contrôle (`qhse_workers`) visibles sur la fiche employé (« Remarques sécurité », portée `qhse:all`).
+- **Client & SAV** : une action corrective peut porter `sav_ticket_id` ; la réclamation affiche ses actions QHSE et l'historique qualité des chantiers du programme.
+- **Administration générale** : section « QHSE » de la Vue Direction et points « À traiter en priorité » (note Mauvais ou sécurité sous le seuil sans action corrective, contrôle du jour manquant, action en retard, synthèse hebdomadaire ou audit à valider).
+- **Événements du circuit** (`qhse.*`) : note Mauvais, sécurité basse, contrôle manquant (tâche horaire), action en retard / confiée / levée, synthèse hebdomadaire et audit à valider, audit planifié, constat critique, décision. Service « QHSE » = comptes qui ont `qhse:validate`.

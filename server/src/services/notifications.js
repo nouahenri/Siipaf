@@ -12,7 +12,7 @@ const { INFO_EVENTS, INFO_AUDIENCES } = require('../lib/domain');
 
 const NOTIF_MODULES = {
   commercial: 'Service commercial', sav: 'Client & SAV', compta: 'Comptabilité', rh: 'Ressources humaines', administration: 'Administration générale',
-  juridique: 'Juridique', chantiers: 'Chantiers', achats: 'Achats & stocks', marketing: 'Marketing & Communication',
+  juridique: 'Juridique', chantiers: 'Chantiers', achats: 'Achats & stocks', marketing: 'Marketing & Communication', qhse: 'QHSE',
 };
 const PRIORITIES = ['info', 'action', 'urgent'];
 

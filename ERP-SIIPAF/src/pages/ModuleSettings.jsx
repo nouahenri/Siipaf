@@ -10,7 +10,7 @@ import { useResource, useSaved } from '@admin/lib/app-context';
 import { Card, Skeleton, ErrorBox, Field } from '@admin/components/ui';
 import NotificationPrefs from '../components/NotificationPrefs';
 
-export default function ModuleSettings({ module }) {
+export default function ModuleSettings({ module, prefs = true }) {
   const url = `/admin/erp/reglages/${module}`;
   const res = useResource(url);
   const saved = useSaved();
@@ -39,7 +39,7 @@ export default function ModuleSettings({ module }) {
 
   return (
     <div className="stack">
-      <NotificationPrefs module={module} />
+      {prefs && <NotificationPrefs module={module} />}
       {res.error ? <ErrorBox error={res.error} /> : !d || !f ? <Skeleton h={220} /> : groups.length > 0 && (
         <form className="stack" onSubmit={save}>
           <ErrorBox error={error} />
