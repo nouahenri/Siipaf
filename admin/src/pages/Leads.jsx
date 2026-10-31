@@ -352,6 +352,7 @@ function LeadDrawer({ id, onClose, onSaved, projects }) {
             <>
               <dl className="dl small">
                 <dt>Source</dt><dd>{SOURCES[d.source] || d.source}</dd>
+                {d.campaign && <><dt>Campagne</dt><dd>{d.campaign.name}{d.utm_medium ? ` · ${d.utm_medium}` : ''}</dd></>}
                 <dt>Créé le</dt><dd>{date(d.created_at)}</dd>
               </dl>
               {d.options.length > 0 && (

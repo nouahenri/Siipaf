@@ -408,6 +408,7 @@ const PARC_ACTIONS = ['parc:read', 'parc:write'];
 const DOCS_ACTIONS = ['docs:publish'];
 const REQUEST_ACTIONS = ['demandes:handle'];
 const LEGAL_ACTIONS = ['juridique:read', 'juridique:write'];
+const MARKETING_ACTIONS = ['marketing:read', 'marketing:generate', 'marketing:validate', 'marketing:settings'];
 // Actions découpées (30/10), pour les listes « l'un de ces droits » (voir PERMISSION_SPLITS)
 const PRESENCE_ACTIONS = ['presence:sheets', 'presence:kiosk', 'presence:correct'];
 const RH_SETTINGS_ACTIONS = ['rh:rules', 'rh:positions', 'rh:heads', 'rh:holidays'];
@@ -503,11 +504,11 @@ const PERMISSIONS = {
   commercial: splitPermissions([
     'projects:read', 'lots:read', 'lots:status', 'leads:read', 'leads:write',
     'appointments:read', 'appointments:write', 'contacts:read', 'sales:read', 'sales:write', 'payments:record',
-    'client_access:write', 'client_messages', 'sav:read', 'commercial:read', 'contacts:handle', ...SELF_SERVICE,
+    'client_access:write', 'client_messages', 'sav:read', 'commercial:read', 'contacts:handle', 'marketing:read', ...SELF_SERVICE,
   ]),
   editeur: splitPermissions([
     'projects:read', 'projects:write', 'plans:write', 'lots:read', 'content:write', 'media:write',
-    'newsletter:read', 'newsletter:write', 'newsletter:send', 'contacts:read', 'contacts:handle', 'testimonials:write', 'settings:write', 'property:write', ...SELF_SERVICE,
+    'newsletter:read', 'newsletter:write', 'newsletter:send', 'contacts:read', 'contacts:handle', 'testimonials:write', 'settings:write', 'property:write', 'marketing:read', 'marketing:generate', ...SELF_SERVICE,
   ]),
   conducteur_travaux: splitPermissions([
     ...APPRO_ACTIONS,
@@ -529,7 +530,7 @@ const PERMISSIONS = {
     'client_access:write', 'client_messages', 'site_updates:write', 'schedule:write', 'settings:write',
     'leads:all', 'leads:assign', 'clients:edit', 'sav:read', ...SAV_ACTIONS, 'commercial:read', 'targets:write', 'vefa:write', 'property:write', 'compta:read',
     'rh:read', ...RH_ACTIONS, 'kpi:write', 'presence:write', 'direction:read', ...COURRIER_ACTIONS, ...CONTRACT_ACTIONS, ...PARC_ACTIONS, ...DOCS_ACTIONS, ...REQUEST_ACTIONS, ...LEGAL_ACTIONS,
-    'chantiers:read', 'chantiers:write', 'lieux:write', ...SELF_SERVICE,
+    'chantiers:read', 'chantiers:write', 'lieux:write', 'marketing:read', 'marketing:generate', 'marketing:validate', ...SELF_SERVICE,
   ]),
 };
 
@@ -709,6 +710,12 @@ const PERMISSION_CATALOG = [
     ['juridique:litigation', 'Litiges', 'Ouvrir, suivre, clore et rouvrir un litige ; étapes et pièces', 'Gérer le Juridique'],
     ['juridique:guarantees', 'Cautions et retenues de garantie', 'Saisir, modifier, libérer et rouvrir', 'Gérer le Juridique'],
     ['juridique:settings', 'Réglages du Juridique', 'Rappels, sortes de litiges et de cautions', 'Gérer le Juridique'],
+  ] },
+  { group: 'ERP · Marketing & Communication', items: [
+    ['marketing:read', 'Consulter le Marketing & Communication', 'Tableau de bord, campagnes, calendrier éditorial, bibliothèque de contenus et résultats par campagne'],
+    ['marketing:generate', 'Faire préparer et rédiger des contenus', 'Créer une campagne, demander à l’IA un concept, un calendrier ou des variantes, modifier un contenu, le soumettre à validation, créer le brouillon de newsletter (avec le droit Newsletter)'],
+    ['marketing:validate', 'Valider, refuser et marquer publié ou planifié', 'Responsable de la communication : relire les contenus préparés par l’IA, les valider ou les refuser avec un motif, puis les marquer planifiés ou publiés (aucune publication automatique)'],
+    ['marketing:settings', 'Superviser le Marketing & Communication', 'Direction générale : modèle de l’IA, plafond de dépense, taux, arrêt d’urgence, ton de la marque, validation des campagnes'],
   ] },
   { group: 'ERP · Chantiers', items: [
     ['chantiers:read', 'Consulter les chantiers', 'Planning, phases, tâches, budget et coûts de tous les chantiers (le conducteur nommé voit et gère le sien sans autre droit)'],
@@ -1628,6 +1635,7 @@ const INFO_AUDIENCES = {
   exploitation: { label: 'Direction des exploitations', hint: 'Comptes qui ouvrent la Vue Direction', perms: ['direction:read'] },
   compta: { label: 'Comptabilité', hint: 'Comptes qui saisissent les écritures ou les achats', perms: ['compta:entries', 'achats:write', 'achats:validate'], module: 'compta' },
   juridique: { label: 'Juridique', hint: 'Comptes qui gèrent le Juridique', perms: ['juridique:deeds', 'juridique:litigation', 'juridique:guarantees', 'juridique:settings'], module: 'juridique' },
+  marketing: { label: 'Marketing & Communication', hint: 'Comptes qui valident les contenus (responsable de la communication)', perms: ['marketing:validate'], module: 'marketing' },
   sav: { label: 'Client & SAV', hint: 'Comptes qui traitent les réclamations', perms: ['sav:edit', 'sav:status', 'sav:comment'], module: 'sav' },
   chantiers: { label: 'Chantiers', hint: 'Gestionnaires des chantiers', perms: ['chantiers:create', 'chantiers:plan', 'chantiers:budget', 'chantiers:settings', 'chantiers:tma'], module: 'chantiers' },
   rh: { label: 'Ressources humaines', hint: 'Comptes qui tiennent les dossiers du personnel', perms: ['rh:files'], module: 'rh' },
@@ -1674,6 +1682,12 @@ const INFO_EVENTS = {
   'versement.a_confirmer': { module: 'compta', label: 'Versement déclaré par un commercial, à confirmer', audiences: ['compta'], priority: 'action', recipient_hint: 'Le commercial est prévenu de la confirmation ou du refus.' },
   'prospect.transfert_demande': { module: 'commercial', label: 'Demande de transfert d’un prospect ou d’un client à valider', audiences: ['commercial_resp'], priority: 'action', recipient_hint: 'Le commercial qui a fait la demande est prévenu de la décision.' },
   'echeance.impayee': { module: 'commercial', label: 'Échéance d’un client impayée', audiences: ['compta'], priority: 'action' },
+  'marketing.a_valider': { module: 'marketing', label: 'Contenu préparé par l’IA ou soumis, à valider', audiences: ['marketing'], priority: 'action', requiredPerms: ['marketing:read'], recipient_hint: 'Accès au Marketing & Communication requis.' },
+  'marketing.campagne_a_valider': { module: 'marketing', label: 'Campagne soumise à la Direction générale', audiences: ['dg'], priority: 'action', requiredPerms: ['marketing:read'], recipient_hint: 'Accès au Marketing & Communication requis.' },
+  'marketing.valide': { module: 'marketing', label: 'Contenu validé (le proposant est prévenu)', audiences: [], requiredPerms: ['marketing:read'] },
+  'marketing.refuse': { module: 'marketing', label: 'Contenu refusé avec motif (le proposant est prévenu)', audiences: [], priority: 'action', requiredPerms: ['marketing:read'] },
+  'marketing.plafond': { module: 'marketing', label: 'Dépense de l’IA au seuil d’alerte ou plafond mensuel atteint', audiences: ['dg'], priority: 'urgent', requiredPerms: ['marketing:read'], recipient_hint: 'Accès au Marketing & Communication requis.' },
+  'marketing.a_publier': { module: 'marketing', label: 'Contenu validé à publier ou à planifier aujourd’hui', audiences: ['marketing'], priority: 'action', requiredPerms: ['marketing:read'] },
   'rh.depart': { module: 'rh', label: 'Départ d’un employé (solde de tout compte)', audiences: ['compta'] },
 };
 
@@ -1682,6 +1696,15 @@ const INFO_EVENTS = {
  * place avant le réglage. `perm` : droits qui modifient le paramètre ; `who` : qui le règle (affiché aux autres).
  */
 const MODULE_SETTINGS = {
+  marketing: {
+    marketing_cap_fcfa: { group: 'Dépenses de l’IA', label: 'Plafond mensuel de dépense de l’IA (FCFA)', hint: 'Au-delà, l’IA ne répond plus (aucune bascule silencieuse) ; 0 bloque l’IA et ne laisse que le mode démonstration', default: 30000, min: 0, max: 20000000, perm: 'marketing:settings', who: 'la Direction générale' },
+    marketing_usd_fcfa: { group: 'Dépenses de l’IA', label: 'Taux de conversion dollar → FCFA', hint: 'Anthropic facture en dollars : les dépenses sont converties en FCFA avec ce taux', default: 600, min: 300, max: 1500, perm: 'marketing:settings', who: 'la Direction générale' },
+    marketing_alert_pct: { group: 'Dépenses de l’IA', label: 'Alerte à (% du plafond)', hint: 'La Direction générale est prévenue quand la dépense du mois atteint ce pourcentage du plafond', default: 80, min: 10, max: 100, perm: 'marketing:settings', who: 'la Direction générale' },
+    marketing_max_output_tokens: { group: 'Dépenses de l’IA', label: 'Longueur maximale d’une réponse de l’IA (jetons)', hint: 'Borne le coût d’une demande ; 4 000 jetons suffisent à une semaine de contenus', default: 4000, min: 500, max: 16000, perm: 'marketing:settings', who: 'la Direction générale' },
+    marketing_weekly_prep: { group: 'Préparation hebdomadaire', label: 'L’IA prépare chaque semaine le calendrier et les contenus (1 = oui, 0 = non)', hint: 'Tâche planifiée : une seule préparation par semaine et par campagne validée ; la responsable de la communication relit et valide', default: 1, min: 0, max: 1, perm: 'marketing:settings', who: 'la Direction générale' },
+    marketing_prep_weekday: { group: 'Préparation hebdomadaire', label: 'Jour de la préparation (1 = lundi … 7 = dimanche)', hint: 'Le jour choisi, l’IA prépare la semaine suivante ; rattrapée les jours suivants si le serveur était arrêté', default: 5, min: 1, max: 7, perm: 'marketing:settings', who: 'la Direction générale' },
+    marketing_posts_per_week: { group: 'Préparation hebdomadaire', label: 'Contenus préparés par semaine et par campagne', hint: 'Nombre de publications du calendrier de la semaine', default: 4, min: 1, max: 14, perm: 'marketing:settings', who: 'la Direction générale' },
+  },
   commercial: {
     vefa_due_days: { group: 'Appels de fonds VEFA', label: 'Délai de paiement d’un appel de fonds (jours)', hint: 'Délai laissé à l’acquéreur pour régler un appel de fonds, pour les programmes sans plan VEFA propre (un plan de programme garde son délai)', default: 15, min: 1, max: 90, perm: 'vefa:write', who: 'le responsable des appels de fonds' },
     commercial_stale_days: { group: 'Suivi des programmes', label: 'Programme à relancer sans point de chantier publié depuis (jours)', hint: 'Signalé « À relancer » dans la Vue Direction quand des dossiers de vente attendent des nouvelles du chantier', default: 60, min: 7, max: 365, perm: 'targets:write', who: 'la direction commerciale' },
@@ -1838,7 +1861,7 @@ module.exports = {
   APPRO_ACTIONS, APPRO_ORDER_STATUSES, APPRO_PENDING_STATUSES, APPRO_QUOTE_STATUSES, APPRO_MOVE_KINDS, stockQuantityUnits, approAmounts, approRequiresDirection, approApproverRefusal, approDeciderRefusal, approParties, stockHistoryAllows, approReceiptAmounts, stockPostingDateRefusal,
   CHANTIER_ACTIONS, WORKSITE_STATUSES, WORKSITE_OPEN, WORKSITE_ZONES, TASK_STATUSES, PHASE_STATES, lotInZone, phaseState, worksiteProgress, phaseRefusal,
   CHANTIER_SETTINGS, budgetAlertLevel, PLACE_KINDS, DECLARATION_STATUSES, deliveryForecast, deliveryDelay, SITUATION_STATUSES, situationAmounts,
-  INFO_AUDIENCES, INFO_EVENTS, NOTIF_SOUNDS,
+  INFO_AUDIENCES, INFO_EVENTS, NOTIF_SOUNDS, MARKETING_ACTIONS,
   DEED_STEPS, DEED_STEP_KEYS, deedProgress, deedStepRefusal, LITIGATION_ORIGINS, LITIGATION_STAGES, LITIGATION_OUTCOMES, litigationReminder,
   GUARANTEE_DIRECTIONS, DEFAULT_GUARANTEE_KINDS, GUARANTEE_STATUSES, guaranteeDeadline, LEGAL_SETTINGS, unpaidAge, LEGAL_ACTIONS,
   DOC_KINDS, DOC_AUDIENCES, DOC_STATUSES, DOC_ACTION_STATUSES, docReference, readReminder,

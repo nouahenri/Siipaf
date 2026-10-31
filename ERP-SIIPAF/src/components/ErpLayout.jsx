@@ -5,7 +5,7 @@ import {
   Briefcase, Columns3, ListTodo, CalendarDays, Building2, FileSignature, Landmark, Target,
   Calculator, BookOpen, ShoppingCart, FileBarChart, ListTree, Settings2, Contact, Banknote,
   Users, UserRound, Palmtree, Fingerprint, Receipt, UserPlus, GraduationCap, ShieldCheck, UserCog, Building, Mail, FileClock, Truck, BookOpenCheck, Inbox, Rocket,
-  Scale, Stamp, ShieldHalf, AlarmClock, HardHat, MapPinned, Share2, Boxes, PackageCheck,
+  Scale, Stamp, ShieldHalf, AlarmClock, HardHat, MapPinned, Share2, Boxes, PackageCheck, Megaphone, Library,
 } from 'lucide-react';
 import { CHANTIERS, CHANTIERS_SHOW } from '../lib/chantiers';
 import { useAuth, useResource } from '@admin/lib/app-context';
@@ -121,6 +121,18 @@ const MODULES = {
       { to: '/juridique/acces', label: 'Rôles et privilèges', icon: ShieldCheck, perm: 'users:read' },
     ],
   },
+  // Marketing & Communication : l'IA prépare, la responsable de la communication valide, la Direction générale supervise
+  marketing: {
+    label: 'Marketing & Communication', icon: Megaphone, perm: 'marketing:read',
+    items: [
+      { to: '/marketing', label: 'Tableau de bord', icon: LayoutDashboard, end: true, perm: 'marketing:read' },
+      { to: '/marketing/campagnes', label: 'Campagnes', icon: Megaphone, badge: 'campaigns_to_validate', perm: 'marketing:read' },
+      { to: '/marketing/calendrier', label: 'Calendrier éditorial', icon: CalendarDays, badge: 'to_publish', perm: 'marketing:read' },
+      { to: '/marketing/contenus', label: 'Bibliothèque de contenus', icon: Library, badge: 'to_validate', perm: 'marketing:read' },
+      { to: '/marketing/reglages', label: 'Réglages', icon: Settings2 },
+      { to: '/marketing/acces', label: 'Rôles et privilèges', icon: ShieldCheck, perm: 'users:read' },
+    ],
+  },
   // Chantiers : les gestionnaires et la Direction ; le conducteur nommé sur un chantier y voit les siens
   chantiers: {
     label: 'Chantiers', icon: HardHat, perm: CHANTIERS, show: CHANTIERS_SHOW,
@@ -150,6 +162,7 @@ const TITLES = {
   '/commercial/rendez-vous': 'Rendez-vous', '/commercial/parc': 'Parc immobilier', '/commercial/ventes': 'Dossiers de vente', '/compta/ventes': 'Dossiers de vente', '/sav/ventes': 'Dossiers de vente', '/administration/ventes': 'Dossiers de vente',
   '/commercial/vefa': 'Appels de fonds VEFA', '/commercial/objectifs': 'Objectifs et performance', '/administration': 'Vue Direction', '/administration/courrier': 'Courrier arrivée et départ', '/administration/contrats': 'Contrats et échéances', '/administration/parc': 'Parc auto et matériel', '/administration/documents': 'Documents internes', '/demarrer': 'Bien démarrer', '/administration/demandes': 'Demandes internes', '/administration/acces': 'Rôles et privilèges — Administration générale', '/administration/lieux': 'Lieux hors programmes', '/administration/circuit': 'Circuit d’information entre les services', '/administration/reglages': 'Réglages — Administration générale', '/commercial/reglages': 'Réglages — Service commercial', '/sav/reglages': 'Réglages — Client & SAV',
   '/juridique': 'Juridique', '/juridique/actes': 'Ventes et actes', '/juridique/litiges': 'Litiges', '/juridique/cautions': 'Cautions et garanties', '/juridique/impayes': 'Impayés transmis au Juridique', '/juridique/contrats': 'Contrats et échéances', '/juridique/reglages': 'Réglages — Juridique', '/juridique/acces': 'Rôles et privilèges — Juridique',
+  '/marketing': 'Marketing & Communication', '/marketing/campagnes': 'Campagnes', '/marketing/calendrier': 'Calendrier éditorial', '/marketing/contenus': 'Bibliothèque de contenus', '/marketing/reglages': 'Réglages — Marketing & Communication', '/marketing/acces': 'Rôles et privilèges — Marketing & Communication',
   '/chantiers/liste': 'Chantiers', '/chantiers/reglages': 'Réglages — Chantiers', '/chantiers/acces': 'Rôles et privilèges — Chantiers',
   '/compta': 'Comptabilité', '/compta/ecritures': 'Écritures comptables', '/compta/achats': 'Achats et fournisseurs', '/compta/etats': 'États comptables',
   '/compta/plan': 'Plan comptable SYSCOHADA', '/compta/parametres': 'Réglages — Comptabilité', '/compta/paie': 'Paie', '/compta/parc': 'Parc auto et matériel — Comptabilité', '/compta/employes': 'Employés', '/rh': 'Ressources humaines', '/rh/moi': 'Mon espace', '/rh/personnel': 'Personnel', '/rh/conges': 'Congés et absences', '/rh/presences': 'Présences', '/rh/borne': 'Borne de pointage', '/rh/frais': 'Notes de frais', '/rh/recrutement': 'Recrutement', '/rh/competences': 'Compétences et formations', '/rh/objectifs': 'Performance et entretiens', '/rh/reglages': 'Réglages — Ressources humaines', '/commercial/acces': 'Rôles et privilèges — Service commercial', '/compta/acces': 'Rôles et privilèges — Comptabilité', '/rh/acces': 'Rôles et privilèges — Ressources humaines', '/sav/acces': 'Rôles et privilèges — Client & SAV', '/comptes': 'Comptes utilisateurs', '/sav': 'Client & SAV', '/sav/reclamations': 'Réclamations', '/sav/reserves': 'Réserves de livraison', '/sav/interventions': 'Interventions',
@@ -163,7 +176,7 @@ export default function ErpLayout() {
   const [open, setOpen] = useState(false);
   const moduleId = pathname.split('/')[1];
   const mod = MODULES[moduleId];
-  const statsUrl = moduleId === 'achats' && can('appro:read') ? '/admin/erp/achats/dashboard' : moduleId === 'sav' && can('sav:read') ? '/admin/erp/sav/stats' : moduleId === 'commercial' && can('commercial:read') ? '/admin/erp/commercial/dashboard' : moduleId === 'compta' && can('compta:read') ? '/admin/erp/compta/dashboard' : moduleId === 'rh' ? '/admin/erp/rh/badges' : moduleId === 'administration' ? '/admin/erp/direction/badges' : moduleId === 'juridique' ? '/admin/erp/juridique/badges' : moduleId === 'chantiers' ? '/admin/erp/chantiers/badges' : null;
+  const statsUrl = moduleId === 'achats' && can('appro:read') ? '/admin/erp/achats/dashboard' : moduleId === 'sav' && can('sav:read') ? '/admin/erp/sav/stats' : moduleId === 'commercial' && can('commercial:read') ? '/admin/erp/commercial/dashboard' : moduleId === 'compta' && can('compta:read') ? '/admin/erp/compta/dashboard' : moduleId === 'rh' ? '/admin/erp/rh/badges' : moduleId === 'administration' ? '/admin/erp/direction/badges' : moduleId === 'juridique' ? '/admin/erp/juridique/badges' : moduleId === 'chantiers' ? '/admin/erp/chantiers/badges' : moduleId === 'marketing' && can('marketing:read') ? '/admin/erp/marketing/badges' : null;
   const stats = useResource(statsUrl, [pathname]);
   // Mon espace et Demandes du service : dans chaque module, sans passer par Ressources humaines
   const espace = useResource(mod ? '/admin/erp/demandes/espace' : null, [pathname]);

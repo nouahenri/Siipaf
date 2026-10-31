@@ -20,6 +20,7 @@ const MODULE_GROUPS = {
   administration: ['ERP · Administration générale'],
   juridique: ['ERP · Juridique', 'Dossiers d’acquisition'],
   chantiers: ['ERP · Chantiers'],
+  marketing: ['ERP · Marketing & Communication'],
 };
 
 const dashboardUrl = () => `${window.location.protocol}//${window.location.host.replace(/^erp\./, 'admin.')}/roles`;

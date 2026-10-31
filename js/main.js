@@ -2,6 +2,37 @@
    SIIPAF SA — Main JavaScript
 ============================================================ */
 
+/* ── SUIVI DES CAMPAGNES (liens utm_*) ───────────────────────
+   Le premier contact est conservé 30 jours dans le navigateur (localStorage) et transmis par les formulaires
+   (contact, rendez-vous, plan interactif) : window.siipafUtm() renvoie { source, medium, campaign, content } ou undefined.
+   Aucun cookie, aucune donnée personnelle : seulement les paramètres du lien de la campagne. */
+(function () {
+  var KEY = 'siipaf_utm', TTL = 30 * 24 * 3600 * 1000;
+  function read() {
+    try {
+      var v = JSON.parse(localStorage.getItem(KEY) || 'null');
+      if (v && v.campaign && v.at && Date.now() - v.at < TTL) return v;
+      if (v) localStorage.removeItem(KEY);
+    } catch (e) { /* stockage indisponible : pas de suivi */ }
+    return null;
+  }
+  try {
+    var q = new URLSearchParams(location.search);
+    var campaign = (q.get('utm_campaign') || '').trim().slice(0, 60);
+    // Premier contact : un lien de campagne ne remplace pas un contact encore valable
+    if (campaign && !read()) {
+      localStorage.setItem(KEY, JSON.stringify({
+        campaign: campaign, source: (q.get('utm_source') || '').trim().slice(0, 40), medium: (q.get('utm_medium') || '').trim().slice(0, 40),
+        content: (q.get('utm_content') || '').trim().slice(0, 80), at: Date.now(),
+      }));
+    }
+  } catch (e) { /* stockage indisponible : pas de suivi */ }
+  window.siipafUtm = function () {
+    var v = read();
+    return v ? { source: v.source || undefined, medium: v.medium || undefined, campaign: v.campaign, content: v.content || undefined } : undefined;
+  };
+})();
+
 document.addEventListener('DOMContentLoaded', function () {
 
   /* ── LOADER ───────────────────────────────────────────── */

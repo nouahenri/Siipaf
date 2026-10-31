@@ -85,6 +85,7 @@ function createApp(db) {
   admin.use('/erp/documents', require('./routes/erp/docs')(db));
   admin.use('/erp/demandes', require('./routes/erp/requests')(db));
   admin.use('/erp/juridique', require('./routes/erp/juridique')(db));
+  admin.use('/erp/marketing', require('./routes/erp/marketing')(db));
   admin.use('/erp/chantiers', require('./routes/erp/chantiers')(db));
   admin.use('/erp/achats', require('./routes/erp/appro')(db));
   admin.use('/erp/lieux', require('./routes/erp/lieux')(db));
@@ -183,6 +184,9 @@ function createApp(db) {
     setInterval(() => require('./services/chantiers').tick(db).catch(e => console.error('[chantiers]', e.message)), 60 * 60 * 1000).unref();
     // Chantiers : phases en retard (conducteur), livraisons prévues après la date promise (commercial, SAV, Direction)
     setInterval(() => require('./services/chantiersSuivi').tick(db).catch(e => console.error('[chantiers]', e.message)), 60 * 60 * 1000).unref();
+    // Marketing & Communication : l'IA prépare chaque semaine le calendrier et les contenus (une seule fois par semaine et par campagne
+    // validée, aucun envoi ni publication) ; rappel des contenus validés à publier
+    setInterval(() => require('./services/marketing').tick(db).catch(e => console.error('[marketing]', e.message)), 60 * 60 * 1000).unref();
     // Changements de poste planifiés : appliqués à leur date d'effet
     const positions = require('./services/positions');
     setInterval(() => positions.tick(db).catch(e => console.error('[postes]', e.message)), 60 * 60 * 1000).unref();

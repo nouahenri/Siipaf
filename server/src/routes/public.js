@@ -14,6 +14,7 @@ const { projectRefs, stateLabels } = require('../services/refs');
 const { getSettings } = require('../services/settings');
 const { isTest } = require('../config');
 const { publicSiteImages } = require('../services/siteImages');
+const { resolveUtm } = require('../services/marketing');
 
 const phone = z.string().trim().min(6, 'Téléphone trop court').max(40);
 const contactFields = {
@@ -26,6 +27,8 @@ const contactFields = {
   message: z.string().trim().max(2000).optional(),
   // champ piège anti-robots : doit rester vide
   website: z.string().max(0, 'Spam').optional(),
+  // Lien de campagne (premier contact conservé par le site) : retrouvé par son code, écrit à la création de la fiche seulement
+  utm: z.object({ source: z.string().max(40).optional(), medium: z.string().max(40).optional(), campaign: z.string().max(60).optional(), content: z.string().max(80).optional() }).optional(),
 };
 const needsReach = d => d.email || d.phone;
 const reachMsg = { message: 'Indiquez un e-mail ou un téléphone.', path: ['email'] };
@@ -135,7 +138,8 @@ module.exports = function publicRoutes(db) {
       if (!lot) throw new HttpError(404, 'Lot introuvable.');
       data.project_id = lot.project_id;
     }
-    const lead = await db.transaction(trx => findOrCreateLead(trx, { ...data, source: data.lot_id ? 'plan' : 'site' }));
+    const utm = await resolveUtm(db, data.utm);
+    const lead = await db.transaction(trx => findOrCreateLead(trx, { ...data, utm, source: data.lot_id ? 'plan' : 'site' }));
     notifyTeam('Nouvelle manifestation d’intérêt', `${data.name} — ${data.phone || ''} ${data.email || ''}\nLot : ${data.lot_id || '—'}\n${data.message || ''}`);
     res.status(201).json({ ok: true, lead_id: lead.id });
   }));
@@ -145,7 +149,7 @@ module.exports = function publicRoutes(db) {
 
   r.post('/lots/:id/option', formLimiter, ah(async (req, res) => {
     const data = parse(optionSchema, req.body);
-    const result = await placeOption(db, { lotId: Number(req.params.id), leadData: { ...data, source: 'plan' } });
+    const result = await placeOption(db, { lotId: Number(req.params.id), leadData: { ...data, utm: await resolveUtm(db, data.utm), source: 'plan' } });
     const lot = await db('lots').where({ id: result.lot_id }).first();
     notifyTeam('Nouvelle pré-réservation', `${data.name} — ${data.phone || ''} ${data.email || ''}\nLot ${lot.code} — expire le ${result.expires_at.toLocaleString('fr-FR')}`);
     if (data.email) {
@@ -169,8 +173,9 @@ module.exports = function publicRoutes(db) {
 
   r.post('/appointments', formLimiter, ah(async (req, res) => {
     const data = parse(appointmentSchema, req.body);
+    const utm = await resolveUtm(db, data.utm);
     const id = await db.transaction(async trx => {
-      const lead = await findOrCreateLead(trx, { ...data, source: 'site' });
+      const lead = await findOrCreateLead(trx, { ...data, utm, source: 'site' });
       const [apptId] = await trx('appointments').insert({
         lead_id: lead.id, kind: data.kind, starts_at: data.starts_at, project_id: data.project_id || null,
         lot_id: data.lot_id || null, source: 'site', notes: data.message || null,
@@ -192,8 +197,9 @@ module.exports = function publicRoutes(db) {
   r.post('/contact', formLimiter, ah(async (req, res) => {
     const data = parse(contactSchema, req.body);
     const project = data.project ? await db('projects').whereRaw('LOWER(slug) = ?', [data.project.toLowerCase()]).first() : null;
+    const utm = await resolveUtm(db, data.utm);
     const id = await db.transaction(async trx => {
-      const lead = await findOrCreateLead(trx, { ...data, project_id: project && project.id, source: 'site' });
+      const lead = await findOrCreateLead(trx, { ...data, utm, project_id: project && project.id, source: 'site' });
       const [msgId] = await trx('contact_messages').insert({
         name: data.name, email: data.email || null, phone: data.phone || null, subject: data.subject || null,
         message: data.message, project_id: project ? project.id : null, lead_id: lead.id, property_type: data.property_type || null,

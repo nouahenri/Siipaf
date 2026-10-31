@@ -32,6 +32,12 @@ import Litiges from './pages/juridique/Litiges';
 import Cautions from './pages/juridique/Cautions';
 import Impayes from './pages/juridique/Impayes';
 import JuridiqueSettings from './pages/juridique/JuridiqueSettings';
+import MarketingDashboard from './pages/marketing/MarketingDashboard';
+import Campaigns from './pages/marketing/Campaigns';
+import CampaignDetail from './pages/marketing/CampaignDetail';
+import MarketingCalendar from './pages/marketing/Calendar';
+import MarketingLibrary from './pages/marketing/Library';
+import MarketingSettings from './pages/marketing/MarketingSettings';
 import Chantiers from './pages/chantiers/Chantiers';
 import Chantier from './pages/chantiers/Chantier';
 import ChantiersSettings from './pages/chantiers/ChantiersSettings';
@@ -183,6 +189,13 @@ function App() {
         <Route path="juridique/contrats" element={<Contrats />} />
         <Route path="juridique/reglages" element={<Settings module="juridique" perm={JURIDIQUE} who="le service juridique"><JuridiqueSettings /></Settings>} />
         <Route path="juridique/acces" element={<Guard perm="users:read"><ModuleAccess module="juridique" label="Juridique" /></Guard>} />
+        <Route path="marketing" element={<Guard perm="marketing:read"><MarketingDashboard /></Guard>} />
+        <Route path="marketing/campagnes" element={<Guard perm="marketing:read"><Campaigns /></Guard>} />
+        <Route path="marketing/campagnes/:id" element={<Guard perm="marketing:read"><CampaignDetail /></Guard>} />
+        <Route path="marketing/calendrier" element={<Guard perm="marketing:read"><MarketingCalendar /></Guard>} />
+        <Route path="marketing/contenus" element={<Guard perm="marketing:read"><MarketingLibrary /></Guard>} />
+        <Route path="marketing/reglages" element={<Settings module="marketing" perm="marketing:settings" who="la Direction générale"><MarketingSettings /></Settings>} />
+        <Route path="marketing/acces" element={<Guard perm="users:read"><ModuleAccess module="marketing" label="Marketing & Communication" /></Guard>} />
         <Route path="chantiers" element={<Navigate to="/chantiers/liste" replace />} />
         <Route path="chantiers/liste" element={<Chantiers />} />
         <Route path="chantiers/reglages" element={<Settings module="chantiers" perm={['chantiers:read', 'chantiers:create', 'chantiers:plan', 'chantiers:budget', 'chantiers:settings', 'chantiers:tma', 'chantiers:stages', 'chantiers:situations', 'direction:read']} who="les gestionnaires des chantiers"><ChantiersSettings /></Settings>} />

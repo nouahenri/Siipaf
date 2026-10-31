@@ -364,6 +364,7 @@
     btn.disabled = true; btn.innerHTML = '<i class="fas fa-circle-notch fa-spin"></i>';
     var url = mode === 'option' ? '/api/public/lots/' + lot.id + '/option' : '/api/public/interest';
     if (mode !== 'option') data.lot_id = lot.id;
+    if (window.siipafUtm) data.utm = window.siipafUtm();
     fetch(API + url, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(data), credentials: 'omit' })
       .then(function (r) { return r.json().then(function (j) { return { ok: r.ok, j: j }; }); })
       .then(function (res) {

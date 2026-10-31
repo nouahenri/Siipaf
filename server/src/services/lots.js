@@ -56,6 +56,8 @@ async function findOrCreateLead(trx, data, { actor = null } = {}) {
     message: data.message || null,
     property_type: data.property_type || null,
     created_by: data.created_by || null,
+    // Campagne d'origine (liens utm_*) : écrite à la création seulement, jamais dans `source` (qui pilote les alertes)
+    ...(data.utm ? { campaign_id: data.utm.campaign_id, utm_medium: data.utm.utm_medium, utm_content: data.utm.utm_content } : {}),
     ...leadAlert({ source: data.source || 'site', isNew: true }),
   };
   const [id] = await trx('leads').insert(row);

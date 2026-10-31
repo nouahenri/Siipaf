@@ -177,6 +177,7 @@
         project_id: p ? p.id : undefined,
         message: notes || undefined,
         website: val('website'),
+        utm: window.siipafUtm ? window.siipafUtm() : undefined,
       },
       done: 'Merci ! Votre demande de rendez-vous du ' + new Date(val('date') + 'T12:00:00Z').toLocaleDateString('fr-FR', { weekday: 'long', day: 'numeric', month: 'long', timeZone: 'UTC' }) +
         ' à ' + val('time').replace(':', ' h ') + ' est enregistrée. Un conseiller vous recontacte pour la confirmer.',
@@ -198,6 +199,7 @@
       subject: val('project') === 'Autre' ? 'Renseignement général' : undefined,
       message: val('message') + (budget ? '\n\nBudget : ' + budget : ''),
       website: String(fd.get('website') || ''),
+      utm: window.siipafUtm ? window.siipafUtm() : undefined,
     };
     var btn = form.querySelector('button[type="submit"]');
     var original = btn.innerHTML;

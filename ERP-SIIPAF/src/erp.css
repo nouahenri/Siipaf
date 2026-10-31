@@ -438,3 +438,33 @@ button.gantt-row:focus-visible { outline: 2px solid var(--focus); outline-offset
 .receipt-print { max-width: 760px; }
 .receipt-print-amount { display: flex; flex-direction: column; gap: 4px; padding: 16px; border: 1px solid var(--border); border-radius: 8px; }
 .receipt-print-amount strong { font-size: 26px; }
+
+/* Marketing & Communication : cartes de contenus, brief, calendrier éditorial, faits transmis à l'IA */
+.mk-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(min(100%, 320px), 1fr)); gap: 16px; }
+.mk-card { height: 100%; }
+.mk-excerpt { margin: 0; color: var(--ink-2); display: -webkit-box; -webkit-line-clamp: 4; -webkit-box-orient: vertical; overflow: hidden; white-space: pre-wrap; overflow-wrap: anywhere; }
+.mk-brief { display: grid; grid-template-columns: minmax(110px, 170px) minmax(0, 1fr); gap: 8px 16px; margin: 0; }
+.mk-brief dt { color: var(--ink-3); font-size: 13px; }
+.mk-brief dd { margin: 0; overflow-wrap: anywhere; }
+.mk-facts { max-height: 320px; overflow: auto; margin: 12px 0 0; padding: 12px; border-radius: var(--radius-sm); background: var(--surface-2); font-size: 12px; white-space: pre-wrap; overflow-wrap: anywhere; }
+.mk-cal { display: flex; flex-direction: column; border: 1px solid var(--border); border-radius: var(--radius-sm); overflow-x: auto; background: var(--surface); }
+.mk-cal-head, .mk-cal-week { display: grid; grid-template-columns: repeat(7, minmax(120px, 1fr)); min-width: 840px; }
+.mk-cal-head span { padding: 8px 10px; font-size: 12px; font-weight: 600; color: var(--ink-3); background: var(--surface-2); border-bottom: 1px solid var(--border); }
+.mk-cal-day { min-height: 104px; padding: 6px; border-right: 1px solid var(--border); border-bottom: 1px solid var(--border); display: flex; flex-direction: column; gap: 4px; }
+.mk-cal-day:nth-child(7n) { border-right: 0; }
+.mk-cal-day.today { background: color-mix(in srgb, var(--gold-soft) 55%, var(--surface)); }
+.mk-cal-day.past .mk-cal-date { opacity: .55; }
+.mk-cal-date { font-size: 12px; font-weight: 600; color: var(--ink-3); }
+.mk-cal-item { display: flex; flex-direction: column; gap: 1px; text-align: left; padding: 4px 6px; border: 1px solid var(--border); border-left-width: 3px; border-radius: 6px; background: var(--surface); color: var(--ink); font: inherit; font-size: 12px; cursor: pointer; }
+.mk-cal-item:hover { background: var(--surface-2); }
+.mk-cal-item:focus-visible { outline: 2px solid var(--focus); outline-offset: 1px; }
+.mk-cal-item b { font-size: 11px; color: var(--ink-3); }
+.mk-cal-item span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.mk-cal-item.tone-warn { border-left-color: var(--warn); }
+.mk-cal-item.tone-ok { border-left-color: var(--ok); }
+.mk-cal-item.tone-brand { border-left-color: var(--brand); }
+.mk-cal-item.tone-none { border-left-color: var(--border-strong); }
+@media (max-width: 760px) {
+  .mk-brief { grid-template-columns: minmax(0, 1fr); gap: 2px; }
+  .mk-brief dd { margin-bottom: 8px; }
+}

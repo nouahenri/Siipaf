@@ -79,7 +79,9 @@ module.exports = function crmRoutes(db) {
       db('appointments').where({ lead_id: id }).orderBy('starts_at', 'desc'),
       db('contact_messages').where({ lead_id: id }).orderBy('id', 'desc'),
     ]);
-    res.json({ ...lead, options, appointments, messages });
+    // Campagne d'origine (lien utm_* du site) : information seulement, la source de la fiche ne change pas
+    const campaign = lead.campaign_id ? await db('marketing_campaigns').where({ id: lead.campaign_id }).first('id', 'name', 'code') : null;
+    res.json({ ...lead, options, appointments, messages, campaign: campaign || null });
   }));
 
   const leadSchema = z.object({
