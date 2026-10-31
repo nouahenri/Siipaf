@@ -146,7 +146,7 @@ export default function TicketDrawer({ id, onClose, onChange }) {
 
 /**
  * Transmettre au Juridique : « Ouvrir un litige » crée un litige d'origine « Réclamation SAV » lié à la réclamation, au client, au
- * programme et au lot. Réservé au responsable du SAV (sav:assign) et au juriste (juridique:litigation) ; le lien vers le litige
+ * programme et au lot. Ouvert aux agents SAV (sav:edit), au responsable du SAV (sav:assign) et au juriste (juridique:litigation) ; le lien vers le litige
  * n'est cliquable que pour qui a accès au Juridique.
  */
 function Litigation({ ticket, onDone }) {
@@ -154,7 +154,7 @@ function Litigation({ ticket, onDone }) {
   const toast = useToast();
   const [form, setForm] = useState(null); // { amount, note } quand le formulaire est ouvert
   const [busy, setBusy] = useState(false);
-  const canOpen = can('sav:assign') || can('juridique:litigation');
+  const canOpen = can('sav:edit') || can('sav:assign') || can('juridique:litigation');
   const seeLegal = can('juridique:read') || can('juridique:litigation') || can('direction:read');
   const list = ticket.litigations || [];
   const hasOpen = list.some(l => l.status === 'ouvert');

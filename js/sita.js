@@ -229,6 +229,8 @@
         }
         addMessage('bot', res.d.reply, res.d.actions);
         state.messages.push({ role: 'bot', text: res.d.reply, actions: res.d.actions || [] });
+        // Coordonnées laissées à Sita : événement Lead du pixel Meta (une seule fois par conversation, sans aucune donnée personnelle)
+        if (res.d.lead_saved && !state.leadTracked) { if (window.siipafTrack) window.siipafTrack('Lead', { content_name: 'sita' }); state.leadTracked = true; }
         save({});
       })
       .catch(function () { showTyping(false); addMessage('err', 'Connexion impossible pour le moment. Réessayez dans un instant.'); })

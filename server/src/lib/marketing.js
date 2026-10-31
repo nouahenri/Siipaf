@@ -24,7 +24,7 @@ const SEGMENTS = {
 };
 const CAMPAIGN_STATUSES = { brouillon: 'Brouillon', a_valider: 'Soumise à la Direction', validee: 'Validée', archivee: 'Archivée' };
 const CONTENT_STATUSES = { brouillon: 'Brouillon', a_valider: 'À valider', valide: 'Validé', planifie: 'Planifié', publie: 'Publié', archive: 'Archivé' };
-const STEPS = { concept: 'Concept de campagne', contenus: 'Calendrier et contenus', variante: 'Nouvelle version d’un contenu', semaine: 'Préparation hebdomadaire' };
+const STEPS = { concept: 'Concept de campagne', contenus: 'Calendrier et contenus', variante: 'Nouvelle version d’un contenu', semaine: 'Préparation hebdomadaire', ciblage: 'Ciblage Meta et annonces' };
 
 // Tarifs en dollars par million de jetons (à vérifier sur la grille Anthropic avant la mise en production)
 const MODELS = {
@@ -92,6 +92,7 @@ const TOOL_SCHEMAS = {
     required: ['angle', 'key_message', 'audience', 'proof_points', 'cta'],
   },
 };
+TOOL_SCHEMAS.ciblage = require('./meta').TARGETING_TOOL; // ciblage Meta proposé par l'IA (validé par la responsable de la communication)
 TOOL_SCHEMAS.variante = TOOL_SCHEMAS.contenus;
 TOOL_SCHEMAS.semaine = TOOL_SCHEMAS.contenus;
 

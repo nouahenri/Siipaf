@@ -166,8 +166,8 @@ const LEAD_STAGES = ['prospection', 'visite', 'decision', 'choix_bien', 'paiemen
 // À partir du paiement, la personne est un client (code client attribué d'office) : prospect OU client, jamais les deux
 const CLIENT_STAGES = ['paiement', 'contrat', 'notaire', 'livraison', 'sav'];
 
-// Prospects venus d'eux-mêmes (formulaires du site, plan interactif, assistant IA) : signalés à l'équipe
-const PUBLIC_LEAD_SOURCES = ['site', 'plan', 'ia'];
+// Prospects venus d'eux-mêmes (formulaires du site, plan interactif, assistant IA, formulaires de publicité Meta) : signalés à l'équipe
+const PUBLIC_LEAD_SOURCES = ['site', 'plan', 'ia', 'meta_lead'];
 
 /**
  * Alerte posée sur un prospect à sa création ou à une nouvelle demande. Une demande publique (même d'une personne
@@ -727,7 +727,7 @@ const PERMISSION_CATALOG = [
     ['marketing:read', 'Consulter le Marketing & Communication', 'Tableau de bord, campagnes, calendrier éditorial, bibliothèque de contenus et résultats par campagne'],
     ['marketing:generate', 'Faire préparer et rédiger des contenus', 'Créer une campagne, demander à l’IA un concept, un calendrier ou des variantes, modifier un contenu, le soumettre à validation, créer le brouillon de newsletter (avec le droit Newsletter)'],
     ['marketing:validate', 'Valider, refuser et marquer publié ou planifié', 'Responsable de la communication : relire les contenus préparés par l’IA, les valider ou les refuser avec un motif, puis les marquer planifiés ou publiés (aucune publication automatique)'],
-    ['marketing:settings', 'Superviser le Marketing & Communication', 'Direction générale : modèle de l’IA, plafond de dépense, taux, arrêt d’urgence, ton de la marque, validation des campagnes'],
+    ['marketing:settings', 'Superviser le Marketing & Communication', 'Direction générale : modèle de l’IA, plafond de dépense, taux, arrêt d’urgence, ton de la marque, validation des campagnes, connecteurs Meta (jetons, pixel, webhooks) et audiences hachées'],
   ] },
   { group: 'ERP · QHSE', items: [
     ['qhse:read', 'Consulter le QHSE', 'Tableau de bord, contrôles journaliers et hebdomadaires, inspections et audits, actions correctives (les chantiers dont on est le conducteur, ou tous avec la portée « tous les chantiers »)'],
@@ -1723,6 +1723,8 @@ const INFO_EVENTS = {
   'qhse.audit_planifie': { module: 'qhse', label: 'Inspection ou audit planifié (auditeur et conducteur prévenus)', audiences: [], requiredPerms: ['qhse:read'] },
   'qhse.audit_a_valider': { module: 'qhse', label: 'Audit réalisé, à valider', audiences: ['qhse'], priority: 'action', requiredPerms: ['qhse:read'], recipient_hint: 'Accès au QHSE requis.' },
   'qhse.constat_critique': { module: 'qhse', label: 'Constat critique relevé lors d’un audit', audiences: ['qhse', 'exploitation', 'dg'], priority: 'urgent', requiredPerms: ['qhse:read'], recipient_hint: 'Accès au QHSE requis.' },
+  'meta.connexion_erreur': { module: 'marketing', label: 'Connexion Meta en erreur (jeton expiré, permission refusée, formulaire ou message non traité)', audiences: ['dg', 'marketing'], priority: 'urgent', requiredPerms: ['marketing:read'], recipient_hint: 'Accès au Marketing & Communication requis ; une alerte par jour et par connecteur.' },
+  'meta.audience_exportee': { module: 'marketing', label: 'Liste d’audience (clients et prospects hachés) exportée ou envoyée à Meta', audiences: ['dg'], requiredPerms: ['marketing:read'], recipient_hint: 'Traçabilité : qui a exporté, combien de personnes. Jamais de donnée en clair.' },
   'sita.passage_main': { module: 'commercial', label: 'Sita (assistante du site) passe la main : un visiteur demande un conseiller', audiences: ['commercial_resp'], priority: 'action', recipient_hint: 'Si la personne est déjà suivie, le commercial de la fiche est toujours prévenu.' },
   'sita.plafond': { module: 'commercial', label: 'Dépense de Sita au seuil d’alerte ou plafond mensuel atteint', audiences: ['dg'], priority: 'urgent', recipient_hint: 'Plafond réglé dans le dashboard › Contenu du site › Assistante du site.' },
   'qhse.decision': { module: 'qhse', label: 'Contrôle hebdomadaire ou audit validé ou refusé (l’auteur est prévenu)', audiences: [], priority: 'action', requiredPerms: ['qhse:read'] },

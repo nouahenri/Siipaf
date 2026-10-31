@@ -46,11 +46,11 @@ async function mailPerson(person, subject, lines) {
  * IA du site (source « ia ») : les responsables commerciaux sont prévenus d'un prospect à attribuer (`prospect.nouveau`) ; une
  * personne déjà suivie prévient son commercial (`prospect.demande`). `what` : « une pré-réservation du lot A12 »…
  */
-async function announceInbound(db, leadOrId, { what, source = 'site' }) {
+async function announceInbound(db, leadOrId, { what, source = 'site', via: viaOverride = null }) {
   const id = typeof leadOrId === 'object' ? leadOrId.id : leadOrId;
   const lead = await db('leads').where({ id }).first('id', 'name', 'assigned_to', 'phone', 'email');
   if (!lead) return 0;
-  const via = { site: 'le site', plan: 'le plan interactif', ia: 'l’assistante IA du site' }[source] || 'le site';
+  const via = viaOverride || { site: 'le site', plan: 'le plan interactif', ia: 'l’assistante IA du site', meta_lead: 'un formulaire de publicité Meta' }[source] || 'le site';
   const body = [lead.phone, lead.email, `par ${via}`].filter(Boolean).join(' · ');
   if (lead.assigned_to) {
     return inform(db, 'prospect.demande', {

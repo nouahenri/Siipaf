@@ -8,11 +8,11 @@ import { APPT_KINDS } from '@admin/lib/domain';
 import LeadDrawer from './LeadDrawer';
 
 const FILTERS = [
-  ['toutes', 'Toutes'], ['coordonnees', 'A laissé ses coordonnées'], ['rdv', 'Rendez-vous pris'], ['main', 'Passage de main'], ['sans', 'Sans coordonnées'],
+  ['toutes', 'Toutes'], ['site', 'Canal : site'], ['messenger', 'Canal : Messenger'], ['instagram', 'Canal : Instagram'], ['coordonnees', 'A laissé ses coordonnées'], ['rdv', 'Rendez-vous pris'], ['main', 'Passage de main'], ['sans', 'Sans coordonnées'],
 ];
 
 /**
- * Service commercial › Conversations de Sita : les discussions de la conseillère IA du site public. Chaque conversation est
+ * Service commercial › Conversations de Sita : les discussions de la conseillère IA, sur le site public et dans les messages privés de la page Facebook (Messenger) et du compte Instagram (canal indiqué sur chaque conversation). Chaque conversation est
  * rattachée à la fiche du prospect quand le visiteur a laissé ses coordonnées. Cloisonné comme les prospects : sans la portée
  * « toute l’équipe », on ne voit que les conversations de ses propres fiches.
  */
@@ -32,6 +32,7 @@ export default function SitaConversations() {
       {s && (
         <div className="kpi-row" style={{ display: 'flex', gap: 12, flexWrap: 'wrap' }}>
           <Badge>{s.month} conversation(s) ce mois-ci</Badge>
+          {s.by_channel && (s.by_channel.messenger > 0 || s.by_channel.instagram > 0) && <Badge>Site {s.by_channel.site} · Messenger {s.by_channel.messenger} · Instagram {s.by_channel.instagram}</Badge>}
           <Badge tone="ok">{s.with_contact} avec coordonnées</Badge>
           <Badge tone="ok">{s.with_appointment} avec rendez-vous</Badge>
           <Badge tone={s.handed_over ? 'warn' : ''}>{s.handed_over} passage(s) de main</Badge>
@@ -47,11 +48,12 @@ export default function SitaConversations() {
       {!list.data ? <Skeleton h={300} /> : !list.data.length ? <Card><Empty icon={Bot}>Aucune conversation pour ce filtre.</Empty></Card> : (
         <Card bodyClass="">
           <div className="table-wrap"><table className="table">
-            <thead><tr><th>Date</th><th>Visiteur</th><th>Programme</th><th>Premier message</th><th>Suites</th><th className="num">Coût</th></tr></thead>
+            <thead><tr><th>Date</th><th>Canal</th><th>Visiteur</th><th>Programme</th><th>Premier message</th><th>Suites</th><th className="num">Coût</th></tr></thead>
             <tbody>
               {list.data.map(c => (
                 <tr key={c.id} className="row-click" tabIndex={0} onClick={() => setParams({ fiche: c.id })} onKeyDown={e => e.key === 'Enter' && setParams({ fiche: c.id })}>
                   <td>{dateTime(c.last_message_at)}<div className="small muted">{c.messages_count} message(s)</div></td>
+                  <td><Badge tone={c.channel === 'site' ? '' : 'brand'}>{c.channel_label}</Badge></td>
                   <td>{c.lead_name ? <><strong>{c.lead_name}</strong><div className="small muted">{c.lead_phone}{c.assigned_name ? ` · ${c.assigned_name}` : ' · à attribuer'}</div></> : <span className="muted">Anonyme</span>}</td>
                   <td>{c.project_name || '—'}</td>
                   <td className="small">{c.first_message}</td>
@@ -85,7 +87,8 @@ function Detail({ id, onClose, onLead }) {
       {!c ? (res.error ? null : <Skeleton h={300} />) : (
         <div className="stack">
           <div className="stack" style={{ gap: 6 }}>
-            <div className="small muted"><MessageCircle className="ico" aria-hidden="true" />{dateTime(c.created_at)} · {c.messages_count} message(s) · {c.mode === 'ia' ? `IA, coût ${fcfa(c.cost_fcfa)}` : 'mode démonstration'}{c.campaign ? ` · campagne « ${c.campaign} »` : ''}</div>
+            <div className="small muted"><MessageCircle className="ico" aria-hidden="true" />{dateTime(c.created_at)} · {c.channel_label} · {c.messages_count} message(s) · {c.mode === 'ia' ? `IA, coût ${fcfa(c.cost_fcfa)}` : 'mode démonstration'}{c.campaign ? ` · campagne « ${c.campaign} »` : ''}</div>
+            {c.window_until && <div className="small muted">Fenêtre de réponse de 24 h de Meta {new Date(c.window_until) > new Date() ? `ouverte jusqu’au ${dateTime(c.window_until)}` : `fermée depuis le ${dateTime(c.window_until)} : Sita ne peut plus écrire en premier, la personne doit écrire de nouveau`}.</div>}
             {c.project_name && <div className="small"><strong>Programme consulté :</strong> {c.project_name}</div>}
             {c.page_path && <div className="small muted">Page : {c.page_path}</div>}
             {c.lead_id ? (

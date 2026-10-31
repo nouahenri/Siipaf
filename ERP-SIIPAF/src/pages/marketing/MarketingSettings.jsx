@@ -2,6 +2,7 @@
  * Marketing & Communication › Réglages (Direction générale) : état de l'IA (clé présente ou non, jamais la clé), arrêt
  * d'urgence, modèle, plafond mensuel en FCFA et taux de conversion, préparation hebdomadaire, ton de la marque, mots interdits.
  * La clé se saisit dans server/.env (ANTHROPIC_API_KEY), jamais dans l'écran.
+ * Plus bas : connecteurs Meta (identifiants, jetons chiffrés côté serveur, test de connexion, journal) et audiences hachées.
  */
 import { useEffect, useState } from 'react';
 import { Check, Siren, Play, KeyRound } from 'lucide-react';
@@ -10,6 +11,8 @@ import { useResource, useSaved } from '@admin/lib/app-context';
 import { Badge, Card, ErrorBox, Field, Skeleton } from '@admin/components/ui';
 import { fcfa } from '@admin/lib/format';
 import { MK } from '../../lib/marketing';
+import MetaConnectors from '../../components/MetaConnectors';
+import MetaAudiences from '../../components/MetaAudiences';
 
 export default function MarketingSettings() {
   const saved = useSaved();
@@ -111,6 +114,9 @@ export default function MarketingSettings() {
         </Card>
         <div><button className="btn btn-primary" disabled={busy || !f.channels.length}><Check />Enregistrer les réglages</button></div>
       </form>
+
+      <MetaConnectors />
+      <MetaAudiences />
     </div>
   );
 }

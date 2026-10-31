@@ -369,6 +369,7 @@
       .then(function (r) { return r.json().then(function (j) { return { ok: r.ok, j: j }; }); })
       .then(function (res) {
         if (!res.ok) throw new Error(res.j.error || 'Envoi impossible.');
+        if (window.siipafTrack) window.siipafTrack('Lead', { content_name: mode === 'option' ? 'pre_reservation' : 'interet_lot' }); // pixel Meta
         if (mode === 'option') {
           lot.status = 'option'; lot.sellable = false;
           drawLots(); renderLegend(); renderList(); select(lot);

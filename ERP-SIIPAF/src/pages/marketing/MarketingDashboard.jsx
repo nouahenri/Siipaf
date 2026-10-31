@@ -5,7 +5,7 @@
  */
 import { useState } from 'react';
 import { Link } from 'react-router-dom';
-import { Hourglass, CalendarClock, Users, Wallet, Siren, Play, Megaphone } from 'lucide-react';
+import { Hourglass, CalendarClock, Users, Wallet, Siren, Play, Megaphone, PlugZap } from 'lucide-react';
 import { api } from '@admin/lib/api';
 import { useAuth, useResource, useSaved, useToast } from '@admin/lib/app-context';
 import { Badge, Card, Empty, ErrorBox, Skeleton } from '@admin/components/ui';
@@ -13,6 +13,36 @@ import { dateTime, fcfa, num } from '@admin/lib/format';
 import { Kpi } from '../commercial/CommercialDashboard';
 import { MK, ModeBanner, CAMPAIGN_TONES, contentStatus, frDay, fr } from '../../lib/marketing';
 import { ContentDrawer } from '../../components/MarketingContent';
+
+const META_STATE = { non_configure: ['À brancher', ''], a_tester: ['À tester', 'warn'], ok: ['Connecté', 'ok'], erreur: ['Erreur', 'danger'] };
+
+/** Acquisition par les canaux officiels de Meta : prospects par canal, coût de l'IA de ces conversations, état des connecteurs. */
+function MetaAcquisition() {
+  const { can } = useAuth();
+  const res = useResource(`${MK}/meta/overview`);
+  const m = res.data;
+  if (res.error) return <ErrorBox error={res.error} />;
+  if (!m) return <Skeleton h={160} />;
+  return (
+    <Card title="Acquisition par Meta (Facebook, Instagram, publicités)" actions={can('marketing:settings') ? <Link className="small" to="/marketing/reglages">Connecteurs et audiences</Link> : null} bodyClass="">
+      {!m.connected && <div className="card-body"><div className="callout-erp"><PlugZap aria-hidden="true" /><span className="small"><b>Non connecté.</b> Les identifiants Meta (page, compte publicitaire, pixel, jetons) n’ont pas encore été saisis dans Réglages : les formulaires de publicité, Messenger, Instagram et le pixel s’activeront dès qu’ils le seront. Les prospects du site sont déjà comptés ci-dessous.</span></div></div>}
+      <div className="table-wrap"><table className="table">
+        <thead><tr><th>Canal</th><th className="right">Conversations (mois)</th><th className="right">Prospects (mois)</th><th className="right">Prospects (total)</th></tr></thead>
+        <tbody>{m.channels.map(c => (
+          <tr key={c.key}><td>{c.label}</td><td className="right tabular">{c.conversations_month == null ? '—' : num(c.conversations_month)}</td><td className="right tabular"><b>{num(c.prospects_month)}</b></td><td className="right tabular">{num(c.prospects_total)}</td></tr>
+        ))}</tbody>
+      </table></div>
+      <div className="card-body stack" style={{ gap: 8 }}>
+        <p className="small" style={{ margin: 0 }}>Coût de l’IA pour les conversations Messenger et Instagram ce mois-ci : <b>{fcfa(m.ai_cost.fcfa)}</b> (inclus dans le plafond de Sita).{m.errors_30d > 0 ? <> · <b>{m.errors_30d}</b> échange(s) en erreur sur 30 jours.</> : null}</p>
+        <div className="row" style={{ gap: 6, flexWrap: 'wrap' }}>
+          {m.connectors.map(c => <Badge key={c.key} tone={META_STATE[c.state][1]}>{c.label} : {META_STATE[c.state][0]}</Badge>)}
+          <Badge tone={m.pixel.enabled ? 'ok' : ''}>Pixel : {m.pixel.enabled ? 'actif sur le site' : m.pixel.configured ? 'désactivé' : 'à brancher'}</Badge>
+        </div>
+        {m.last_error && <p className="small" role="alert" style={{ margin: 0 }}><b>Dernière erreur ({m.last_error.where}) :</b> {m.last_error.message}</p>}
+      </div>
+    </Card>
+  );
+}
 
 const GEN_TONES = { ok: 'ok', invalide: 'warn', erreur: 'danger', refuse_plafond: 'danger', en_cours: '' };
 const GEN_LABELS = { ok: 'Réussie', invalide: 'Sortie invalide', erreur: 'Erreur', refuse_plafond: 'Refusée (plafond)', en_cours: 'En cours' };
@@ -102,6 +132,8 @@ export default function MarketingDashboard() {
           )}
         </Card>
       </div>
+
+      <MetaAcquisition />
 
       <Card title="Dernières préparations de l’IA" actions={can('marketing:settings') ? <Link className="small" to="/marketing/reglages">Réglages</Link> : null} bodyClass="">
         {!d.last_generations.length ? <div className="card-body"><p className="muted small">L’IA n’a encore rien préparé.</p></div> : (

@@ -55,4 +55,11 @@ function variantPrompt({ campaign, facts, content, instruction, feedback }) {
   return `Réécris ce contenu en une seule variante (même canal, même type) en suivant la consigne de la responsable. Renvoie exactement un élément dans items.\n${data('consigne', instruction || 'Propose une autre approche, plus concrète.')}\n${data('contenu_actuel', content)}\n${data('brief', briefOf(campaign))}\n${data('donnees_verifiees', facts)}${feedbackBlock(feedback)}`;
 }
 
-module.exports = { PROMPT_VERSION, systemPrompt, conceptPrompt, contentsPrompt, variantPrompt };
+/** Ciblage Meta d'une campagne : paramètres de ciblage et textes d'annonce, à valider par la responsable de la communication. */
+function targetingPrompt({ campaign, facts, feedback }) {
+  return `Propose le ciblage de la publicité Meta (Facebook et Instagram) de cette campagne, ainsi que 2 à 3 textes d'annonce. Ciblage : zones (villes, régions, pays), tranche d'âge, langues, centres d'intérêt immobilier au sens de Meta (ex. Immobilier, Investissement immobilier, Construction), diaspora (pays de résidence) si le segment s'y prête, audiences utiles (audience d'interaction : personnes ayant visité le site ou interagi avec la page ou le compte Instagram ; centres d'intérêt immobilier ; audience similaire d'une liste de clients). Tu ne cibles jamais une personne précise, aucune donnée personnelle ni identité collectée sur d'autres pages. Textes d'annonce : titre de 40 caractères au plus, texte principal de 500 caractères au plus, un appel à l'action Meta ; mêmes règles de véracité que tous les contenus (aucun chiffre hors des faits, pas de fausse urgence, pas de promesse de gain). Pour la diaspora aux États-Unis ou au Canada, signale-le dans diaspora.note (catégorie publicitaire spéciale Logement).
+${data('brief', briefOf(campaign))}
+${data('donnees_verifiees', facts)}${feedbackBlock(feedback)}`;
+}
+
+module.exports = { PROMPT_VERSION, systemPrompt, conceptPrompt, contentsPrompt, variantPrompt, targetingPrompt };

@@ -158,8 +158,9 @@ module.exports = function savRoutes(db) {
     res.json(await sav.ticketDetail(db, idParam(req)));
   }));
 
-  // Transmettre au Juridique : le responsable du SAV (sav:assign) ou le juriste (juridique:litigation) ouvre le litige
-  r.post('/tickets/:id/litige', requirePermission('sav:assign', 'juridique:litigation'), ah(async (req, res) => {
+  // Transmettre au Juridique : l'agent SAV qui traite la réclamation (sav:edit), le responsable du SAV (sav:assign) ou le
+  // juriste (juridique:litigation) ouvre le litige (choix du client du 31/10)
+  r.post('/tickets/:id/litige', requirePermission('sav:edit', 'sav:assign', 'juridique:litigation'), ah(async (req, res) => {
     const data = parse(z.object({ amount_fcfa: z.number().int().min(0).max(10000000000).optional().nullable(), note: optText(2000) }), req.body);
     await sav.ticketInScope(db, idParam(req), req.user);
     const litigation = await sav.openLitigation(db, idParam(req), data, req.user);

@@ -22,7 +22,8 @@ function createApp(db) {
   }));
   // 2 Mo pour toutes les requêtes, avant même l'authentification. L'import Sage (un exercice complet pèse plus lourd) n'est
   // pas lu ici : sa route monte son propre analyseur de 25 Mo, APRÈS l'authentification et le contrôle du droit (audit du 30/10).
-  const json = express.json({ limit: '2mb' });
+  // Webhook Meta : le corps brut est gardé (req.rawBody) pour vérifier la signature X-Hub-Signature-256
+  const json = express.json({ limit: '2mb', verify: (req, res, buf) => { if (req.originalUrl.split('?')[0] === '/api/public/meta/webhook') req.rawBody = buf; } });
   app.use((req, res, next) => (req.path === '/api/admin/erp/compta/import/sage' && req.method === 'POST' ? next() : json(req, res, next)));
   app.use(cookieParser());
 
@@ -49,6 +50,7 @@ function createApp(db) {
   app.use('/api/public', publicTestimonials(db));
   app.use('/api/public', require('./routes/erp/recrutement').publicCareers(db));
   app.use('/api/public', require('./routes/sita').publicSita(db));
+  app.use('/api/public', require('./routes/meta').publicMeta(db));
   app.use('/api/auth', require('./routes/auth')(db));
   app.use('/api/client/sav', require('./routes/clientSav')(db));
   app.use('/api/client', require('./routes/client')(db));

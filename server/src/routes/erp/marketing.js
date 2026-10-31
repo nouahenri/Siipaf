@@ -14,6 +14,11 @@ const ai = require('../../services/marketingAi');
 const settingsService = require('../../services/marketingSettings');
 const moduleSettings = require('../../services/moduleSettings');
 const { buildContext } = require('../../services/marketingContext');
+const M = require('../../lib/meta');
+const meta = require('../../services/meta');
+const metaSettings = require('../../services/metaSettings');
+const metaAudiences = require('../../services/metaAudiences');
+const targeting = require('../../services/metaTargeting');
 
 const day = z.string().regex(/^\d{4}-\d{2}-\d{2}$/, 'Date attendue au format AAAA-MM-JJ');
 const channelEnum = z.enum(Object.keys(CHANNELS));
@@ -177,6 +182,64 @@ module.exports = function marketingRoutes(db) {
     await db('marketing_events').insert({ action: 'settings', user_id: req.user.id, note: active ? 'Arrêt d’urgence de l’IA activé.' : 'Arrêt d’urgence de l’IA levé.' });
     res.json(await settingsView());
   }));
+
+  // ─── Meta : connecteurs, journal, audiences (Direction générale) ─────────
+  // Les secrets (jetons, secret de l'application) sont chiffrés en base et ne sont JAMAIS renvoyés : présence et 4 derniers caractères seulement.
+
+  r.get('/meta/overview', ah(async (req, res) => res.json(await meta.overview(db))));
+  r.get('/meta/settings', S, ah(async (req, res) => res.json(await metaSettings.view(db))));
+  r.put('/meta/settings', S, ah(async (req, res) => {
+    const patch = parse(M.settingsPatchSchema, req.body);
+    const changed = await metaSettings.save(db, patch);
+    // Le journal garde les noms des réglages modifiés, jamais leurs valeurs
+    if (changed.length) await db('marketing_events').insert({ action: 'settings', user_id: req.user.id, note: `Connecteurs Meta modifiés : ${changed.join(', ')}`.slice(0, 500) });
+    res.json(await metaSettings.view(db));
+  }));
+  r.post('/meta/test', S, ah(async (req, res) => res.json(await meta.testConnection(db, req.user))));
+  r.post('/meta/subscribe', S, ah(async (req, res) => res.json(await meta.subscribe(db, req.user))));
+  r.get('/meta/events', S, ah(async (req, res) => res.json(await meta.events(db, { kind: req.query.kind ? String(req.query.kind) : null, limit: Number(req.query.limit) || 60 }))));
+
+  const scopeSchema = z.enum(Object.keys(metaAudiences.SCOPES));
+  r.get('/meta/audiences', S, ah(async (req, res) => {
+    const creds = await metaSettings.credentials(db);
+    res.json({
+      scopes: await metaAudiences.preview(db), audiences: await metaAudiences.list(db), min_lookalike: metaAudiences.MIN_LOOKALIKE,
+      connected: !!(creds.ad_account_id && (creds.ads_token || creds.page_token)),
+      interactions: Object.entries(metaAudiences.INTERACTIONS).map(([key, d]) => ({ key, label: d.label, ready: !!creds[d.needs], needs: M.ID_FIELDS[d.needs] })),
+    });
+  }));
+  r.get('/meta/audiences/export.csv', S, ah(async (req, res) => {
+    const out = await metaAudiences.exportCsv(db, parse(scopeSchema, String(req.query.scope || 'tous')), req.user);
+    res.set('Cache-Control', 'no-store').type('text/csv').attachment(out.filename).send(out.csv);
+  }));
+  r.post('/meta/audiences/upload', S, ah(async (req, res) => {
+    const d = parse(z.object({ scope: scopeSchema, name: z.string().trim().max(120).optional() }).strict(), req.body);
+    res.status(201).json(await metaAudiences.uploadList(db, d, req.user));
+  }));
+  r.post('/meta/audiences/interaction', S, ah(async (req, res) => {
+    const d = parse(z.object({ preset: z.enum(Object.keys(metaAudiences.INTERACTIONS)) }).strict(), req.body);
+    res.status(201).json(await metaAudiences.createInteraction(db, d.preset, req.user));
+  }));
+  r.post('/meta/audiences/:id/lookalike', S, ah(async (req, res) => {
+    const d = parse(z.object({ country: z.string().regex(/^[A-Z]{2}$/, 'Code pays à deux lettres (ex. CI)').default('CI'), ratio: z.number().min(0.01).max(0.2).default(0.01) }).strict(), req.body || {});
+    res.status(201).json(await metaAudiences.createLookalike(db, idParam(req), d, req.user));
+  }));
+
+  // ─── Ciblage Meta et annonces d'une campagne (l'IA propose, la responsable de la communication valide) ─────
+
+  r.get('/campaigns/:id/targetings', ah(async (req, res) => res.json(await targeting.list(db, idParam(req)))));
+  r.post('/campaigns/:id/targetings/generate', G, ah(async (req, res) => {
+    const d = parse(z.object({ mode: z.enum(['ia', 'demo']).optional() }).strict(), req.body || {});
+    res.status(201).json(await targeting.generate(db, idParam(req), req.user, { mode: d.mode === 'demo' ? 'demo' : null }));
+  }));
+  r.patch('/targetings/:id', G, ah(async (req, res) => {
+    const d = parse(z.object({ params: M.targetingParamsSchema.optional(), ads: z.array(M.adSchema).min(1).max(5).optional(), rationale: z.string().trim().max(800).nullable().optional() }).strict(), req.body);
+    res.json(await targeting.edit(db, idParam(req), d, req.user));
+  }));
+  r.post('/targetings/:id/submit', G, ah(async (req, res) => res.json(await targeting.submit(db, idParam(req), req.user))));
+  r.post('/targetings/:id/validate', V, ah(async (req, res) => res.json(await targeting.validate(db, idParam(req), req.user))));
+  r.post('/targetings/:id/reject', V, ah(async (req, res) => res.json(await targeting.reject(db, idParam(req), parse(z.object({ reason: z.string().trim().min(3, 'Indiquez le motif du refus.').max(500) }).strict(), req.body).reason, req.user))));
+  r.post('/targetings/:id/archive', V, ah(async (req, res) => res.json(await targeting.archive(db, idParam(req), req.user))));
 
   r.use((req, res, next) => next(new HttpError(404, 'Route inconnue.')));
   return r;

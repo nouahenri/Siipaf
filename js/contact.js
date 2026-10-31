@@ -210,6 +210,7 @@
       .then(function (r) { return r.json().catch(function () { return {}; }).then(function (d) { return { ok: r.ok, d: d }; }); })
       .then(function (res) {
         if (!res.ok) throw new Error(res.d.details ? res.d.details.map(function (x) { return x.message; }).join(' ') : res.d.error);
+        if (window.siipafTrack) window.siipafTrack('Lead', { content_name: req ? 'rendez_vous' : 'formulaire_contact' }); // pixel Meta (consentement géré par meta-pixel.js)
         form.reset();
         autoBudget = '';
         timeSelect.value = '10:00';

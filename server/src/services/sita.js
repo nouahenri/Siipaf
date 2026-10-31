@@ -117,13 +117,15 @@ async function buildFacts(db) {
 // ─── Conversations ────────────────────────────────────────────────────────
 
 const VISITOR_KEY = /^[A-Za-z0-9_-]{16,64}$/;
+// Messenger et Instagram : « messenger-<identifiant propre à la page> » (jamais une donnée personnelle)
+const META_KEY = /^(messenger|instagram)-\d{5,40}$/;
 
 async function projectBySlug(db, slug) {
   if (!slug) return null;
   return (await db('projects').where({ slug: String(slug).slice(0, 80), published: true }).whereNull('archived_at').first('id', 'slug', 'name')) || null;
 }
 
-async function loadConversation(db, visitorKey, { page, utm, lang, ipHash }) {
+async function loadConversation(db, visitorKey, { page, utm, lang, ipHash, channel = 'site', externalId = null }) {
   let conv = await db('sita_conversations').where({ visitor_key: visitorKey }).first();
   const focus = await projectBySlug(db, page?.slug);
   if (conv) {
@@ -138,7 +140,7 @@ async function loadConversation(db, visitorKey, { page, utm, lang, ipHash }) {
   const row = {
     visitor_key: visitorKey, project_id: focus?.id || null, page_path: page?.path ? page.path.slice(0, 160) : null, lang: lang || 'fr',
     campaign_id: tracked?.campaign_id || null, utm_medium: tracked?.utm_medium || null, utm_content: tracked?.utm_content || null, ip_hash: ipHash || null,
-    last_message_at: new Date(),
+    channel, external_id: externalId || null, last_message_at: new Date(),
   };
   const id = insertedId((await db('sita_conversations').insert(row))[0]);
   return { conv: { id, ...row, lead_id: null, appointment_id: null, consent_contact: false, handed_over: false, messages_count: 0, cost_micro_usd: 0, state: null, summary: null, mode: 'demo' }, created: true, focus };
@@ -179,9 +181,9 @@ function makeTools(db, ctx) {
     await db('sita_conversations').where({ id: conv.id }).update(patch);
     Object.assign(conv, patch);
     if (first) {
-      await logActivity(db, lead.id, { kind: 'note', summary: 'Conversation avec Sita (site)', note: `${summary}\n\nConversation n° ${conv.id} : Service commercial › Conversations de Sita.` });
-      notifyTeam('Nouveau prospect via Sita', `${input.name} — ${input.phone || ''} ${input.email || ''}\n${summary}`);
-      await liaisons.announceInbound(db, lead, { what: lead.created ? 'conversation avec Sita : coordonnées laissées' : 'a repris contact en discutant avec Sita', source: 'ia' }).catch(() => {});
+      await logActivity(db, lead.id, { kind: 'note', summary: `Conversation avec Sita (${S.channelLabel(conv.channel)})`, note: `${summary}\n\nConversation n° ${conv.id} : Service commercial › Conversations de Sita.` });
+      notifyTeam(`Nouveau prospect via Sita (${S.channelLabel(conv.channel)})`, `${input.name} — ${input.phone || ''} ${input.email || ''}\n${summary}`);
+      await liaisons.announceInbound(db, lead, { what: lead.created ? 'conversation avec Sita : coordonnées laissées' : 'a repris contact en discutant avec Sita', source: 'ia', via: S.viaLabel(conv.channel) }).catch(() => {});
       liaisons.acknowledge({ name: input.name, email: input.email }, 'Nous avons bien reçu votre demande — SIIPAF', ['Merci d’avoir échangé avec notre assistante : vos coordonnées sont bien enregistrées.', 'Un conseiller SIIPAF vous recontacte très prochainement. Une question ? +225 01 02 27 95 95.']);
     }
     return { lead, created: !!lead.created, first };
@@ -225,7 +227,7 @@ function makeTools(db, ctx) {
           lead_id: leadId, kind: d.kind, starts_at: when, project_id: project?.id || null, source: 'ia', notes: [d.note, 'Demande prise avec Sita'].filter(Boolean).join(' — '),
         }))[0]);
         notifyTeam('Demande de rendez-vous (Sita)', `${S.APPOINTMENT_KINDS[d.kind]} le ${frDateTime(when)}`);
-        await liaisons.announceInbound(db, leadId, { what: `demande de rendez-vous (${S.APPOINTMENT_KINDS[d.kind]}) le ${frDateTime(when)}`, source: 'ia' }).catch(() => {});
+        await liaisons.announceInbound(db, leadId, { what: `demande de rendez-vous (${S.APPOINTMENT_KINDS[d.kind]}) le ${frDateTime(when)}`, source: 'ia', via: S.viaLabel(ctx.conv.channel) }).catch(() => {});
         const lead = await db('leads').where({ id: leadId }).first('name', 'email');
         liaisons.acknowledge(lead, 'Votre demande de rendez-vous — SIIPAF', [`Nous avons bien reçu votre demande de rendez-vous du ${frDateTime(when)}.`, 'Un conseiller SIIPAF vous le confirmera très vite par e-mail ou par téléphone.']);
       }
@@ -239,7 +241,7 @@ function makeTools(db, ctx) {
       const p = S.handoverSchema.safeParse(raw);
       if (!p.success) return fail('Indiquez la raison du passage de main.');
       const number = await relayNumber(db, settings);
-      const intro = `Bonjour SIIPAF, je viens de discuter avec ${settings.name} sur le site${ctx.focus ? ` à propos de ${ctx.focus.name}` : ''}. ${p.data.reason}`.slice(0, 300);
+      const intro = `Bonjour SIIPAF, je viens de discuter avec ${settings.name} ${S.onLabel(ctx.conv.channel)}${ctx.focus ? ` à propos de ${ctx.focus.name}` : ''}. ${p.data.reason}`.slice(0, 300);
       const url = `https://wa.me/${number}?text=${encodeURIComponent(intro)}`;
       ctx.actions = ctx.actions.filter(a => a.type !== 'whatsapp').concat({ type: 'whatsapp', url, label: ctx.lang === 'en' ? 'Write to an adviser on WhatsApp' : 'Écrire à un conseiller sur WhatsApp' });
       const first = !ctx.conv.handed_over;
@@ -295,13 +297,14 @@ async function addMessage(db, conversationId, row) {
 async function handleMessage(db, input) {
   const settings = await getSettings(db);
   if (!settings.enabled) throw new HttpError(403, 'L’assistante n’est pas disponible pour le moment.');
-  if (!VISITOR_KEY.test(String(input.visitorKey || ''))) throw new HttpError(400, 'Identifiant de visiteur invalide.');
+  const channel = S.CHANNELS[input.channel] ? input.channel : 'site';
+  if (!(channel === 'site' ? VISITOR_KEY : META_KEY).test(String(input.visitorKey || ''))) throw new HttpError(400, 'Identifiant de visiteur invalide.');
   const message = S.cleanMessage(input.message);
   if (!message) throw new HttpError(400, 'Écrivez votre message.');
   const lang = settings.languages.includes('en') && input.lang === 'en' ? 'en' : 'fr';
-  const { conv, focus } = await loadConversation(db, input.visitorKey, { page: input.page, utm: input.utm, lang, ipHash: input.ipHash });
+  const { conv, focus } = await loadConversation(db, input.visitorKey, { page: input.page, utm: input.utm, lang, ipHash: input.ipHash, channel, externalId: input.externalId });
   const now = input.now || new Date();
-  const ctx = { settings, conv, focus, lang, now, actions: [], appointment: null, visitorTexts: [] };
+  const ctx = { settings, conv, focus, lang, now, channel, actions: [], appointment: null, visitorTexts: [] };
 
   await addMessage(db, conv.id, { role: 'visiteur', content: message, status: 'ok' });
   conv.messages_count += 1;
@@ -328,7 +331,7 @@ async function handleMessage(db, input) {
       await db('sita_conversations').where({ id: conv.id }).update({ state: JSON.stringify(out.state) }); // le dialogue avance même si la réponse est remplacée
       if (warnings.length) { reply = FALLBACKS.checked(lang); meta.status = 'corrige'; meta.warnings = warnings; await handover('Réponse non vérifiable en démonstration'); } else reply = out.text;
     } else {
-      const system = S.systemPrompt({ settings, facts, focus, now });
+      const system = S.systemPrompt({ settings, facts, focus, now, channel });
       const result = await ai.converse(db, settings, { system, messages: modelMessages(rows), tools: S.TOOLS, execute, check });
       meta = { ...meta, mode: 'ia', model: result.model, status: result.status, usage: result.usage, cost_micro_usd: result.cost_micro_usd, tools: result.tools, warnings: result.warnings, error: result.error || null };
       if (result.status === 'refuse_plafond') { reply = FALLBACKS.cap(lang); await handover('Sita est indisponible (plafond atteint)'); } else if (result.status === 'erreur') { reply = FALLBACKS.error(lang); await handover('Sita est momentanément indisponible'); } else if (!result.text) { reply = FALLBACKS.checked(lang); meta.status = 'corrige'; await handover('Réponse non vérifiable'); } else reply = result.text;
@@ -342,7 +345,7 @@ async function handleMessage(db, input) {
   });
   await db('sita_conversations').where({ id: conv.id }).update({ mode: meta.mode, cost_micro_usd: Number(conv.cost_micro_usd || 0) + meta.cost_micro_usd, last_message_at: new Date() });
   return {
-    reply, actions: ctx.actions, lead_saved: !!conv.lead_id, appointment: ctx.appointment, handed_over: !!conv.handed_over,
+    reply, conversation_id: conv.id, actions: ctx.actions, lead_saved: !!conv.lead_id, appointment: ctx.appointment, handed_over: !!conv.handed_over,
     remaining: Math.max(0, S.MAX_VISITOR_MESSAGES - conv.messages_count),
   };
 }
@@ -369,6 +372,7 @@ function serialize(c, rate) {
     project_id: c.project_id, project_name: c.project_name || null, messages_count: c.messages_count, lead_id: c.lead_id, lead_name: c.lead_name || null,
     lead_phone: c.lead_phone || null, assigned_name: c.assigned_name || null, has_contact: !!c.lead_id, appointment_id: c.appointment_id,
     appointment_at: c.appointment_at ? isoTime(c.appointment_at) : null, appointment_kind: c.appointment_kind || null, handed_over: !!c.handed_over,
+    channel: c.channel || 'site', channel_label: S.channelLabel(c.channel), window_until: c.window_until ? isoTime(c.window_until) : null,
     consent_contact: !!c.consent_contact, summary: c.summary, cost_fcfa: microUsdToFcfa(c.cost_micro_usd, rate), campaign: c.campaign_name || null,
   };
 }
@@ -385,6 +389,7 @@ async function listConversations(db, user, { filter = 'toutes', q = '', limit = 
   else if (filter === 'rdv') query.whereNotNull('c.appointment_id');
   else if (filter === 'main') query.where('c.handed_over', true);
   else if (filter === 'sans') query.whereNull('c.lead_id');
+  else if (S.CHANNELS[filter]) query.where('c.channel', filter);
   if (q) { const s = `%${String(q).trim()}%`; query.where(b => b.where('ld.name', 'like', s).orWhere('ld.phone', 'like', s).orWhere('p.name', 'like', s).orWhere('c.summary', 'like', s)); }
   const rows = await query;
   const first = rows.length ? await db('sita_messages').whereIn('conversation_id', rows.map(r => r.id)).where({ role: 'visiteur' }).orderBy('id').select('conversation_id', 'content') : [];
@@ -406,8 +411,8 @@ async function conversationDetail(db, id, user) {
 }
 
 async function stats(db, user) {
-  const rows = await scope(base(db), user).where('c.created_at', '>=', `${monthOf()}-01`).select('c.lead_id', 'c.appointment_id', 'c.handed_over');
-  return { month: rows.length, with_contact: rows.filter(r => r.lead_id).length, with_appointment: rows.filter(r => r.appointment_id).length, handed_over: rows.filter(r => r.handed_over).length };
+  const rows = await scope(base(db), user).where('c.created_at', '>=', `${monthOf()}-01`).select('c.lead_id', 'c.appointment_id', 'c.handed_over', 'c.channel');
+  return { by_channel: Object.fromEntries(Object.keys(S.CHANNELS).map(k => [k, rows.filter(r => (r.channel || 'site') === k).length])), month: rows.length, with_contact: rows.filter(r => r.lead_id).length, with_appointment: rows.filter(r => r.appointment_id).length, handed_over: rows.filter(r => r.handed_over).length };
 }
 
 module.exports = {

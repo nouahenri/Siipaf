@@ -37,7 +37,8 @@ function publicSita(db) {
     await sita.throttle(db, { visitorKey: d.visitor_id, ip });
     const out = await sita.handleMessage(db, { visitorKey: d.visitor_id, message: d.message, page: d.page, utm: d.utm, lang: d.lang, ipHash: ipHash(ip) });
     res.set('Cache-Control', 'no-store');
-    res.json(out);
+    const { conversation_id: _internal, ...visible } = out; // l'identifiant interne de la conversation ne sort pas vers le site
+    res.json(visible);
   }));
   return r;
 }

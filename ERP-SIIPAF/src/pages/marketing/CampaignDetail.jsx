@@ -13,6 +13,7 @@ import { Badge, Card, Empty, ErrorBox, Field, Skeleton } from '@admin/components
 import { dateTime, num } from '@admin/lib/format';
 import { MK, CAMPAIGN_TONES, ModeBanner, fr } from '../../lib/marketing';
 import { ContentCard, ContentDrawer } from '../../components/MarketingContent';
+import CampaignTargeting from '../../components/CampaignTargeting';
 
 const GEN_LABELS = { ok: 'Réussie', invalide: 'Sortie invalide', erreur: 'Erreur', refuse_plafond: 'Refusée (plafond)', en_cours: 'En cours' };
 
@@ -143,6 +144,8 @@ export default function CampaignDetail() {
           <div className="mk-grid">{c.contents.map(x => <ContentCard key={x.id} c={x} refs={refs} showCampaign={false} onOpen={setOpen} />)}</div>
         )}
       </div>
+
+      <CampaignTargeting campaignId={c.id} campaignOpen={c.status !== 'archivee'} mode={refs.mode} />
 
       <Card title="Résultats de la campagne">
         <div className="grid grid-3">
