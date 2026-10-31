@@ -19,7 +19,8 @@ test('les 6 rôles d’origine sont dans la table, marqués système', async () 
   assert.deepEqual(system, ['super_admin', 'commercial', 'editeur', 'conducteur_travaux', 'comptable', 'resp_exploitation']);
   // Rôle créé pour le client (catalogue Achats & stocks, 25/10) : réglable et supprimable comme un rôle personnalisé
   // Idem pour le Marketing & Communication (30/10) : « Responsable communication »
-  assert.deepEqual(res.body.filter(r => !r.system).map(r => r.id), ['resp_achats', 'resp_communication']);
+  // Idem pour le QHSE (migration qhse) : « Responsable QHSE »
+  assert.deepEqual(res.body.filter(r => !r.system).map(r => r.id), ['resp_achats', 'resp_communication', 'resp_qhse']);
 });
 
 test('créer un rôle avec ses droits, puis lui attribuer un compte qui obtient exactement ces droits', async () => {

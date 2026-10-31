@@ -36,7 +36,7 @@ const nextSunday = () => { const d = new Date(Date.now() + 3 * 86400000); while 
 let db, app, admin, editeur, commercial, commercial2, direction1, project, offer;
 const ids = {};
 const settings = patch => admin.put('/api/admin/assistant').send(patch);
-const notifs = async (agent, event) => ok(await agent.get('/api/admin/erp/notifications?limit=200')).items.filter(n => n.event === event);
+const notifs = async (agent, event) => ok(await agent.get('/api/admin/erp/notifications?limit=100')).items.filter(n => n.event === event);
 
 before(async () => {
   noKey();
@@ -290,7 +290,7 @@ test('IA : passer_la_main renvoie le lien WhatsApp de relais et prévient l’é
 
 test('garde-fous : montant inventé, fausse urgence, remise ou promesse de gain ne partent jamais', async () => {
   // Première réponse fautive, la relance corrige
-  const fix = useKey(scripted(text('Ce lot est à 5 000 000 FCFA, dépêchez-vous, dernière chance !'), text('Je préfère vous renvoyer vers un conseiller pour le prix exact.')));
+  const fix = useKey(scripted(text('Ce lot est à 4 321 000 FCFA, dépêchez-vous, dernière chance !'), text('Je préfère vous renvoyer vers un conseiller pour le prix exact.')));
   const a = ok(await say(11, 'Combien coûte le lot A12 ?'));
   assert.equal(fix.calls.length, 2, 'une relance au plus');
   assert.match(fix.calls[1].messages.at(-1).content, /Montant non vérifié/);

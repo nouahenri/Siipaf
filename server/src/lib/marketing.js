@@ -98,7 +98,7 @@ TOOL_SCHEMAS.semaine = TOOL_SCHEMAS.contenus;
 
 // ─── Contrôles déterministes après génération ─────────────────────────────
 
-const URGENCY = /(derni[èe]re?s? chances?|derni[èe]res? places?|derniers? lots?|offre limit[ée]e|ne (?:le |la |les )?ratez pas|plus que \d+|vite\b|d[èe]p[êe]chez|avant qu['’]il (?:ne )?soit trop tard|dernier jour|stock limit[ée]|profitez (?:vite|maintenant)|urgent|dernier moment|ne tardez pas|il ne reste que)/i;
+const URGENCY = /(derni[èe]re?s? chances?|derni[èe]res? places?|derniers? lots?|offre limit[ée]e|ne (?:le |la |les )?ratez pas|plus que \d+|vite\b|d[éèe]p[êe]chez|avant qu['’]il (?:ne )?soit trop tard|dernier jour|stock limit[ée]|profitez (?:vite|maintenant)|urgent|dernier moment|ne tardez pas|il ne reste que)/i;
 const PROMISE = /(rentabilit[ée] garantie|rendement garanti|gains? garantis?|plus-value garantie|revenus? garantis?|sans (?:aucun )?risque|investissement s[ûu]r à 100|doubl(?:ez|er) votre (?:argent|investissement)|devenez riche|profit assur[ée])/i;
 const SUPERLATIVE = /(le meilleur promoteur|la meilleure|n°\s?1|num[ée]ro (?:un|1)|leader (?:incontest|du march)|unique sur le march[ée]|imbattable|sans concurrence)/i;
 const PERSONAL = /(\b0?[1-9](?:[\s.-]?\d{2}){4}\b|\b\+?225[\s.-]?\d{8,10}\b|[\w.+-]+@[\w-]+\.[\w.-]+)/; // téléphone ou e-mail d'une personne (hors coordonnées de SIIPAF)

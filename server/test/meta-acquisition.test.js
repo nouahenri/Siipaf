@@ -82,7 +82,7 @@ const LEAD_FIELDS = (over = {}) => ({
 let db, admin, commercial, editeur, direction1, respCom;
 let campaign;
 const settings = patch => admin.put(`${MK}/meta/settings`).send(patch);
-const notifs = async (agent, event) => ok(await agent.get('/api/admin/erp/notifications?limit=200')).items.filter(n => n.event === event);
+const notifs = async (agent, event) => ok(await agent.get('/api/admin/erp/notifications?limit=100')).items.filter(n => n.event === event);
 
 before(async () => {
   noKey();

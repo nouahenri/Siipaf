@@ -171,8 +171,8 @@ test('SAV : « Ouvrir un litige » crée un litige d’origine SAV lié à la r�
   assert.match(litigation.notes, new RegExp(`Lot : ${lot.code}`));
   assert.match(litigation.notes, /Programme : /);
   assert.equal(litigation.opponent, 'Client V1');
-  // Juridique prévenu (litige.ouvert), lien du litige visible dans la réclamation, trace interne
-  assert.ok((await unread(adminId, 'litige.ouvert')).some(n => n.dedupe_key === `litige:${litigation.id}:ouvert`));
+  // Juridique prévenu (litige.ouvert ; l’auteur de l’action, ici l’admin, ne l’est jamais), lien du litige visible dans la réclamation, trace interne
+  assert.ok((await unread(juristeId, 'litige.ouvert')).some(n => n.dedupe_key === `litige:${litigation.id}:ouvert`));
   assert.ok(res.body.ticket.litigations.some(l => l.reference === litigation.reference && l.status === 'ouvert'));
   assert.ok((await db('sav_events').where({ ticket_id: ticket.id, kind: 'system' })).some(e => e.body.includes(litigation.reference) && e.internal));
   // Un seul litige ouvert par réclamation

@@ -410,7 +410,7 @@ test('liaisons : fiche employé (remarque sécurité), fiche chantier, réclamat
 });
 
 test('points de contrôle notés « Mauvais » : une seule alerte par contrôle, avec la liste des points, en plus de la note globale', async () => {
-  const mine = async (agent, event) => ok(await agent.get('/api/admin/erp/notifications?limit=200')).items.filter(n => n.event === event);
+  const mine = async (agent, event) => ok(await agent.get('/api/admin/erp/notifications?limit=100')).items.filter(n => n.event === event);
   const before = (await mine(direction1, 'qhse.note_mauvaise')).length;
   const d = day(-40); // loin de la semaine validée plus haut (qui verrouille ses jours)
   const items = n => [{ pillar: 'qualite', label: 'Béton', rating: 1 }, { pillar: 'hygiene', label: 'Propreté', rating: 1 }, { pillar: 'qualite', label: 'Maçonnerie', rating: n }];

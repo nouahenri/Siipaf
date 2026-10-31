@@ -193,6 +193,7 @@ test('cloche du dashboard : « Mes notifications » coupées = ni compteur de no
   const off = (await commercial.get('/api/admin/notifications')).body;
   assert.equal(off.unread, 0);
   assert.equal(off.muted, true);
+  await commercial.put('/api/admin/erp/notifications/preferences').send({ module: 'commercial', enabled: true }); // réactivées : les tests suivants attendent les annonces du commercial
 });
 
 test('options : expiration → commercial du prospect et prospect prévenus', async () => {

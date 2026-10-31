@@ -181,9 +181,11 @@ async function demoReply({ settings, facts, state: previous, message, focus, now
     return done(cut(facts.programmes || [], 4).map(p => availabilityText(p, en)).join('\n') || T('Un conseiller vous confirme les disponibilités.', 'An adviser will confirm availability.'));
   }
   if (t.length <= 30 && /^(bonjour|bonsoir|salut|coucou|hello|hi|hey)\b/.test(t)) return done(T(`Bonjour ! Je suis ${settings.name}. Prix, financement, avancement des chantiers, visites : posez-moi votre question.`, `Hello! I am ${settings.name}. Prices, financing, site progress, visits: ask me anything.`));
-  if (p0 && !/\b(merci|thanks?)\b/.test(t)) {
-    const d = [p0.accroche, p0.localisation || p0.ville].filter(Boolean).join(' — ');
-    return done(`${p0.nom}${d ? ` : ${d}` : ''}.\n${T('Je peux vous donner les prix, le financement, l’avancement ou organiser une visite : que souhaitez-vous ?', 'I can give you prices, financing, progress or arrange a visit: what would you like?')}`);
+  // Présentation du programme seulement s'il est cité dans le message : la page consultée ne suffit pas (une question hors sujet reste hors faits)
+  const cited = programmeOf(message, facts, null);
+  if (cited && !/\b(merci|thanks?)\b/.test(t)) {
+    const d = [cited.accroche, cited.localisation || cited.ville].filter(Boolean).join(' — ');
+    return done(`${cited.nom}${d ? ` : ${d}` : ''}.\n${T('Je peux vous donner les prix, le financement, l’avancement ou organiser une visite : que souhaitez-vous ?', 'I can give you prices, financing, progress or arrange a visit: what would you like?')}`);
   }
   if (/\b(programme|programmes|projet|projets|lotissement|appartement|villa|terrain|maison|house|apartment|land|plot|property)\b/.test(t)) return done(overviewText(facts, en));
   if (/\b(merci|thanks?|thank you)\b/.test(t)) return done(T('Avec plaisir ! N’hésitez pas si vous avez une autre question.', 'My pleasure! Feel free to ask if you have another question.'));

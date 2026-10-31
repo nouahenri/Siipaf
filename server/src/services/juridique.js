@@ -158,7 +158,7 @@ async function announceDeed(db, saleId, userId) {
   // Le commercial du client (lien vers ses ventes) et les services du circuit : Direction générale, exploitation, Comptabilité
   // (écriture « CA à l'acte »), SAV (réglable)
   await inform(db, 'acte.signe', {
-    ...base, direct: d.commercial_id ? [d.commercial_id] : [], directLink: '/commercial/ventes',
+    ...base, direct: d.commercial_id ? [d.commercial_id] : [], directLink: '/commercial/ventes', module: 'commercial',
     link: `/juridique/actes?fiche=${saleId}`, links: { compta: '/compta/ecritures', sav: '/sav/reserves' },
   });
   if (d.client_email) {

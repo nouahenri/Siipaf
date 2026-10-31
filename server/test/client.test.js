@@ -241,6 +241,8 @@ test("journal de chantier : projet, îlot et lot ; points masqués exclus", asyn
 test('messagerie : le client écrit, l’équipe est prévenue, lit et répond', async () => {
   const { agent } = await clientLogin(leadA.client_code, passwords.a);
   const before = sent.length;
+  // Les tests précédents ont déjà produit des messages automatiques de l’équipe (points de chantier, documents, versements…) : ils figurent dans le fil
+  const auto = (await db('client_messages').where({ lead_id: leadA.id })).length;
   let res = await agent.post('/api/client/messages').send({ body: 'Bonjour, quand aura lieu la prochaine visite de chantier ?', sale_id: saleA.id });
   assert.equal(res.status, 201);
   assert.ok(sent.slice(before).some(m => m.to === 'equipe@test.ci' && m.subject.includes(leadA.client_code)));
@@ -250,7 +252,8 @@ test('messagerie : le client écrit, l’équipe est prévenue, lit et répond',
   assert.equal(thread.unread, 1);
   assert.equal((await admin.get('/api/admin/stats')).body.unread_client_messages, 1, 'pastille du menu Messagerie clients');
   res = await admin.get(`/api/admin/leads/${leadA.id}/messages`);
-  assert.equal(res.body.length, 1);
+  assert.equal(res.body.length, auto + 1, 'messages automatiques de l’équipe et message du client');
+  assert.equal(res.body.filter(m => m.sender === 'client').length, 1);
   assert.equal((await admin.get('/api/admin/client-messages')).body.find(t => t.lead_id === leadA.id).unread, 0, 'lu en ouvrant le fil');
 
   const editeur = await login(app, await createUser(db, 'editeur'), 'motdepasse-test-123');
@@ -258,9 +261,9 @@ test('messagerie : le client écrit, l’équipe est prévenue, lit et répond',
 
   res = await admin.post(`/api/admin/leads/${leadA.id}/messages`).send({ body: 'Bonjour Awa, la visite est prévue le 25 octobre.' });
   assert.equal(res.status, 201);
-  assert.equal((await agent.get('/api/client/me')).body.client.unread_messages, 1);
+  assert.equal((await agent.get('/api/client/me')).body.client.unread_messages, auto + 1, 'messages automatiques et réponse de l’équipe non lus');
   res = await agent.get('/api/client/messages');
-  assert.deepEqual(res.body.map(m => m.sender), ['client', 'equipe']);
+  assert.deepEqual(res.body.map(m => m.sender), [...Array(auto).fill('equipe'), 'client', 'equipe']);
   assert.equal((await agent.get('/api/client/me')).body.client.unread_messages, 0);
 });
 
