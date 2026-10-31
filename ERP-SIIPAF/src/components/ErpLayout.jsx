@@ -5,7 +5,7 @@ import {
   Briefcase, Columns3, ListTodo, CalendarDays, Building2, FileSignature, Landmark, Target,
   Calculator, BookOpen, ShoppingCart, FileBarChart, ListTree, Settings2, Contact, Banknote,
   Users, UserRound, Palmtree, Fingerprint, Receipt, UserPlus, GraduationCap, ShieldCheck, UserCog, Building, Mail, FileClock, Truck, BookOpenCheck, Inbox, Rocket,
-  Scale, Stamp, ShieldHalf, AlarmClock, HardHat, MapPinned, Share2, Boxes, PackageCheck, Megaphone, Library, ShieldAlert, SearchCheck, ListChecks, CalendarRange,
+  Scale, Stamp, ShieldHalf, AlarmClock, HardHat, MapPinned, Share2, Boxes, PackageCheck, Megaphone, Library, ShieldAlert, SearchCheck, ListChecks, CalendarRange, Bot,
 } from 'lucide-react';
 import { CHANTIERS, CHANTIERS_SHOW } from '../lib/chantiers';
 import { useAuth, useResource } from '@admin/lib/app-context';
@@ -52,6 +52,7 @@ const MODULES = {
       { to: '/commercial/ventes', label: 'Dossiers de vente', icon: FileSignature, perm: 'sales:read', also: 'commercial:read' },
       { to: '/commercial/vefa', label: 'Appels de fonds VEFA', icon: Landmark, perm: ['commercial:read', 'vefa:read', 'vefa:write'] },
       { to: '/commercial/objectifs', label: 'Objectifs et performance', icon: Target, perm: 'commercial:read' },
+      { to: '/commercial/sita', label: 'Conversations de Sita', icon: Bot, perm: 'commercial:read' },
       // Réglages : « Mes notifications » pour tout compte du module, paramètres pour ceux qui y ont droit
       { to: '/commercial/reglages', label: 'Réglages', icon: Settings2 },
       { to: '/commercial/acces', label: 'Rôles et privilèges', icon: ShieldCheck, perm: 'users:read' },
@@ -160,7 +161,7 @@ const TITLES = {
   '/achats': 'Achats & stocks', '/achats/besoins': 'Besoins des chantiers et des services', '/achats/prix': 'Demandes de prix', '/achats/commandes': 'Bons de commande', '/achats/stocks': 'Stocks et mouvements', '/achats/articles': 'Articles', '/achats/fournisseurs': 'Fournisseurs et contrats', '/achats/reglages': 'Réglages — Achats & stocks', '/achats/acces': 'Rôles et privilèges — Achats & stocks',
   '/': 'Modules', '/commercial': 'Service commercial', '/commercial/pipeline': 'Pipeline commercial', '/commercial/activites': 'Mes activités',
   '/commercial/rendez-vous': 'Rendez-vous', '/commercial/parc': 'Parc immobilier', '/commercial/ventes': 'Dossiers de vente', '/compta/ventes': 'Dossiers de vente', '/sav/ventes': 'Dossiers de vente', '/administration/ventes': 'Dossiers de vente',
-  '/commercial/vefa': 'Appels de fonds VEFA', '/commercial/objectifs': 'Objectifs et performance', '/administration': 'Vue Direction', '/administration/courrier': 'Courrier arrivée et départ', '/administration/contrats': 'Contrats et échéances', '/administration/parc': 'Parc auto et matériel', '/administration/documents': 'Documents internes', '/demarrer': 'Bien démarrer', '/administration/demandes': 'Demandes internes', '/administration/acces': 'Rôles et privilèges — Administration générale', '/administration/lieux': 'Lieux hors programmes', '/administration/circuit': 'Circuit d’information entre les services', '/administration/reglages': 'Réglages — Administration générale', '/commercial/reglages': 'Réglages — Service commercial', '/sav/reglages': 'Réglages — Client & SAV',
+  '/commercial/vefa': 'Appels de fonds VEFA', '/commercial/objectifs': 'Objectifs et performance', '/commercial/sita': 'Conversations de Sita', '/administration': 'Vue Direction', '/administration/courrier': 'Courrier arrivée et départ', '/administration/contrats': 'Contrats et échéances', '/administration/parc': 'Parc auto et matériel', '/administration/documents': 'Documents internes', '/demarrer': 'Bien démarrer', '/administration/demandes': 'Demandes internes', '/administration/acces': 'Rôles et privilèges — Administration générale', '/administration/lieux': 'Lieux hors programmes', '/administration/circuit': 'Circuit d’information entre les services', '/administration/reglages': 'Réglages — Administration générale', '/commercial/reglages': 'Réglages — Service commercial', '/sav/reglages': 'Réglages — Client & SAV',
   '/juridique': 'Juridique', '/juridique/actes': 'Ventes et actes', '/juridique/litiges': 'Litiges', '/juridique/cautions': 'Cautions et garanties', '/juridique/impayes': 'Impayés transmis au Juridique', '/juridique/contrats': 'Contrats et échéances', '/juridique/reglages': 'Réglages — Juridique', '/juridique/acces': 'Rôles et privilèges — Juridique',
   '/marketing': 'Marketing & Communication', '/marketing/campagnes': 'Campagnes', '/marketing/calendrier': 'Calendrier éditorial', '/marketing/contenus': 'Bibliothèque de contenus', '/marketing/reglages': 'Réglages — Marketing & Communication', '/marketing/acces': 'Rôles et privilèges — Marketing & Communication',
   '/qhse': 'QHSE', '/qhse/controles': 'Contrôles journaliers', '/qhse/controles/nouveau': 'Contrôle du jour', '/qhse/hebdomadaires': 'Contrôles hebdomadaires', '/qhse/audits': 'Inspections et audits', '/qhse/actions': 'Actions correctives', '/qhse/reglages': 'Réglages — QHSE', '/qhse/acces': 'Rôles et privilèges — QHSE',

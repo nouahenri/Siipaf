@@ -48,6 +48,7 @@ function createApp(db) {
   app.use('/api/public', require('./routes/public')(db));
   app.use('/api/public', publicTestimonials(db));
   app.use('/api/public', require('./routes/erp/recrutement').publicCareers(db));
+  app.use('/api/public', require('./routes/sita').publicSita(db));
   app.use('/api/auth', require('./routes/auth')(db));
   app.use('/api/client/sav', require('./routes/clientSav')(db));
   app.use('/api/client', require('./routes/client')(db));
@@ -70,6 +71,7 @@ function createApp(db) {
   admin.use(require('./routes/newsletter')(db));
   admin.use(require('./routes/content')(db));
   admin.use(adminTestimonials(db));
+  admin.use(require('./routes/sita').adminSita(db));
   admin.use(require('./routes/clientAdmin')(db));
   admin.use(require('./routes/imports')(db));
   admin.use(require('./routes/portfolio')(db));
@@ -77,6 +79,7 @@ function createApp(db) {
   admin.use('/erp/notifications', require('./routes/erp/notifications')(db));
   admin.use('/erp/reglages', require('./routes/erp/reglages')(db));
   admin.use('/erp/sav', require('./routes/erp/sav')(db));
+  admin.use('/erp/commercial/sita', require('./routes/sita').erpSita(db)); // avant le Service commercial : « sita » n'est pas un identifiant
   admin.use('/erp/commercial', require('./routes/erp/commercial')(db));
   admin.use('/erp/direction', require('./routes/erp/direction')(db));
   admin.use('/erp/courrier', require('./routes/erp/courrier')(db));

@@ -41,6 +41,12 @@ async function calendarOptions(db, from, to, s = null) {
 }
 
 const seesAll = v => v.can('qhse:all');
+/** Super administrateur : seul compte qui peut valider ce qu'il a lui-même saisi ou soumis. */
+const isSuper = v => v.user?.role === 'super_admin' || (v.user?.permissions || []).includes('*');
+/** Le compte a saisi ou soumis cet élément (identifiants des auteurs) : il ne peut pas le valider lui-même, sauf super administrateur. */
+const isAuthor = (authors, v) => !isSuper(v) && authors.some(a => a != null && Number(a) === Number(v.user.id));
+/** Auteurs d'une synthèse hebdomadaire : celui qui l'a ouverte, celui qui l'a modifiée en dernier, celui qui l'a soumise. */
+const weeklyAuthors = c => [c.created_by, c.updated_by, c.submitted_by];
 const isManager = (w, v) => Number(w.manager_id) === Number(v.user.id);
 
 const worksiteBase = db => db('worksites as w').join('projects as p', 'p.id', 'w.project_id').leftJoin('users as u', 'u.id', 'w.manager_id')
@@ -253,6 +259,8 @@ async function controlDetail(db, id, v) {
     out.editable = c.status === 'brouillon' && v.can('qhse:control');
     out.can_submit = c.status === 'brouillon' && v.can('qhse:control');
     out.can_decide = c.status === 'a_valider' && v.can('qhse:validate');
+    out.own = isAuthor(weeklyAuthors(c), v); // saisie ou soumise par le compte : il peut la refuser mais pas la valider
+    out.can_approve = out.can_decide && !out.own;
   } else {
     out.locked = await weekLocked(db, c.worksite_id, day);
     out.editable = !out.locked && v.can('qhse:control');
@@ -320,11 +328,14 @@ async function saveDaily(db, w, data, v) {
     return cid;
   });
   await resolve(db, `qhse-manquant:${w.id}:${data.day}`);
-  await alertControl(db, { id, ...row, day: data.day }, w, v.user.id);
+  await alertControl(db, { id, ...row, day: data.day, items }, w, v.user.id);
   return id;
 }
 
-/** Alertes d'un contrôle journalier : note « Mauvais » sur la qualité ou l'hygiène, sécurité sous le seuil réglé. */
+/**
+ * Alertes d'un contrôle journalier : note globale « Mauvais » sur la qualité ou l'hygiène (une alerte par volet), points de contrôle
+ * notés « Mauvais » (une seule alerte par contrôle, avec la liste des points), sécurité sous le seuil réglé.
+ */
 async function alertControl(db, c, w, actorId) {
   const s = await settings(db);
   const link = `/qhse/controles/${c.id}`;
@@ -334,6 +345,17 @@ async function alertControl(db, c, w, actorId) {
     await inform(db, 'qhse.note_mauvaise', {
       direct: w.manager_id, except: actorId, key: `qhse-note:${c.id}:${pillar}`, link,
       title: `Note « Mauvais » en ${Q.PILLARS[pillar].label.toLowerCase()} : ${w.reference}`, body: where,
+    });
+  }
+  const bad = (c.items || []).filter(i => i.rating === Q.BAD_RATING);
+  if (bad.length) {
+    const list = bad.map(i => `${Q.PILLARS[i.pillar].label} : ${i.label}`);
+    // La clé suit la liste des points : une saisie corrigée qui ajoute un point « Mauvais » prévient de nouveau, la même saisie non
+    const sig = crypto.createHash('sha1').update(list.slice().sort().join('|')).digest('hex').slice(0, 12);
+    await inform(db, 'qhse.note_mauvaise', {
+      direct: w.manager_id, except: actorId, key: `qhse-points:${c.id}:${sig}`, link,
+      title: `${bad.length} point${bad.length > 1 ? 's' : ''} de contrôle noté${bad.length > 1 ? 's' : ''} « Mauvais » : ${w.reference}`,
+      body: `${where} — ${list.join(' ; ')}`.slice(0, 500),
     });
   }
   if (c.safety_pct != null && c.safety_pct < s.threshold) {
@@ -420,7 +442,7 @@ async function submitWeekly(db, id, v) {
   if (!rq || !rh) throw new HttpError(400, 'Aucun contrôle journalier cette semaine : indiquez la note de la qualité et celle de l’hygiène avant de soumettre.');
   const now = new Date();
   await db('qhse_controls').where({ id }).update({
-    status: 'a_valider', rating_qualite: rq, rating_hygiene: rh, summary: JSON.stringify(s), reject_reason: null, submitted_at: now, updated_at: now, updated_by: v.user.id,
+    status: 'a_valider', rating_qualite: rq, rating_hygiene: rh, summary: JSON.stringify(s), reject_reason: null, submitted_at: now, submitted_by: v.user.id, updated_at: now, updated_by: v.user.id,
     safety_pct: roundOrNull(s.safety_avg), site_safety_pct: roundOrNull(s.site_safety_avg), env_rate: roundOrNull(s.env_avg),
   });
   await inform(db, 'qhse.hebdo_a_valider', {
@@ -433,13 +455,14 @@ async function submitWeekly(db, id, v) {
 async function decideWeekly(db, id, v, { approve, reason = null }) {
   const c = await loadControl(db, id, v);
   if (c.kind !== 'hebdomadaire' || c.status !== 'a_valider') throw new HttpError(409, 'Cette synthèse n’attend pas de décision.');
+  if (approve && isAuthor(weeklyAuthors(c), v)) throw new HttpError(403, 'Vous ne pouvez pas valider une synthèse hebdomadaire que vous avez saisie ou soumise : un autre responsable doit la valider.');
   const w = await worksiteFor(db, c.worksite_id, v);
   const now = new Date();
   if (approve) {
     const s = await weekData(db, w, isoDay(c.period_start));
     await db('qhse_controls').where({ id }).update({ status: 'valide', validated_by: v.user.id, validated_at: now, summary: JSON.stringify(s), updated_at: now });
   } else {
-    await db('qhse_controls').where({ id }).update({ status: 'brouillon', reject_reason: clip(reason, 500), submitted_at: null, updated_at: now });
+    await db('qhse_controls').where({ id }).update({ status: 'brouillon', reject_reason: clip(reason, 500), submitted_at: null, submitted_by: null, updated_at: now });
   }
   await resolve(db, `qhse-hebdo:${id}:`);
   await inform(db, 'qhse.decision', {
@@ -450,7 +473,7 @@ async function decideWeekly(db, id, v, { approve, reason = null }) {
 }
 
 module.exports = {
-  settings, calendarOptions, holidaySet, seesAll, isManager, worksiteFor, visibleWorksites, worksiteBase,
+  settings, calendarOptions, holidaySet, seesAll, isSuper, isAuthor, isManager, worksiteFor, visibleWorksites, worksiteBase,
   listCheckpoints, addCheckpoint, updateCheckpoint, removeCheckpoint, reorderCheckpoints,
   upload, removeUploaded, filePath, attachFiles, filesOf, fileView, removeFile, itemsOf, normalizeItems, replaceItems,
   attendance, listControls, loadControl, controlDetail, serializeControl, controlQuery, weekLocked, saveDaily, alertControl,

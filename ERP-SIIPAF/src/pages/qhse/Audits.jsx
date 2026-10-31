@@ -155,8 +155,9 @@ function AuditBody({ d, refs, setData }) {
           {d.can_submit && <button className="btn btn-primary" disabled={busy} onClick={submit}><Send />Soumettre à validation</button>}
           {d.can_cancel && <button className="btn" disabled={busy} onClick={() => window.confirm('Annuler cet audit ?') && call(() => api.post(`${base}/cancel`), 'Audit annulé')}><Ban />Annuler</button>}
           {d.can_decide && !rejecting && <>
-            <button className="btn btn-primary" disabled={busy} onClick={() => call(() => api.post(`${base}/validate`), 'Audit validé')}><Check />Valider l’audit</button>
+            <button className="btn btn-primary" disabled={busy || !d.can_approve} title={d.own ? 'Vous avez planifié, mené ou soumis cet audit : un autre responsable doit le valider.' : undefined} onClick={() => call(() => api.post(`${base}/validate`), 'Audit validé')}><Check />Valider l’audit</button>
             <button className="btn" disabled={busy} onClick={() => setRejecting(true)}><X />Refuser…</button>
+            {d.own && <span className="small muted">Vous avez planifié, mené ou soumis cet audit : un autre responsable doit le valider.</span>}
           </>}
         </div>
         {rejecting && (

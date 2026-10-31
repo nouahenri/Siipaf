@@ -188,9 +188,9 @@ export function WeeklyPage() {
             </div>
           ) : (
             <div className="row" style={{ gap: 8 }}>
-              <button className="btn btn-primary" disabled={busy} onClick={validate}><Check />Valider la synthèse</button>
+              <button className="btn btn-primary" disabled={busy || !d.can_approve} title={d.own ? 'Vous avez saisi ou soumis cette synthèse : un autre responsable doit la valider.' : undefined} onClick={validate}><Check />Valider la synthèse</button>
               <button className="btn" disabled={busy} onClick={() => setRejecting(true)}><X />Refuser…</button>
-              <span className="small muted">La validation verrouille les contrôles journaliers de la semaine.</span>
+              <span className="small muted">{d.own ? 'Vous avez saisi ou soumis cette synthèse : un autre responsable doit la valider.' : 'La validation verrouille les contrôles journaliers de la semaine.'}</span>
             </div>
           )}
         </Card>

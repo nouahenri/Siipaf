@@ -166,4 +166,4 @@ async function run(db, { step, campaign = null, content = null, user = null, for
   throw new HttpError(422, 'La réponse de l’IA est inutilisable (format invalide) : rien n’a été créé. Réessayez ou utilisez le mode démonstration.');
 }
 
-module.exports = { setClient, keyInfo, clean, resolveMode, usage, monthSpendMicro, run, sweepStale };
+module.exports = { setClient, getClient, apiKey, keyInfo, clean, resolveMode, usage, monthSpendMicro, run, sweepStale };

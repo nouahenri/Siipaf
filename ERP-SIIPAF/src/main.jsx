@@ -18,6 +18,7 @@ import Property from './pages/commercial/Property';
 import Sales from './pages/commercial/Sales';
 import Vefa from './pages/commercial/Vefa';
 import Targets from './pages/commercial/Targets';
+import SitaConversations from './pages/commercial/SitaConversations';
 import Direction from './pages/admin/Direction';
 import Courrier from './pages/admin/Courrier';
 import Contrats from './pages/admin/Contrats';
@@ -147,6 +148,7 @@ function App() {
         {['compta', 'sav', 'administration'].map(m => <Route key={`${m}-ventes`} path={`${m}/ventes`} element={<Guard perm="sales:read"><Sales /></Guard>} />)}
         <Route path="commercial/vefa" element={<Guard perm={['commercial:read', 'vefa:read', 'vefa:write']}><Vefa /></Guard>} />
         <Route path="commercial/objectifs" element={<Guard perm="commercial:read"><Targets /></Guard>} />
+        <Route path="commercial/sita" element={<Guard perm="commercial:read"><SitaConversations /></Guard>} />
         <Route path="commercial/reglages" element={<ModuleSettings module="commercial" />} />
         <Route path="compta" element={<Guard perm="compta:read"><ComptaDashboard /></Guard>} />
         <Route path="compta/recu/:id" element={<Guard perm={['sales:read', 'payments:write']}><Receipt /></Guard>} />
@@ -210,7 +212,7 @@ function App() {
         <Route path="qhse/audits" element={<Guard perm="qhse:read"><Audits /></Guard>} />
         <Route path="qhse/audits/:id" element={<Guard perm="qhse:read"><AuditPage /></Guard>} />
         <Route path="qhse/actions" element={<Guard perm="qhse:read"><QhseActions /></Guard>} />
-        <Route path="qhse/reglages" element={<Settings module="qhse" perm="qhse:settings" who="la Direction générale"><QhseSettings /></Settings>} />
+        <Route path="qhse/reglages" element={<Settings module="qhse" perm="qhse:settings" who="la Direction générale, le directeur des exploitations et le Responsable QHSE"><QhseSettings /></Settings>} />
         <Route path="qhse/acces" element={<Guard perm="users:read"><ModuleAccess module="qhse" label="QHSE" /></Guard>} />
         <Route path="chantiers" element={<Navigate to="/chantiers/liste" replace />} />
         <Route path="chantiers/liste" element={<Chantiers />} />

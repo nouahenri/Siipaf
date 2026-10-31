@@ -5,6 +5,7 @@ import { useAuth, useResource, useToast, useSaved } from '../lib/app-context';
 import { Card, Field, ErrorBox, Skeleton } from '../components/ui';
 import { MediaPicker } from '../components/MediaLibrary';
 import EditorialEditor from '../components/EditorialEditor';
+import SiteAssistant from './SiteAssistant';
 
 // Chaque onglet relève de son action (Rôles & privilèges › Site web › Contenu du site)
 const TABS = [
@@ -13,6 +14,7 @@ const TABS = [
   { id: 'ticker', label: 'Bandeau défilant', perm: 'content:home' },
   { id: 'stats', label: 'Chiffres clés', perm: 'content:home' },
   { id: 'site', label: 'Coordonnées', perm: 'content:contacts' },
+  { id: 'assistant', label: 'Assistante du site', perm: 'site:assistant' },
 ];
 
 const DEFAULTS = {
@@ -37,7 +39,7 @@ export default function SiteContent() {
   const [busy, setBusy] = useState(false);
 
   useEffect(() => {
-    if (content.data && tab !== 'editorial') {
+    if (content.data && tab !== 'editorial' && tab !== 'assistant') {
       setValue(structuredClone({ ...DEFAULTS[tab], ...(content.data[tab] || {}) }));
       setValueTab(tab);
     }
@@ -61,7 +63,7 @@ export default function SiteContent() {
         {tabs.map(t => <button key={t.id} role="tab" aria-selected={tab === t.id} className={`tab ${tab === t.id ? 'active' : ''}`} onClick={() => setTab(t.id)}>{t.label}</button>)}
       </div>
       {/* Éditorial : son propre enregistrement (textes de toutes les pages et images des sections) */}
-      {tab === 'editorial' ? (content.data ? <EditorialEditor content={content} onOpenTab={setTab} /> : content.error ? <ErrorBox error={content.error} /> : <Skeleton h={300} />) : <>
+      {tab === 'assistant' ? <SiteAssistant /> : tab === 'editorial' ? (content.data ? <EditorialEditor content={content} onOpenTab={setTab} /> : content.error ? <ErrorBox error={content.error} /> : <Skeleton h={300} />) : <>
       <ErrorBox error={error} />
       {/* Au changement d’onglet, attendre ses données avant de monter son éditeur. */}
       {!value || valueTab !== tab ? <Skeleton h={300} /> : (

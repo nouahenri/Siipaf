@@ -86,8 +86,11 @@ async function badges(db, v, now = new Date()) {
       missing = sites.length - new Set(done.map(d => d.worksite_id)).size;
     }
   }
-  const weekly = v.can('qhse:validate') ? Number((await db('qhse_controls').where({ kind: 'hebdomadaire', status: 'a_valider' }).count({ n: '*' }).first()).n) : 0;
-  const toValidate = v.can('qhse:validate') ? Number((await db('qhse_audits').where({ status: 'a_valider' }).count({ n: '*' }).first()).n) : 0;
+  // À valider par ce compte : sans ses propres synthèses ni ses propres audits (sauf super administrateur)
+  const me = Number(v.user.id);
+  const others = cols => query => { if (!svc.isSuper(v)) for (const c of cols) query.where(b => b.whereNull(c).orWhereNot(c, me)); return query; };
+  const weekly = v.can('qhse:validate') ? Number((await others(['created_by', 'updated_by', 'submitted_by'])(db('qhse_controls').where({ kind: 'hebdomadaire', status: 'a_valider' })).count({ n: '*' }).first()).n) : 0;
+  const toValidate = v.can('qhse:validate') ? Number((await others(['created_by', 'submitted_by', 'auditor_id'])(db('qhse_audits').where({ status: 'a_valider' })).count({ n: '*' }).first()).n) : 0;
   const open = await audits.listActions(db, v, { status: 'ouvertes', limit: 500 });
   const late = open.filter(a => a.late).length;
   const mine = open.filter(a => Number(a.owner_id) === Number(v.user.id)).length;

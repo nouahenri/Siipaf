@@ -12,6 +12,8 @@ const { inform, resolve } = require('./notifications');
 
 const { insertedId, clip } = svc;
 const uid = v => Number(v.user.id);
+/** Auteurs d'un audit : qui l'a planifié, qui l'a soumis, l'auditeur (compte). Aucun ne le valide, sauf le super administrateur. */
+const auditAuthors = a => [a.created_by, a.submitted_by, a.auditor_id];
 
 // ─── Audits ───────────────────────────────────────────────────────────────
 
@@ -77,6 +79,8 @@ async function auditDetail(db, id, v) {
     actions: actions.map(x => serializeAction(x, today)),
     can_edit: open && v.can('qhse:audit'), can_start: a.status === 'planifie' && v.can('qhse:audit'),
     can_submit: a.status === 'en_cours' && v.can('qhse:audit'), can_decide: a.status === 'a_valider' && v.can('qhse:validate'),
+    own: svc.isAuthor(auditAuthors(a), v), // planifié, mené ou soumis par le compte : il peut le refuser mais pas le valider
+    can_approve: a.status === 'a_valider' && v.can('qhse:validate') && !svc.isAuthor(auditAuthors(a), v),
     can_cancel: open && v.can('qhse:audit'),
   };
 }
@@ -155,7 +159,7 @@ async function submitAudit(db, id, v) {
     .whereNotExists(function () { this.select(db.raw('1')).from('qhse_actions as x').whereRaw('x.finding_id = f.id').whereNot('x.status', 'annulee'); }).select('f.description');
   if (bare.length) throw new HttpError(400, `Ouvrez une action corrective pour chaque constat majeur ou critique avant de soumettre (${bare.length} sans action : « ${bare[0].description.slice(0, 60)} »).`);
   const now = new Date();
-  await db('qhse_audits').where({ id }).update({ status: 'a_valider', submitted_at: now, reject_reason: null, updated_at: now });
+  await db('qhse_audits').where({ id }).update({ status: 'a_valider', submitted_at: now, submitted_by: uid(v), reject_reason: null, updated_at: now });
   await inform(db, 'qhse.audit_a_valider', {
     except: uid(v), key: `qhse-audit:${id}:${now.getTime()}`, link: `/qhse/audits/${id}`,
     title: `Audit à valider : ${a.reference}`, body: `${serializeAudit(a).place_label} — score ${a.score_pct == null ? 'non calculé' : `${a.score_pct} %`}`,
@@ -166,9 +170,10 @@ async function submitAudit(db, id, v) {
 async function decideAudit(db, id, v, { approve, reason = null }) {
   const a = await loadAudit(db, id, v);
   if (a.status !== 'a_valider') throw new HttpError(409, 'Cet audit n’attend pas de décision.');
+  if (approve && svc.isAuthor(auditAuthors(a), v)) throw new HttpError(403, 'Vous ne pouvez pas valider un audit que vous avez planifié, mené ou soumis : un autre responsable doit le valider.');
   const now = new Date();
   if (approve) await db('qhse_audits').where({ id }).update({ status: 'valide', validated_by: uid(v), validated_at: now, updated_at: now });
-  else await db('qhse_audits').where({ id }).update({ status: 'en_cours', reject_reason: clip(reason, 500), submitted_at: null, updated_at: now });
+  else await db('qhse_audits').where({ id }).update({ status: 'en_cours', reject_reason: clip(reason, 500), submitted_at: null, submitted_by: null, updated_at: now });
   await resolve(db, `qhse-audit:${id}:`);
   await inform(db, 'qhse.decision', {
     direct: [a.created_by, a.auditor_id], except: uid(v), key: `qhse-audit-decision:${id}:${now.getTime()}`, link: `/qhse/audits/${id}`,

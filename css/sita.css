@@ -1,0 +1,100 @@
+/* ============================================================
+   SIIPAF SA — Sita, conseillère IA du site (bulle, invitation, fenêtre de discussion)
+   Charte : rouge #e30613, noir #0A0A0A, blanc. Chargé par js/sita.js (uniquement si l'assistante est activée).
+============================================================ */
+.sita-root {
+  --sita-red: var(--red, #e30613);
+  --sita-red-dk: var(--red-dk, #b3000f);
+  --sita-dark: var(--dark, #111);
+  position: fixed; right: 108px; bottom: 32px; z-index: 950;
+  font-family: var(--font, 'Poppins', sans-serif); font-size: 15px; line-height: 1.5; color: #1d2230;
+}
+.sita-root *, .sita-root *::before, .sita-root *::after { box-sizing: border-box; }
+.sita-root[hidden] { display: none; }
+
+/* Bulle ronde flottante */
+.sita-launcher {
+  position: relative; display: flex; align-items: center; justify-content: center;
+  width: 60px; height: 60px; padding: 0; border: 3px solid #fff; border-radius: 50%; cursor: pointer;
+  background: var(--sita-red); color: #fff; box-shadow: 0 8px 28px rgba(0, 0, 0, .28); overflow: visible;
+  transition: transform .25s ease, box-shadow .25s ease;
+}
+.sita-launcher:hover { transform: translateY(-3px) scale(1.05); box-shadow: 0 14px 34px rgba(0, 0, 0, .34); }
+.sita-launcher:focus-visible, .sita-close:focus-visible, .sita-send:focus-visible, .sita-input:focus-visible, .sita-invite a:focus-visible, .sita-invite button:focus-visible, .sita-action:focus-visible {
+  outline: 3px solid #1d6fe8; outline-offset: 2px;
+}
+.sita-launcher .sita-avatar { width: 100%; height: 100%; }
+.sita-badge {
+  position: absolute; top: -6px; right: -6px; min-width: 22px; height: 22px; padding: 0 6px; border-radius: 11px;
+  background: #fff; color: var(--sita-red); border: 2px solid var(--sita-red); font-size: 12px; font-weight: 700; line-height: 18px; text-align: center;
+}
+.sita-root.is-open .sita-launcher { display: none; }
+
+.sita-avatar { display: flex; align-items: center; justify-content: center; border-radius: 50%; overflow: hidden; background: var(--sita-red); color: #fff; font-weight: 700; font-size: 22px; flex: none; }
+.sita-avatar img { width: 100%; height: 100%; object-fit: cover; display: block; }
+
+/* Bulle d'invitation contextuelle */
+.sita-invite {
+  position: absolute; right: 0; bottom: 76px; width: 290px; max-width: calc(100vw - 32px); padding: 14px 16px 12px;
+  background: #fff; border-radius: 14px; box-shadow: 0 12px 40px rgba(0, 0, 0, .22); border: 1px solid #ececec;
+  animation: sitaPop .35s ease both;
+}
+.sita-invite::after { content: ''; position: absolute; right: 22px; bottom: -8px; width: 16px; height: 16px; background: #fff; border-right: 1px solid #ececec; border-bottom: 1px solid #ececec; transform: rotate(45deg); }
+.sita-invite p { margin: 0 18px 8px 0; font-size: 14px; color: #1d2230; }
+.sita-invite a { color: var(--sita-red); font-weight: 600; font-size: 14px; text-decoration: none; cursor: pointer; }
+.sita-invite a:hover { text-decoration: underline; }
+.sita-invite .sita-x { position: absolute; top: 6px; right: 8px; width: 28px; height: 28px; border: 0; background: none; font-size: 20px; line-height: 1; color: #777; cursor: pointer; border-radius: 50%; }
+.sita-invite .sita-x:hover { background: #f1f1f1; color: #111; }
+
+/* Fenêtre de discussion */
+.sita-window {
+  position: absolute; right: 0; bottom: 0; width: 370px; max-width: calc(100vw - 24px); height: 560px; max-height: calc(100vh - 56px);
+  display: flex; flex-direction: column; background: #fff; border-radius: 16px; overflow: hidden;
+  box-shadow: 0 18px 60px rgba(0, 0, 0, .32); border: 1px solid #e6e6e6; animation: sitaPop .3s ease both;
+}
+.sita-window[hidden] { display: none; }
+.sita-head { display: flex; align-items: center; gap: 12px; padding: 14px 14px 14px 16px; background: var(--sita-dark); color: #fff; border-bottom: 3px solid var(--sita-red); }
+.sita-head .sita-avatar { width: 46px; height: 46px; border: 2px solid #fff; }
+.sita-who { flex: 1; min-width: 0; }
+.sita-who strong { display: block; font-size: 16px; line-height: 1.2; }
+.sita-who span { display: block; font-size: 12px; color: #d7d7d7; }
+.sita-who .sita-online { display: flex; align-items: center; gap: 6px; margin-top: 2px; color: #b8f0c8; }
+.sita-who .sita-online::before { content: ''; width: 8px; height: 8px; border-radius: 50%; background: #2ecc71; box-shadow: 0 0 0 3px rgba(46, 204, 113, .25); }
+.sita-close { width: 36px; height: 36px; border: 0; border-radius: 50%; background: rgba(255, 255, 255, .12); color: #fff; font-size: 22px; line-height: 1; cursor: pointer; }
+.sita-close:hover { background: rgba(255, 255, 255, .24); }
+
+.sita-log { flex: 1; overflow-y: auto; padding: 16px 14px; background: #f6f6f7; display: flex; flex-direction: column; gap: 10px; scroll-behavior: smooth; }
+.sita-msg { max-width: 86%; padding: 10px 13px; border-radius: 14px; font-size: 14.5px; white-space: pre-wrap; word-wrap: break-word; overflow-wrap: anywhere; }
+.sita-msg.bot { align-self: flex-start; background: #fff; border: 1px solid #e8e8e8; border-bottom-left-radius: 4px; }
+.sita-msg.me { align-self: flex-end; background: var(--sita-red); color: #fff; border-bottom-right-radius: 4px; }
+.sita-msg.err { align-self: center; background: #fff3f3; border: 1px solid #f1c3c3; color: #8a1a1a; font-size: 13px; text-align: center; }
+.sita-actions { align-self: flex-start; display: flex; flex-direction: column; gap: 6px; max-width: 86%; }
+.sita-action { display: inline-flex; align-items: center; gap: 8px; padding: 9px 14px; border-radius: 22px; background: #25D366; color: #fff; font-weight: 600; font-size: 14px; text-decoration: none; }
+.sita-action:hover { background: #1ebe5a; }
+.sita-typing { align-self: flex-start; display: flex; gap: 4px; padding: 12px 14px; background: #fff; border: 1px solid #e8e8e8; border-radius: 14px; border-bottom-left-radius: 4px; }
+.sita-typing i { width: 7px; height: 7px; border-radius: 50%; background: #9a9a9a; animation: sitaDot 1.2s infinite ease-in-out; }
+.sita-typing i:nth-child(2) { animation-delay: .15s; }
+.sita-typing i:nth-child(3) { animation-delay: .3s; }
+
+.sita-note { padding: 6px 14px; font-size: 11.5px; color: #6b6b6b; background: #fff; border-top: 1px solid #eee; }
+.sita-form { display: flex; align-items: flex-end; gap: 8px; padding: 10px 12px 12px; background: #fff; border-top: 1px solid #eee; }
+.sita-input { flex: 1; resize: none; max-height: 110px; min-height: 42px; padding: 10px 12px; border: 1px solid #d5d5d9; border-radius: 12px; font: inherit; font-size: 14.5px; color: #1d2230; background: #fff; }
+.sita-send { width: 44px; height: 44px; border: 0; border-radius: 50%; background: var(--sita-red); color: #fff; cursor: pointer; display: flex; align-items: center; justify-content: center; flex: none; }
+.sita-send:hover { background: var(--sita-red-dk); }
+.sita-send:disabled { background: #c9c9c9; cursor: not-allowed; }
+.sita-send svg { width: 20px; height: 20px; fill: currentColor; }
+
+@keyframes sitaPop { from { opacity: 0; transform: translateY(10px) scale(.97); } to { opacity: 1; transform: none; } }
+@keyframes sitaDot { 0%, 80%, 100% { transform: scale(.7); opacity: .5; } 40% { transform: scale(1); opacity: 1; } }
+@media (prefers-reduced-motion: reduce) {
+  .sita-launcher, .sita-invite, .sita-window { animation: none; transition: none; }
+  .sita-typing i { animation: none; }
+  .sita-log { scroll-behavior: auto; }
+}
+@media (max-width: 600px) {
+  .sita-root { right: 92px; bottom: 20px; }
+  .sita-launcher { width: 54px; height: 54px; }
+  .sita-root.is-open { right: 0; bottom: 0; left: 0; }
+  .sita-window { position: fixed; right: 0; bottom: 0; left: 0; width: 100%; max-width: 100%; height: 88vh; max-height: 88vh; border-radius: 16px 16px 0 0; }
+  .sita-invite { right: -64px; }
+}

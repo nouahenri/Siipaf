@@ -1,7 +1,9 @@
 /**
  * ERP · QHSE (Qualité, Hygiène, Sécurité, Environnement). Consulter : qhse:read ; saisir les contrôles de ses chantiers : qhse:control ;
  * tous les chantiers : qhse:all ; inspections et audits : qhse:audit ; actions correctives : qhse:actions (le responsable d'une action
- * la fait avancer sans ce droit) ; valider les synthèses hebdomadaires et les audits : qhse:validate ; grilles de contrôle : qhse:settings.
+ * la fait avancer sans ce droit) ; valider les synthèses hebdomadaires et les audits : qhse:validate (jamais les siens : celui qui a saisi,
+ * soumis ou mené ne valide pas, sauf le super administrateur ; il peut refuser) ; grilles de contrôle : qhse:settings (super admin,
+ * directeur des exploitations, Responsable QHSE).
  * Les seuils et délais (nombres) se règlent par la route commune /erp/reglages/qhse. Le serveur contrôle chaque action et la portée
  * (chantiers du conducteur) : un bouton masqué ne suffit pas.
  */

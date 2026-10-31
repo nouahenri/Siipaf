@@ -509,7 +509,7 @@ const PERMISSIONS = {
   ]),
   editeur: splitPermissions([
     'projects:read', 'projects:write', 'plans:write', 'lots:read', 'content:write', 'media:write',
-    'newsletter:read', 'newsletter:write', 'newsletter:send', 'contacts:read', 'contacts:handle', 'testimonials:write', 'settings:write', 'property:write', 'marketing:read', 'marketing:generate', ...SELF_SERVICE,
+    'newsletter:read', 'newsletter:write', 'newsletter:send', 'contacts:read', 'contacts:handle', 'testimonials:write', 'settings:write', 'property:write', 'marketing:read', 'marketing:generate', 'site:assistant', ...SELF_SERVICE,
   ]),
   conducteur_travaux: splitPermissions([
     ...APPRO_ACTIONS,
@@ -532,7 +532,7 @@ const PERMISSIONS = {
     'leads:all', 'leads:assign', 'clients:edit', 'sav:read', ...SAV_ACTIONS, 'commercial:read', 'targets:write', 'vefa:write', 'property:write', 'compta:read',
     'rh:read', ...RH_ACTIONS, 'kpi:write', 'presence:write', 'direction:read', ...COURRIER_ACTIONS, ...CONTRACT_ACTIONS, ...PARC_ACTIONS, ...DOCS_ACTIONS, ...REQUEST_ACTIONS, ...LEGAL_ACTIONS,
     'chantiers:read', 'chantiers:write', 'lieux:write', 'marketing:read', 'marketing:generate', 'marketing:validate',
-    ...QHSE_ACTIONS.filter(p => p !== 'qhse:settings'), ...SELF_SERVICE, // QHSE : tout sauf les réglages (Direction générale)
+    ...QHSE_ACTIONS, ...SELF_SERVICE, // QHSE : tous les droits, réglages compris (décision du client du 31/10)
   ]),
 };
 
@@ -725,7 +725,7 @@ const PERMISSION_CATALOG = [
     ['qhse:all', 'Portée : tous les chantiers', 'Contrôles, audits et actions de tous les chantiers (service des ressources humaines, directeur des exploitations) ; remarques de sécurité de la fiche employé. Sans ce droit, on ne voit que les chantiers dont on est le conducteur'],
     ['qhse:audit', 'Inspections et audits', 'Planifier ou mener une inspection (planifiée ou inopinée) sur un chantier ou au siège : grille Q/H/S/E, constats avec gravité'],
     ['qhse:actions', 'Actions correctives', 'Ouvrir une action corrective (responsable, échéance), la modifier, la lever avec sa preuve ou l’annuler ; le responsable d’une action la fait avancer sans ce droit'],
-    ['qhse:validate', 'Valider les contrôles hebdomadaires et les audits', 'Valider ou refuser (motif) la synthèse hebdomadaire d’un chantier et les audits réalisés'],
+    ['qhse:validate', 'Valider les contrôles hebdomadaires et les audits', 'Valider ou refuser (motif) la synthèse hebdomadaire d’un chantier et les audits réalisés ; personne ne valide sa propre synthèse ni son propre audit (sauf le super administrateur)'],
     ['qhse:settings', 'Régler le QHSE', 'Grilles de contrôle de chaque volet, seuil de sécurité, heure du contrôle du jour, délais des actions correctives'],
   ] },
   { group: 'ERP · Chantiers', items: [
@@ -768,6 +768,7 @@ const PERMISSION_CATALOG = [
     ['content:texts', 'Pages, sections et textes', 'Onglet « Éditorial »', 'Contenu du site'],
     ['content:images', 'Images des emplacements du site', 'Choisir l’image de chaque emplacement', 'Contenu du site'],
     ['content:contacts', 'Coordonnées et réseaux sociaux', 'Téléphones, e-mail, adresse, WhatsApp, réseaux', 'Contenu du site'],
+    ['site:assistant', 'Assistante du site (Sita)', 'Identité, accueil et invitations par page, activation, horaires, numéro WhatsApp de relais, modèle de l’IA, plafond mensuel en FCFA et arrêt d’urgence de la conseillère IA du site public', 'Contenu du site'],
     ['media:upload', 'Ajouter et renommer des fichiers', null, 'Médiathèque'],
     ['media:delete', 'Supprimer des fichiers', null, 'Médiathèque'],
     ['contacts:read', 'Voir les messages de contact', 'Sans la portée « toute l’équipe » : les messages de ses prospects et clients et la boîte commune (messages sans fiche ou dont la fiche n’est pas attribuée), jamais ceux des fiches d’un collègue'],
@@ -1711,6 +1712,8 @@ const INFO_EVENTS = {
   'qhse.audit_planifie': { module: 'qhse', label: 'Inspection ou audit planifié (auditeur et conducteur prévenus)', audiences: [], requiredPerms: ['qhse:read'] },
   'qhse.audit_a_valider': { module: 'qhse', label: 'Audit réalisé, à valider', audiences: ['qhse'], priority: 'action', requiredPerms: ['qhse:read'], recipient_hint: 'Accès au QHSE requis.' },
   'qhse.constat_critique': { module: 'qhse', label: 'Constat critique relevé lors d’un audit', audiences: ['qhse', 'exploitation', 'dg'], priority: 'urgent', requiredPerms: ['qhse:read'], recipient_hint: 'Accès au QHSE requis.' },
+  'sita.passage_main': { module: 'commercial', label: 'Sita (assistante du site) passe la main : un visiteur demande un conseiller', audiences: ['commercial_resp'], priority: 'action', recipient_hint: 'Si la personne est déjà suivie, le commercial de la fiche est toujours prévenu.' },
+  'sita.plafond': { module: 'commercial', label: 'Dépense de Sita au seuil d’alerte ou plafond mensuel atteint', audiences: ['dg'], priority: 'urgent', recipient_hint: 'Plafond réglé dans le dashboard › Contenu du site › Assistante du site.' },
   'qhse.decision': { module: 'qhse', label: 'Contrôle hebdomadaire ou audit validé ou refusé (l’auteur est prévenu)', audiences: [], priority: 'action', requiredPerms: ['qhse:read'] },
   'rh.depart': { module: 'rh', label: 'Départ d’un employé (solde de tout compte)', audiences: ['compta'] },
 
@@ -1824,12 +1827,12 @@ const MODULE_SETTINGS = {
     marketing_posts_per_week: { group: 'Préparation hebdomadaire', label: 'Contenus préparés par semaine et par campagne', hint: 'Nombre de publications du calendrier de la semaine', default: 4, min: 1, max: 14, perm: 'marketing:settings', who: 'la Direction générale' },
   },
   qhse: {
-    qhse_safety_threshold_pct: { group: 'Alertes', label: 'Seuil de sécurité (% d’ouvriers respectant les consignes)', hint: 'Sous ce taux, le conducteur, la direction des exploitations et le service QHSE sont prévenus et le chantier remonte dans « À traiter en priorité »', default: 90, min: 50, max: 100, perm: 'qhse:settings', who: 'la Direction générale' },
-    qhse_daily_check_hour: { group: 'Alertes', label: 'Heure limite du contrôle du jour (0-23)', hint: 'Un chantier en cours sans contrôle journalier à cette heure (jours ouvrés) prévient son conducteur', default: 17, min: 6, max: 23, perm: 'qhse:settings', who: 'la Direction générale' },
-    qhse_work_saturday: { group: 'Alertes', label: 'Le samedi est un jour de contrôle (1 = oui, 0 = non)', hint: 'Par défaut, du lundi au vendredi hors jours fériés (calendrier des Ressources humaines)', default: 0, min: 0, max: 1, perm: 'qhse:settings', who: 'la Direction générale' },
-    qhse_due_critique_days: { group: 'Actions correctives : échéance proposée', label: 'Gravité critique (jours)', hint: 'Échéance proposée à l’ouverture d’une action ; modifiable action par action', default: 3, min: 1, max: 90, perm: 'qhse:settings', who: 'la Direction générale' },
-    qhse_due_majeure_days: { group: 'Actions correctives : échéance proposée', label: 'Gravité majeure (jours)', hint: 'Échéance proposée à l’ouverture d’une action ; modifiable action par action', default: 15, min: 1, max: 180, perm: 'qhse:settings', who: 'la Direction générale' },
-    qhse_due_mineure_days: { group: 'Actions correctives : échéance proposée', label: 'Gravité mineure (jours)', hint: 'Échéance proposée à l’ouverture d’une action ; modifiable action par action', default: 30, min: 1, max: 365, perm: 'qhse:settings', who: 'la Direction générale' },
+    qhse_safety_threshold_pct: { group: 'Alertes', label: 'Seuil de sécurité (% d’ouvriers respectant les consignes)', hint: 'Sous ce taux, le conducteur, la direction des exploitations et le service QHSE sont prévenus et le chantier remonte dans « À traiter en priorité »', default: 90, min: 50, max: 100, perm: 'qhse:settings', who: 'la Direction générale, le directeur des exploitations et le Responsable QHSE' },
+    qhse_daily_check_hour: { group: 'Alertes', label: 'Heure limite du contrôle du jour (0-23)', hint: 'Un chantier en cours sans contrôle journalier à cette heure (jours ouvrés) prévient son conducteur', default: 17, min: 6, max: 23, perm: 'qhse:settings', who: 'la Direction générale, le directeur des exploitations et le Responsable QHSE' },
+    qhse_work_saturday: { group: 'Alertes', label: 'Le samedi est un jour de contrôle (1 = oui, 0 = non)', hint: 'Par défaut, du lundi au vendredi hors jours fériés (calendrier des Ressources humaines)', default: 0, min: 0, max: 1, perm: 'qhse:settings', who: 'la Direction générale, le directeur des exploitations et le Responsable QHSE' },
+    qhse_due_critique_days: { group: 'Actions correctives : échéance proposée', label: 'Gravité critique (jours)', hint: 'Échéance proposée à l’ouverture d’une action ; modifiable action par action', default: 3, min: 1, max: 90, perm: 'qhse:settings', who: 'la Direction générale, le directeur des exploitations et le Responsable QHSE' },
+    qhse_due_majeure_days: { group: 'Actions correctives : échéance proposée', label: 'Gravité majeure (jours)', hint: 'Échéance proposée à l’ouverture d’une action ; modifiable action par action', default: 15, min: 1, max: 180, perm: 'qhse:settings', who: 'la Direction générale, le directeur des exploitations et le Responsable QHSE' },
+    qhse_due_mineure_days: { group: 'Actions correctives : échéance proposée', label: 'Gravité mineure (jours)', hint: 'Échéance proposée à l’ouverture d’une action ; modifiable action par action', default: 30, min: 1, max: 365, perm: 'qhse:settings', who: 'la Direction générale, le directeur des exploitations et le Responsable QHSE' },
   },
   commercial: {
     vefa_due_days: { group: 'Appels de fonds VEFA', label: 'Délai de paiement d’un appel de fonds (jours)', hint: 'Délai laissé à l’acquéreur pour régler un appel de fonds, pour les programmes sans plan VEFA propre (un plan de programme garde son délai)', default: 15, min: 1, max: 90, perm: 'vefa:write', who: 'le responsable des appels de fonds' },

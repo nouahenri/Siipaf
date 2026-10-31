@@ -79,16 +79,17 @@ test('règles : notes, pourcentage de sécurité, conformité, synthèse de sema
   assert.equal(s.trend.safety, 15);
 });
 
-test('droits : sept actions au catalogue, défauts des rôles, rôle Responsable QHSE, événements du circuit', async () => {
+test('droits : sept actions au catalogue, défauts des rôles (réglages pour la direction des exploitations et le Responsable QHSE), événements du circuit', async () => {
   const expected = ['qhse:read', 'qhse:control', 'qhse:all', 'qhse:audit', 'qhse:actions', 'qhse:validate', 'qhse:settings'];
   for (const p of expected) assert.ok(PERMISSION_IDS.includes(p), p);
   assert.deepEqual(PERMISSIONS.conducteur_travaux.filter(p => p.startsWith('qhse:')), ['qhse:read', 'qhse:control']);
-  assert.equal(PERMISSIONS.resp_exploitation.filter(p => p.startsWith('qhse:')).length, 6);
-  assert.ok(!PERMISSIONS.resp_exploitation.includes('qhse:settings'));
+  assert.equal(PERMISSIONS.resp_exploitation.filter(p => p.startsWith('qhse:')).length, 7);
+  assert.ok(PERMISSIONS.resp_exploitation.includes('qhse:settings'), 'le directeur des exploitations règle le QHSE');
+  assert.ok(!PERMISSIONS.comptable.includes('qhse:settings') && !PERMISSIONS.conducteur_travaux.includes('qhse:settings'));
   const granted = async role => (await db('role_permissions').where({ role }).whereIn('permission', expected)).map(r => r.permission).sort();
   assert.deepEqual(await granted('conducteur_travaux'), ['qhse:control', 'qhse:read']);
-  assert.deepEqual(await granted('resp_exploitation'), expected.filter(p => p !== 'qhse:settings').sort());
-  assert.deepEqual(await granted('resp_qhse'), expected.filter(p => p !== 'qhse:settings').sort());
+  assert.deepEqual(await granted('resp_exploitation'), [...expected].sort());
+  assert.deepEqual(await granted('resp_qhse'), [...expected].sort(), 'le Responsable QHSE règle aussi le QHSE');
   assert.deepEqual(await granted('comptable'), ['qhse:all', 'qhse:read', 'qhse:validate'], 'rôle qui règle les RH');
   assert.deepEqual(await granted('commercial'), []);
   assert.ok(await db('roles').where({ id: 'resp_qhse', label: 'Responsable QHSE' }).first());
@@ -341,8 +342,11 @@ test('inspections et audits : planifié ou inopiné, grille, constats, action ob
 });
 
 test('grilles réglables : ajouter, renommer, désactiver, ordonner ; un point utilisé ne se supprime pas', async () => {
-  assert.equal((await direction1.get(`${URL}/checkpoints`)).status, 403, 'qhse:settings requis');
-  assert.equal((await direction1.post(`${URL}/checkpoints`).send({ pillar: 'securite', label: 'Éclairage du chantier' })).status, 403);
+  assert.equal((await rh.get(`${URL}/checkpoints`)).status, 403, 'qhse:settings requis');
+  assert.equal((await conducteur.post(`${URL}/checkpoints`).send({ pillar: 'securite', label: 'Éclairage du chantier' })).status, 403);
+  assert.equal((await direction1.get(`${URL}/checkpoints`)).status, 200, 'le directeur des exploitations règle les grilles');
+  assert.equal((await qhse.get(`${URL}/checkpoints`)).status, 200, 'le Responsable QHSE aussi');
+  assert.equal((await qhse.put('/api/admin/erp/reglages/qhse').send({ qhse_safety_threshold_pct: 90 })).status, 200);
   const added = ok(await admin.post(`${URL}/checkpoints`).send({ pillar: 'securite', label: 'Éclairage du chantier' }), 201);
   const mine = added.find(c => c.label === 'Éclairage du chantier');
   assert.equal((await admin.post(`${URL}/checkpoints`).send({ pillar: 'securite', label: 'éclairage du chantier' })).status, 409, 'doublon');
@@ -405,9 +409,111 @@ test('liaisons : fiche employé (remarque sécurité), fiche chantier, réclamat
   assert.deepEqual(mineDash.worksites.map(w => w.id), [w1]);
 });
 
+test('points de contrôle notés « Mauvais » : une seule alerte par contrôle, avec la liste des points, en plus de la note globale', async () => {
+  const mine = async (agent, event) => ok(await agent.get('/api/admin/erp/notifications?limit=200')).items.filter(n => n.event === event);
+  const before = (await mine(direction1, 'qhse.note_mauvaise')).length;
+  const d = day(-40); // loin de la semaine validée plus haut (qui verrouille ses jours)
+  const items = n => [{ pillar: 'qualite', label: 'Béton', rating: 1 }, { pillar: 'hygiene', label: 'Propreté', rating: 1 }, { pillar: 'qualite', label: 'Maçonnerie', rating: n }];
+  ok(await daily(conducteur, { day: d, rating_qualite: 3, rating_hygiene: 3, items: items(4) }), 201);
+  const after = await mine(direction1, 'qhse.note_mauvaise');
+  assert.equal(after.length, before + 1, 'deux points « Mauvais », une seule notification');
+  const n = after.find(x => /2 points/.test(x.title));
+  assert.ok(n, 'le titre compte les points');
+  assert.match(n.body, /Béton/);
+  assert.match(n.body, /Propreté/);
+  assert.doesNotMatch(n.body, /Maçonnerie/, 'seuls les points « Mauvais » sont listés');
+  assert.equal((await mine(conducteur, 'qhse.note_mauvaise')).length, 0, 'l’auteur n’est pas prévenu');
+  // Même saisie : pas de doublon ; un point de plus noté « Mauvais » : nouvelle alerte
+  ok(await daily(conducteur, { day: d, rating_qualite: 3, rating_hygiene: 3, items: items(4) }), 201);
+  assert.equal((await mine(direction1, 'qhse.note_mauvaise')).length, before + 1);
+  ok(await daily(conducteur, { day: d, rating_qualite: 3, rating_hygiene: 3, items: items(1) }), 201);
+  const again = await mine(direction1, 'qhse.note_mauvaise');
+  assert.equal(again.length, before + 2);
+  assert.ok(again.some(x => /3 points/.test(x.title) && /Maçonnerie/.test(x.body)));
+  // Aucun point « Mauvais » : aucune alerte de ce type
+  ok(await daily(conducteur, { day: day(-41), rating_qualite: 3, rating_hygiene: 3, items: [{ pillar: 'qualite', label: 'Béton', rating: 2 }] }), 201);
+  assert.equal((await mine(direction1, 'qhse.note_mauvaise')).length, before + 2);
+});
+
+test('validation : personne ne valide sa propre synthèse hebdomadaire (saisie ou soumise), sauf le super administrateur', async () => {
+  const week = day(-14);
+  // direction1 (qhse:control + qhse:validate) ouvre et soumet : elle ne peut pas valider
+  const w = ok(await direction1.post(`${URL}/controls/weekly`).send({ worksite_id: w1, week }), 201);
+  ok(await direction1.patch(`${URL}/controls/${w.id}`).send({ rating_qualite: 3, rating_hygiene: 3 }));
+  const sub = ok(await direction1.post(`${URL}/controls/${w.id}/submit`));
+  assert.equal(sub.status, 'a_valider');
+  assert.equal(sub.own, true);
+  assert.equal(sub.can_decide, true);
+  assert.equal(sub.can_approve, false, 'bouton Valider désactivé à l’écran');
+  const refus = await direction1.post(`${URL}/controls/${w.id}/validate`);
+  assert.equal(refus.status, 403);
+  assert.match(JSON.stringify(refus.body), /saisie ou soumise/);
+  assert.equal((await db('qhse_controls').where({ id: w.id }).first()).status, 'a_valider', 'rien n’a changé');
+  // Le compteur de la barre latérale ne lui compte pas sa propre synthèse
+  assert.equal(ok(await direction1.get(`${URL}/badges`)).weekly_to_validate, 0);
+  const autreVue = ok(await rh.get(`${URL}/controls/${w.id}`));
+  assert.equal(autreVue.own, false);
+  assert.equal(autreVue.can_approve, true);
+  assert.ok(ok(await rh.get(`${URL}/badges`)).weekly_to_validate >= 1);
+  // Un autre responsable la valide
+  assert.equal(ok(await rh.post(`${URL}/controls/${w.id}/validate`)).status, 'valide');
+
+  // Synthèse soumise par le conducteur : la direction peut la valider
+  const wc = ok(await conducteur.post(`${URL}/controls/weekly`).send({ worksite_id: w1, week: day(-21) }), 201);
+  ok(await conducteur.patch(`${URL}/controls/${wc.id}`).send({ rating_qualite: 2, rating_hygiene: 2 }));
+  ok(await conducteur.post(`${URL}/controls/${wc.id}/submit`));
+  assert.equal(ok(await direction1.get(`${URL}/controls/${wc.id}`)).can_approve, true);
+
+  // Le refus de sa propre synthèse reste possible (retour en brouillon)
+  const own = ok(await direction1.post(`${URL}/controls/weekly`).send({ worksite_id: w2, week: day(-14) }), 201);
+  ok(await direction1.patch(`${URL}/controls/${own.id}`).send({ rating_qualite: 3, rating_hygiene: 3 }));
+  ok(await direction1.post(`${URL}/controls/${own.id}/submit`));
+  assert.equal(ok(await direction1.post(`${URL}/controls/${own.id}/reject`).send({ reason: 'Je reprends ma synthèse' })).status, 'brouillon');
+
+  // Le super administrateur valide ce qu'il a lui-même soumis
+  const su = ok(await admin.post(`${URL}/controls/weekly`).send({ worksite_id: w2, week: day(-21) }), 201);
+  ok(await admin.patch(`${URL}/controls/${su.id}`).send({ rating_qualite: 3, rating_hygiene: 4 }));
+  const subAdmin = ok(await admin.post(`${URL}/controls/${su.id}/submit`));
+  assert.equal(subAdmin.own, false, 'le super administrateur n’est jamais bloqué');
+  assert.equal(subAdmin.can_approve, true);
+  assert.equal(ok(await admin.post(`${URL}/controls/${su.id}/validate`)).status, 'valide');
+});
+
+test('validation : personne ne valide son propre audit (planifié, mené ou soumis), sauf le super administrateur', async () => {
+  const results = { items: [{ pillar: 'qualite', label: 'Béton', rating: 4 }], summary: 'RAS' };
+  const mk = async (agent, extra = {}) => {
+    const a = ok(await agent.post(`${URL}/audits`).send({ kind: 'inopine', place_kind: 'siege', auditor_name: 'Cabinet X', ...extra }), 201);
+    ok(await agent.put(`${URL}/audits/${a.id}/results`).send(results));
+    return ok(await agent.post(`${URL}/audits/${a.id}/submit`));
+  };
+  const a = await mk(direction1);
+  assert.equal(a.status, 'a_valider');
+  assert.equal(a.own, true);
+  assert.equal(a.can_decide, true);
+  assert.equal(a.can_approve, false);
+  const refus = await direction1.post(`${URL}/audits/${a.id}/validate`);
+  assert.equal(refus.status, 403);
+  assert.match(JSON.stringify(refus.body), /planifié, mené ou soumis/);
+  assert.equal((await db('qhse_audits').where({ id: a.id }).first()).status, 'a_valider');
+  assert.equal(ok(await rh.get(`${URL}/audits/${a.id}`)).can_approve, true);
+  assert.equal(ok(await rh.post(`${URL}/audits/${a.id}/validate`)).status, 'valide');
+
+  // L'auditeur désigné (compte) ne valide pas l'audit qu'il a mené, même soumis par un autre
+  const b = await mk(direction1, { auditor_id: ids.resp_qhse, auditor_name: null });
+  assert.equal(ok(await qhse.get(`${URL}/audits/${b.id}`)).own, true);
+  assert.equal((await qhse.post(`${URL}/audits/${b.id}/validate`)).status, 403);
+  assert.equal((await qhse.post(`${URL}/audits/${b.id}/reject`).send({ reason: 'À reprendre' })).status, 200, 'le refus reste possible');
+
+  // Super administrateur : valide son propre audit
+  const c = await mk(admin);
+  assert.equal(c.can_approve, true);
+  assert.equal(ok(await admin.post(`${URL}/audits/${c.id}/validate`)).status, 'valide');
+});
+
 test('migration : retour arrière puis nouvelle application, rôle conservé tant qu’il est attribué', async () => {
   const knex = db;
-  await knex.migrate.down();
+  // Les migrations postérieures au QHSE sont annulées une à une, puis celle du QHSE
+  for (let i = 0; i < 20 && (await knex.schema.hasTable('qhse_controls')); i++) await knex.migrate.down();
   assert.equal(await knex.schema.hasTable('qhse_controls'), false);
   assert.equal(await knex('role_permissions').where('permission', 'like', 'qhse:%').first(), undefined);
   assert.ok(await knex('roles').where({ id: 'resp_qhse' }).first(), 'le rôle reste : un compte l’utilise');

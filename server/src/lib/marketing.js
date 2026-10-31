@@ -199,5 +199,5 @@ function campaignCode(name) {
 module.exports = {
   CHANNELS, KINDS, SEGMENTS, CAMPAIGN_STATUSES, CONTENT_STATUSES, STEPS, MODELS, DEFAULT_MODEL, TOOL_NAME, TOOL_SCHEMAS,
   itemSchema, contentsSchema, conceptSchema, costMicroUsd, microUsdToFcfa, checkContent, amountsIn, percentsIn, allowedFigures,
-  withConsentFooter, WHATSAPP_FOOTER, mondayOf, addDays, todayStr, monthOf, weekday, campaignCode,
+  withConsentFooter, WHATSAPP_FOOTER, URGENCY, PROMISE, SUPERLATIVE, mondayOf, addDays, todayStr, monthOf, weekday, campaignCode,
 };
