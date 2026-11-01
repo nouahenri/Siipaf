@@ -92,9 +92,12 @@
   .sita-log { scroll-behavior: auto; }
 }
 @media (max-width: 600px) {
-  .sita-root { right: 92px; bottom: 20px; }
+  /* Le bouton WhatsApp garde 60 px à 32 px du bord : la bulle s'aligne sur son centre, 12 px à sa gauche */
+  .sita-root { right: 104px; bottom: 35px; }
   .sita-launcher { width: 54px; height: 54px; }
   .sita-root.is-open { right: 0; bottom: 0; left: 0; }
   .sita-window { position: fixed; right: 0; bottom: 0; left: 0; width: 100%; max-width: 100%; height: 88vh; max-height: 88vh; border-radius: 16px 16px 0 0; }
+  /* Invitation décalée vers la droite pour tenir dans l'écran ; sa pointe reste au-dessus de la bulle de Sita */
   .sita-invite { right: -64px; }
+  .sita-invite::after { right: 83px; }
 }

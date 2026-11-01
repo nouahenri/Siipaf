@@ -134,6 +134,19 @@ const MODULES = {
       { to: '/marketing/acces', label: 'Rôles et privilèges', icon: ShieldCheck, perm: 'users:read' },
     ],
   },
+  // QHSE : le conducteur saisit les contrôles de ses chantiers ; direction des exploitations, RH et responsable QHSE valident
+  qhse: {
+    label: 'QHSE', icon: ShieldAlert, perm: 'qhse:read',
+    items: [
+      { to: '/qhse', label: 'Tableau de bord', icon: LayoutDashboard, end: true, perm: 'qhse:read' },
+      { to: '/qhse/controles', label: 'Contrôles journaliers', icon: ListChecks, badge: 'missing_today', perm: 'qhse:read' },
+      { to: '/qhse/hebdomadaires', label: 'Contrôles hebdomadaires', icon: CalendarRange, badge: 'weekly_to_validate', perm: 'qhse:read' },
+      { to: '/qhse/audits', label: 'Inspections et audits', icon: SearchCheck, badge: 'audits_to_validate', perm: 'qhse:read' },
+      { to: '/qhse/actions', label: 'Actions correctives', icon: ClipboardCheck, badge: 'actions_late', perm: 'qhse:read' },
+      { to: '/qhse/reglages', label: 'Réglages', icon: Settings2 },
+      { to: '/qhse/acces', label: 'Rôles et privilèges', icon: ShieldCheck, perm: 'users:read' },
+    ],
+  },
   // Chantiers : les gestionnaires et la Direction ; le conducteur nommé sur un chantier y voit les siens
   chantiers: {
     label: 'Chantiers', icon: HardHat, perm: CHANTIERS, show: CHANTIERS_SHOW,
