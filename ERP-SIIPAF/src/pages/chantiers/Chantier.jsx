@@ -64,7 +64,8 @@ export default function Chantier() {
           <div><span className="small muted"><CalendarRange className="ico" />Période prévue</span><b className="small">{w.planned_start ? `${date(w.planned_start)} → ${date(w.planned_end)}` : '—'}</b>
             {w.actual_start && <span className="small muted">Démarré le {date(w.actual_start)}{w.actual_end ? `, terminé le ${date(w.actual_end)}` : ''}</span>}</div>
           <div><span className="small muted"><AlertTriangle className="ico" />Phases en retard</span><b>{w.late_phases ? <Badge tone="danger">{w.late_phases} · jusqu’à {w.late_days} j</Badge> : 'Aucune'}</b></div>
-          <div><span className="small muted"><Wallet className="ico" />Budget consommé</span><b className="tabular">{fcfa(w.spent_fcfa)}<span className="small muted"> sur {w.budget_fcfa ? fcfa(w.budget_fcfa) : '—'}</span></b>{w.consumed_pct != null && <Advance value={Math.min(100, w.consumed_pct)} />}</div>
+          <div><span className="small muted"><Wallet className="ico" />Budget consommé</span><b className="tabular">{fcfa(w.spent_fcfa)}<span className="small muted"> sur {w.budget_fcfa ? fcfa(w.budget_fcfa) : '—'}</span></b>{w.consumed_pct != null && <Advance value={Math.min(100, w.consumed_pct)} />}
+            {w.costs.committed_fcfa > 0 && <span className="small muted" title="Bons de commande confirmés, pas encore reçus : comptés dans l’alerte de budget">+ {fcfa(w.costs.committed_fcfa)} engagés</span>}</div>
           <div><span className="small muted">Lots de la zone</span><b className="tabular">{num(w.lots.total)}<span className="small muted"> dont {num(w.lots.sold)} réservé(s) ou vendu(s)</span></b></div>
         </div>
       </Card>
@@ -321,6 +322,9 @@ function Budget({ w, refs, onChange }) {
   const total = w.budget_fcfa;
   const c = w.costs;
   const tone = pct => (pct == null ? '' : pct > 100 ? 'danger' : pct >= (refs.settings?.chantier_budget_alert_pct ?? 90) ? 'warn' : 'ok');
+  // Engagé = bons de commande confirmés pas encore reçus (HT) : compté avec le réel dans l'alerte de budget
+  const engaged = w.spent_fcfa + c.committed_fcfa;
+  const engagedPct = total ? Math.round((engaged / total) * 100) : null;
   return (
     <div className="stack">
       <Card title="Prévu et réel par poste" bodyClass="">
@@ -343,11 +347,22 @@ function Budget({ w, refs, onChange }) {
               <td><b>Total</b></td><td className="right tabular"><b>{fcfa(total)}</b></td><td className="right tabular"><b>{fcfa(w.spent_fcfa)}</b></td>
               <td className="right tabular"><b>{fcfa(total - w.spent_fcfa)}</b></td><td>{w.consumed_pct == null ? '—' : <Badge tone={tone(w.consumed_pct)}>{w.consumed_pct} %</Badge>}</td>
             </tr>
+            {c.committed_fcfa > 0 && <>
+              <tr>
+                <td className="muted">Engagé (commandes confirmées, non reçues)</td><td /><td className="right tabular">{fcfa(c.committed_fcfa)}</td><td /><td />
+              </tr>
+              <tr>
+                <td><b>Réel + engagé</b></td><td className="right tabular">{fcfa(total)}</td><td className="right tabular"><b>{fcfa(engaged)}</b></td>
+                <td className="right tabular" style={{ color: engaged > total ? 'var(--danger)' : undefined }}><b>{fcfa(total - engaged)}</b></td>
+                <td>{engagedPct == null ? '—' : <Badge tone={tone(engagedPct)}>{engagedPct} %</Badge>}</td>
+              </tr>
+            </>}
           </tbody>
         </table></div>
         <p className="small muted card-body" style={{ margin: 0 }}>
           Réel = factures d’achat affectées au chantier (HT, brouillons compris : {fcfa(c.drafts_fcfa)} à valider par la Comptabilité), dépenses du parc,
           heures pointées sur le chantier valorisées au coût horaire, et bientôt les situations des sous-traitants. Réglé aux fournisseurs : {fcfa(c.paid_fcfa)}.
+          {c.committed_fcfa > 0 && ' Engagé = bons de commande d’Achats & stocks confirmés pour ce chantier, montant HT pas encore reçu ; l’alerte de budget compte le réel et l’engagé.'}
         </p>
       </Card>
 

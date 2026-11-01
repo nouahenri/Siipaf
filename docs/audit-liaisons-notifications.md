@@ -98,10 +98,10 @@ Code livré sans lancer les tests (consigne du client : tests ensemble à la fin
 - [x] 12) `employe.embauche` (comptes, services généraux, Compta) et `contrat_travail.echeance` (essai, CDD → responsable, RH, Juridique).
 - [x] 13) Alertes Contrats et Parc par droits ; `contrat.echeance_juridique` pour la sous-traitance.
 - [x] 14) `acte.etape` (commercial et client) ; honoraires du notaire : montant saisi au Juridique, facture d'achat en brouillon et notification `acte.honoraires` avec le montant (voir Compléments, point 1).
-- [~] 15) `compta.a_synchroniser` (tâche horaire, lue après « Synchroniser ») ; engagé compté dans l'alerte de budget et affiché dans la liste des chantiers. Partiel : l'onglet Budget de la fiche chantier n'affiche pas encore l'engagé (`costs().committed_fcfa` est fourni).
+- [x] 15) `compta.a_synchroniser` (tâche horaire, lue après « Synchroniser ») ; engagé compté dans l'alerte de budget et affiché dans la liste des chantiers. Complété le 01/11 : fiche chantier — « + … engagés » sous « Budget consommé », et dans l'onglet Budget lignes « Engagé (commandes confirmées, non reçues) » et « Réel + engagé » (écart et % au même seuil que l'alerte).
 - [x] 16) `echeance.relance` (30 et 60 jours : commercial et client).
 - [x] 17) Cloche du dashboard : « Mes notifications » respecté (compteur et son).
-- [~] 18) Encart « Courriers affectés au service » dans Compta, SAV, RH, Achats (service « administratif »), Chantiers (« chantier » et « technique »), lien vers la fiche du courrier.
+- [x] 18) Encart « Courriers affectés au service » dans Compta, SAV, RH, Achats (service « administratif »), Chantiers (« chantier » et « technique »), lien vers la fiche du courrier. Complété le 01/11 : Service commercial (tableau de bord) et Vue Direction (section Administration générale, service « direction ») ; le Juridique a son propre encart. Les 9 services du registre ont désormais leur encart.
 - [x] 19) Vue Direction : SAV en retard, prospects à attribuer, impayés.
 - [x] 20) Tous les `notify` directs passés au catalogue (congés, frais, courrier, contrats, parc, départs, demandes, documents, postes, objectifs, chantiers, besoins, litiges, cautions, `vefa.appel_emis`, `reclamation.confiee`…).
 - [ ] 21) Ignoré : décision du client (rôle `conducteur_travaux` inchangé).

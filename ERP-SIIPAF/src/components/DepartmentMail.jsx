@@ -1,5 +1,5 @@
 /**
- * Encart « Courriers affectés au service » des modules (Comptabilité, SAV, RH, Achats, Chantiers) : les courriers que le registre de
+ * Encart « Courriers affectés au service » des modules (Comptabilité, SAV, RH, Achats, Chantiers, Commercial, Vue Direction) : les courriers que le registre de
  * l'Administration générale a affectés au service (en cours, et traités depuis 30 jours). Chaque ligne ouvre la fiche du courrier.
  * Les courriers confidentiels restent masqués à qui n'a pas le droit de les voir.
  */
@@ -24,7 +24,7 @@ export default function DepartmentMail({ departments, label }) {
               <Link to={`/administration/courrier?fiche=${m.id}`} className="list-row">
                 <span style={{ minWidth: 0, flex: 1 }}>
                   <strong className="ellipsis">{m.number} · {m.masked ? 'Courrier confidentiel' : m.subject}</strong>
-                  {!m.masked && <span className="small muted ellipsis">{m.correspondent} · {m.suite_label || ''}</span>}
+                  {!m.masked && <span className="small muted ellipsis">{[m.correspondent, m.suite_label].filter(Boolean).join(' · ')}</span>}
                 </span>
                 <span className="small nowrap">
                   {m.status === 'traite' ? <Badge tone="ok">Traité</Badge> : m.due_date ? <>{date(m.due_date)} {m.late && <Badge tone="danger">en retard</Badge>}</> : <Badge>{m.status_label}</Badge>}

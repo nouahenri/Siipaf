@@ -6,6 +6,7 @@ import { LineChart, BarList, useCountUp } from '@admin/components/Charts';
 import { fcfa, num } from '@admin/lib/format';
 import { useCommercialMeta, compact, STAGE_COLORS, monthName } from '../../lib/commercial';
 import ServiceRequests from '../../components/ServiceRequests';
+import DepartmentMail from '../../components/DepartmentMail';
 
 export const trendOf = (now, before) => (before ? Math.round(((now - before) / before) * 1000) / 10 : null);
 const Trend = ({ value }) => {
@@ -93,6 +94,7 @@ export default function CommercialDashboard() {
           <BarList items={Object.entries(d.lost_reasons).map(([k, v]) => ({ label: meta?.lost_reasons[k] || k, value: v })).sort((a, b) => b.value - a.value)} color="#9f1239" />
         </Card>
       </div>
+      <DepartmentMail departments="commercial" label="Commercial" />
     </div>
   );
 }

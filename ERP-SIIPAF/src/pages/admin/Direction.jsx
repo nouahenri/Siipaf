@@ -17,6 +17,7 @@ import { fcfa, num, date, dateTime } from '@admin/lib/format';
 import { compact, monthName } from '../../lib/commercial';
 import { Kpi, Progress, trendOf } from '../commercial/CommercialDashboard';
 import ApproSummary from '../achats/ApproSummary';
+import DepartmentMail from '../../components/DepartmentMail';
 
 const money = v => `${compact(v)} FCFA`;
 const pct = (done, target) => (target ? Math.round((done / target) * 1000) / 10 : null);
@@ -328,6 +329,7 @@ export default function Direction() {
           <Kpi to="/administration/documents" icon={ListChecks} label="Actions de réunion ouvertes" count={a.documents.actions_open} tint={a.documents.actions_late ? 'amber' : undefined}
             foot={`${num(a.documents.actions_late)} en retard`} />
         </div>
+        <DepartmentMail departments="direction" label="Direction" />
       </Section>
 
       <Section icon={Scale} title="Juridique" to="/juridique">
