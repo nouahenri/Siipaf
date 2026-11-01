@@ -71,6 +71,7 @@ const settingsSchema = z.object({
   invitation_programme: text(220), // {programme} et {nom} sont remplacés
   invitations: z.record(z.string().max(80), text(220)), // texte propre à un programme (par son identifiant d'adresse)
   invitation_delay_s: z.number().int().min(0).max(120),
+  sound: z.boolean(), // carillon discret à l'apparition de l'invitation, une fois par visite (choix du client du 01/11/2026)
   tone: z.enum(Object.keys(TONES)),
   tone_notes: text(600),
   languages: z.array(z.enum(Object.keys(LANGS))).min(1),
@@ -88,7 +89,7 @@ const settingsSchema = z.object({
 const DEFAULTS = {
   enabled: false, // à activer par le client une fois les réglages relus
   name: 'Sita', gender: 'femme', title: '', photo_media_id: null, greeting: '',
-  invitation_default: '', invitation_programme: '', invitations: {}, invitation_delay_s: 8,
+  invitation_default: '', invitation_programme: '', invitations: {}, invitation_delay_s: 8, sound: true,
   tone: 'chaleureux', tone_notes: '', languages: ['fr', 'en'], pages: DEFAULT_PAGES,
   whatsapp_relay: '', human_hours: { days: [1, 2, 3, 4, 5], from: '08:00', to: '18:00' },
   model: DEFAULT_MODEL, cap_fcfa: 20000, usd_fcfa: 600, alert_pct: 80, max_output_tokens: 700, emergency_stop: false,

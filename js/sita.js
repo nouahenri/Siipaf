@@ -211,11 +211,57 @@
       invite.appendChild(go);
       invite.appendChild(x);
       root.appendChild(invite);
+      chime();
     }, Math.max(0, cfg.invitation_delay_s) * 1000);
   }
   function hideInvite(remember) {
+    if (stopChime) stopChime();
     if (invite) { invite.remove(); invite = null; }
     if (remember) save({ inviteClosed: true });
+  }
+
+  // ─── Carillon à l'apparition de l'invitation (réglage « Son à l'apparition », une fois par visite) ───
+  // Deux notes douces créées par le navigateur (aucun fichier). Les navigateurs refusent le son avant le premier clic ou
+  // toucher du visiteur : il est alors joué à ce moment-là, si l'invitation est encore affichée ; jamais deux fois.
+  var stopChime = null;
+  function chime() {
+    var Ctx = window.AudioContext || window.webkitAudioContext;
+    if (!cfg.sound || state.chimed || !Ctx) return;
+    var ctx;
+    try { ctx = new Ctx(); } catch (e) { return; }
+    var events = ['pointerdown', 'keydown', 'touchstart'];
+    function stop() {
+      events.forEach(function (ev) { document.removeEventListener(ev, onGesture, true); });
+      stopChime = null;
+      setTimeout(function () { try { ctx.close(); } catch (e) { /* déjà fermé */ } }, 1500);
+    }
+    function play() {
+      if (state.chimed || !invite) return;
+      save({ chimed: true });
+      var t = ctx.currentTime + 0.02;
+      [[880, 0], [1318.5, 0.16]].forEach(function (n) { // la5 puis mi6
+        var o = ctx.createOscillator(), g = ctx.createGain();
+        o.type = 'sine';
+        o.frequency.value = n[0];
+        g.gain.setValueAtTime(0.0001, t + n[1]);
+        g.gain.exponentialRampToValueAtTime(0.12, t + n[1] + 0.02);
+        g.gain.exponentialRampToValueAtTime(0.0001, t + n[1] + 0.6);
+        o.connect(g);
+        g.connect(ctx.destination);
+        o.start(t + n[1]);
+        o.stop(t + n[1] + 0.65);
+      });
+      stop();
+    }
+    function onGesture(e) {
+      // Le visiteur s'adresse déjà à Sita (bulle, invitation) : pas de son, il l'a vue
+      if (root.contains(e.target)) { stop(); return; }
+      ctx.resume().then(play, function () { /* son refusé : tant pis */ });
+    }
+    stopChime = stop;
+    if (ctx.state === 'running') { play(); return; }
+    ctx.resume().then(function () { if (ctx.state === 'running') play(); }, function () { /* attend un geste */ });
+    events.forEach(function (ev) { document.addEventListener(ev, onGesture, true); });
   }
 
   // ─── Fenêtre ────────────────────────────────────────────────────────

@@ -28,7 +28,7 @@ function publicSita(db) {
   const r = express.Router();
   r.get('/sita/config', ah(async (req, res) => {
     const c = await sita.publicConfig(db);
-    res.set('Cache-Control', 'public, max-age=60');
+    res.set('Cache-Control', 'private, max-age=60'); // navigateur seulement : jamais le cache partagé de l'hébergeur
     res.json(c.enabled ? c : { enabled: false });
   }));
   r.post('/sita/message', ah(async (req, res) => {

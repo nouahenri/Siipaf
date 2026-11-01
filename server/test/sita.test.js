@@ -101,8 +101,18 @@ test('configuration publique : désactivée = rien, activée = identité et text
   assert.deepEqual(ok(await request(app).get('/api/public/sita/config')), { enabled: false });
   assert.equal((await say(1, 'Bonjour')).status, 403, 'assistante désactivée : aucun échange');
   ok(await settings({ enabled: true, greeting: 'Bonjour, ici {nom} !', invitations: { [project.slug]: 'Une question sur {programme} ? {nom} connaît ce programme par cœur.' } }));
-  const cfg = ok(await request(app).get('/api/public/sita/config'));
+  const res = await request(app).get('/api/public/sita/config');
+  // Cache de l'hébergeur (Varnish) : jamais de copie partagée, et une copie par origine (sinon bulle absente du site)
+  assert.match(res.headers['cache-control'], /^private/);
+  assert.match(res.headers.vary || '', /Origin/);
+  assert.match((await request(app).get('/api/public/projects')).headers.vary || '', /Origin/, 'toute l’API publique varie selon l’origine');
+  const cfg = ok(res);
   assert.equal(cfg.enabled, true);
+  assert.equal(cfg.sound, true, 'carillon actif par défaut (choix du client)');
+  ok(await settings({ sound: false }));
+  assert.equal(ok(await request(app).get('/api/public/sita/config')).sound, false, 'carillon coupé depuis le dashboard');
+  assert.equal((await settings({ sound: 'oui' })).status, 400);
+  ok(await settings({ sound: true }));
   assert.equal(cfg.name, 'Sita');
   assert.equal(cfg.greeting, 'Bonjour, ici Sita !');
   assert.equal(cfg.invitations[project.slug], `Une question sur ${project.name} ? Sita connaît ce programme par cœur.`);

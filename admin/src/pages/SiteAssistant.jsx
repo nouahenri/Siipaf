@@ -110,6 +110,9 @@ export default function SiteAssistant() {
               <input className="input" maxLength={220} value={form.invitation_programme} onChange={e => set({ invitation_programme: e.target.value })} placeholder={defaults.invitation_programme} />
             </Field>
             <Field label="Délai avant l’invitation (secondes)"><input className="input" style={{ maxWidth: 120 }} type="number" min="0" max="120" value={form.invitation_delay_s} onChange={e => num('invitation_delay_s', e.target.value)} /></Field>
+            <Field label="Son à l’apparition" hint="Carillon discret, une fois par visite. Les navigateurs bloquent le son tant que le visiteur n’a ni cliqué ni touché la page : il est alors joué à son premier clic, si l’invitation est encore affichée.">
+              <label className="checkbox"><input type="checkbox" checked={form.sound} onChange={e => set({ sound: e.target.checked })} />Jouer un carillon quand l’invitation de {form.name || 'Sita'} apparaît</label>
+            </Field>
           </div>
           {!!meta.projects.length && (
             <Field label="Invitation propre à un programme (facultatif)" hint="Laissez vide pour utiliser l’invitation ci-dessus.">

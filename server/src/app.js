@@ -27,12 +27,13 @@ function createApp(db) {
   app.use((req, res, next) => (req.path === '/api/admin/erp/compta/import/sage' && req.method === 'POST' ? next() : json(req, res, next)));
   app.use(cookieParser());
 
-  // CORS : seul le site public (autre domaine) appelle l'API publique
+  // CORS : seul le site public (autre domaine) appelle l'API publique. `Vary: Origin` sur TOUTES les réponses : le cache de
+  // l'hébergeur (Varnish LWS) ne doit jamais servir à siipaf.com une copie prise sans autorisation CORS (bulle de Sita absente).
   app.use('/api/public', (req, res, next) => {
     const origin = req.get('origin');
+    res.vary('Origin');
     if (origin && corsOrigins.includes(origin)) {
       res.set('Access-Control-Allow-Origin', origin);
-      res.set('Vary', 'Origin');
       res.set('Access-Control-Allow-Headers', 'Content-Type');
       res.set('Access-Control-Allow-Methods', 'GET,POST,OPTIONS');
     }
