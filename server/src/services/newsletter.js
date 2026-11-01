@@ -129,7 +129,7 @@ async function tick(db, now = new Date()) {
       } catch (err) {
         const detail = `${err.code || ''} ${err.response || err.message}`.trim().slice(0, 300);
         // Erreur du serveur mail lui-même (identifiants, quota, SMTP absent) : pause, l'adresse repart plus tard
-        if (['EAUTH', 'ENOSMTP', 'ECONNECTION', 'ETIMEDOUT', 'ESOCKET'].includes(err.code) || /quota|rate|too many|limit/i.test(detail) || (err.responseCode >= 421 && err.responseCode < 500)) {
+        if (['EAUTH', 'ENOAUTH', 'ENOSMTP', 'ECONNECTION', 'ETIMEDOUT', 'ESOCKET'].includes(err.code) || /quota|rate|too many|limit/i.test(detail) || (err.responseCode >= 421 && err.responseCode < 500)) {
           await db('newsletter_sends').where({ id: send.id }).update({ status: 'en_attente', claimed_at: null });
           await db('newsletter_campaigns').where({ id: c.id }).update({ status: 'pause', last_error: `Envoi suspendu : ${detail}`, updated_at: new Date() });
           await refreshCounts(db, c.id);
