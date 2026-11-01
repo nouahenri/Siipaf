@@ -4,6 +4,7 @@ const fs = require('fs');
 const path = require('path');
 const { setup, login, createUser, request } = require('./helpers');
 const ai = require('../src/services/marketingAi');
+const gemini = require('../src/services/geminiAi');
 const sita = require('../src/services/sita');
 const S = require('../src/lib/sita');
 const { PERMISSION_IDS, INFO_EVENTS } = require('../src/lib/domain');
@@ -12,7 +13,7 @@ const { PERMISSION_IDS, INFO_EVENTS } = require('../src/lib/domain');
 const KEY = 'sk-ant-api03-SECRETTEST-wxyz';
 const URL = '/api/admin/erp/commercial/sita';
 const ok = (r, code = 200) => { assert.equal(r.status, code, JSON.stringify(r.body)); return r.body; };
-const noKey = () => { delete process.env.ANTHROPIC_API_KEY; ai.setClient(null); };
+const noKey = () => { delete process.env.ANTHROPIC_API_KEY; delete process.env.GEMINI_API_KEY; ai.setClient(null); gemini.setClient(null); gemini.setHttp(null); };
 const useKey = client => { process.env.ANTHROPIC_API_KEY = KEY; ai.setClient(client); return client; };
 const toolUse = (name, input, usage = { input_tokens: 2000, output_tokens: 150 }) => ({ content: [{ type: 'tool_use', id: `tu_${name}`, name, input }], stop_reason: 'tool_use', usage });
 const text = (t, usage = { input_tokens: 2200, output_tokens: 120 }) => ({ content: [{ type: 'text', text: t }], stop_reason: 'end_turn', usage });
@@ -72,7 +73,8 @@ test('réglages : validation, enregistrement, textes par défaut selon le genre,
   assert.equal(view.settings.enabled, false, 'désactivée tant que le client ne l’a pas activée');
   assert.equal(view.settings.name, 'Sita');
   assert.equal(view.usage.mode, 'demo');
-  assert.equal(view.usage.key.present, false);
+  assert.equal(view.usage.keys.anthropic.present, false);
+  assert.equal(view.usage.keys.gemini.present, false);
   assert.match(view.defaults.title, /conseillère immobilière SIIPAF/);
   assert.equal((await admin.put('/api/admin/assistant').send({ name: 'S' })).status, 400, 'prénom trop court');
   assert.equal((await admin.put('/api/admin/assistant').send({ model: 'gpt-4' })).status, 400, 'modèle inconnu');
@@ -390,7 +392,7 @@ test('panne de l’IA : message prudent, relais WhatsApp, clé masquée partout'
   const view = JSON.stringify(ok(await admin.get(`${URL}/${conv.id}`)));
   assert.ok(!view.includes(KEY));
   assert.ok(!JSON.stringify(ok(await admin.get('/api/admin/assistant'))).includes(KEY), 'les réglages n’exposent que la présence de la clé');
-  assert.equal(ok(await admin.get('/api/admin/assistant')).usage.key.last4, KEY.slice(-4));
+  assert.equal(ok(await admin.get('/api/admin/assistant')).usage.keys.anthropic.last4, KEY.slice(-4));
 });
 
 test('limite de débit : par visiteur, par adresse et par nouvelles conversations', async () => {
@@ -482,6 +484,124 @@ test('Service commercial › Conversations de Sita : liste, détail, filtres, cl
   // Droit du module requis
   assert.equal((await editeur.get(URL)).status, 403, 'l’éditeur règle Sita mais n’a pas le Service commercial');
   assert.equal((await request(app).get(URL)).status, 401);
+});
+
+// ─── Gemini (Google AI Studio), alternative à Claude (choix du client du 01/11/2026) ────────────────────────────────────
+const GKEY = 'AIzaSyTEST-cle-gemini-factice-0123456789';
+/** Faux fetch de l'API Google : réponses dans l'ordre (la dernière se répète) ; `calls` garde adresse, en-têtes et corps. */
+const scriptedHttp = (...steps) => {
+  const fn = async (url, init) => {
+    fn.calls.push({ url, headers: init.headers, body: JSON.parse(init.body) });
+    const step = steps[Math.min(fn.calls.length - 1, steps.length - 1)];
+    if (step && step.status) return { ok: false, status: step.status, statusText: 'Erreur', json: async () => step.body };
+    return { ok: true, status: 200, json: async () => step };
+  };
+  fn.calls = [];
+  return fn;
+};
+const useGemini = http => { process.env.GEMINI_API_KEY = GKEY; gemini.setHttp(http); return http; };
+const gCall = (name, args) => ({
+  candidates: [{ content: { role: 'model', parts: [{ text: 'réflexion interne', thought: true }, { functionCall: { name, args }, thoughtSignature: 'c2lnbmF0dXJlLTE=' }] }, finishReason: 'STOP' }],
+  usageMetadata: { promptTokenCount: 3000, cachedContentTokenCount: 1000, candidatesTokenCount: 40, thoughtsTokenCount: 60 },
+});
+const gText = t => ({ candidates: [{ content: { role: 'model', parts: [{ text: t }] }, finishReason: 'STOP' }], usageMetadata: { promptTokenCount: 3100, candidatesTokenCount: 50, thoughtsTokenCount: 30 } });
+const lastAnswer = () => db('sita_messages').where({ role: 'assistante', mode: 'ia' }).orderBy('id', 'desc').first();
+
+test('adaptateur Gemini : schémas des outils, consignes, réflexion bornée ; réponse bloquée = erreur ; réflexion jamais montrée', () => {
+  const req = gemini.toRequest({ model: 'gemini-3.5-flash-lite', max_tokens: 500, system: [{ type: 'text', text: 'Consignes' }], messages: [{ role: 'user', content: 'Bonjour' }], tools: S.TOOLS });
+  assert.equal(req.systemInstruction.parts[0].text, 'Consignes');
+  assert.deepEqual(req.contents, [{ role: 'user', parts: [{ text: 'Bonjour' }] }]);
+  const decl = req.tools[0].functionDeclarations.find(d => d.name === 'proposer_rendez_vous');
+  assert.equal(decl.parameters.type, 'OBJECT');
+  assert.equal(decl.parameters.properties.kind.type, 'STRING');
+  assert.deepEqual(decl.parameters.properties.kind.enum, Object.keys(S.APPOINTMENT_KINDS));
+  assert.equal(decl.parameters.properties.consent_contact.type, 'BOOLEAN');
+  assert.deepEqual(req.generationConfig, { maxOutputTokens: 500 + S.GEMINI_MODELS['gemini-3.5-flash-lite'].thinking_room, thinkingConfig: { thinkingLevel: 'minimal' } });
+  assert.throws(() => gemini.fromResponse({ promptFeedback: { blockReason: 'SAFETY' } }), /SAFETY/);
+  const res = gemini.fromResponse(gCall('passer_la_main', { reason: 'test' }));
+  assert.deepEqual(res.content.filter(b => b.type === 'text'), [], 'la réflexion interne n’est jamais un texte de réponse');
+  assert.equal(res.content.find(b => b.type === 'tool_use').name, 'passer_la_main');
+  assert.deepEqual(res.usage, { input_tokens: 2000, output_tokens: 100, cache_read_input_tokens: 1000, cache_creation_input_tokens: 0 });
+  assert.match(gemini.clean(`refusée ${'AIza' + 'x'.repeat(30)}`), /\[clé masquée\]/);
+});
+
+test('Gemini seul (sans clé Claude) : son modèle par défaut répond, outils exécutés, tour du modèle renvoyé tel quel, coût au tarif Google', async () => {
+  ok(await settings({ enabled: true, model: 'claude-sonnet-5-5' }));
+  const maxOut = ok(await admin.get('/api/admin/assistant')).settings.max_output_tokens;
+  const http = useGemini(scriptedHttp(
+    gCall('enregistrer_prospect', { name: 'Awa Koné', phone: '07 08 09 10 11', summary: 'Cherche une villa.', consent_contact: true }),
+    gText('Merci Awa, c’est noté : un conseiller SIIPAF vous recontacte très vite.'),
+  ));
+  const r = ok(await say(60, 'Je suis Awa Koné, mon numéro est 07 08 09 10 11 et j’accepte que SIIPAF me rappelle.'));
+  assert.match(r.reply, /Awa/);
+  assert.equal(r.lead_saved, true);
+  assert.equal(http.calls.length, 2);
+  const [first, second] = http.calls;
+  assert.match(first.url, /\/models\/gemini-3\.8-flash:generateContent$/, 'clé Claude absente : modèle par défaut de Gemini');
+  assert.equal(first.headers['x-goog-api-key'], GKEY, 'clé dans l’en-tête');
+  assert.ok(!first.url.includes(GKEY) && !JSON.stringify(http.calls.map(c => c.body)).includes(GKEY), 'jamais dans l’adresse ni dans le corps');
+  assert.match(first.body.systemInstruction.parts[0].text, /UNIQUEMENT les faits fournis/);
+  assert.deepEqual(first.body.tools[0].functionDeclarations.map(d => d.name), ['enregistrer_prospect', 'proposer_rendez_vous', 'passer_la_main']);
+  assert.deepEqual(first.body.generationConfig, { maxOutputTokens: maxOut + 1024, thinkingConfig: { thinkingLevel: 'low' } });
+  const turn = second.body.contents.at(-2);
+  assert.deepEqual(turn, { role: 'model', parts: gCall('enregistrer_prospect', {}).candidates[0].content.parts.map((p, i) => (i === 1 ? { ...p, functionCall: { ...p.functionCall, args: { name: 'Awa Koné', phone: '07 08 09 10 11', summary: 'Cherche une villa.', consent_contact: true } } } : p)) }, 'signature de réflexion renvoyée');
+  const answer = second.body.contents.at(-1).parts[0].functionResponse;
+  assert.equal(answer.name, 'enregistrer_prospect');
+  assert.equal(answer.response.ok, true);
+  assert.ok(await db('leads').where({ phone: '0708091011', source: 'ia' }).first());
+  const msg = await lastAnswer();
+  assert.equal(msg.model, 'gemini-3.8-flash');
+  assert.equal(msg.tokens_in, 2000 + 3100);
+  assert.equal(msg.tokens_out, 100 + 80, 'réflexion comptée en sortie');
+  assert.equal(msg.tokens_cache_read, 1000);
+  const p = S.GEMINI_MODELS['gemini-3.8-flash'];
+  assert.equal(Number(msg.cost_micro_usd), Math.round(5100 * p.in + 180 * p.out + 1000 * p.cache_read));
+  const usage = ok(await admin.get('/api/admin/assistant')).usage;
+  assert.equal(usage.mode, 'ia');
+  assert.equal(usage.effective_model, 'gemini-3.8-flash');
+  assert.match(usage.mode_reason, /Claude.*absente/);
+  assert.equal(usage.keys.gemini.last4, GKEY.slice(-4));
+  assert.equal(usage.keys.anthropic.present, false);
+  assert.ok(!JSON.stringify(ok(await admin.get('/api/admin/assistant'))).includes(GKEY));
+});
+
+test('deux clés : l’IA choisie en panne → l’autre reprend (dans les deux sens), relais visible ; pas de relais après une action', async () => {
+  ok(await settings({ enabled: true, model: 'claude-sonnet-5-5' }));
+  const claude = useKey(scripted(new Error(`529 overloaded ${KEY}`)));
+  const http = useGemini(scriptedHttp(gText('Bonjour ! Je peux vous présenter nos programmes et organiser une visite. Que recherchez-vous ?')));
+  const r = ok(await say(61, 'Bonjour'));
+  assert.match(r.reply, /organiser une visite/);
+  assert.equal(claude.calls.length, 1);
+  assert.equal(http.calls.length, 1);
+  let msg = await lastAnswer();
+  assert.equal(msg.model, 'gemini-3.8-flash');
+  assert.equal(msg.status, 'ok');
+  assert.match(JSON.parse(msg.warnings)[0], /^Relais : Gemini 3\.8 Flash/);
+  assert.ok(!msg.warnings.includes(KEY), 'clé Claude masquée dans la mention du relais');
+  const conv = await db('sita_conversations').where({ visitor_key: vid(61) }).first();
+  const shown = ok(await admin.get(`${URL}/${conv.id}`)).messages.at(-1);
+  assert.equal(shown.model_label, 'Gemini 3.8 Flash');
+  assert.equal(shown.relay, true);
+
+  // Sens inverse : Gemini choisi et en panne, Claude répond
+  ok(await settings({ model: 'gemini-4-argon' }));
+  const http2 = useGemini(scriptedHttp({ status: 503, body: { error: { message: `surcharge, clé ${GKEY}` } } }));
+  useKey(scripted(text('Bonjour ! Je peux vous renseigner sur nos programmes. Que recherchez-vous ?')));
+  ok(await say(62, 'Bonjour'));
+  assert.match(http2.calls[0].url, /gemini-4-argon/);
+  msg = await lastAnswer();
+  assert.equal(msg.model, 'claude-sonnet-5-5');
+  assert.match(JSON.parse(msg.warnings)[0], /^Relais : Claude Sonnet 5\.5/);
+  assert.ok(!msg.warnings.includes(GKEY), 'clé Gemini masquée');
+
+  // Une action déjà exécutée : pas de second essai (elle serait faite deux fois)
+  const http3 = useGemini(scriptedHttp(gCall('passer_la_main', { reason: 'test' }), { status: 500, body: { error: { message: 'panne' } } }));
+  const claude3 = useKey(scripted(text('Ne doit pas répondre.')));
+  const r3 = ok(await say(63, 'Je veux parler à quelqu’un'));
+  assert.equal(http3.calls.length, 2);
+  assert.equal(claude3.calls.length, 0);
+  assert.match(r3.reply, /souci technique/);
+  ok(await settings({ model: 'claude-sonnet-5-5' }));
 });
 
 test('migration : retour arrière puis nouvelle application', async () => {

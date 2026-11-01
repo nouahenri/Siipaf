@@ -31,6 +31,25 @@ const APPOINTMENT_KINDS = { visite: 'Visite du site', bureau: 'Rendez-vous au bu
 const FINANCINGS = Object.keys(FINANCING_PLANS);
 const DEFAULT_RELAY = '2250102279595';
 
+// Fournisseurs de l'IA : chaque clé est l'alternative de l'autre (choix du client du 01/11/2026). Le modèle réglé répond ; si sa clé
+// manque, le modèle par défaut de l'autre fournisseur le remplace ; si son appel échoue, l'autre fournisseur prend le relais.
+const PROVIDERS = { anthropic: 'Claude (Anthropic)', gemini: 'Gemini (Google)' };
+// Tarifs Gemini en dollars par million de jetons, offre payante, invites ≤ 200 000 jetons : grille Google relevée le 01/11/2026,
+// prix RELEVÉS AU 01/12/2026 (Argon) et au 01/01/2027 (Flash) déjà appliqués pour que le plafond ne soit jamais dépassé.
+// `thinking` : niveau de réflexion demandé (le plus bas proposé par le modèle) ; `thinking_room` : jetons de réflexion ajoutés à la
+// limite de sortie (chez Google, la réflexion compte dans la limite et est facturée au tarif de sortie).
+const GEMINI_MODELS = {
+  'gemini-3.8-flash': { label: 'Gemini 3.8 Flash (équilibré)', in: 1.5, out: 7.5, cache_read: 0.15, cache_write: 0, thinking: 'low', thinking_room: 1024 },
+  'gemini-4-argon': { label: 'Gemini 4 Argon (plus soigné, plus cher)', in: 4, out: 20, cache_read: 0.2, cache_write: 0, thinking: 'low', thinking_room: 1024 },
+  'gemini-3.5-flash-lite': { label: 'Gemini 3.5 Flash-Lite (rapide, économique)', in: 0.3, out: 2.5, cache_read: 0.03, cache_write: 0, thinking: 'minimal', thinking_room: 512 },
+};
+const SITA_MODELS = {
+  ...Object.fromEntries(Object.entries(MODELS).map(([k, m]) => [k, { ...m, provider: 'anthropic', thinking_room: 0 }])),
+  ...Object.fromEntries(Object.entries(GEMINI_MODELS).map(([k, m]) => [k, { ...m, provider: 'gemini' }])),
+};
+const PROVIDER_DEFAULT_MODEL = { anthropic: DEFAULT_MODEL, gemini: 'gemini-3.8-flash' };
+const providerOf = model => (SITA_MODELS[model] || SITA_MODELS[DEFAULT_MODEL]).provider;
+
 // Garde-fous de la conversation
 const MAX_MESSAGE_CHARS = 600; // un message de visiteur
 const MAX_VISITOR_MESSAGES = 40; // par conversation
@@ -58,7 +77,7 @@ const settingsSchema = z.object({
   pages: z.array(z.enum(Object.keys(PAGES))),
   whatsapp_relay: text(30), // numéro international, chiffres seulement ; vide : WhatsApp du site
   human_hours: z.object({ days: z.array(z.number().int().min(1).max(7)).max(7), from: hhmm, to: hhmm }),
-  model: z.enum(Object.keys(MODELS)),
+  model: z.enum(Object.keys(SITA_MODELS)),
   cap_fcfa: z.number().int().min(0).max(10000000),
   usd_fcfa: z.number().int().min(300).max(1500),
   alert_pct: z.number().int().min(10).max(100),
@@ -381,5 +400,5 @@ module.exports = {
   cleanMessage, plain, extractPhone, extractEmail, phoneDigits, visitorProvided, looksEnglish,
   checkReply, COMMITMENT, hoursText, teamPresent, WEEKDAYS,
   systemPrompt, TOOLS, prospectSchema, appointmentSchema, handoverSchema,
-  fcfa, parseWhen, MODELS,
+  fcfa, parseWhen, MODELS, PROVIDERS, GEMINI_MODELS, SITA_MODELS, PROVIDER_DEFAULT_MODEL, providerOf,
 };

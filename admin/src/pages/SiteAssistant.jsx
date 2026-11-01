@@ -12,7 +12,7 @@ const toggle = (list, v) => (list.includes(v) ? list.filter(x => x !== v) : [...
 /**
  * Onglet « Assistante du site » (Contenu du site) : réglages de Sita, la conseillère IA du site public — identité, accueil et ton,
  * activation et horaires, budget de l’IA. Le dashboard est l’outil de saisie ; le suivi des conversations est dans l’ERP
- * (Service commercial › Conversations de Sita). La clé de l’IA reste dans server/.env : seule sa présence est affichée.
+ * (Service commercial › Conversations de Sita). Les clés de l’IA (Claude, Gemini) restent dans server/.env : seule leur présence est affichée.
  */
 export default function SiteAssistant() {
   const res = useResource('/admin/assistant');
@@ -150,23 +150,37 @@ export default function SiteAssistant() {
             </div>
             <div className="progress" role="progressbar" aria-valuenow={pct} aria-valuemin="0" aria-valuemax="100" style={{ marginTop: 6 }}><div style={{ width: `${pct}%`, background: pct >= 100 ? 'var(--danger, #c0392b)' : undefined }} /></div>
           </div>
-          <p className="small muted" style={{ margin: 0 }}>
-            {usage.key.present ? `Clé de l’IA présente sur le serveur (se terminant par ${usage.key.last4}).` : 'Aucune clé de l’IA sur le serveur : Sita répond en mode démonstration, à partir des faits publiés, sans aucun coût.'}
-            {usage.mode_reason && usage.key.present ? ` ${usage.mode_reason}` : ''} La clé se règle dans le fichier server/.env (ANTHROPIC_API_KEY) et n’apparaît jamais ici.
-          </p>
+          <div className="small muted stack" style={{ gap: 4 }}>
+            {Object.entries(meta.providers).map(([p, label]) => (
+              <span key={p}>
+                <Badge tone={usage.keys[p].present ? 'ok' : undefined}>{label}</Badge>{' '}
+                {usage.keys[p].present ? `clé présente sur le serveur (se terminant par ${usage.keys[p].last4})` : 'aucune clé sur le serveur'}
+              </span>
+            ))}
+            <span>
+              {usage.mode === 'ia'
+                ? `Chaque clé est l’alternative de l’autre : le modèle choisi répond${usage.keys.anthropic.present && usage.keys.gemini.present ? ' et, s’il est en panne, l’autre IA prend le relais' : ''}.`
+                : 'Sita répond en mode démonstration, à partir des faits publiés, sans aucun coût.'}
+              {usage.mode_reason ? ` ${usage.mode_reason}` : ''} Les clés se règlent dans le fichier server/.env (ANTHROPIC_API_KEY, GEMINI_API_KEY) et n’apparaissent jamais ici.
+            </span>
+          </div>
           <div className="form-grid">
             <Field label="Plafond mensuel (FCFA)" hint="Au-delà, Sita ne répond plus avec l’IA : elle oriente les visiteurs vers l’équipe (WhatsApp). 0 bloque l’IA.">
               <input className="input" type="number" min="0" step="1000" value={form.cap_fcfa} onChange={e => num('cap_fcfa', e.target.value)} />
             </Field>
-            <Field label="Modèle de l’IA">
+            <Field label="Modèle de l’IA" hint="Claude ou Gemini. Si la clé du modèle choisi manque, Sita prend le modèle par défaut de l’autre IA.">
               <select className="select" value={form.model} onChange={e => set({ model: e.target.value })}>
-                {Object.entries(meta.models).map(([k, m]) => <option key={k} value={k}>{m.label}</option>)}
+                {Object.entries(meta.providers).map(([p, label]) => (
+                  <optgroup key={p} label={`${label}${usage.keys[p].present ? '' : ' — clé absente'}`}>
+                    {Object.entries(meta.models).filter(([, m]) => m.provider === p).map(([k, m]) => <option key={k} value={k}>{m.label}</option>)}
+                  </optgroup>
+                ))}
               </select>
             </Field>
             <Field label="Alerte à (% du plafond)" hint="La Direction générale est prévenue à ce seuil, puis au plafond.">
               <input className="input" type="number" min="10" max="100" value={form.alert_pct} onChange={e => num('alert_pct', e.target.value)} />
             </Field>
-            <Field label="Taux dollar → FCFA" hint="Anthropic facture en dollars.">
+            <Field label="Taux dollar → FCFA" hint="Anthropic et Google facturent en dollars.">
               <input className="input" type="number" min="300" max="1500" value={form.usd_fcfa} onChange={e => num('usd_fcfa', e.target.value)} />
             </Field>
             <Field label="Longueur maximale d’une réponse (jetons)" hint="Borne le coût d’une réponse.">

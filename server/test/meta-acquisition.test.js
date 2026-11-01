@@ -5,6 +5,7 @@ const fs = require('fs');
 const path = require('path');
 const { setup, login, createUser, request } = require('./helpers');
 const ai = require('../src/services/marketingAi');
+const gemini = require('../src/services/geminiAi');
 const graph = require('../src/services/metaGraph');
 const sita = require('../src/services/sita');
 const S = require('../src/lib/sita');
@@ -27,7 +28,7 @@ const CONFIG = {
 };
 
 const ok = (r, code = 200) => { assert.equal(r.status, code, JSON.stringify(r.body)); return r.body; };
-const noKey = () => { delete process.env.ANTHROPIC_API_KEY; ai.setClient(null); };
+const noKey = () => { delete process.env.ANTHROPIC_API_KEY; delete process.env.GEMINI_API_KEY; ai.setClient(null); gemini.setClient(null); gemini.setHttp(null); };
 const useKey = client => { process.env.ANTHROPIC_API_KEY = KEY; ai.setClient(client); return client; };
 const toolUse = (name, input, usage = { input_tokens: 2000, output_tokens: 150 }) => ({ content: [{ type: 'tool_use', id: `tu_${name}`, name, input }], stop_reason: 'tool_use', usage });
 const text = (t, usage = { input_tokens: 2200, output_tokens: 120 }) => ({ content: [{ type: 'text', text: t }], stop_reason: 'end_turn', usage });

@@ -105,7 +105,7 @@ function Detail({ id, onClose, onLead }) {
           <div className="stack" style={{ gap: 8 }} role="log" aria-label="Messages de la conversation">
             {c.messages.map(m => (
               <div key={m.id} style={{ alignSelf: m.role === 'visiteur' ? 'flex-start' : 'flex-end', maxWidth: '88%', padding: '8px 12px', borderRadius: 12, background: m.role === 'visiteur' ? 'var(--bg, #f3f4f6)' : 'var(--accent-soft, #fdecec)', whiteSpace: 'pre-wrap' }}>
-                <div className="small muted">{m.role === 'visiteur' ? 'Visiteur' : 'Sita'} · {dateTime(m.at)}{m.role === 'assistante' && m.status !== 'ok' ? ` · ${m.status === 'corrige' ? 'réponse corrigée par les contrôles' : m.status === 'refuse_plafond' ? 'plafond atteint' : m.status}` : ''}</div>
+                <div className="small muted">{m.role === 'visiteur' ? 'Visiteur' : 'Sita'} · {dateTime(m.at)}{m.model_label ? ` · ${m.model_label}${m.relay ? ' (relais : l’autre IA était indisponible)' : ''}` : ''}{m.role === 'assistante' && m.status !== 'ok' ? ` · ${m.status === 'corrige' ? 'réponse corrigée par les contrôles' : m.status === 'refuse_plafond' ? 'plafond atteint' : m.status}` : ''}</div>
                 {m.content}
                 {m.tools.length > 0 && <div className="small muted" style={{ marginTop: 4 }}>Actions : {m.tools.map(t => `${t.name}${t.ok ? '' : ' (refusée)'}`).join(', ')}</div>}
               </div>

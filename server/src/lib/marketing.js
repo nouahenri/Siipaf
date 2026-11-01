@@ -35,9 +35,9 @@ const MODELS = {
 const DEFAULT_MODEL = 'claude-sonnet-5-5';
 const TOOL_NAME = 'proposer_contenus';
 
-/** Coût en micro-dollars (1 jeton coûte autant de micro-dollars que le tarif par million). */
-function costMicroUsd(model, usage) {
-  const p = MODELS[model] || MODELS[DEFAULT_MODEL];
+/** Coût en micro-dollars (1 jeton coûte autant de micro-dollars que le tarif par million). `table` : grille de tarifs (Sita : Claude et Gemini). */
+function costMicroUsd(model, usage, table = MODELS) {
+  const p = table[model] || MODELS[DEFAULT_MODEL];
   return Math.round((usage.tokens_in || 0) * p.in + (usage.tokens_out || 0) * p.out
     + (usage.tokens_cache_read || 0) * p.cache_read + (usage.tokens_cache_write || 0) * p.cache_write);
 }

@@ -68,7 +68,7 @@ async function adminView(db) {
     settings, defaults: S.effectiveTexts({ ...settings, title: '', greeting: '', invitation_default: '', invitation_programme: '' }),
     photo_url: photo ? `/uploads/by-id/${photo.id}` : null, usage: await ai.usage(db, settings),
     meta: {
-      genders: S.GENDERS, tones: S.TONES, languages: S.LANGS, pages: S.PAGES, models: require('../lib/marketing').MODELS,
+      genders: S.GENDERS, tones: S.TONES, languages: S.LANGS, pages: S.PAGES, models: S.SITA_MODELS, providers: S.PROVIDERS,
       projects: (await db('projects').where({ published: true }).whereNull('archived_at').orderBy('sort').select('slug', 'name')),
       relay: await relayNumber(db, settings), hours_text: S.hoursText(settings.human_hours),
     },
@@ -406,6 +406,8 @@ async function conversationDetail(db, id, user) {
     messages: messages.map(m => ({
       id: m.id, role: m.role, content: m.content, at: isoTime(m.created_at), mode: m.mode, status: m.status, cost_fcfa: microUsdToFcfa(m.cost_micro_usd, settings.usd_fcfa),
       tools: json(m.tools, []), warnings: json(m.warnings, []),
+      model_label: m.mode === 'ia' && m.model ? (S.SITA_MODELS[m.model]?.label || m.model).replace(/\s*\(.*\)$/, '') : null,
+      relay: json(m.warnings, []).some(w => /^Relais : /.test(w)),
     })),
   };
 }
