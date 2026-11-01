@@ -1,6 +1,6 @@
 const express = require('express');
 const rateLimit = require('express-rate-limit');
-const { z } = require('zod');
+const { z } = require('../lib/zod');
 const { ah, parse, HttpError } = require('../lib/http');
 const { checkPassword, hashPassword, issueSession, clearSession, requireAuth, publicUser, roleLabel } = require('../auth');
 const { effectivePermissions } = require('../services/permissions');

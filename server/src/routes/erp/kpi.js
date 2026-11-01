@@ -5,7 +5,7 @@
  * tout compte de l'ERP (formulaires d'objectifs des responsables).
  */
 const express = require('express');
-const { z } = require('zod');
+const { z } = require('../../lib/zod');
 const { ah, parse, idParam, HttpError } = require('../../lib/http');
 const { requirePermission } = require('../../auth');
 const { KPI_LEVELS, OBJECTIVE_PERIODS, OBJECTIVE_STATUSES, OBJECTIVE_METRICS, periodRange } = require('../../lib/rh');

@@ -4,7 +4,7 @@
  * des campagnes : marketing:settings (Direction générale). Le serveur contrôle chaque action, un bouton masqué ne suffit pas.
  */
 const express = require('express');
-const { z } = require('zod');
+const { z } = require('../../lib/zod');
 const { ah, parse, idParam, HttpError } = require('../../lib/http');
 const { requirePermission } = require('../../auth');
 const { MODULE_SETTINGS } = require('../../lib/domain');

@@ -1,6 +1,6 @@
 /** Lieux hors programmes (siège, bureaux, dépôts) : liste pour tous les formulaires, réglage par lieux:write. */
 const express = require('express');
-const { z } = require('zod');
+const { z } = require('../../lib/zod');
 const { ah, parse, idParam } = require('../../lib/http');
 const { requirePermission } = require('../../auth');
 const lieux = require('../../services/lieux');

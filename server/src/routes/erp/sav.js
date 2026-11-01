@@ -1,7 +1,7 @@
 /** ERP · Client & SAV (équipe) : réclamations, réserves à la livraison, interventions, indicateurs. */
 const path = require('path');
 const express = require('express');
-const { z } = require('zod');
+const { z } = require('../../lib/zod');
 const { ah, parse, idParam, HttpError, json } = require('../../lib/http');
 const { requirePermission } = require('../../auth');
 const {

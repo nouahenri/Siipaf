@@ -4,7 +4,7 @@
  * à renouveler, plan de formation (coût, FDFP, participants), organigramme tiré du responsable direct.
  */
 const express = require('express');
-const { z } = require('zod');
+const { z } = require('../../lib/zod');
 const { ah, parse, idParam, HttpError, isoDay, json } = require('../../lib/http');
 const { requirePermission } = require('../../auth');
 const { RESUME_KINDS, TRAINING_STATUSES } = require('../../lib/rh');

@@ -3,7 +3,7 @@
  * parc immobilier (îlots, bâtiments, étages, lots), dossiers de vente, appels de fonds VEFA, objectifs.
  */
 const express = require('express');
-const { z } = require('zod');
+const { z } = require('../../lib/zod');
 const { ah, parse, idParam, HttpError, isoDay, isoTime } = require('../../lib/http');
 const { requirePermission } = require('../../auth');
 const {

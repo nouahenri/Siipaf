@@ -1,6 +1,6 @@
 /** ERP · Comptabilité (SYSCOHADA) : plan, journaux, exercices, écritures, achats, états, export Sage. */
 const express = require('express');
-const { z } = require('zod');
+const { z } = require('../../lib/zod');
 const { ah, parse, idParam, HttpError, isoDay } = require('../../lib/http');
 const { requirePermission } = require('../../auth');
 const { JOURNAL_KINDS, REVENUE_MODES, accountClass, partnerKindOf, splitVat } = require('../../lib/compta');

@@ -1,6 +1,6 @@
 /** Newsletter (dashboard) : campagnes, aperçu, e-mail de test, lancement et suivi de l'envoi, débit d'envoi. */
 const express = require('express');
-const { z } = require('zod');
+const { z } = require('../lib/zod');
 const { ah, parse, idParam, HttpError } = require('../lib/http');
 const { requirePermission } = require('../auth');
 const { CAMPAIGN_STATUSES } = require('../lib/newsletter');

@@ -5,7 +5,7 @@
 const crypto = require('crypto');
 const express = require('express');
 const rateLimit = require('express-rate-limit');
-const { z } = require('zod');
+const { z } = require('../lib/zod');
 const { ah, parse, HttpError, json } = require('../lib/http');
 const { LOT_STATUS_LABELS, SELLABLE_STATUSES, paymentTerms, monthChoices, siteFigures } = require('../lib/domain');
 const { findOrCreateLead, placeOption, throttledExpiry } = require('../services/lots');

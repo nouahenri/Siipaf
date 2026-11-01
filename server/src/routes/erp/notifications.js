@@ -3,7 +3,7 @@
  * par le compte, et circuit d'information entre les services (réglé par la Direction ou l'administrateur).
  */
 const express = require('express');
-const { z } = require('zod');
+const { z } = require('../../lib/zod');
 const { ah, parse, HttpError } = require('../../lib/http');
 const { INFO_EVENTS, INFO_AUDIENCES, NOTIF_SOUNDS } = require('../../lib/domain');
 const notifications = require('../../services/notifications');

@@ -1,6 +1,6 @@
 /** ERP · RH › Présences : pointage en ligne et sur borne, feuilles de présence de chantier, heures supplémentaires. */
 const express = require('express');
-const { z } = require('zod');
+const { z } = require('../../lib/zod');
 const { ah, parse, idParam, HttpError } = require('../../lib/http');
 const { requirePermission } = require('../../auth');
 const rh = require('../../services/rh');

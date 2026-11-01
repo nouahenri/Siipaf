@@ -1,5 +1,5 @@
 const express = require('express');
-const { z } = require('zod');
+const { z } = require('../../lib/zod');
 const { ah, parse, idParam } = require('../../lib/http');
 const { requirePermission } = require('../../auth');
 const { stockQuantityUnits } = require('../../lib/domain');

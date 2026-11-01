@@ -3,7 +3,7 @@
  * appliqués à tout contenu (préparé par l'IA, par un gabarit de démonstration ou écrit à la main).
  * Gouvernance : docs/strategie-commercial-ia-siipaf.md §7 (A4), §16 et §17. L'IA propose, un humain valide.
  */
-const { z } = require('zod');
+const { z } = require('./zod');
 
 const CHANNELS = {
   facebook: { label: 'Facebook', medium: 'social', kinds: ['post', 'story', 'script_video'], limit: 1200 },

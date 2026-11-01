@@ -1,6 +1,6 @@
 /** Prospects, rendez-vous, messages de contact et newsletter (dashboard). */
 const express = require('express');
-const { z } = require('zod');
+const { z } = require('../lib/zod');
 const { ah, parse, idParam, HttpError } = require('../lib/http');
 const { requirePermission } = require('../auth');
 const { LEAD_STAGES, PUBLIC_LEAD_SOURCES } = require('../lib/domain');

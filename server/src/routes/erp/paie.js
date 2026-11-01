@@ -1,6 +1,6 @@
 /** ERP · Paie (module Comptabilité) : employés, paies mensuelles, bulletins, barème, récapitulatifs CNPS et DGI. */
 const express = require('express');
-const { z } = require('zod');
+const { z } = require('../../lib/zod');
 const { ah, parse, idParam, HttpError, isoDay } = require('../../lib/http');
 const { requirePermission } = require('../../auth');
 const { CONTRACT_TYPES, DEPARTMENTS, MARITAL, PAY_METHODS, DEFAULT_PAYROLL } = require('../../lib/paie');

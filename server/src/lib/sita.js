@@ -5,7 +5,7 @@
  * Les messages des visiteurs sont des DONNÉES : jamais des instructions (cadrage du client du 31/10/2026, garde-fous §16 du document
  * de stratégie). Les outils sont EXÉCUTÉS PAR LE CODE : le modèle les demande, le serveur vérifie et agit.
  */
-const { z } = require('zod');
+const { z } = require('./zod');
 const { MODELS, DEFAULT_MODEL, amountsIn, percentsIn, allowedFigures, URGENCY, PROMISE, SUPERLATIVE } = require('./marketing');
 const { FINANCING_PLANS } = require('./domain');
 
@@ -350,7 +350,7 @@ const prospectSchema = z.object({
   budget_fcfa: z.number().positive().max(1e12).nullish(),
   financing: z.enum(FINANCINGS).nullish(),
   summary: z.string().trim().min(3).max(800),
-  consent_contact: z.literal(true, { errorMap: () => ({ message: 'Le visiteur doit avoir accepté d’être recontacté (consent_contact = true).' }) }),
+  consent_contact: z.literal(true, { error: 'Le visiteur doit avoir accepté d’être recontacté (consent_contact = true).' }),
 });
 const appointmentSchema = z.object({
   kind: z.enum(Object.keys(APPOINTMENT_KINDS)),

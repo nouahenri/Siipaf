@@ -1,7 +1,7 @@
 /** ERP · Administration générale › Parc auto et matériel : biens, affectations, échéances, entretien, dépenses, réservations. */
 const fs = require('fs');
 const express = require('express');
-const { z } = require('zod');
+const { z } = require('../../lib/zod');
 const { ah, parse, idParam, HttpError } = require('../../lib/http');
 const { requirePermission } = require('../../auth');
 const { ASSET_KINDS, ASSET_STATUSES, ASSET_ASSIGNMENT_KINDS, ASSET_DOC_KINDS, ASSET_COST_KINDS, RESERVATION_STATUSES, ASSET_PAYMENT_MODES, COST_ACCOUNTING_STATUSES, addMonths } = require('../../lib/domain');
@@ -30,7 +30,7 @@ const costSchema = z.object({
   kind: z.enum(Object.keys(ASSET_COST_KINDS)), date: day, amount: z.number().int().min(0), label: opt(z.string().trim().max(200)),
   liters: num(z.number().positive()), meter_value: num(z.number().min(0)), project_id: num(z.number().int().positive()), worksite_id: num(z.number().int().positive()), place_id: num(z.number().int().positive()),
   plan_id: num(z.number().int().positive()), purchase_invoice_id: num(z.number().int().positive()),
-  payment_mode: z.enum(Object.keys(ASSET_PAYMENT_MODES), { errorMap: () => ({ message: 'Indiquez comment la dépense a été payée.' }) }),
+  payment_mode: z.enum(Object.keys(ASSET_PAYMENT_MODES), { error: 'Indiquez comment la dépense a été payée.' }),
   supplier_id: num(z.number().int().positive()), vat_rate: z.preprocess(v => (blank(v) == null ? 0 : Number(v)), z.number().min(0).max(100)).optional(),
   fuel_card_id: num(z.number().int().positive()), employee_id: num(z.number().int().positive()),
 });

@@ -1,6 +1,6 @@
 /** Paramètres : listes de référence (menus déroulants des projets) et réglages généraux. */
 const express = require('express');
-const { z } = require('zod');
+const { z } = require('../lib/zod');
 const { ah, parse, idParam, HttpError, json } = require('../lib/http');
 const { requirePermission } = require('../auth');
 const { REF_KINDS, FEATURE_KINDS, VIABILISATION_STATES, APP_SETTINGS, monthChoices } = require('../lib/domain');

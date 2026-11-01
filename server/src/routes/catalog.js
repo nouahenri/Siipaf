@@ -1,6 +1,6 @@
 /** Projets, grilles de prix, plans de masse et lots (dashboard). */
 const express = require('express');
-const { z } = require('zod');
+const { z } = require('../lib/zod');
 const { ah, parse, idParam, HttpError, json } = require('../lib/http');
 const { requirePermission } = require('../auth');
 const { LOT_STATUSES, DELETABLE_LOT_STATUSES, NEW_LOT_STATUSES, PROJECT_CATEGORIES, SITE_FIGURE_ICONS } = require('../lib/domain');

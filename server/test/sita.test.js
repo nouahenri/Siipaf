@@ -523,6 +523,7 @@ test('adaptateur Gemini : schémas des outils, consignes, réflexion bornée ; r
   assert.equal(res.content.find(b => b.type === 'tool_use').name, 'passer_la_main');
   assert.deepEqual(res.usage, { input_tokens: 2000, output_tokens: 100, cache_read_input_tokens: 1000, cache_creation_input_tokens: 0 });
   assert.match(gemini.clean(`refusée ${'AIza' + 'x'.repeat(30)}`), /\[clé masquée\]/);
+  assert.equal(gemini.clean(`refusée ${'AQ.Ab' + 'x'.repeat(40)} fin`), 'refusée [clé masquée] fin', 'nouveau format de clé (AQ.) masqué aussi');
 });
 
 test('Gemini seul (sans clé Claude) : son modèle par défaut répond, outils exécutés, tour du modèle renvoyé tel quel, coût au tarif Google', async () => {

@@ -4,7 +4,7 @@
  * Une étape qui ne se mesure pas (vérifier les rôles) se coche à la main ; la coche est gardée dans app_settings.
  */
 const express = require('express');
-const { z } = require('zod');
+const { z } = require('../../lib/zod');
 const { ah, parse, HttpError, json } = require('../../lib/http');
 const { effectivePermissions, hasPermission } = require('../../services/permissions');
 

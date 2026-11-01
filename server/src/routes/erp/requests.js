@@ -1,6 +1,6 @@
 /** ERP · Administration générale › Demandes internes : demande, validations, prise en charge, clôture. */
 const express = require('express');
-const { z } = require('zod');
+const { z } = require('../../lib/zod');
 const { ah, parse, idParam, HttpError } = require('../../lib/http');
 const { requirePermission } = require('../../auth');
 const { REQUEST_KINDS, REQUEST_SERVICES, REQUEST_STATUSES } = require('../../lib/domain');

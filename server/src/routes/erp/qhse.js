@@ -8,7 +8,7 @@
  * (chantiers du conducteur) : un bouton masqué ne suffit pas.
  */
 const express = require('express');
-const { z } = require('zod');
+const { z } = require('../../lib/zod');
 const { ah, parse, idParam, HttpError, isoDay } = require('../../lib/http');
 const { requirePermission } = require('../../auth');
 const Q = require('../../lib/qhse');

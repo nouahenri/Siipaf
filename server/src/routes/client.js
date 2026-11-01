@@ -5,7 +5,7 @@
 const path = require('path');
 const express = require('express');
 const rateLimit = require('express-rate-limit');
-const { z } = require('zod');
+const { z } = require('../lib/zod');
 const { ah, parse, idParam, HttpError, isoTime } = require('../lib/http');
 const { checkPassword, hashPassword } = require('../auth');
 const { issueClientSession, clearClientSession, requireClient } = require('../auth/client');

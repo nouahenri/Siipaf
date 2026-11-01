@@ -1,6 +1,6 @@
 /** Import de prospects et de clients depuis un fichier CSV / Excel (lu dans le dashboard). */
 const express = require('express');
-const { z } = require('zod');
+const { z } = require('../lib/zod');
 const { ah, parse, HttpError } = require('../lib/http');
 const { runImport } = require('../services/importer');
 

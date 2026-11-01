@@ -1,7 +1,7 @@
 /** ERP · Administration générale › Documents internes : publication, versions, accusés de lecture, actions des PV. */
 const fs = require('fs');
 const express = require('express');
-const { z } = require('zod');
+const { z } = require('../../lib/zod');
 const { ah, parse, idParam, HttpError } = require('../../lib/http');
 const { DOC_KINDS, DOC_AUDIENCES, DOC_STATUSES } = require('../../lib/domain');
 const { DEPARTMENTS } = require('../../lib/paie');

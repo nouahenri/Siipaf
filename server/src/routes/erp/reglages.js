@@ -4,7 +4,7 @@
  * n'est modifié que par les droits qui le portent.
  */
 const express = require('express');
-const { z } = require('zod');
+const { z } = require('../../lib/zod');
 const { ah, parse, HttpError } = require('../../lib/http');
 const { MODULE_SETTINGS } = require('../../lib/domain');
 const moduleSettings = require('../../services/moduleSettings');

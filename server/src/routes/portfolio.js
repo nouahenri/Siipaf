@@ -4,7 +4,7 @@
  * commercial et par période, listes importées et leur bilan.
  */
 const express = require('express');
-const { z } = require('zod');
+const { z } = require('../lib/zod');
 const { ah, parse, idParam, HttpError } = require('../lib/http');
 const { requirePermission } = require('../auth');
 const pf = require('../services/portfolio');

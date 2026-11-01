@@ -4,7 +4,7 @@
  * droits de chaque rôle, création / renommage / suppression de rôles, privilèges par compte.
  */
 const express = require('express');
-const { z } = require('zod');
+const { z } = require('../lib/zod');
 const { ah, parse, idParam, HttpError } = require('../lib/http');
 const { requirePermission } = require('../auth');
 const { PERMISSIONS, PERMISSION_CATALOG, PERMISSION_IDS } = require('../lib/domain');

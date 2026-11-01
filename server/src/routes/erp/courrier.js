@@ -1,7 +1,7 @@
 /** ERP · Administration générale › Courrier arrivée / départ : registre, scan, affectation, suite donnée, relances. */
 const fs = require('fs');
 const express = require('express');
-const { z } = require('zod');
+const { z } = require('../../lib/zod');
 const { ah, parse, idParam, HttpError } = require('../../lib/http');
 const { requirePermission } = require('../../auth');
 const { MAIL_DIRECTIONS, MAIL_SUITES, MAIL_NATURES, MAIL_CHANNELS, MAIL_STATUSES } = require('../../lib/domain');

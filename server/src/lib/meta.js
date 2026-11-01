@@ -6,7 +6,7 @@
  * « non connecté » (rien ne casse) tant que les identifiants ne sont pas saisis.
  */
 const crypto = require('crypto');
-const { z } = require('zod');
+const { z } = require('./zod');
 
 const GRAPH_URL = 'https://graph.facebook.com';
 const DEFAULT_GRAPH_VERSION = 'v23.0';

@@ -5,7 +5,7 @@
 const path = require('path');
 const express = require('express');
 const rateLimit = require('express-rate-limit');
-const { z } = require('zod');
+const { z } = require('../lib/zod');
 const { ah, parse, idParam, HttpError } = require('../lib/http');
 const { requireClient } = require('../auth/client');
 const { isTest } = require('../config');
@@ -48,7 +48,7 @@ module.exports = function clientSavRoutes(db) {
   r.post('/', authed, limiter, ah(async (req, res) => {
     const data = parse(z.object({
       sale_id: z.number().int().positive({ message: 'Choisissez le bien concerné.' }),
-      category: z.enum(Object.keys(SAV_CATEGORIES), { errorMap: () => ({ message: 'Choisissez le type de problème.' }) }),
+      category: z.enum(Object.keys(SAV_CATEGORIES), { error: 'Choisissez le type de problème.' }),
       title: z.string().trim().min(3, 'Résumez le problème en quelques mots.').max(160),
       description: z.string().trim().max(5000).optional(),
       location: z.string().trim().max(120).optional(),

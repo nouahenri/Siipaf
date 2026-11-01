@@ -1,7 +1,7 @@
 /** ERP · Administration générale › Contrats et échéances : contrats, pièces à renouveler, échéances, factures préparées. */
 const fs = require('fs');
 const express = require('express');
-const { z } = require('zod');
+const { z } = require('../../lib/zod');
 const { ah, parse, idParam, HttpError } = require('../../lib/http');
 const { requirePermission } = require('../../auth');
 const { CONTRACT_KINDS, CONTRACT_FREQUENCIES, CONTRACT_STATUSES, CONTRACT_DOC_KINDS } = require('../../lib/domain');

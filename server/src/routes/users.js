@@ -1,6 +1,6 @@
 const crypto = require('crypto');
 const express = require('express');
-const { z } = require('zod');
+const { z } = require('../lib/zod');
 const { ah, parse, idParam, HttpError } = require('../lib/http');
 const { hashPassword, requirePermission, publicUser } = require('../auth');
 const { listRoles, requireRole } = require('../services/roles');

@@ -4,7 +4,7 @@
  * identité, contrat, responsable → « Gérer les dossiers du personnel » (rh:files) ou « Gérer les fiches salariés » (paie:employees) ;
  * salaire, indemnités, paiement, parts fiscales, expatriation → paie:salary ; solde de congés repris → conges:adjust.
  */
-const { z } = require('zod');
+const { z } = require('../lib/zod');
 const { HttpError } = require('../lib/http');
 const { ensureNotAbove } = require('./permissions');
 const { CONTRACT_TYPES, DEPARTMENTS, MARITAL, PAY_METHODS } = require('../lib/paie');

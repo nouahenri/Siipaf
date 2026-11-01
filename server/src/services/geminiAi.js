@@ -30,7 +30,8 @@ function clean(value) {
   let text = String((value && value.message) || value || 'Erreur inconnue');
   const key = apiKey();
   if (key) text = text.split(key).join('[clé masquée]');
-  return text.replace(/AIza[0-9A-Za-z_-]{20,}/g, '[clé masquée]').replace(/x-goog-api-key[^\s,;]*/gi, '[en-tête masqué]').slice(0, 400);
+  // Ancien format de clé (AIza…) et nouveau format de Google AI Studio (AQ.…)
+  return text.replace(/AIza[0-9A-Za-z_-]{20,}/g, '[clé masquée]').replace(/AQ\.[0-9A-Za-z._-]{20,}/g, '[clé masquée]').replace(/x-goog-api-key[^\s,;]*/gi, '[en-tête masqué]').slice(0, 400);
 }
 
 /** Schéma JSON des outils → schéma de Google (types en majuscules, sous-ensemble OpenAPI). */

@@ -3,7 +3,7 @@
  * et messagerie avec les clients.
  */
 const express = require('express');
-const { z } = require('zod');
+const { z } = require('../lib/zod');
 const { ah, parse, idParam, HttpError, json, isoTime } = require('../lib/http');
 const { requirePermission } = require('../auth');
 const { ALL_SITE_STAGES, siteStagesFor, siteStageError } = require('../lib/domain');

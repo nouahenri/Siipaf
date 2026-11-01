@@ -1,7 +1,7 @@
 /** Témoignages : dépôt public (à valider), affichage des publiés, modération dans le dashboard. */
 const express = require('express');
 const rateLimit = require('express-rate-limit');
-const { z } = require('zod');
+const { z } = require('../lib/zod');
 const { ah, parse, idParam, HttpError } = require('../lib/http');
 const { requirePermission } = require('../auth');
 const { notifyTeam } = require('../lib/mailer');

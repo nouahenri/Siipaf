@@ -1,6 +1,6 @@
 /** Fiche complète d'un lot et dossier d'acquisition (acquéreur, versements, documents). */
 const express = require('express');
-const { z } = require('zod');
+const { z } = require('../lib/zod');
 const { ah, parse, idParam, HttpError, json, isoDay } = require('../lib/http');
 const { requirePermission } = require('../auth');
 const { PAYMENT_METHODS, DOCUMENT_TYPES, DOCUMENT_STATUSES, SCHEDULE_KINDS } = require('../lib/domain');

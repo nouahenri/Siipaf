@@ -5,7 +5,7 @@ $secure = Read-Host 'Cle API Google AI Studio (collez-la puis Entree)' -AsSecure
 $bstr = [Runtime.InteropServices.Marshal]::SecureStringToBSTR($secure)
 try { $key = [Runtime.InteropServices.Marshal]::PtrToStringBSTR($bstr) } finally { [Runtime.InteropServices.Marshal]::ZeroFreeBSTR($bstr) }
 $key = "$key".Trim()
-if (-not $key.StartsWith('AIza')) { Write-Host 'Cle refusee : une cle Google AI Studio commence par AIza' -ForegroundColor Red; exit 1 }
+if (-not ($key.StartsWith('AIza') -or $key.StartsWith('AQ.'))) { Write-Host 'Cle refusee : une cle Google AI Studio commence par AQ. (nouveau format) ou AIza (ancien)' -ForegroundColor Red; exit 1 }
 $lines = @()
 if (Test-Path $envFile) { $lines = @([IO.File]::ReadAllLines($envFile) | Where-Object { $_ -notmatch '^GEMINI_API_KEY=' }) }
 $lines += "GEMINI_API_KEY=$key"

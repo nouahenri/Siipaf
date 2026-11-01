@@ -1,6 +1,6 @@
 /** ERP · Chantiers : chantiers d'un programme, phases (Gantt), tâches (Kanban), budget par poste. */
 const express = require('express');
-const { z } = require('zod');
+const { z } = require('../../lib/zod');
 const { ah, parse, idParam, HttpError } = require('../../lib/http');
 const { requirePermission } = require('../../auth');
 const { WORKSITE_STATUSES, WORKSITE_ZONES, TASK_STATUSES, ALL_SITE_STAGES, CHANTIER_SETTINGS, DECLARATION_STATUSES } = require('../../lib/domain');

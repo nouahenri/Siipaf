@@ -1,7 +1,7 @@
 /** ERP · Juridique : circuit des ventes jusqu'à l'acte, litiges, cautions et retenues, impayés, courrier du service, réglages. */
 const fs = require('fs');
 const express = require('express');
-const { z } = require('zod');
+const { z } = require('../../lib/zod');
 const { ah, parse, idParam, HttpError } = require('../../lib/http');
 const { requirePermission } = require('../../auth');
 const { DEED_STEPS, LITIGATION_ORIGINS, LITIGATION_STAGES, LITIGATION_OUTCOMES, GUARANTEE_DIRECTIONS, GUARANTEE_STATUSES, LEGAL_SETTINGS } = require('../../lib/domain');
