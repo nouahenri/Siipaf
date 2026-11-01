@@ -277,8 +277,8 @@ button {
 /* ─── HERO SLIDER ────────────────────────────────────────── */
 #hero {
   position: relative;
-  height: 400px;
-  max-height: 400px;
+  height: 600px;
+  max-height: 600px;
   overflow: hidden;
   margin-top: 72px;
   /* navbar height */

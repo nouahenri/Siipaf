@@ -87,7 +87,7 @@ export default function SiteAssistant() {
           <Field label="Titre affiché" hint={`Vide : « ${form.gender === 'homme' ? 'Votre conseiller immobilier SIIPAF' : 'Votre conseillère immobilière SIIPAF'} ».`}>
             <input className="input" maxLength={80} value={form.title} onChange={e => set({ title: e.target.value })} placeholder={defaults.title} />
           </Field>
-          <Field label="Photo ou avatar" hint="Choisie dans la médiathèque. Sans photo, l’initiale du prénom est affichée.">
+          <Field label="Photo ou avatar" hint="Choisie dans la médiathèque (image carrée). Sans photo, l’avatar du site s’affiche : la conseillère en veste noire et écharpe rouge, ou le conseiller en casquette rouge, selon le choix « Femme ou homme ».">
             <div className="row" style={{ gap: 10 }}>
               <button type="button" className="slide-thumb" style={{ width: 64, height: 64, borderRadius: '50%', backgroundImage: photo ? `url(${photo})` : undefined }} onClick={() => setPicker(true)} aria-label="Choisir la photo">{!photo && <ImagePlus />}</button>
               {photo && <button type="button" className="btn btn-sm btn-ghost btn-danger" onClick={() => { set({ photo_media_id: null }); setPhoto(null); }}><Trash2 />Retirer</button>}

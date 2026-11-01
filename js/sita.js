@@ -39,17 +39,21 @@
     return p ? p.name : '';
   }
 
+  /** Photo choisie au dashboard, sinon l'avatar du site qui suit le réglage « Femme ou homme » (images/sita/). */
+  function photoUrl() {
+    if (cfg.photo) return /^https?:/.test(cfg.photo) ? cfg.photo : API + cfg.photo;
+    var base = script && script.src ? script.src.replace(/js\/sita\.js(\?.*)?$/, '') : '';
+    return base + 'images/sita/sita-' + (cfg.gender === 'homme' ? 'homme' : 'femme') + '.png';
+  }
+
   function avatar(size) {
     var a = el('span', 'sita-avatar');
     if (size) { a.style.width = size + 'px'; a.style.height = size + 'px'; }
-    if (cfg.photo) {
-      var img = el('img');
-      img.src = /^https?:/.test(cfg.photo) ? cfg.photo : API + cfg.photo;
-      img.alt = '';
-      img.loading = 'lazy';
-      img.onerror = function () { img.remove(); a.textContent = cfg.name.charAt(0).toUpperCase(); };
-      a.appendChild(img);
-    } else a.textContent = cfg.name.charAt(0).toUpperCase();
+    var img = el('img');
+    img.src = photoUrl();
+    img.alt = '';
+    img.onerror = function () { img.remove(); a.textContent = cfg.name.charAt(0).toUpperCase(); };
+    a.appendChild(img);
     return a;
   }
 
@@ -63,10 +67,17 @@
     launcher.setAttribute('aria-label', 'Discuter avec ' + cfg.name + ', ' + cfg.title);
     launcher.setAttribute('aria-haspopup', 'dialog');
     launcher.appendChild(avatar());
+    // Halo qui pulse et point vert « en ligne » : l'assistante est disponible
+    launcher.appendChild(el('span', 'sita-halo')).setAttribute('aria-hidden', 'true');
+    launcher.appendChild(el('span', 'sita-dot')).setAttribute('aria-hidden', 'true');
     badge = el('span', 'sita-badge', '1');
     badge.setAttribute('aria-hidden', 'true');
     launcher.appendChild(badge);
-    launcher.addEventListener('click', function () { openChat(); });
+    launcher.addEventListener('click', function (e) {
+      if (dragged) { e.preventDefault(); dragged = false; return; } // fin d'un déplacement, pas un clic
+      openChat();
+    });
+    makeDraggable();
 
     win = el('section', 'sita-window');
     win.hidden = true;
@@ -118,11 +129,64 @@
     root.appendChild(launcher);
     root.appendChild(win);
     document.body.appendChild(root);
+    placeRoot();
+    window.addEventListener('resize', placeRoot);
 
     // Conversation déjà commencée dans cet onglet : restaurée, pastille masquée
     if (state.messages.length) { badge.hidden = true; state.messages.forEach(function (m) { addMessage(m.role, m.text, m.actions, true); }); }
     if (state.open) openChat(true);
     else scheduleInvite();
+  }
+
+  // ─── Déplacement de la bulle (souris ou doigt) ──────────────────────
+  // La position (distances aux bords droit et bas) suit le visiteur de page en page pendant sa visite ;
+  // la fenêtre ouverte reprend sa place habituelle en bas à droite.
+  // Mesures sans la barre de défilement (clientWidth) et sans l'agrandissement au survol (offsetWidth, cadre de root),
+  // comme le « right / bottom » d'un élément fixe : la bulle ne saute pas au premier mouvement.
+  var dragged = false;
+  function viewport() { var d = document.documentElement; return { w: d.clientWidth || window.innerWidth, h: d.clientHeight || window.innerHeight }; }
+  function clampPos(p) {
+    var v = viewport(), m = 8;
+    return {
+      right: Math.round(Math.min(Math.max(p.right, m), v.w - (launcher.offsetWidth || 60) - m)),
+      bottom: Math.round(Math.min(Math.max(p.bottom, m), v.h - (launcher.offsetHeight || 60) - m)),
+    };
+  }
+  function placeRoot() {
+    if (root.classList.contains('is-open') || !state.pos) { root.style.right = ''; root.style.bottom = ''; return; }
+    var p = clampPos(state.pos);
+    root.style.right = p.right + 'px';
+    root.style.bottom = p.bottom + 'px';
+  }
+  function makeDraggable() {
+    var start = null;
+    launcher.addEventListener('pointerdown', function (e) {
+      if (e.button !== 0) return;
+      dragged = false;
+      var r = root.getBoundingClientRect(), v = viewport();
+      start = { x: e.clientX, y: e.clientY, right: v.w - r.right, bottom: v.h - r.bottom, moved: false };
+      launcher.setPointerCapture(e.pointerId);
+    });
+    launcher.addEventListener('pointermove', function (e) {
+      if (!start) return;
+      var dx = e.clientX - start.x, dy = e.clientY - start.y;
+      if (!start.moved && Math.abs(dx) + Math.abs(dy) < 6) return; // petit tremblement d'un clic
+      if (!start.moved) { start.moved = true; root.classList.add('is-dragging'); hideInvite(true); }
+      var p = clampPos({ right: start.right - dx, bottom: start.bottom - dy });
+      root.style.right = p.right + 'px';
+      root.style.bottom = p.bottom + 'px';
+    });
+    function end() {
+      if (!start) return;
+      if (start.moved) {
+        dragged = true;
+        root.classList.remove('is-dragging');
+        save({ pos: clampPos({ right: parseFloat(root.style.right), bottom: parseFloat(root.style.bottom) }) });
+      }
+      start = null;
+    }
+    launcher.addEventListener('pointerup', end);
+    launcher.addEventListener('pointercancel', end);
   }
 
   // ─── Invitation contextuelle ────────────────────────────────────────
@@ -158,6 +222,7 @@
   function openChat(silent) {
     hideInvite(false);
     root.classList.add('is-open');
+    placeRoot();
     win.hidden = false;
     badge.hidden = true;
     save({ open: true, inviteClosed: true });
@@ -171,6 +236,7 @@
   }
   function closeChat() {
     root.classList.remove('is-open');
+    placeRoot();
     win.hidden = true;
     save({ open: false });
   }
