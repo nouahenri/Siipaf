@@ -2,7 +2,7 @@ import { useEffect, useRef, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { ArrowLeft, Delete, LogIn, LogOut, CircleAlert } from 'lucide-react';
 import { api } from '@admin/lib/api';
-import { hm, RH, useRhMeta } from '../../lib/rh';
+import { hm, RH, useRhMeta, devicePosition, geoWarning } from '../../lib/rh';
 import PlacePicker, { NO_PLACE } from '../../components/PlacePicker';
 
 /**
@@ -34,8 +34,9 @@ export default function Kiosk() {
     if (step === 'matricule') { if (matricule.length > 4) setStep('pin'); return; }
     setBusy(true);
     try {
-      const r = await api.post(`${RH}/attendance/kiosk`, { matricule, pin, ...site });
-      setResult({ ok: true, ...r });
+      // Position de la tablette : elle doit se trouver au lieu choisi pour la borne
+      const r = await api.post(`${RH}/attendance/kiosk`, { matricule, pin, ...site, ...(meta?.settings.geolocation ? await devicePosition() : {}) });
+      setResult({ ok: true, ...r, warning: geoWarning(r.attendance, r.action) });
     } catch (e) { setResult({ ok: false, message: e.message }); } finally { setBusy(false); later(); }
   };
   const digits = ['1', '2', '3', '4', '5', '6', '7', '8', '9', '⌫', '0', 'OK'];
@@ -49,7 +50,7 @@ export default function Kiosk() {
       {result ? (
         <div className={`kiosk-result ${result.ok ? (result.action === 'arrivee' ? 'in' : 'out') : 'err'}`} role="status">
           {result.ok ? (result.action === 'arrivee' ? <LogIn /> : <LogOut />) : <CircleAlert />}
-          {result.ok ? <><b>{result.action === 'arrivee' ? 'Bonjour' : 'Au revoir'} {result.employee.name}</b><span>{result.action === 'arrivee' ? `Arrivée pointée à ${hm(result.attendance.check_in)}` : `Départ pointé à ${hm(result.attendance.check_out)} · ${result.attendance.hours} h aujourd’hui`}</span></> : <><b>Pointage refusé</b><span>{result.message}</span></>}
+          {result.ok ? <><b>{result.action === 'arrivee' ? 'Bonjour' : 'Au revoir'} {result.employee.name}</b><span>{result.action === 'arrivee' ? `Arrivée pointée à ${hm(result.attendance.check_in)}` : `Départ pointé à ${hm(result.attendance.check_out)} · ${result.attendance.hours} h aujourd’hui`}</span>{result.warning && <span className="small">{result.warning}</span>}</> : <><b>Pointage refusé</b><span>{result.message}</span></>}
           <button className="btn" onClick={reset}>Suivant</button>
         </div>
       ) : (

@@ -26,6 +26,9 @@ const DEFAULT_RH = {
   overtime_tiers: [[6, 15], [null, 50]], // 6 premières heures au-delà de 40 h : +15 %, puis +50 %
   night_rate: 75, sunday_rate: 75, sunday_night_rate: 100, night_start: 22, night_end: 5,
   overtime_year_cap: 220, geolocation: true,
+  // Contrôle du lieu de pointage : rayon par défaut autour du lieu ou du chantier (choix du client du 02/11 : 20 m, précision
+  // du téléphone prise en compte) ; alerte au service RH et au conducteur quand un pointage est hors zone
+  geofence_radius: 20, geofence_notify: true,
   // Pause déjeuner retirée d'un pointage continu de plus de 6 h (placée à 12 h si le pointage couvre midi)
   break_minutes: 60, break_after_hours: 6,
   overtime_exempt_departments: ['direction'], // cadres au forfait : heures suivies, pas d'heures supplémentaires payées
@@ -46,6 +49,33 @@ const EXPENSE_STATUSES = {
   comptabilisee: { label: 'À rembourser', tone: 'brand' }, remboursee: { label: 'Remboursée', tone: 'ok' }, refusee: { label: 'Refusée', tone: 'danger' },
 };
 const ATTENDANCE_SOURCES = { web: 'Pointage en ligne', borne: 'Borne de pointage', feuille: 'Feuille de présence', manuel: 'Correction manuelle' };
+// Résultat du contrôle du lieu (pointage en ligne et borne ; les feuilles et corrections ne sont pas contrôlées)
+const GEO_STATUSES = {
+  sur_place: { label: 'Sur place', tone: 'ok' }, imprecise: { label: 'Position imprécise', tone: 'warn' }, hors_zone: { label: 'Hors zone', tone: 'danger' },
+  sans_position: { label: 'Position non fournie', tone: 'warn' }, non_situe: { label: 'Lieu sans position', tone: '' },
+};
+const GEO_ALERTS = ['hors_zone', 'imprecise', 'sans_position'];
+
+/** Distance en mètres entre deux points GPS (formule de haversine). */
+function distanceM(a, b) {
+  const rad = x => (Number(x) * Math.PI) / 180;
+  const dLat = rad(b.latitude - a.latitude), dLng = rad(b.longitude - a.longitude);
+  const h = Math.sin(dLat / 2) ** 2 + Math.cos(rad(a.latitude)) * Math.cos(rad(b.latitude)) * Math.sin(dLng / 2) ** 2;
+  return 2 * 6371000 * Math.asin(Math.min(1, Math.sqrt(h)));
+}
+
+/**
+ * Contrôle d'une position par rapport au lieu de pointage. `pos` : { latitude, longitude, accuracy } de l'appareil ;
+ * `ref` : { latitude, longitude, radius } du lieu. Sur place : à moins du rayon avec une précision meilleure que le rayon.
+ * Hors zone : même en retirant la marge d'erreur annoncée, la position reste au-delà du rayon. Entre les deux : imprécise.
+ */
+function geoCheck(pos, ref) {
+  if (!pos || pos.latitude == null || pos.longitude == null) return { geo_status: 'sans_position', distance_m: null };
+  if (!ref || ref.latitude == null || ref.longitude == null) return { geo_status: 'non_situe', distance_m: null };
+  const d = distanceM(pos, ref), acc = Math.max(0, Number(pos.accuracy) || 0), radius = Number(ref.radius);
+  const geo_status = d <= radius && acc <= radius ? 'sur_place' : d - acc > radius ? 'hors_zone' : 'imprecise';
+  return { geo_status, distance_m: Math.round(d) };
+}
 
 // Recrutement (pipeline inspiré d'Odoo Recrutement)
 const RECRUIT_STAGES = {
@@ -441,7 +471,7 @@ function checkRh(s) {
 
 module.exports = {
   DEFAULT_RH, LEAVE_TYPES, PERMISSION_EVENTS, LEAVE_STATUSES, LEAVE_ACTIVE, DOCUMENT_KINDS, CAREER_EVENTS, POSITION_CHANGE_REASONS, OBJECTIVE_STATUSES, OBJECTIVE_METRICS, REVIEW_RATINGS,
-  EXPENSE_STATUSES, ATTENDANCE_SOURCES, RECRUIT_STAGES, RECRUIT_SOURCES, REFUSE_REASONS, JOB_STATUSES, RESUME_KINDS, TRAINING_STATUSES,
+  EXPENSE_STATUSES, ATTENDANCE_SOURCES, GEO_STATUSES, GEO_ALERTS, distanceM, geoCheck, RECRUIT_STAGES, RECRUIT_SOURCES, REFUSE_REASONS, JOB_STATUSES, RESUME_KINDS, TRAINING_STATUSES,
   easter, fixedHolidays, countDays, yearsOfService, annualBonus, leaveBalance, annualEntitlement, checkRh, addDays, chunks, withoutBreak, computeOvertime, attainment,
   KPI_LEVELS, OBJECTIVE_PERIODS, PERIOD_COUNT, MONTH_NAMES, SALES_TARGET_METRICS, periodRange, periodLabel, parsePeriod, previousPeriod,
 };

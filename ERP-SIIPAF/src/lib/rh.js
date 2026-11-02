@@ -23,6 +23,25 @@ export const hours = n => (n == null ? '—' : `${Number(n).toLocaleString('fr-F
 export const hm = iso => (iso ? new Date(iso).toISOString().slice(11, 16) : '—'); // heure d'Abidjan = UTC
 export const fullName = e => (e ? `${e.last_name} ${e.first_name}` : '');
 
+// ─── Contrôle du lieu de pointage ─────────────────────────
+/** Position de l'appareil qui pointe (téléphone, tablette de la borne) et sa précision ; {} si refusée ou trop lente. */
+export const devicePosition = () => new Promise(resolve => {
+  if (!navigator.geolocation) return resolve({});
+  navigator.geolocation.getCurrentPosition(
+    p => resolve({ latitude: p.coords.latitude, longitude: p.coords.longitude, accuracy: p.coords.accuracy }),
+    () => resolve({}), { enableHighAccuracy: true, timeout: 8000, maximumAge: 30000 },
+  );
+});
+export const meters = m => (m == null ? '' : m >= 1000 ? `${(m / 1000).toLocaleString('fr-FR', { maximumFractionDigits: 1 })} km` : `${m} m`);
+/** Message montré à la personne qui pointe quand le contrôle du lieu relève un écart (le pointage est enregistré). */
+export function geoWarning(a, action) {
+  const status = action === 'depart' ? a.out_geo_status : a.geo_status, d = action === 'depart' ? a.out_distance_m : a.distance_m;
+  if (status === 'hors_zone') return `Pointage enregistré hors zone (à ${meters(d)} du lieu choisi) : le service RH est prévenu.`;
+  if (status === 'imprecise') return 'Pointage enregistré, position imprécise : il est signalé au service RH. Activez la localisation précise (GPS) de l’appareil.';
+  if (status === 'sans_position') return 'Pointage enregistré sans position : il est signalé au service RH. Autorisez la localisation pour ce site.';
+  return null;
+}
+
 export const EXPENSE_TONES = { brouillon: '', soumise: 'warn', approuvee: 'brand', comptabilisee: 'brand', remboursee: 'ok', refusee: 'danger' };
 export const STAGE_COLORS = { nouveau: '#8a8f99', qualification: '#2a78d6', entretien_1: '#0f8fa3', entretien_2: '#6d28d9', proposition: '#eda100', embauche: '#1baf7a' };
 // Couleur de chaque service (organigramme) : teintes sourdes, déclinées en fonds très clairs (clair et sombre)

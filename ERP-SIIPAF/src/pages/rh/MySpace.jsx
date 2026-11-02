@@ -5,7 +5,7 @@ import { api } from '@admin/lib/api';
 import { useAuth, useResource, useToast, useSaved } from '@admin/lib/app-context';
 import { Card, Empty, Skeleton, ErrorBox, Modal, Field, Badge } from '@admin/components/ui';
 import { date, fcfa } from '@admin/lib/format';
-import { RH, days, hours, hm, useRhMeta, metricValue } from '../../lib/rh';
+import { RH, days, hours, hm, useRhMeta, metricValue, devicePosition, geoWarning } from '../../lib/rh';
 import { LeaveForm, LeaveBadge, TypeDot, ExpenseForm, ExpenseBadge } from '../../components/RhForms';
 import { Indicators } from './Reviews';
 import PerformanceCurves from './PerformanceCurves';
@@ -128,15 +128,13 @@ function Clock({ att, meta }) {
   const [busy, setBusy] = useState(false);
   const [site, setSite] = useState(NO_PLACE);
   const open = att.data?.open;
-  const position = () => new Promise(resolve => {
-    if (!meta?.settings.geolocation || !navigator.geolocation) return resolve({});
-    navigator.geolocation.getCurrentPosition(p => resolve({ latitude: p.coords.latitude, longitude: p.coords.longitude }), () => resolve({}), { timeout: 5000, maximumAge: 60000 });
-  });
   const toggle = async () => {
     setBusy(true);
     try {
-      const r = await api.post(`${RH}/me/attendance`, { ...site, ...(await position()) });
-      toast(r.action === 'arrivee' ? `Arrivée pointée à ${hm(r.attendance.check_in)}` : `Départ pointé à ${hm(r.attendance.check_out)} · ${hours(r.attendance.hours)}`);
+      const r = await api.post(`${RH}/me/attendance`, { ...site, ...(meta?.settings.geolocation ? await devicePosition() : {}) });
+      const done = r.action === 'arrivee' ? `Arrivée pointée à ${hm(r.attendance.check_in)}` : `Départ pointé à ${hm(r.attendance.check_out)} · ${hours(r.attendance.hours)}`;
+      const warning = geoWarning(r.attendance, r.action);
+      if (warning) toast(`${done}. ${warning}`, 'err'); else toast(done);
       att.reload();
     } catch (e) { toast(e.message, 'err'); } finally { setBusy(false); }
   };
@@ -149,7 +147,7 @@ function Clock({ att, meta }) {
             <PlacePicker value={site} onChange={setSite} empty="Siège social" ariaLabel="Lieu de travail" />
           )}
           <button className={`btn ${open ? '' : 'btn-primary'} clock-btn`} disabled={busy} onClick={toggle}>{open ? <><LogOut />Pointer mon départ</> : <><LogIn />Pointer mon arrivée</>}</button>
-          {meta?.settings.geolocation && <p className="small muted"><MapPin className="ico" />La position est enregistrée avec le pointage si votre appareil l’autorise.</p>}
+          {meta?.settings.geolocation && <p className="small muted"><MapPin className="ico" />Votre position est enregistrée avec le pointage et comparée au lieu choisi ; un pointage hors zone ou sans position est signalé au service RH.</p>}
         </div>
       )}
     </Card>

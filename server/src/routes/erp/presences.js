@@ -8,11 +8,20 @@ const presences = require('../../services/presences');
 const { rateLimit } = require('express-rate-limit');
 const { isTest } = require('../../config');
 const { PRESENCE_ACTIONS } = require('../../lib/domain');
+const { GEO_ALERTS } = require('../../lib/rh');
 
 const day = z.string().regex(/^\d{4}-\d{2}-\d{2}$/, 'Date attendue au format AAAA-MM-JJ');
 const period = z.string().regex(/^\d{4}-(0[1-9]|1[0-2])$/, 'Mois attendu au format AAAA-MM');
 const hm = z.string().regex(/^\d{2}:\d{2}$/, 'Heure au format HH:MM');
 const projectId = z.number().int().positive().optional().nullable();
+// Position de l'appareil qui pointe et précision annoncée (mètres)
+const position = {
+  latitude: z.number().min(-90).max(90).optional().nullable(), longitude: z.number().min(-180).max(180).optional().nullable(),
+  accuracy: z.number().min(0).max(100000).optional().nullable(),
+};
+const zoneSchema = z.object({
+  latitude: z.number().min(-90).max(90).nullable(), longitude: z.number().min(-180).max(180).nullable(), radius_m: z.number().int().min(5).max(5000).nullable().optional(),
+});
 
 module.exports = function presencesRoutes(db) {
   const r = express.Router();
@@ -36,9 +45,8 @@ module.exports = function presencesRoutes(db) {
   }));
   r.post('/me/attendance', requirePermission('self:pointage'), ah(async (req, res) => {
     const e = await me(req);
-    const s = await rh.getSettings(db);
-    const data = parse(z.object({ project_id: projectId, worksite_id: projectId, place_id: projectId, latitude: z.number().min(-90).max(90).optional().nullable(), longitude: z.number().min(-180).max(180).optional().nullable() }), req.body);
-    res.json(await presences.toggle(db, e, { ...data, latitude: s.geolocation ? data.latitude ?? null : null, longitude: s.geolocation ? data.longitude ?? null : null, source: 'web', userId: req.user.id }));
+    const data = parse(z.object({ project_id: projectId, worksite_id: projectId, place_id: projectId, ...position }), req.body);
+    res.json(await presences.toggle(db, e, { ...data, source: 'web', userId: req.user.id })); // position ignorée sans la géolocalisation des réglages
   }));
   r.put('/me/pin', requirePermission('self:pointage'), ah(async (req, res) => {
     const e = await me(req);
@@ -54,7 +62,7 @@ module.exports = function presencesRoutes(db) {
     keyGenerator: req => `${req.user?.id}|${req.ip}`, message: { error: 'Trop d’essais sur la borne, patientez quelques minutes.' },
   });
   r.post('/attendance/kiosk', kiosk, kioskLimiter, ah(async (req, res) => {
-    const data = parse(z.object({ matricule: z.string().trim().min(3).max(20), pin: z.string().min(4).max(6), project_id: projectId, worksite_id: projectId, place_id: projectId }), req.body);
+    const data = parse(z.object({ matricule: z.string().trim().min(3).max(20), pin: z.string().min(4).max(6), project_id: projectId, worksite_id: projectId, place_id: projectId, ...position }), req.body);
     res.json(await presences.kiosk(db, data, req.user.id));
   }));
   r.put('/employees/:id/pin', requirePermission('rh:pin'), ah(async (req, res) => {
@@ -77,6 +85,9 @@ module.exports = function presencesRoutes(db) {
     if (req.query.project_id) q.where('a.project_id', Number(req.query.project_id));
     if (req.query.worksite_id) q.where('a.worksite_id', Number(req.query.worksite_id));
     if (req.query.place_id) q.where('a.place_id', Number(req.query.place_id));
+    // Contrôle du lieu : pointages hors zone, imprécis ou sans position (à l'arrivée ou au départ)
+    if (req.query.controle === 'alerte') q.where(w => w.whereIn('a.geo_status', GEO_ALERTS).orWhereIn('a.out_geo_status', GEO_ALERTS));
+    if (req.query.controle === 'hors_zone') q.where(w => w.where('a.geo_status', 'hors_zone').orWhere('a.out_geo_status', 'hors_zone'));
     res.json((await q.limit(1000)).map(presences.serialize));
   }));
 
@@ -134,6 +145,23 @@ module.exports = function presencesRoutes(db) {
     await assertScope(req, a, a.employee_id);
     if (!(await db('hr_attendances').where({ id: idParam(req) }).del())) throw new HttpError(404, 'Pointage introuvable.');
     res.json({ ok: true });
+  }));
+
+  // ─── Positions de pointage (RH › Réglages) ────────────────
+  // Lecture : service RH et réglages RH ; modification : « Positions de pointage » (choix du client du 02/11 : responsable RH,
+  // responsable des exploitations, super administrateur)
+  r.get('/attendance/zones', ah(async (req, res) => {
+    if (!['rh:read', 'rh:rules', 'presence:zones'].some(p => req.can(p))) throw new HttpError(403, 'Droits insuffisants.');
+    res.json(await presences.zones(db));
+  }));
+  // Changer une position existante : en attente du super administrateur (sauf s'il la fait lui-même)
+  r.put('/attendance/zones/:kind(lieu|chantier)/:id', requirePermission('presence:zones'), ah(async (req, res) => {
+    const result = await presences.setZone(db, req.params.kind, idParam(req), parse(zoneSchema, req.body), req.user);
+    res.json({ ...result, ...(await presences.zones(db)) });
+  }));
+  r.post('/attendance/zones/requests/:id/decide', ah(async (req, res) => {
+    const data = parse(z.object({ action: z.enum(['valider', 'refuser', 'annuler']), note: z.string().trim().max(255).optional().nullable() }), req.body);
+    res.json(await presences.decideZone(db, idParam(req), data, req.user));
   }));
 
   // ─── Heures supplémentaires ───────────────────────────────

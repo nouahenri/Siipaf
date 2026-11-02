@@ -1,8 +1,10 @@
 import { useState } from 'react';
-import { Plus, Trash2, Save, CalendarDays, RotateCcw, Briefcase } from 'lucide-react';
+import { Plus, Trash2, Save, CalendarDays, RotateCcw, Briefcase, MapPinned, Check, X } from 'lucide-react';
+import { parseGps, gpsText, mapsLink } from '@admin/lib/gps';
+import GpsInput from '../../components/GpsInput';
 import { api } from '@admin/lib/api';
 import { useAuth, useResource, useToast, useSaved } from '@admin/lib/app-context';
-import { Card, Skeleton, ErrorBox, Field, Empty } from '@admin/components/ui';
+import { Card, Skeleton, ErrorBox, Field, Empty, Badge } from '@admin/components/ui';
 import { date } from '@admin/lib/format';
 import { RH, useRhMeta, WEEKDAYS } from '../../lib/rh';
 import { NewRoleModal } from '../../components/Positions';
@@ -102,7 +104,11 @@ export default function RhSettings() {
                 {meta && Object.entries(meta.departments).map(([k, v]) => <label key={k} className="checkbox small"><input type="checkbox" disabled={!write} checked={(cur.overtime_exempt_departments || []).includes(k)} onChange={e => set('overtime_exempt_departments', e.target.checked ? [...(cur.overtime_exempt_departments || []), k] : cur.overtime_exempt_departments.filter(x => x !== k))} />{v}</label>)}
               </div>
             </Field>
-            <label className="checkbox small full"><input type="checkbox" disabled={!write} checked={cur.geolocation} onChange={e => set('geolocation', e.target.checked)} />Enregistrer la position lors du pointage en ligne (si l’appareil l’autorise)</label>
+            <label className="checkbox small full"><input type="checkbox" disabled={!write} checked={cur.geolocation} onChange={e => set('geolocation', e.target.checked)} />Enregistrer la position lors du pointage en ligne et à la borne, et la comparer au lieu choisi (si l’appareil l’autorise)</label>
+            {cur.geolocation && <>
+              {N({ k: "geofence_radius", label: "Rayon par défaut autour du lieu (mètres)", hint: "Au-delà : « hors zone » ; précision du téléphone prise en compte. Rayon propre à un lieu : section Positions de pointage" })}
+              <label className="checkbox small full"><input type="checkbox" disabled={!write} checked={cur.geofence_notify} onChange={e => set('geofence_notify', e.target.checked)} />Prévenir le service RH, le responsable direct et le conducteur du chantier d’un pointage hors zone</label>
+            </>}
           </div>
         </Card>
         <Card title="Notes de frais">
@@ -117,10 +123,106 @@ export default function RhSettings() {
         </Card>
       </div>
       {write && <div className="row" style={{ gap: 8 }}><button className="btn btn-primary" disabled={!s} onClick={save}><Save />Enregistrer les réglages</button><button className="btn btn-ghost" onClick={reset}><RotateCcw />Valeurs par défaut</button></div>}
+      <PointageZones key={`${meta.settings.geolocation}:${meta.settings.geofence_radius}`} />
       <DepartmentHeads />
       <Positions />
       <Holidays />
     </div>
+  );
+}
+
+/**
+ * Positions de pointage (demande du client du 02/11) : position GPS et rayon du siège, des autres lieux et des chantiers en
+ * cours, comparés à la position du téléphone ou de la borne à chaque pointage. Les lieux se règlent aussi dans Administration
+ * générale › Lieux (mêmes données) ; un programme garde la position de sa fiche dans le dashboard, reprise par ses chantiers
+ * qui n'ont pas la leur.
+ */
+function PointageZones() {
+  const { can, user } = useAuth();
+  const toast = useToast();
+  const visible = can('rh:read') || can('rh:rules') || can('presence:zones');
+  const write = can('presence:zones'); // responsable RH, responsable des exploitations, super administrateur (choix du client du 02/11)
+  const superAdmin = user?.role === 'super_admin';
+  const z = useResource(visible ? `${RH}/attendance/zones` : null);
+  const [edits, setEdits] = useState({});
+  if (!visible) return null;
+  const key = (kind, x) => `${kind}:${x.id}`;
+  const row = (kind, x) => edits[key(kind, x)] || { gps: gpsText(x), radius: x.radius_m || '' };
+  const change = (kind, x, patch) => setEdits(m => ({ ...m, [key(kind, x)]: { ...row(kind, x), ...patch } }));
+  const dirty = (kind, x) => { const r = edits[key(kind, x)]; return !!r && (r.gps !== gpsText(x) || String(r.radius) !== String(x.radius_m || '')); };
+  const save = async (kind, x) => {
+    const r = row(kind, x), gps = parseGps(r.gps);
+    if (gps === false) return toast('Position illisible : « latitude, longitude » ou lien Google Maps.', 'err');
+    try {
+      const data = await api.put(`${RH}/attendance/zones/${kind}/${x.id}`, { latitude: gps ? gps.lat : null, longitude: gps ? gps.lng : null, radius_m: Number(r.radius) || null });
+      z.setData(data); setEdits(m => { const { [key(kind, x)]: _, ...rest } = m; return rest; });
+      toast(data.request_id ? `Modification envoyée au super administrateur pour validation : ${x.reference || x.name}` : `Position enregistrée : ${x.reference || x.name}`);
+    } catch (e) { toast(e.message, 'err'); }
+  };
+  const decide = async (p, action) => {
+    const note = action === 'refuser' ? window.prompt('Motif du refus (facultatif) :') : null;
+    if (action === 'refuser' && note === null) return;
+    try { z.setData(await api.post(`${RH}/attendance/zones/requests/${p.id}/decide`, { action, note: note || null })); toast({ valider: 'Position validée', refuser: 'Modification refusée', annuler: 'Demande annulée' }[action]); } catch (e) { toast(e.message, 'err'); }
+  };
+  const d = z.data;
+  const pendingRow = (kind, x) => {
+    const p = x.pending;
+    if (!p) return null;
+    return (
+      <tr key={`${key(kind, x)}:pending`}>
+        <td />
+        <td colSpan={2} className="small" style={{ color: 'var(--warn)' }}>
+          En attente du super administrateur : {p.latitude != null ? <>{p.latitude}, {p.longitude} <a className="link" href={mapsLink(p.latitude, p.longitude)} target="_blank" rel="noreferrer">carte</a></> : 'effacer la position'}
+          {p.radius_m ? ` · rayon ${p.radius_m} m` : ''} — proposé par {p.requested_by_name || '—'}. La position actuelle sert d’ici la décision.
+        </td>
+        <td className="right nowrap">
+          {superAdmin && <><button className="btn btn-sm btn-primary" onClick={() => decide(p, 'valider')}><Check />Valider</button> <button className="btn btn-sm btn-ghost" onClick={() => decide(p, 'refuser')}><X />Refuser</button></>}
+          {!superAdmin && p.requested_by === user?.id && <button className="btn btn-sm btn-ghost" onClick={() => decide(p, 'annuler')}>Annuler ma demande</button>}
+        </td>
+      </tr>
+    );
+  };
+  const editRow = (kind, x, label, fallback) => [
+    <tr key={key(kind, x)}>
+      <td className="small" style={kind === 'chantier' ? { paddingLeft: 28 } : undefined}>{label}{fallback && !row(kind, x).gps && <div className="muted">{fallback}</div>}</td>
+      <td style={{ minWidth: 260 }}><GpsInput value={row(kind, x).gps} disabled={!write} onChange={v => change(kind, x, { gps: v })} ariaLabel={`Position de ${x.reference || x.name}`} /></td>
+      <td style={{ width: 120 }}><input className="input" type="number" min={5} max={5000} disabled={!write} value={row(kind, x).radius} placeholder={`${d.default_radius} (défaut)`} onChange={e => change(kind, x, { radius: e.target.value })} aria-label={`Rayon de ${x.reference || x.name} en mètres`} /></td>
+      <td className="right">{write && <button className="btn btn-sm btn-primary" disabled={!dirty(kind, x)} onClick={() => save(kind, x)}><Save />{x.latitude != null && !superAdmin ? 'Proposer' : 'Enregistrer'}</button>}</td>
+    </tr>,
+    pendingRow(kind, x),
+  ];
+  const pendingCount = d ? d.places.filter(p => p.pending).length + d.programmes.reduce((n, p) => n + p.worksites.filter(w => w.pending).length, 0) : 0;
+  return (
+    <div id="positions-pointage"><Card title={<span className="row" style={{ gap: 8 }}><MapPinned className="ico" />Positions de pointage{pendingCount > 0 && <Badge tone="warn">{pendingCount} à valider</Badge>}</span>} bodyClass="">
+      <div className="card-body" style={{ borderBottom: '1px solid var(--border)' }}>
+        <p className="small muted" style={{ margin: 0 }}>
+          À chaque pointage en ligne ou à la borne, la position de l’appareil est comparée à celle du lieu choisi : <b>sur place</b>, <b>hors zone</b>, <b>position imprécise</b> (la marge d’erreur du téléphone déborde du rayon) ou <b>position non fournie</b>. Le pointage est toujours enregistré ; les écarts sont signalés dans Présences › Pointages.
+          {' '}Collez la position depuis Google Maps (clic droit sur le bâtiment) ou utilisez « Ma position » sur place. Les lieux se règlent aussi dans Administration générale › Lieux.
+          {' '}Saisie par le responsable RH, le responsable des exploitations ou le super administrateur ; une fois une position saisie, <b>la changer ou l’effacer attend la validation du super administrateur</b> (sauf s’il le fait lui-même).
+        </p>
+        {d && !d.geolocation && <p className="small" style={{ margin: '8px 0 0', color: 'var(--warn)' }}>La géolocalisation du pointage est désactivée ci-dessus : aucun contrôle n’est fait tant qu’elle reste coupée.</p>}
+      </div>
+      <ErrorBox error={z.error} />
+      {!d ? <div className="card-body"><Skeleton h={160} /></div> : (
+        <div className="table-wrap"><table className="table table-compact">
+          <thead><tr><th>Lieu ou chantier</th><th>Position (latitude, longitude)</th><th>Rayon (m)</th><th /></tr></thead>
+          <tbody>
+            <tr><td colSpan={4} className="small"><b>Lieux</b></td></tr>
+            {d.places.map(p => editRow('lieu', p, <b>{p.name}</b>))}
+            <tr><td colSpan={4} className="small"><b>Programmes et chantiers en cours</b></td></tr>
+            {d.programmes.map(p => [
+              <tr key={`p:${p.id}`}>
+                <td className="small"><b>{p.name}</b></td>
+                <td className="small" colSpan={3}>{p.latitude != null
+                  ? <>{p.latitude}, {p.longitude} <a className="link" href={mapsLink(p.latitude, p.longitude)} target="_blank" rel="noreferrer">carte</a> <span className="muted">· fiche du programme (dashboard), rayon par défaut</span></>
+                  : <span className="muted">Sans position : à saisir sur la fiche du programme dans le dashboard (Position GPS du projet).</span>}</td>
+              </tr>,
+              ...p.worksites.map(w => editRow('chantier', w, <>{w.reference} — {w.name}</>, p.latitude != null ? 'Vide : position du programme' : 'Vide : chantier non situé')),
+            ])}
+          </tbody>
+        </table></div>
+      )}
+    </Card></div>
   );
 }
 

@@ -5,7 +5,7 @@ import { api, qs } from '@admin/lib/api';
 import { useAuth, useResource, useToast, useSaved } from '@admin/lib/app-context';
 import { Card, Empty, Skeleton, ErrorBox, Modal, Field, Badge } from '@admin/components/ui';
 import { date, fcfa } from '@admin/lib/format';
-import { RH, hours, hm, today, thisMonth, useRhMeta } from '../../lib/rh';
+import { RH, hours, hm, today, thisMonth, useRhMeta, meters } from '../../lib/rh';
 import PlacePicker, { placeLabel, NO_PLACE } from '../../components/PlacePicker';
 
 /** Présences (référence : Odoo Présences) : qui est là, feuilles de chantier, corrections, heures supplémentaires. */
@@ -31,6 +31,7 @@ export default function Attendance() {
 }
 
 function Today() {
+  const { meta } = useRhMeta();
   const t = useResource(`${RH}/attendance/today`);
   if (t.error) return <ErrorBox error={t.error} />;
   if (!t.data) return <Skeleton h={200} />;
@@ -38,7 +39,7 @@ function Today() {
   return (
     <div className="grid grid-3" style={{ alignItems: 'start' }}>
       <Card title={<span className="row" style={{ gap: 8 }}><UserCheck className="ico" />Présents ({t.data.present.length})</span>} bodyClass="">
-        <List rows={t.data.present} empty="Personne n’a pointé pour l’instant." render={a => <li key={a.id} className="list-row"><span><b>{a.employee_name}</b><div className="small muted">{placeLabel(a)} · {a.source}</div></span><span className="tabular small">depuis {hm(a.check_in)}</span></li>} />
+        <List rows={t.data.present} empty="Personne n’a pointé pour l’instant." render={a => <li key={a.id} className="list-row"><span><b>{a.employee_name}</b><div className="small muted">{placeLabel(a)} · {meta?.attendance_sources[a.source] || a.source}</div>{a.geo_status && a.geo_status !== 'sur_place' && <GeoBadge moment="Arrivée" status={a.geo_status} distance={a.distance_m} accuracy={a.accuracy_m} />}</span><span className="tabular small">depuis {hm(a.check_in)}</span></li>} />
       </Card>
       <Card title={<span className="row" style={{ gap: 8 }}><Clock3 className="ico" />Partis ({t.data.done.length})</span>} bodyClass="">
         <List rows={t.data.done} empty="Aucun départ pointé." render={a => <li key={a.id} className="list-row"><span><b>{a.employee_name}</b><div className="small muted">{hm(a.check_in)} → {hm(a.check_out)}</div></span><span className="tabular small">{hours(a.hours)}</span></li>} />
@@ -100,15 +101,31 @@ function Sheet() {
   );
 }
 
+/** Résultat du contrôle du lieu d'un pointage (arrivée ou départ), avec la distance et un lien vers la position relevée. */
+function GeoBadge({ status, distance, accuracy, lat, lng, moment }) {
+  const { meta } = useRhMeta();
+  if (!status) return null;
+  const s = meta?.geo_statuses?.[status];
+  const detail = [distance != null && status !== 'sur_place' ? meters(distance) : null, accuracy != null ? `± ${accuracy} m` : null].filter(Boolean).join(' · ');
+  return (
+    <span className="row" style={{ gap: 4, display: 'inline-flex' }}>
+      <Badge tone={s?.tone}>{moment} : {s?.label || status}{detail && status !== 'sur_place' ? ` (${detail})` : ''}</Badge>
+      {lat != null && <a className="link small" href={`https://www.openstreetmap.org/?mlat=${lat}&mlon=${lng}#map=17/${lat}/${lng}`} target="_blank" rel="noreferrer" title={accuracy != null ? `Précision annoncée : ± ${accuracy} m` : undefined}>carte</a>}
+    </span>
+  );
+}
+
 function Records() {
   const { can } = useAuth();
   const { meta } = useRhMeta();
   const toast = useToast();
+  const [params] = useSearchParams();
   const [from, setFrom] = useState(() => new Date(Date.now() - 6 * 86400000).toISOString().slice(0, 10));
   const [to, setTo] = useState(today());
   const [employee, setEmployee] = useState('');
+  const [control, setControl] = useState(params.get('controle') || ''); // lien des notifications « pointage hors zone »
   const [edit, setEdit] = useState(null);
-  const list = useResource(`${RH}/attendance${qs({ from, to, employee_id: employee })}`);
+  const list = useResource(`${RH}/attendance${qs({ from, to, employee_id: employee, controle: control })}`);
   const del = async a => { if (!window.confirm('Supprimer ce pointage ?')) return; try { await api.del(`${RH}/attendance/${a.id}`); list.reload(); } catch (e) { toast(e.message, 'err'); } };
   const editable = can('presence:correct');
   return (
@@ -118,6 +135,11 @@ function Records() {
           <input className="input" type="date" style={{ width: 'auto' }} value={from} onChange={e => setFrom(e.target.value)} aria-label="Du" />
           <input className="input" type="date" style={{ width: 'auto' }} value={to} onChange={e => setTo(e.target.value)} aria-label="Au" />
           {meta?.employees.length > 0 && <select className="select" style={{ width: 'auto' }} value={employee} onChange={e => setEmployee(e.target.value)} aria-label="Employé"><option value="">Tout le personnel</option>{meta.employees.map(e => <option key={e.id} value={e.id}>{e.last_name} {e.first_name}</option>)}</select>}
+          <select className="select" style={{ width: 'auto' }} value={control} onChange={e => setControl(e.target.value)} aria-label="Contrôle du lieu">
+            <option value="">Tous les pointages</option>
+            <option value="alerte">À vérifier (hors zone, imprécis, sans position)</option>
+            <option value="hors_zone">Hors zone seulement</option>
+          </select>
         </div>
         {editable && <button className="btn btn-primary" onClick={() => setEdit({})}><Plus />Saisie manuelle</button>}
       </div>
@@ -130,7 +152,15 @@ function Records() {
               <tr key={a.id}>
                 <td><b>{a.employee_name}</b></td><td className="small nowrap">{date(a.check_in)}</td><td className="tabular">{hm(a.check_in)}</td>
                 <td className="tabular">{a.check_out ? hm(a.check_out) : <Badge tone="warn">en cours</Badge>}</td><td className="right tabular">{hours(a.hours)}</td>
-                <td className="small">{placeLabel(a)}{a.latitude != null && <a className="link" style={{ marginLeft: 6 }} href={`https://www.openstreetmap.org/?mlat=${a.latitude}&mlon=${a.longitude}#map=17/${a.latitude}/${a.longitude}`} target="_blank" rel="noreferrer">carte</a>}</td>
+                <td className="small">
+                  {placeLabel(a)}
+                  {(a.geo_status || a.out_geo_status) ? (
+                    <div className="stack" style={{ gap: 2, marginTop: 4 }}>
+                      <GeoBadge moment="Arrivée" status={a.geo_status} distance={a.distance_m} accuracy={a.accuracy_m} lat={a.latitude} lng={a.longitude} />
+                      <GeoBadge moment="Départ" status={a.out_geo_status} distance={a.out_distance_m} accuracy={a.out_accuracy_m} lat={a.out_latitude} lng={a.out_longitude} />
+                    </div>
+                  ) : a.latitude != null && <a className="link" style={{ marginLeft: 6 }} href={`https://www.openstreetmap.org/?mlat=${a.latitude}&mlon=${a.longitude}#map=17/${a.latitude}/${a.longitude}`} target="_blank" rel="noreferrer">carte</a>}
+                </td>
                 <td className="small muted">{meta?.attendance_sources[a.source]}{a.note ? ` · ${a.note}` : ''}{a.created_by_name && a.source !== 'web' ? ` · ${a.created_by_name}` : ''}</td>
                 <td className="right nowrap">{editable && <><button className="btn btn-ghost btn-icon btn-sm" onClick={() => setEdit(a)} aria-label="Corriger"><Pencil /></button><button className="btn btn-ghost btn-icon btn-sm" onClick={() => del(a)} aria-label="Supprimer"><Trash2 /></button></>}</td>
               </tr>

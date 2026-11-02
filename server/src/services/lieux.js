@@ -15,6 +15,8 @@ const serialize = p => ({
   id: p.id, kind: p.kind, kind_label: p.kind === 'autre' && p.kind_other ? p.kind_other : PLACE_KINDS[p.kind], kind_other: p.kind_other || null,
   name: p.name, address: p.address || null, city_id: p.city_id || null, city_label: p.city_label || null,
   location_id: p.location_id || null, location_label: p.location_label || null, active: !!p.active, sort: p.sort,
+  // Position et rayon du contrôle de pointage (aussi réglables dans RH › Réglages)
+  latitude: p.latitude == null ? null : Number(p.latitude), longitude: p.longitude == null ? null : Number(p.longitude), radius_m: p.radius_m || null,
 });
 
 async function list(db, { all = false } = {}) {
@@ -22,7 +24,8 @@ async function list(db, { all = false } = {}) {
   const q = db('places as p').leftJoin('ref_items as c', 'c.id', 'p.city_id').leftJoin('ref_items as l', 'l.id', 'p.location_id')
     .orderBy([{ column: 'p.sort' }, { column: 'p.name' }]).select('p.*', 'c.label as city_label', 'l.label as location_label');
   if (!all) q.where('p.active', true);
-  return (await q).map(serialize);
+  const pending = await require('./presences').pendingZones(db, 'lieu'); // position de pointage en attente du super administrateur
+  return (await q).map(p => ({ ...serialize(p), zone_pending: pending[`lieu:${p.id}`] || null }));
 }
 
 /** Villes et localités (non archivées) proposées dans le formulaire d'un lieu. */
@@ -61,6 +64,8 @@ async function save(db, data, id = null) {
   if (current?.kind === 'siege' && data.kind && data.kind !== 'siege') throw new HttpError(409, 'Le siège social garde son type (il reçoit les pièces sans programme ni lieu).');
   if (current?.kind === 'siege' && data.active === false) throw new HttpError(409, 'Le siège social ne se désactive pas.');
   await checkGeography(db, data, current);
+  const lat = data.latitude !== undefined ? data.latitude : current?.latitude ?? null, lng = data.longitude !== undefined ? data.longitude : current?.longitude ?? null;
+  if ((lat == null) !== (lng == null)) throw new HttpError(400, 'Position : latitude et longitude vont ensemble.');
   const name = data.name ?? current?.name;
   // Doublon de nom, accents compris (lower() de SQLite ne connaît pas les lettres accentuées)
   const names = await db('places').whereNot({ id: id || 0 }).select('name');

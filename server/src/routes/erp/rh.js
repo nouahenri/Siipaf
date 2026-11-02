@@ -10,7 +10,7 @@ const { ah, parse, idParam, HttpError, isoDay } = require('../../lib/http');
 const { requirePermission } = require('../../auth');
 const {
   LEAVE_TYPES, PERMISSION_EVENTS, LEAVE_STATUSES, LEAVE_ACTIVE, DOCUMENT_KINDS, CAREER_EVENTS, POSITION_CHANGE_REASONS, OBJECTIVE_STATUSES, OBJECTIVE_METRICS, REVIEW_RATINGS, DEFAULT_RH,
-  EXPENSE_STATUSES, ATTENDANCE_SOURCES, RECRUIT_STAGES, RECRUIT_SOURCES, REFUSE_REASONS, JOB_STATUSES, RESUME_KINDS, TRAINING_STATUSES,
+  EXPENSE_STATUSES, ATTENDANCE_SOURCES, GEO_STATUSES, RECRUIT_STAGES, RECRUIT_SOURCES, REFUSE_REASONS, JOB_STATUSES, RESUME_KINDS, TRAINING_STATUSES,
   OBJECTIVE_PERIODS, parsePeriod, periodRange,
 } = require('../../lib/rh');
 const kpiService = require('../../services/kpi');
@@ -64,7 +64,7 @@ module.exports = function rhRoutes(db) {
     res.json({
       leave_types: LEAVE_TYPES, events: PERMISSION_EVENTS, statuses: LEAVE_STATUSES, document_kinds: DOCUMENT_KINDS, career_events: CAREER_EVENTS,
       objective_statuses: OBJECTIVE_STATUSES, objective_metrics: OBJECTIVE_METRICS, objective_periods: OBJECTIVE_PERIODS, ratings: REVIEW_RATINGS,
-      expense_statuses: EXPENSE_STATUSES, attendance_sources: ATTENDANCE_SOURCES, recruit_stages: RECRUIT_STAGES, recruit_sources: RECRUIT_SOURCES,
+      expense_statuses: EXPENSE_STATUSES, attendance_sources: ATTENDANCE_SOURCES, geo_statuses: GEO_STATUSES, recruit_stages: RECRUIT_STAGES, recruit_sources: RECRUIT_SOURCES,
       refuse_reasons: REFUSE_REASONS, job_statuses: JOB_STATUSES, resume_kinds: RESUME_KINDS, training_statuses: TRAINING_STATUSES,
       contract_types: CONTRACT_TYPES, departments: DEPARTMENTS, marital: MARITAL,
       settings: settingsRight ? await rh.getSettings(db) : employeeRules(await rh.getSettings(db)), defaults: settingsRight ? DEFAULT_RH : null,
@@ -573,7 +573,7 @@ module.exports = function rhRoutes(db) {
       overtime_tiers: z.array(z.tuple([z.number().int().min(1).max(40).nullable(), z.number().min(0).max(300)])).min(1).max(5),
       night_rate: z.number().min(0).max(300), sunday_rate: z.number().min(0).max(300), sunday_night_rate: z.number().min(0).max(300),
       night_start: z.number().int().min(0).max(23), night_end: z.number().int().min(0).max(23), overtime_year_cap: z.number().int().min(0).max(1000),
-      geolocation: z.boolean(), break_minutes: z.number().int().min(0).max(180), break_after_hours: z.number().min(0).max(12),
+      geolocation: z.boolean(), geofence_radius: z.number().int().min(5).max(5000), geofence_notify: z.boolean(), break_minutes: z.number().int().min(0).max(180), break_after_hours: z.number().min(0).max(12),
       overtime_exempt_departments: z.array(z.enum(Object.keys(DEPARTMENTS))),
       expense_categories: z.record(z.object({ label: z.string().trim().min(2).max(80), account: z.string().trim().regex(/^\d{2,12}$/, 'Compte de 2 à 12 chiffres') })),
       expense_payable_account: z.string().trim().regex(/^\d{2,12}$/, 'Compte de 2 à 12 chiffres'),

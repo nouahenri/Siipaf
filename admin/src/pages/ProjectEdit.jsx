@@ -11,24 +11,11 @@ import PlanManage from '../components/PlanManage';
 import ProjectActions from '../components/ProjectActions';
 import { fcfa } from '../lib/format';
 import { bienButton, SITE_FIGURE_ICONS } from '../lib/domain';
+import { parseGps, gpsText } from '../lib/gps';
 
 const FIELDS = ['name', 'slug', 'city_id', 'location_id', 'location_detail', 'tagline', 'description', 'project_type_id', 'property_type_id', 'delivery', 'option_days', 'deposit_fcfa', 'balance_months', 'published', 'cover_media_id'];
 const FEATURES = ['equipement', 'commodite', 'viabilisation', 'document'];
 
-/**
- * Position GPS saisie librement : « 5.3601, -4.0083 » (copié depuis Google Maps), « 5,3601 ; -4,0083 »
- * ou un lien Google Maps (…/@5.3601,-4.0083,17z ou ?q=5.3601,-4.0083). Renvoie { lat, lng }, null si vide, false si illisible.
- */
-function parseGps(text) {
-  const t = String(text || '').trim();
-  if (!t) return null;
-  const m = t.match(/@(-?\d+\.\d+),(-?\d+\.\d+)/) || t.match(/[?&](?:q|query|destination)=(-?\d+\.\d+),\s*(-?\d+\.\d+)/)
-    || t.match(/^(-?\d+(?:[.,]\d+)?)\s*[,;\s]\s*(-?\d+(?:[.,]\d+)?)$/);
-  if (!m) return false;
-  const lat = Number(m[1].replace(',', '.')), lng = Number(m[2].replace(',', '.'));
-  return Math.abs(lat) <= 90 && Math.abs(lng) <= 180 ? { lat, lng } : false;
-}
-const gpsText = p => (p.latitude != null && p.longitude != null ? `${Number(p.latitude)}, ${Number(p.longitude)}` : '');
 // Un type de biens s'applique aux types de projet cochés dans Paramètres (aucun = tous)
 const fitsProject = (t, projectTypeId) => !projectTypeId || !t.project_types?.length || t.project_types.includes(Number(projectTypeId));
 

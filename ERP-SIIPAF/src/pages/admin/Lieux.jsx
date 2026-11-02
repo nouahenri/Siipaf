@@ -8,6 +8,8 @@ import { Plus, Pencil, Check, Trash2, MapPinned, Info } from 'lucide-react';
 import { api } from '@admin/lib/api';
 import { useAuth, useResource, useSaved, useToast } from '@admin/lib/app-context';
 import { Card, Empty, Skeleton, ErrorBox, Field, Modal, Badge } from '@admin/components/ui';
+import { parseGps, gpsText } from '@admin/lib/gps';
+import GpsInput from '../../components/GpsInput';
 
 const URL = '/admin/erp/lieux';
 
@@ -22,17 +24,19 @@ export default function Lieux() {
       <div className="callout-erp"><Info /><span className="small">
         Lieux hors programmes : on les choisit comme imputation des achats, dépenses du parc, notes de frais, demandes internes, pointages et contrats.
         La Comptabilité en fait un axe analytique (états par lieu). Une pièce sans programme ni lieu est imputée au <b>siège social</b>.
+        La <b>position GPS</b> d’un lieu sert au contrôle des pointages : une fois saisie, la changer attend la validation du super administrateur.
       </span></div>
       <Card title="Lieux" actions={write && <button className="btn btn-primary" onClick={() => setForm({})}><Plus />Nouveau lieu</button>} bodyClass="">
         <ErrorBox error={res.error} />
         {!data ? <div className="card-body"><Skeleton h={160} /></div> : !data.places.length ? <div className="card-body"><Empty icon={MapPinned}>Aucun lieu.</Empty></div> : (
           <div className="table-wrap"><table className="table">
-            <thead><tr><th>Lieu</th><th>Type</th><th>Emplacement</th><th>État</th>{write && <th />}</tr></thead>
+            <thead><tr><th>Lieu</th><th>Type</th><th>Emplacement</th><th>Pointage</th><th>État</th>{write && <th />}</tr></thead>
             <tbody>{data.places.map(p => (
               <tr key={p.id}>
                 <td><b>{p.name}</b></td>
                 <td>{p.kind === 'siege' ? <Badge tone="brand">{p.kind_label}</Badge> : p.kind_label}</td>
                 <td className="small">{[p.address, p.location_label, p.city_label].filter(Boolean).join(', ') || '—'}</td>
+                <td>{p.latitude != null ? <Badge tone="ok">Situé{p.radius_m ? ` · ${p.radius_m} m` : ''}</Badge> : <Badge tone="warn">Sans position</Badge>}{p.zone_pending && <div><Badge tone="warn">Modification à valider</Badge></div>}</td>
                 <td>{p.active ? <Badge tone="ok">Proposé</Badge> : <Badge>Désactivé</Badge>}</td>
                 {write && <td className="right"><button className="btn btn-ghost btn-icon" onClick={() => setForm(p)} aria-label={`Modifier ${p.name}`}><Pencil /></button></td>}
               </tr>
@@ -46,19 +50,29 @@ export default function Lieux() {
 }
 
 function PlaceForm({ place: p, kinds, cities, locations, onClose, onSaved }) {
+  const { can, user } = useAuth();
+  const zones = can('presence:zones'); // privilège « Positions de pointage »
   const saved = useSaved();
   const toast = useToast();
-  const [f, setF] = useState({ kind: p?.kind || 'annexe', kind_other: p?.kind_other || '', name: p?.name || '', address: p?.address || '', city_id: p?.city_id || '', location_id: p?.location_id || '', active: p ? p.active : true });
+  const [f, setF] = useState({ kind: p?.kind || 'annexe', kind_other: p?.kind_other || '', name: p?.name || '', address: p?.address || '', city_id: p?.city_id || '', location_id: p?.location_id || '', active: p ? p.active : true, gps: gpsText(p), radius_m: p?.radius_m || '' });
   const [error, setError] = useState(null);
   const [busy, setBusy] = useState(false);
   const set = k => e => setF(x => ({ ...x, [k]: e.target.value }));
   const siege = p?.kind === 'siege';
   const save = async e => {
-    e.preventDefault(); setBusy(true); setError(null);
+    e.preventDefault();
+    const gps = parseGps(f.gps);
+    if (gps === false) return setError(new Error('Position GPS illisible : collez « latitude, longitude » (ex. 5.3601, -4.0083) ou un lien Google Maps.'));
+    setBusy(true); setError(null);
     try {
-      const body = { ...f, kind_other: f.kind === 'autre' ? f.kind_other.trim() || null : null, address: f.address.trim() || null, city_id: Number(f.city_id) || null, location_id: Number(f.location_id) || null };
+      const { gps: _text, radius_m, ...rest } = f;
+      const body = {
+        ...rest, kind_other: f.kind === 'autre' ? f.kind_other.trim() || null : null, address: f.address.trim() || null, city_id: Number(f.city_id) || null, location_id: Number(f.location_id) || null,
+        ...(zones ? { latitude: gps ? gps.lat : null, longitude: gps ? gps.lng : null, radius_m: Number(radius_m) || null } : {}),
+      };
       const list = p ? await api.patch(`${URL}/${p.id}`, body) : await api.post(URL, body);
-      saved(p ? 'Lieu enregistré' : 'Lieu ajouté');
+      const pending = p && list.find(x => x.id === p.id)?.zone_pending;
+      saved(!p ? 'Lieu ajouté' : pending && pending.requested_by === user?.id && user?.role !== 'super_admin' ? 'Lieu enregistré ; la nouvelle position attend la validation du super administrateur' : 'Lieu enregistré');
       onSaved(list);
     } catch (err) { setError(err); setBusy(false); }
   };
@@ -90,6 +104,17 @@ function PlaceForm({ place: p, kinds, cities, locations, onClose, onSaved }) {
           </select>
         </Field>
         <Field label="Adresse ou repère" className="full"><input className="input" maxLength={255} value={f.address} onChange={set('address')} placeholder="Rue, immeuble, repère…" /></Field>
+        <Field label="Position GPS (contrôle du pointage)" hint={zones
+          ? (p?.latitude != null && user?.role !== 'super_admin' ? 'Changer cette position attend la validation du super administrateur. Aussi réglable dans RH › Réglages' : 'Vide : les pointages faits ici sont marqués « lieu sans position ». Aussi réglable dans RH › Réglages')
+          : 'Réglée par le responsable RH, le responsable des exploitations ou le super administrateur'}>
+          <GpsInput value={f.gps} disabled={!zones} onChange={v => setF(x => ({ ...x, gps: v }))} />
+        </Field>
+        <Field label="Rayon (mètres)" hint="Vide : rayon par défaut des réglages RH">
+          <input className="input" type="number" min={5} max={5000} disabled={!zones} value={f.radius_m} onChange={set('radius_m')} placeholder="Par défaut" />
+        </Field>
+        {p?.zone_pending && <p className="full small" style={{ margin: 0, color: 'var(--warn)' }}>
+          Modification en attente du super administrateur, proposée par {p.zone_pending.requested_by_name || '—'} : {p.zone_pending.latitude != null ? `${p.zone_pending.latitude}, ${p.zone_pending.longitude}` : 'position effacée'}{p.zone_pending.radius_m ? ` · rayon ${p.zone_pending.radius_m} m` : ''}. La position actuelle sert au contrôle d’ici sa décision (RH › Réglages › Positions de pointage).
+        </p>}
         {!siege && <label className="full row small" style={{ gap: 8 }}><input type="checkbox" checked={f.active} onChange={e => setF(x => ({ ...x, active: e.target.checked }))} />Proposé dans les listes (décoché : gardé sur les pièces déjà saisies, plus proposé)</label>}
       </form>
     </Modal>
