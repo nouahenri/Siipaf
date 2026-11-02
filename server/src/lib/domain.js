@@ -525,7 +525,7 @@ const PERMISSIONS = {
     ...APPRO_ACTIONS,
     'projects:read', 'lots:read', 'sales:read', 'documents:write', 'site_updates:write', 'client_messages',
     'sav:read', 'sav:all', 'sav:create', 'sav:handle', 'sav:reserves', 'sav:interventions', 'vefa:write', 'presence:write', ...CONTRACT_ACTIONS, ...LEGAL_ACTIONS, 'leads:all',
-    'chantiers:read', 'chantiers:write', 'qhse:read', 'qhse:control', ...SELF_SERVICE,
+    'chantiers:read', 'chantiers:write', 'chantiers:estimate', 'qhse:read', 'qhse:control', ...SELF_SERVICE,
   ]),
   comptable: splitPermissions([
     ...APPRO_ACTIONS, 'appro:articles',
@@ -541,7 +541,7 @@ const PERMISSIONS = {
     'client_access:write', 'client_messages', 'site_updates:write', 'schedule:write', 'settings:write',
     'leads:all', 'leads:assign', 'clients:edit', 'sav:read', ...SAV_ACTIONS, 'commercial:read', 'targets:write', 'vefa:write', 'property:write', 'compta:read',
     'rh:read', ...RH_ACTIONS, 'kpi:write', 'presence:write', 'presence:zones', 'direction:read', ...COURRIER_ACTIONS, ...CONTRACT_ACTIONS, ...PARC_ACTIONS, ...DOCS_ACTIONS, ...REQUEST_ACTIONS, ...LEGAL_ACTIONS,
-    'chantiers:read', 'chantiers:write', 'lieux:write', 'marketing:read', 'marketing:generate', 'marketing:validate',
+    'chantiers:read', 'chantiers:write', 'chantiers:estimate', 'lieux:write', 'marketing:read', 'marketing:generate', 'marketing:validate',
     ...QHSE_ACTIONS, ...SELF_SERVICE, // QHSE : tous les droits, réglages compris (décision du client du 31/10)
   ]),
 };
@@ -744,7 +744,8 @@ const PERMISSION_CATALOG = [
     ['chantiers:create', 'Ouvrir et supprimer un chantier, nommer le conducteur', 'Nouveau chantier d’un programme, suppression, choix du conducteur de travaux', 'Gérer les chantiers (conducteur de travaux)'],
     ['chantiers:plan', 'Planning de tous les chantiers', 'Fiche, phases, tâches, journal, avancement, besoins, sous-traitants, réceptions de tous les chantiers (le conducteur nommé gère le sien sans ce droit)', 'Gérer les chantiers (conducteur de travaux)'],
     ['chantiers:budget', 'Budget de tous les chantiers', 'Lignes de budget par poste (le conducteur nommé gère celui de son chantier sans ce droit)', 'Gérer les chantiers (conducteur de travaux)'],
-    ['chantiers:settings', 'Régler les chantiers', 'Postes du budget, météo du journal, seuils et rappels', 'Gérer les chantiers (conducteur de travaux)'],
+    ['chantiers:settings', 'Régler les chantiers', 'Postes du budget, météo du journal, seuils et rappels, référentiels du déboursé sec (prix, ouvrages, modèles)', 'Gérer les chantiers (conducteur de travaux)'],
+    ['chantiers:estimate', 'Déboursé sec', 'Estimer le coût du gros œuvre d’un bâtiment (villa, duplex, immeuble) et le reporter au budget d’un chantier ; les référentiels se règlent avec « Régler les chantiers »', 'Gérer les chantiers (conducteur de travaux)'],
     ['chantiers:tma', 'Travaux modificatifs (TMA)', 'Demander, chiffrer, annuler et clore les travaux modificatifs de tous les chantiers', 'Gérer les chantiers (conducteur de travaux)'],
     ['chantiers:stages', 'Déclarer une étape atteinte', 'Déclarer une étape de chantier atteinte (elle émet les appels de fonds VEFA) ou refuser un signalement', 'Valider en direction (chantiers)'],
     ['chantiers:situations', 'Valider les situations des sous-traitants', 'Valider ou refuser une situation de travaux (facture d’achat et retenue de garantie)', 'Valider en direction (chantiers)'],
@@ -1557,7 +1558,7 @@ const PLACE_KINDS = { siege: 'Siège social', annexe: 'Bureau annexe / agence', 
  * (tout le programme, des îlots, des bâtiments ou des lots), son conducteur de travaux, ses phases (Gantt), ses
  * tâches (Kanban) et son budget par poste. Les phases reprennent les étapes du journal de chantier (SITE_STAGES).
  */
-const CHANTIER_ACTIONS = ['chantiers:read', 'chantiers:create', 'chantiers:plan', 'chantiers:budget', 'chantiers:settings', 'chantiers:tma', 'chantiers:stages', 'chantiers:situations'];
+const CHANTIER_ACTIONS = ['chantiers:read', 'chantiers:create', 'chantiers:plan', 'chantiers:budget', 'chantiers:settings', 'chantiers:tma', 'chantiers:estimate', 'chantiers:stages', 'chantiers:situations'];
 const WORKSITE_STATUSES = { preparation: 'En préparation', en_cours: 'En cours', suspendu: 'Suspendu', receptionne: 'Réceptionné', clos: 'Clos' };
 const WORKSITE_OPEN = ['preparation', 'en_cours', 'suspendu'];
 const WORKSITE_ZONES = { programme: 'Tout le programme', ilots: 'Des îlots', batiments: 'Des bâtiments', lots: 'Des lots' };
@@ -1611,6 +1612,8 @@ const CHANTIER_SETTINGS = {
     default: 'ttc', options: { ttc: 'Montant TTC de la situation', ht: 'Montant HT de la situation' },
   },
   tma_due_days: { label: 'Paiement d’une TMA acceptée (jours après l’accord de l’acquéreur)', hint: 'Échéance ajoutée à l’échéancier du dossier quand l’acquéreur accepte le devis dans son espace client', default: 15, min: 0, max: 120 },
+  debourse_site_pct: { label: 'Déboursé sec : frais de chantier (% du déboursé sec)', hint: 'Installation, encadrement, gardiennage, eau et électricité du chantier ; ajoutés pour le coût de revient estimatif. Modifiable estimation par estimation', default: 8, min: 0, max: 30 },
+  debourse_contingency_pct: { label: 'Déboursé sec : aléas (% du déboursé sec)', hint: 'Imprévus du gros œuvre ajoutés pour le coût de revient estimatif. Modifiable estimation par estimation', default: 5, min: 0, max: 30 },
   chantier_monthly_hours: { label: 'Heures de travail par mois (coût horaire tiré du salaire)', hint: 'Coût mensuel employeur (salaire, charges et taxes de la paie) divisé par ces heures, pour qui n’a pas de coût horaire de chantier sur sa fiche', default: 173, min: 100, max: 260 },
 };
 

@@ -9,6 +9,7 @@ import { api } from '@admin/lib/api';
 import { useAuth, useResource, useSaved, useToast } from '@admin/lib/app-context';
 import { Card, Skeleton, ErrorBox, Field, Badge } from '@admin/components/ui';
 import { CH } from '../../lib/chantiers';
+import { DebourseSettings } from './Debourse';
 
 export default function ChantiersSettings() {
   const { can } = useAuth();
@@ -46,6 +47,7 @@ export default function ChantiersSettings() {
       </form>
     </Card>
     {Object.entries(refs.data.list_kinds).map(([kind, title]) => <ListEditor key={kind} kind={kind} title={title} initial={refs.data.lists[kind]} write={write} />)}
+    <DebourseSettings />
     </div>
   );
 }

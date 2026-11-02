@@ -2,7 +2,7 @@
 import { useResource } from '@admin/lib/app-context';
 
 export const CH = '/admin/erp/chantiers';
-export const CHANTIERS = ['chantiers:read', 'chantiers:create', 'chantiers:plan', 'chantiers:budget', 'chantiers:settings', 'chantiers:tma', 'chantiers:stages', 'chantiers:situations', 'direction:read'];
+export const CHANTIERS = ['chantiers:read', 'chantiers:create', 'chantiers:plan', 'chantiers:budget', 'chantiers:settings', 'chantiers:tma', 'chantiers:estimate', 'chantiers:stages', 'chantiers:situations', 'direction:read'];
 // Le conducteur nommé sur un chantier entre dans le module sans droit
 export const CHANTIERS_SHOW = b => b?.mine > 0;
 export const WS_TONES = { preparation: '', en_cours: 'brand', suspendu: 'warn', receptionne: 'ok', clos: '' };

@@ -539,7 +539,7 @@ async function tick(db) {
 
 const LIST_KINDS = { poste: 'Postes du budget', meteo: 'Météo du journal', unite: 'Unités des besoins en matériaux' };
 // Où chaque liste est utilisée (un élément utilisé se désactive au lieu d'être supprimé)
-const LIST_USES = { poste: [['worksite_budget_lines', 'category'], ['purchase_invoices', 'worksite_category']], meteo: [['worksite_journal', 'weather']], unite: [['worksite_needs', 'unit']] };
+const LIST_USES = { poste: [['worksite_budget_lines', 'category'], ['purchase_invoices', 'worksite_category']], meteo: [['worksite_journal', 'weather']], unite: [['worksite_needs', 'unit'], ['debourse_resources', 'unit'], ['debourse_works', 'unit']] };
 
 async function listItems(db, kind, { all = false } = {}) {
   const q = db('worksite_ref_items').where({ kind }).orderBy([{ column: 'sort' }, { column: 'id' }]);

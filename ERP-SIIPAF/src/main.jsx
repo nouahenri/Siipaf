@@ -48,6 +48,7 @@ import QhseSettings from './pages/qhse/QhseSettings';
 import Chantiers from './pages/chantiers/Chantiers';
 import Chantier from './pages/chantiers/Chantier';
 import ChantiersSettings from './pages/chantiers/ChantiersSettings';
+import { EstimatePage } from './pages/chantiers/Debourse';
 import ComptaDashboard from './pages/compta/ComptaDashboard';
 import Entries from './pages/compta/Entries';
 import Purchases from './pages/compta/Purchases';
@@ -216,7 +217,8 @@ function App() {
         <Route path="qhse/acces" element={<Guard perm="users:read"><ModuleAccess module="qhse" label="QHSE" /></Guard>} />
         <Route path="chantiers" element={<Navigate to="/chantiers/liste" replace />} />
         <Route path="chantiers/liste" element={<Chantiers />} />
-        <Route path="chantiers/reglages" element={<Settings module="chantiers" perm={['chantiers:read', 'chantiers:create', 'chantiers:plan', 'chantiers:budget', 'chantiers:settings', 'chantiers:tma', 'chantiers:stages', 'chantiers:situations', 'direction:read']} who="les gestionnaires des chantiers"><ChantiersSettings /></Settings>} />
+        <Route path="chantiers/reglages" element={<Settings module="chantiers" perm={['chantiers:read', 'chantiers:create', 'chantiers:plan', 'chantiers:budget', 'chantiers:settings', 'chantiers:tma', 'chantiers:estimate', 'chantiers:stages', 'chantiers:situations', 'direction:read']} who="les gestionnaires des chantiers"><ChantiersSettings /></Settings>} />
+        <Route path="chantiers/estimations/:id" element={<EstimatePage />} />
         <Route path="chantiers/:id" element={<Chantier />} />
         <Route path="chantiers/acces" element={<Guard perm="users:read"><ModuleAccess module="chantiers" label="Chantiers" /></Guard>} />
         <Route path="compta/acces" element={<Guard perm="users:read"><ModuleAccess module="compta" label="Comptabilité et paie" /></Guard>} />

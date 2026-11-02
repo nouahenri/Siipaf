@@ -12,6 +12,7 @@ import { date, fcfa } from '@admin/lib/format';
 import { CH, WS_TONES, useChantierRefs, body } from '../../lib/chantiers';
 import { dashboardWithReturn } from '../../lib/links';
 import DepartmentMail from '../../components/DepartmentMail';
+import { EstimatesTab } from './Debourse';
 
 export default function Chantiers() {
   const { can } = useAuth();
@@ -32,8 +33,18 @@ export default function Chantiers() {
   const situations = useResource(can('chantiers:situations') ? `${CH}/situations` : null);
   useEffect(() => { const t = setTimeout(() => setQ(text.trim()), 300); return () => clearTimeout(t); }, [text]);
 
+  // Onglets : chantiers, déboursé sec (estimations du coût du gros œuvre, cadrage du 02/11)
+  const tab = params.get('onglet') === 'debourse' ? 'debourse' : 'chantiers';
+  const tabs = (
+    <div className="tabs" role="tablist" style={{ marginBottom: 0 }}>
+      {[['chantiers', 'Chantiers'], ['debourse', 'Déboursé sec']].map(([k, l]) => <button key={k} role="tab" aria-selected={tab === k} className={`tab ${tab === k ? 'active' : ''}`} onClick={() => setParams(k === 'chantiers' ? {} : { onglet: k })}>{l}</button>)}
+    </div>
+  );
+  if (tab === 'debourse') return <div className="stack">{tabs}<EstimatesTab /></div>;
+
   return (
     <div className="stack">
+      {tabs}
       <div className="row-between">
         <div className="row" style={{ flexWrap: 'wrap' }}>
           <div className="seg" role="group" aria-label="Statut">

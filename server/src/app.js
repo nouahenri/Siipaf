@@ -92,6 +92,7 @@ function createApp(db) {
   admin.use('/erp/demandes', require('./routes/erp/requests')(db));
   admin.use('/erp/juridique', require('./routes/erp/juridique')(db));
   admin.use('/erp/marketing', require('./routes/erp/marketing')(db));
+  admin.use('/erp/chantiers/debourse', require('./routes/erp/debourse')(db)); // avant /erp/chantiers/:id
   admin.use('/erp/chantiers', require('./routes/erp/chantiers')(db));
   admin.use('/erp/qhse', require('./routes/erp/qhse')(db));
   admin.use('/erp/achats', require('./routes/erp/appro')(db));
