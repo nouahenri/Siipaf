@@ -193,7 +193,8 @@ const query = db => db('hr_attendances as a').join('employees as e', 'e.id', 'a.
 
 /** Pointage en cours (arrivée sans départ) d'un employé. */
 async function openOf(db, employeeId) {
-  const a = await db('hr_attendances').where({ employee_id: employeeId }).whereNull('check_out').orderBy('check_in', 'desc').first();
+  // Avec les noms du lieu ou du chantier (Mon espace : « Arrivé(e) à 08:00 · Siège social »)
+  const a = await query(db).where('a.employee_id', employeeId).whereNull('a.check_out').orderBy('a.check_in', 'desc').first();
   return a ? serialize(a) : null;
 }
 

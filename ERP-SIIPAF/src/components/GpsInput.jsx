@@ -22,7 +22,7 @@ export default function GpsInput({ value, onChange, disabled = false, ariaLabel 
   return (
     <div className="stack" style={{ gap: 4 }}>
       <div className="row" style={{ gap: 6 }}>
-        <input className="input tabular" style={{ flex: 1 }} disabled={disabled} value={value} onChange={e => { setError(null); onChange(e.target.value); }} placeholder="5.3601, -4.0083" aria-label={ariaLabel} />
+        <input className="input tabular" style={{ flex: 1, minWidth: 180 }} disabled={disabled} value={value} onChange={e => { setError(null); onChange(e.target.value); }} placeholder="5.3601, -4.0083" aria-label={ariaLabel} />
         {!disabled && <button type="button" className="btn btn-sm" disabled={locating} onClick={locate} title="Prendre la position de cet appareil (à faire sur place)"><LocateFixed />{locating ? '…' : 'Ma position'}</button>}
       </div>
       {gps === false ? <span className="small" style={{ color: 'var(--danger)' }}>Illisible : « latitude, longitude » (ex. 5.3601, -4.0083) ou lien Google Maps.</span>

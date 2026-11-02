@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { Plus, Trash2, Save, CalendarDays, RotateCcw, Briefcase, MapPinned, Check, X } from 'lucide-react';
 import { parseGps, gpsText, mapsLink } from '@admin/lib/gps';
 import GpsInput from '../../components/GpsInput';
@@ -145,6 +145,13 @@ function PointageZones() {
   const superAdmin = user?.role === 'super_admin';
   const z = useResource(visible ? `${RH}/attendance/zones` : null);
   const [edits, setEdits] = useState({});
+  // Lien des notifications (…/rh/reglages#positions-pointage) : la section est en bas d'une longue page
+  const loaded = !!z.data;
+  useEffect(() => {
+    if (!loaded || window.location.hash !== '#positions-pointage') return;
+    document.getElementById('positions-pointage')?.scrollIntoView({ block: 'start' });
+    window.history.replaceState(window.history.state, '', window.location.pathname + window.location.search); // une seule fois
+  }, [loaded]);
   if (!visible) return null;
   const key = (kind, x) => `${kind}:${x.id}`;
   const row = (kind, x) => edits[key(kind, x)] || { gps: gpsText(x), radius: x.radius_m || '' };
@@ -186,7 +193,7 @@ function PointageZones() {
     <tr key={key(kind, x)}>
       <td className="small" style={kind === 'chantier' ? { paddingLeft: 28 } : undefined}>{label}{fallback && !row(kind, x).gps && <div className="muted">{fallback}</div>}</td>
       <td style={{ minWidth: 260 }}><GpsInput value={row(kind, x).gps} disabled={!write} onChange={v => change(kind, x, { gps: v })} ariaLabel={`Position de ${x.reference || x.name}`} /></td>
-      <td style={{ width: 120 }}><input className="input" type="number" min={5} max={5000} disabled={!write} value={row(kind, x).radius} placeholder={`${d.default_radius} (défaut)`} onChange={e => change(kind, x, { radius: e.target.value })} aria-label={`Rayon de ${x.reference || x.name} en mètres`} /></td>
+      <td style={{ width: 120 }}><input className="input" type="number" min={5} max={5000} disabled={!write} value={row(kind, x).radius} placeholder={String(d.default_radius)} title={`Vide : rayon par défaut (${d.default_radius} m)`} onChange={e => change(kind, x, { radius: e.target.value })} aria-label={`Rayon de ${x.reference || x.name} en mètres`} /></td>
       <td className="right">{write && <button className="btn btn-sm btn-primary" disabled={!dirty(kind, x)} onClick={() => save(kind, x)}><Save />{x.latitude != null && !superAdmin ? 'Proposer' : 'Enregistrer'}</button>}</td>
     </tr>,
     pendingRow(kind, x),
@@ -205,7 +212,7 @@ function PointageZones() {
       <ErrorBox error={z.error} />
       {!d ? <div className="card-body"><Skeleton h={160} /></div> : (
         <div className="table-wrap"><table className="table table-compact">
-          <thead><tr><th>Lieu ou chantier</th><th>Position (latitude, longitude)</th><th>Rayon (m)</th><th /></tr></thead>
+          <thead><tr><th>Lieu ou chantier</th><th>Position (latitude, longitude)</th><th>Rayon (m)<div className="small muted" style={{ textTransform: 'none', fontWeight: 400 }}>vide : {d.default_radius} m</div></th><th /></tr></thead>
           <tbody>
             <tr><td colSpan={4} className="small"><b>Lieux</b></td></tr>
             {d.places.map(p => editRow('lieu', p, <b>{p.name}</b>))}
