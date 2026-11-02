@@ -104,4 +104,55 @@ async function update(db, id, data, { user, can }) {
   return { before, after };
 }
 
-module.exports = { employeeSchema, checkUser, guardUserLink, update, PAY_FIELDS, LEAVE_FIELDS };
+const insertedId = r => (typeof r === 'object' ? r.id : r);
+
+/**
+ * Nouvelle fiche (demande du client du 02/11 : la création est du ressort du service RH, transmise à la Comptabilité) : matricule,
+ * événement de carrière « Embauche », modèles d'objectifs, puis la Comptabilité (salaire à fixer), les comptes et les services
+ * généraux sont prévenus (announceHire). Salaire : paie:salary ; solde de congés repris : conges:adjust. Renvoie l'identifiant.
+ */
+async function create(db, data, { user, can }) {
+  // Sans le droit « Salaire et paiement », la fiche est créée à 0 et la Comptabilité fixe le salaire
+  if (PAY_FIELDS.some(k => data[k] != null && data[k] !== 0 && data[k] !== false) && !can('paie:salary')) {
+    throw new HttpError(403, 'Salaire, indemnités et paiement se règlent avec le droit « Salaire et paiement ».');
+  }
+  // Solde de congés repris : « Ajuster les soldes » (le compte relié à une nouvelle fiche reste libre : l'embauche ne reprend la
+  // fiche de personne ; changer le compte d'une fiche existante demande « Modifier un compte », voir guardUserLink)
+  if (LEAVE_FIELDS.some(k => data[k] != null) && !can('conges:adjust')) throw new HttpError(403, 'Le solde d’ouverture des congés se règle avec le droit « Ajuster les soldes ».');
+  await checkUser(db, data.user_id);
+  if (data.manager_id && !(await db('employees').where({ id: data.manager_id }).first('id'))) throw new HttpError(404, 'Responsable introuvable.');
+  const row = { base_salary: 0, ...data };
+  const id = await db.transaction(async trx => {
+    Object.assign(row, await positions.resolve(trx, row));
+    const newId = insertedId((await trx('employees').insert({ ...row, matricule: await require('./paie').nextMatricule(trx) }))[0]);
+    await trx('hr_career_events').insert({ employee_id: newId, date: row.hire_date, kind: 'embauche', label: `Embauche : ${row.job_title}`, details: JSON.stringify({ contract_type: row.contract_type || 'cdi' }), created_by: user.id });
+    return newId;
+  });
+  // Modèles d'objectifs du service et du poste appliqués pour l'année en cours (RH › Référentiel KPI)
+  await kpi.applyForEmployee(db, id, { user });
+  await rh.announceHire(db, id, user.id);
+  return id;
+}
+
+/** Fiches créées depuis des comptes du dashboard (reprise du personnel déjà présent) : nom, e-mail, poste et service tirés du compte. */
+const ROLE_JOBS = { super_admin: 'Direction', commercial: 'Commercial(e)', editeur: 'Chargé(e) de communication', conducteur_travaux: 'Conducteur de travaux', comptable: 'Comptable', resp_exploitation: 'Responsable des exploitations' };
+const ROLE_DEPTS = { super_admin: 'direction', commercial: 'commercial', editeur: 'administratif', conducteur_travaux: 'technique', comptable: 'comptabilite', resp_exploitation: 'direction' };
+async function createFromUsers(db, userIds, hireDate, { user }) {
+  const ids = [];
+  await db.transaction(async trx => {
+    for (const uid of userIds) {
+      const u = await trx('users').where({ id: uid }).first();
+      if (!u || await trx('employees').where({ user_id: uid }).first()) continue;
+      const [first, ...rest] = u.name.trim().split(/\s+/);
+      const [id] = await trx('employees').insert({
+        matricule: await require('./paie').nextMatricule(trx), user_id: u.id, first_name: first, last_name: rest.join(' ') || first, email: u.email, phone: u.phone || null,
+        ...(await positions.resolve(trx, { job_title: ROLE_JOBS[u.role] || 'Employé(e)', department: ROLE_DEPTS[u.role] || 'administratif' })), hire_date: hireDate, base_salary: 0,
+      });
+      ids.push(insertedId(id));
+    }
+  });
+  for (const id of ids) await kpi.applyForEmployee(db, id, { user });
+  return ids.length;
+}
+
+module.exports = { employeeSchema, checkUser, guardUserLink, create, createFromUsers, update, PAY_FIELDS, LEAVE_FIELDS };

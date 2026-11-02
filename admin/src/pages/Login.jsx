@@ -2,6 +2,7 @@ import { useState } from 'react';
 import { LogIn } from 'lucide-react';
 import { useAuth } from '../lib/app-context';
 import { Field, ErrorBox } from '../components/ui';
+import PasswordInput from '../components/PasswordInput';
 
 export default function Login() {
   const { login } = useAuth();
@@ -37,7 +38,7 @@ export default function Login() {
             <input className="input" type="email" autoComplete="username" required value={email} onChange={e => setEmail(e.target.value)} autoFocus />
           </Field>
           <Field label="Mot de passe">
-            <input className="input" type="password" autoComplete="current-password" required value={password} onChange={e => setPassword(e.target.value)} />
+            <PasswordInput autoComplete="current-password" required value={password} onChange={e => setPassword(e.target.value)} />
           </Field>
           <button className="btn btn-primary" disabled={busy} style={{ height: 44 }}>
             <LogIn />{busy ? 'Connexion…' : 'Se connecter'}

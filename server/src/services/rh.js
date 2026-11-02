@@ -423,11 +423,12 @@ const frDay = d => (d ? String(d).slice(0, 10).split('-').reverse().join('/') : 
  * et la Comptabilité (paie) sont prévenus selon le circuit d'information.
  */
 async function announceHire(db, employeeId, by = null) {
-  const e = await db('employees').where({ id: employeeId }).first('id', 'first_name', 'last_name', 'job_title', 'department', 'hire_date', 'user_id');
+  const e = await db('employees').where({ id: employeeId }).first('id', 'first_name', 'last_name', 'job_title', 'department', 'hire_date', 'user_id', 'base_salary');
   if (!e) return 0;
   return require('./notifications').inform(db, 'employe.embauche', {
     except: by, key: `embauche:${e.id}`, title: `Nouvel employé : ${fullName(e)}`,
-    body: `${e.job_title} — arrivée le ${frDay(isoDay(e.hire_date))}${e.user_id ? '' : ' · compte utilisateur à créer'} · matériel, accès et paie à prévoir`, link: `/rh/personnel/${e.id}`,
+    body: `${e.job_title} — arrivée le ${frDay(isoDay(e.hire_date))}${e.user_id ? '' : ' · compte utilisateur à créer'} · matériel, accès et paie à prévoir${Number(e.base_salary) ? '' : ' · salaire à fixer'}`,
+    link: `/rh/personnel/${e.id}`, links: { compta: '/compta/employes' }, // la Comptabilité complète la paie dans son registre
   });
 }
 

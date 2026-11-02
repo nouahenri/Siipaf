@@ -1,11 +1,13 @@
 import { useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
-import { Search, Users, List, Network, ExternalLink } from 'lucide-react';
+import { Search, Users, List, Network, Plus, Link2 } from 'lucide-react';
 import { useAuth, useResource } from '@admin/lib/app-context';
 import { Card, Empty, Skeleton, ErrorBox, Badge } from '@admin/components/ui';
 import { date } from '@admin/lib/format';
 import { initials } from '@admin/lib/format';
 import { RH, useRhMeta, DEPT_COLORS } from '../../lib/rh';
+import EmployeeForm from '../../components/EmployeeForm';
+import EmployeesFromUsers from '../../components/EmployeesFromUsers';
 
 /** Annuaire du personnel (référence : Odoo Employés) et organigramme tiré du responsable direct. */
 export default function Staff() {
@@ -16,6 +18,8 @@ export default function Staff() {
   const [q, setQ] = useState('');
   const [dept, setDept] = useState('');
   const [scope, setScope] = useState('1');
+  const [creating, setCreating] = useState(false);
+  const [importing, setImporting] = useState(false);
   const list = useResource(`${RH}/employees?active=${scope}`);
   const rows = (list.data || []).filter(e => (!dept || e.department === dept) && (!q || `${e.last_name} ${e.first_name} ${e.matricule} ${e.job_title}`.toLowerCase().includes(q.toLowerCase())));
   return (
@@ -32,7 +36,12 @@ export default function Staff() {
             <div className="seg" role="group" aria-label="Statut">{[['1', 'En poste'], ['0', 'Sortis'], ['all', 'Tous']].map(([k, l]) => <button key={k} className={scope === k ? 'active' : ''} onClick={() => setScope(k)}>{l}</button>)}</div>
           </>}
         </div>
-        {can('paie:employees') && <Link className="btn" to="/compta/employes"><ExternalLink />Créer une fiche (Comptabilité › Employés)</Link>}
+        {can('rh:files') && (
+          <div className="row">
+            <button className="btn" onClick={() => setImporting(true)}><Link2 />Depuis les comptes du dashboard</button>
+            <button className="btn btn-primary" onClick={() => setCreating(true)}><Plus />Nouvel employé</button>
+          </div>
+        )}
       </div>
       <ErrorBox error={list.error} />
       {view === 'organigramme' ? <OrgChart /> : (
@@ -56,6 +65,9 @@ export default function Staff() {
           )}
         </Card>
       )}
+      {/* Nouvelle fiche : créée par le service RH, la Comptabilité est prévenue pour fixer le salaire (demande du client du 02/11) */}
+      {creating && <EmployeeForm employee={{}} onClose={() => setCreating(false)} onSaved={() => { setCreating(false); list.reload(); }} />}
+      {importing && <EmployeesFromUsers onClose={() => setImporting(false)} onDone={() => { setImporting(false); list.reload(); }} />}
     </div>
   );
 }

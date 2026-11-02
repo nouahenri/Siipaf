@@ -7,14 +7,11 @@ const { CONTRACT_TYPES, DEPARTMENTS, MARITAL, PAY_METHODS, DEFAULT_PAYROLL } = r
 const paie = require('../../services/paie');
 const employees = require('../../services/employees');
 const rh = require('../../services/rh');
-const positions = require('../../services/positions');
 const departures = require('../../services/departures');
-const kpi = require('../../services/kpi');
 
 const day = z.string().regex(/^\d{4}-\d{2}-\d{2}$/, 'Date attendue au format AAAA-MM-JJ');
 const optText = max => z.string().trim().max(max).optional().nullable().transform(v => v || null);
 const money = z.number().int().min(0);
-const insertedId = r => (typeof r === 'object' ? r.id : r);
 
 module.exports = function paieRoutes(db) {
   const r = express.Router();
@@ -40,27 +37,11 @@ module.exports = function paieRoutes(db) {
   }));
 
   const { employeeSchema } = employees;
-  const checkUser = (userId, selfId) => employees.checkUser(db, userId, selfId);
 
+  // La fiche se crée dans RH › Personnel (demande du client du 02/11) ; même service et mêmes règles ici
   r.post('/employees', requirePermission('paie:employees'), ah(async (req, res) => {
     const data = parse(employeeSchema.extend({ base_salary: employeeSchema.shape.base_salary.default(0) }), req.body);
-    // Salaire, indemnités et paiement : « Salaire et paiement » (paie:salary) ; sans ce droit, la fiche est créée à 0 et la Paie le fixe
-    if (employees.PAY_FIELDS.some(k => data[k] != null && data[k] !== 0 && data[k] !== false) && !req.can('paie:salary')) {
-      throw new HttpError(403, 'Salaire, indemnités et paiement se règlent avec le droit « Salaire et paiement ».');
-    }
-    // Solde de congés repris : « Ajuster les soldes » (le compte relié à une nouvelle fiche reste libre : l'embauche ne reprend la
-    // fiche de personne ; changer le compte d'une fiche existante demande « Modifier un compte », voir services/employees.js)
-    if (employees.LEAVE_FIELDS.some(k => data[k] != null) && !req.can('conges:adjust')) throw new HttpError(403, 'Le solde d’ouverture des congés se règle avec le droit « Ajuster les soldes ».');
-    await checkUser(data.user_id);
-    const id = await db.transaction(async trx => {
-      Object.assign(data, await positions.resolve(trx, data));
-      const newId = insertedId((await trx('employees').insert({ ...data, matricule: await paie.nextMatricule(trx) }))[0]);
-      await trx('hr_career_events').insert({ employee_id: newId, date: data.hire_date, kind: 'embauche', label: `Embauche : ${data.job_title}`, details: JSON.stringify({ contract_type: data.contract_type || 'cdi' }), created_by: req.user.id });
-      return newId;
-    });
-    // Modèles d'objectifs du service et du poste appliqués pour l'année en cours (RH › Référentiel KPI)
-    await kpi.applyForEmployee(db, id, { user: req.user });
-    await require('../../services/rh').announceHire(db, id, req.user.id);
+    const id = await employees.create(db, data, { user: req.user, can: p => req.can(p) });
     res.status(201).json(paie.serializeEmployee(await db('employees').where({ id }).first(), { withPay: true }));
   }));
 
@@ -72,25 +53,7 @@ module.exports = function paieRoutes(db) {
 
   r.post('/employees/from-users', requirePermission('paie:employees'), ah(async (req, res) => {
     const { user_ids, hire_date } = parse(z.object({ user_ids: z.array(z.number().int().positive()).min(1).max(200), hire_date: day }), req.body);
-    const ROLE_JOBS = { super_admin: 'Direction', commercial: 'Commercial(e)', editeur: 'Chargé(e) de communication', conducteur_travaux: 'Conducteur de travaux', comptable: 'Comptable', resp_exploitation: 'Responsable des exploitations' };
-    const DEPTS = { super_admin: 'direction', commercial: 'commercial', editeur: 'administratif', conducteur_travaux: 'technique', comptable: 'comptabilite', resp_exploitation: 'direction' };
-    let created = 0;
-    const ids = [];
-    await db.transaction(async trx => {
-      for (const uid of user_ids) {
-        const u = await trx('users').where({ id: uid }).first();
-        if (!u || await trx('employees').where({ user_id: uid }).first()) continue;
-        const [first, ...rest] = u.name.trim().split(/\s+/);
-        const [id] = await trx('employees').insert({
-          matricule: await paie.nextMatricule(trx), user_id: u.id, first_name: first, last_name: rest.join(' ') || first, email: u.email, phone: u.phone || null,
-          ...(await positions.resolve(trx, { job_title: ROLE_JOBS[u.role] || 'Employé(e)', department: DEPTS[u.role] || 'administratif' })), hire_date, base_salary: 0,
-        });
-        ids.push(insertedId(id));
-        created++;
-      }
-    });
-    for (const id of ids) await kpi.applyForEmployee(db, id, { user: req.user });
-    res.status(201).json({ created });
+    res.status(201).json({ created: await employees.createFromUsers(db, user_ids, hire_date, { user: req.user }) });
   }));
 
   // ─── Paies mensuelles ─────────────────────────────────────

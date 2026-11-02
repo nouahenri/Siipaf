@@ -282,6 +282,18 @@ module.exports = function rhRoutes(db) {
     res.json(out);
   }));
 
+  // Nouvelle fiche : du ressort du service RH (demande du client du 02/11), la Comptabilité est prévenue pour fixer le salaire
+  r.post('/employees', requirePermission('rh:files'), ah(async (req, res) => {
+    const schema = employees.employeeSchema.extend({ base_salary: employees.employeeSchema.shape.base_salary.default(0) });
+    const id = await employees.create(db, parse(schema, req.body), { user: req.user, can: p => req.can(p) });
+    res.status(201).json(paie.serializeEmployee(await db('employees').where({ id }).first(), { withPay: req.can('paie:read') }));
+  }));
+  // Reprise du personnel déjà présent : une fiche par compte du dashboard choisi (salaire à fixer par la Comptabilité)
+  r.post('/employees/from-users', requirePermission('rh:files'), ah(async (req, res) => {
+    const { user_ids, hire_date } = parse(z.object({ user_ids: z.array(z.number().int().positive()).min(1).max(200), hire_date: day }), req.body);
+    res.status(201).json({ created: await employees.createFromUsers(db, user_ids, hire_date, { user: req.user }) });
+  }));
+
   // Bilan de départ d'un employé sorti : compte, matériel, dossiers encore à régler (service RH et direction)
   r.get('/employees/:id/departure', requirePermission('rh:read', 'direction:read'), ah(async (req, res) => {
     res.json(await departures.departureReport(db, await rh.getEmployee(db, idParam(req))));

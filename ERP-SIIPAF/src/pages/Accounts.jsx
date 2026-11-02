@@ -107,7 +107,7 @@ function NewAccount({ roles, onClose, onCreated }) {
               onPick={p => setF(x => ({ ...x, job_title: p.title, position_id: p.id, department: p.department, role: p.default_role && assignable(roles, user).some(r => r.id === p.default_role) ? p.default_role : x.role }))} />
           </Field>
           <Field label="Service"><select className="select" value={f.department} onChange={set('department')}>{meta && Object.entries(meta.departments).map(([k, v]) => <option key={k} value={k}>{v}</option>)}</select></Field>
-          <Field label="Date d’entrée" hint="Salaire et contrat se complètent ensuite dans Comptabilité › Employés"><input className="input" type="date" required value={f.hire_date} onChange={set('hire_date')} /></Field>
+          <Field label="Date d’entrée" hint="Contrat : RH › Personnel ; salaire : Comptabilité › Employés"><input className="input" type="date" required value={f.hire_date} onChange={set('hire_date')} /></Field>
         </>}
         <p className="full small muted"><KeyRound className="ico" />Un mot de passe provisoire est généré : vous le transmettez à la personne, qui en choisit un nouveau à sa première connexion.</p>
       </form>

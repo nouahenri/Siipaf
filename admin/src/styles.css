@@ -132,6 +132,13 @@ img { max-width: 100%; display: block; }
   background: var(--surface); transition: border-color .15s, box-shadow .15s;
 }
 .textarea { height: auto; min-height: 96px; padding: 10px 12px; resize: vertical; }
+/* Mot de passe avec l'œil pour l'afficher ou le masquer (components/PasswordInput.jsx) */
+.input-wrap { position: relative; display: block; }
+.input-wrap .input { padding-right: 42px; }
+.input-action { position: absolute; right: 4px; top: 50%; transform: translateY(-50%); width: 34px; height: 32px; border: 0; border-radius: var(--radius-sm); background: transparent; display: grid; place-items: center; color: var(--ink-3); cursor: pointer; }
+.input-action:hover { color: var(--ink); background: var(--surface-2); }
+.input-action:focus-visible { outline: 2px solid var(--focus); outline-offset: 1px; }
+.input-action svg { width: 18px; height: 18px; }
 .input:focus, .select:focus, .textarea:focus { outline: none; border-color: var(--focus); box-shadow: 0 0 0 3px rgba(43, 108, 176, .15); }
 .form-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 16px; }
 .form-grid .full { grid-column: 1 / -1; }

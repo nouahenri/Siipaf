@@ -3,6 +3,7 @@ import { KeyRound, LogOut } from 'lucide-react';
 import { api } from '../lib/api';
 import { useAuth } from '../lib/app-context';
 import { Field, ErrorBox } from './ui';
+import PasswordInput from './PasswordInput';
 
 /**
  * Premier accès avec un mot de passe provisoire (compte créé ou mot de passe réinitialisé par un administrateur) :
@@ -26,9 +27,9 @@ export default function ForcePassword() {
         <div className="row" style={{ gap: 10 }}><KeyRound aria-hidden="true" /><h1 style={{ fontSize: 20 }}>Choisissez votre mot de passe</h1></div>
         <p className="small muted">Bonjour {user.name}. Votre compte a un mot de passe provisoire : remplacez-le par un mot de passe connu de vous seul pour continuer.</p>
         <ErrorBox error={error} />
-        <Field label="Mot de passe provisoire"><input className="input" type="password" autoComplete="current-password" required value={form.current} onChange={set('current')} autoFocus /></Field>
-        <Field label="Nouveau mot de passe" hint="10 caractères minimum."><input className="input" type="password" autoComplete="new-password" required minLength={10} value={form.next} onChange={set('next')} /></Field>
-        <Field label="Confirmer"><input className="input" type="password" autoComplete="new-password" required value={form.confirm} onChange={set('confirm')} /></Field>
+        <Field label="Mot de passe provisoire"><PasswordInput autoComplete="current-password" required value={form.current} onChange={set('current')} autoFocus /></Field>
+        <Field label="Nouveau mot de passe" hint="10 caractères minimum."><PasswordInput autoComplete="new-password" required minLength={10} value={form.next} onChange={set('next')} /></Field>
+        <Field label="Confirmer"><PasswordInput autoComplete="new-password" required value={form.confirm} onChange={set('confirm')} /></Field>
         <button className="btn btn-primary" disabled={busy}>Enregistrer et continuer</button>
         <button type="button" className="btn btn-ghost" onClick={logout}><LogOut />Se déconnecter</button>
       </form>

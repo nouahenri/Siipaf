@@ -27,7 +27,7 @@ export default function MySpace() {
   const [expense, setExpense] = useState(null);
   const [pin, setPin] = useState(false);
 
-  if (me.error?.status === 404) return <Card><Empty icon={UserX}><b>Aucune fiche employé n’est reliée à votre compte.</b><p className="small muted" style={{ marginTop: 6 }}>Le service RH crée votre fiche (ERP › Comptabilité › Employés ou RH › Personnel) et la relie à votre compte du dashboard.</p></Empty></Card>;
+  if (me.error?.status === 404) return <Card><Empty icon={UserX}><b>Aucune fiche employé n’est reliée à votre compte.</b><p className="small muted" style={{ marginTop: 6 }}>Le service RH crée votre fiche (RH › Personnel) et la relie à votre compte du dashboard.</p></Empty></Card>;
   if (!me.data) return <div className="stack"><ErrorBox error={me.error} /><Skeleton h={140} /><Skeleton h={240} /></div>;
   const { employee: e, balance: b, leaves, objectives, review, year, manager } = me.data;
 
