@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
 import { NavLink, Outlet, useLocation } from 'react-router-dom';
+import { MENU, PageTitleContext, matchDetail, useNavigationTrail, BackButton, withReturn } from '@admin/lib/navigation';
 import {
   LayoutGrid, LifeBuoy, LayoutDashboard, ClipboardList, ClipboardCheck, CalendarClock, LogOut, Menu, ExternalLink,
   Briefcase, Columns3, ListTodo, CalendarDays, Building2, FileSignature, Landmark, Target,
@@ -23,6 +24,28 @@ const DEMANDES = ['demandes:handle', 'demandes:view_all', 'demandes:dg', 'appro:
 export const ADMIN_SHOW = b => b?.mine > 0 || b?.contracts_owned > 0 || !!b?.docs_can_publish || b?.requests_to_approve > 0;
 export const JURIDIQUE = ['juridique:read', 'juridique:deeds', 'juridique:litigation', 'juridique:guarantees', 'juridique:settings', 'direction:read'];
 export const JURIDIQUE_SHOW = b => b?.litigations_mine > 0;
+
+/**
+ * Fiches et pages de détail (navigation commune, lib/navigation) : titre de l'en-tête quand la page ne le précise pas,
+ * et liste parente vers laquelle le bouton retour ramène quand on arrive directement (lien, notification).
+ */
+const detail = (title, to, label) => () => ({ title, parent: { to, label } });
+const DETAILS = [
+  [/^\/chantiers\/estimations\/\d+$/, detail('Estimation du déboursé sec', '/chantiers/liste?onglet=debourse', 'Estimations')],
+  [/^\/chantiers\/\d+$/, detail('Chantier', '/chantiers/liste', 'Chantiers')],
+  [/^\/rh\/personnel\/\d+$/, detail('Fiche employé', '/rh/personnel', 'Personnel')],
+  [/^\/([a-z]+)\/moi\/dossier\/\d+$/, m => ({ title: 'Fiche employé', parent: { to: `/${m[1]}/moi`, label: 'Mon espace' } })],
+  [/^\/compta\/paie\/\d+$/, detail('Paie du mois', '/compta/paie', 'Paie')],
+  [/^\/compta\/recu\/\d+$/, detail('Reçu de versement', '/compta/ventes', 'Dossiers de vente')],
+  [/^\/marketing\/campagnes\/\d+$/, detail('Campagne', '/marketing/campagnes', 'Campagnes')],
+  [/^\/qhse\/controles\/(nouveau|\d+)$/, m => ({ title: m[1] === 'nouveau' ? 'Contrôle du jour' : 'Contrôle journalier', parent: { to: '/qhse/controles', label: 'Contrôles journaliers' } })],
+  [/^\/qhse\/hebdomadaires\/\d+$/, detail('Contrôle hebdomadaire', '/qhse/hebdomadaires', 'Contrôles hebdomadaires')],
+  [/^\/qhse\/audits\/\d+$/, detail('Inspection ou audit', '/qhse/audits', 'Inspections et audits')],
+  [/^\/achats\/(prix|commandes)\/(\d+)\/impression$/, m => (m[1] === 'prix'
+    ? { title: 'Impression de la demande de prix', parent: { to: `/achats/prix?fiche=${m[2]}`, label: 'Demande de prix' } }
+    : { title: 'Impression du bon de commande', parent: { to: `/achats/commandes?fiche=${m[2]}`, label: 'Bon de commande' } })],
+];
+const moduleOf = path => path?.split('/')[1] || '';
 
 // Navigation de chaque module ; les modules suivants (comptabilité, RH…) viendront s'ajouter ici
 const MODULES = {
@@ -187,8 +210,9 @@ const TITLES = {
 export default function ErpLayout() {
   const { user, logout, can: canOne } = useAuth();
   const can = perm => (perm == null ? true : Array.isArray(perm) ? perm.some(canOne) : canOne(perm));
-  const { pathname } = useLocation();
+  const { pathname, search } = useLocation();
   const [open, setOpen] = useState(false);
+  const [pageTitle, setPageTitle] = useState(null);
   const moduleId = pathname.split('/')[1];
   const mod = MODULES[moduleId];
   const statsUrl = moduleId === 'achats' && can('appro:read') ? '/admin/erp/achats/dashboard' : moduleId === 'sav' && can('sav:read') ? '/admin/erp/sav/stats' : moduleId === 'commercial' && can('commercial:read') ? '/admin/erp/commercial/dashboard' : moduleId === 'compta' && can('compta:read') ? '/admin/erp/compta/dashboard' : moduleId === 'rh' ? '/admin/erp/rh/badges' : moduleId === 'administration' ? '/admin/erp/direction/badges' : moduleId === 'juridique' ? '/admin/erp/juridique/badges' : moduleId === 'chantiers' ? '/admin/erp/chantiers/badges' : moduleId === 'marketing' && can('marketing:read') ? '/admin/erp/marketing/badges' : moduleId === 'qhse' && can('qhse:read') ? '/admin/erp/qhse/badges' : null;
@@ -204,7 +228,10 @@ export default function ErpLayout() {
   useRevealOnScroll(contentRef, [pathname]);
 
   useEffect(() => setOpen(false), [pathname]);
-  const title = TITLES[pathname] || (mod && pathname.startsWith(`/${moduleId}/moi`) ? 'Mon espace' : mod && pathname === `/${moduleId}/service` ? 'Demandes du service' : mod ? mod.label : 'ERP');
+  // Titre : celui que la fiche précise (usePageTitle), sinon celui de la page ou du type de fiche, sinon le module
+  const page = matchDetail(DETAILS, pathname, search);
+  const title = pageTitle || TITLES[pathname] || page?.title || (mod && pathname.startsWith(`/${moduleId}/moi`) ? 'Mon espace' : mod && pathname === `/${moduleId}/service` ? 'Demandes du service' : mod ? mod.label : 'ERP');
+  const { back } = useNavigationTrail({ title, moduleOf, detail: page, otherHost: window.location.host.replace(/^erp\./, 'admin.'), otherLabel: 'dashboard' });
   useEffect(() => { document.title = `${title} — SIIPAF ERP`; }, [title]);
 
   return (
@@ -217,14 +244,14 @@ export default function ErpLayout() {
           <div className="erp-active-module">{mod?.label || title}</div>
         </div>
         <div className="nav-group">
-          <NavLink to="/" end className={({ isActive }) => `nav-item ${isActive ? 'active' : ''}`}><LayoutGrid aria-hidden="true" />Tous les modules</NavLink>
+          <NavLink to="/" end state={MENU} className={({ isActive }) => `nav-item ${isActive ? 'active' : ''}`}><LayoutGrid aria-hidden="true" />Tous les modules</NavLink>
         </div>
         {mod && (espace.data?.has_employee || serviceNav) && (
           <div className="nav-group">
             <div className="nav-group-title">Mon espace</div>
-            {espace.data.has_employee && <NavLink to={`/${moduleId}/moi`} className={navCls}><UserRound aria-hidden="true" />Mon espace</NavLink>}
+            {espace.data.has_employee && <NavLink to={`/${moduleId}/moi`} state={MENU} className={navCls}><UserRound aria-hidden="true" />Mon espace</NavLink>}
             {serviceNav && (
-              <NavLink to={`/${moduleId}/service`} className={navCls}>
+              <NavLink to={`/${moduleId}/service`} state={MENU} className={navCls}>
                 <Users aria-hidden="true" />Demandes du service
                 {waiting > 0 && <span className="count" aria-label={`${waiting} en cours`}>{waiting}</span>}
               </NavLink>
@@ -237,7 +264,7 @@ export default function ErpLayout() {
             {mod.items.filter(i => (i.perm && can(i.perm) && (!i.also || [].concat(i.also).every(canOne))) || (i.show && i.show(stats.data)) || (!i.perm && !i.show)).map(i => {
               const count = i.badge && stats.data ? stats.data[i.badge] : 0;
               return (
-                <NavLink key={i.to} to={i.to} end={i.end} className={({ isActive }) => `nav-item ${isActive ? 'active' : ''}`}>
+                <NavLink key={i.to} to={i.to} end={i.end} state={MENU} className={({ isActive }) => `nav-item ${isActive ? 'active' : ''}`}>
                   <i.icon aria-hidden="true" />{i.label}
                   {count > 0 && <span className="count" aria-label={`${count} en cours`}>{count}</span>}
                 </NavLink>
@@ -246,9 +273,9 @@ export default function ErpLayout() {
           </div>
         )}
         <div className="sidebar-foot">
-          {(can('users:read') || can('rh:read')) && <NavLink to="/demarrer" className={({ isActive }) => `nav-item ${isActive ? 'active' : ''}`}><Rocket aria-hidden="true" />Bien démarrer</NavLink>}
-          {can('users:read') && <NavLink to="/comptes" className={({ isActive }) => `nav-item ${isActive ? 'active' : ''}`}><UserCog aria-hidden="true" />Comptes utilisateurs</NavLink>}
-          <a href={dashboardUrl()} className="nav-item"><ExternalLink aria-hidden="true" />Dashboard du site</a>
+          {(can('users:read') || can('rh:read')) && <NavLink to="/demarrer" state={MENU} className={({ isActive }) => `nav-item ${isActive ? 'active' : ''}`}><Rocket aria-hidden="true" />Bien démarrer</NavLink>}
+          {can('users:read') && <NavLink to="/comptes" state={MENU} className={({ isActive }) => `nav-item ${isActive ? 'active' : ''}`}><UserCog aria-hidden="true" />Comptes utilisateurs</NavLink>}
+          <a href={withReturn(dashboardUrl(), title)} className="nav-item"><ExternalLink aria-hidden="true" />Dashboard du site</a>
           <button className="nav-item btn-ghost" style={{ width: '100%', border: 'none', cursor: 'pointer' }} onClick={logout}>
             <LogOut aria-hidden="true" />Déconnexion
           </button>
@@ -258,6 +285,7 @@ export default function ErpLayout() {
       <div className="main">
         <header className="topbar">
           <button className="btn btn-ghost btn-icon menu-btn" onClick={() => setOpen(true)} aria-label="Ouvrir le menu"><Menu /></button>
+          <BackButton back={back} />
           <h1>{title}</h1>
           <div className="spacer" />
           <NotificationCenter />
@@ -270,7 +298,7 @@ export default function ErpLayout() {
           </div>
         </header>
         <main className="content" ref={contentRef}>
-          <Outlet context={{ stats, espace }} />
+          <PageTitleContext.Provider value={setPageTitle}><Outlet context={{ stats, espace }} /></PageTitleContext.Provider>
         </main>
       </div>
     </div>

@@ -5,6 +5,7 @@ import { useAuth, useResource, useToast, useSaved } from '../lib/app-context';
 import { Card, Drawer, Field, Badge, Empty, ErrorBox, Skeleton } from '../components/ui';
 import { initials, relative } from '../lib/format';
 import { permRows } from '../lib/permissions';
+import { withReturn } from '../lib/navigation';
 
 // L'ERP est sur erp.siipaf.com quand le dashboard est sur admin.siipaf.com (erp.localhost en local)
 // Actions sur un compte existant (Rôles & privilèges › Comptes utilisateurs)
@@ -86,7 +87,7 @@ function UserDrawer({ user, roles, roleLabel, onClose, onSaved }) {
       {isNew && (
         // Un employé de SIIPAF se crée dans l'ERP : compte, fiche employé et poste en une fois (choix du client du 23/10)
         <div className="alert" style={{ background: 'var(--bg)', color: 'var(--ink)', marginBottom: 12 }}>
-          <b>Pour un employé de SIIPAF</b>, créez plutôt le compte depuis <a className="link" href={erpUrl('/comptes')}>ERP › Comptes utilisateurs</a> : sa fiche employé et son poste sont créés en même temps (sans fiche, pas de « Mon espace » : congés, frais, demandes, documents à lire). Ici : un compte sans fiche (prestataire, agence…).
+          <b>Pour un employé de SIIPAF</b>, créez plutôt le compte depuis <a className="link" href={withReturn(erpUrl('/comptes'))}>ERP › Comptes utilisateurs</a> : sa fiche employé et son poste sont créés en même temps (sans fiche, pas de « Mon espace » : congés, frais, demandes, documents à lire). Ici : un compte sans fiche (prestataire, agence…).
         </div>
       )}
       <div className="form-grid">

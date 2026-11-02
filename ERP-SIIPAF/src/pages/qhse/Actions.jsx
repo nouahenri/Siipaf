@@ -7,6 +7,7 @@ import { Link, useSearchParams } from 'react-router-dom';
 import { Plus, ListChecks, Check, Play, RotateCcw, Ban, Pencil } from 'lucide-react';
 import { api } from '@admin/lib/api';
 import { useAuth, useResource, useSaved } from '@admin/lib/app-context';
+import { usePersistentState } from '@admin/lib/navigation';
 import { Badge, Card, Drawer, Empty, ErrorBox, Field, Modal, Skeleton } from '@admin/components/ui';
 import { QH, useQhseRefs, ACTION_TONES, GRAVITY_TONES, PhotoBlock, FileThumbs, frDay } from '../../lib/qhse';
 
@@ -155,7 +156,7 @@ export function ActionDrawer({ id, refs, onClose, onChanged }) {
                 <Field label="Levée le"><input className="input" type="date" max={refs.today} value={liftedOn} onChange={e => setLiftedOn(e.target.value)} style={{ maxWidth: 180 }} /></Field>
                 <div className="row" style={{ gap: 8 }}>
                   <button className="btn btn-primary" disabled={busy} onClick={() => run('levee', { note: note || null, lifted_on: liftedOn || undefined }, 'Action levée')}>Confirmer la levée</button>
-                  <button className="btn btn-ghost" onClick={() => setMode(null)}>Retour</button>
+                  <button className="btn btn-ghost" onClick={() => setMode(null)}>Annuler</button>
                 </div>
               </div>
             </Card>
@@ -166,7 +167,7 @@ export function ActionDrawer({ id, refs, onClose, onChanged }) {
                 <Field label="Motif de l’annulation"><textarea className="textarea" rows={2} maxLength={1000} value={note} onChange={e => setNote(e.target.value)} /></Field>
                 <div className="row" style={{ gap: 8 }}>
                   <button className="btn btn-danger" disabled={busy} onClick={() => run('annulee', { note }, 'Action annulée')}>Annuler l’action</button>
-                  <button className="btn btn-ghost" onClick={() => setMode(null)}>Retour</button>
+                  <button className="btn btn-ghost" onClick={() => setMode(null)}>Annuler</button>
                 </div>
               </div>
             </Card>
@@ -182,9 +183,9 @@ export default function Actions() {
   const { can } = useAuth();
   const refs = useQhseRefs();
   const [params, setParams] = useSearchParams();
-  const [status, setStatus] = useState(params.get('statut') || 'ouvertes');
-  const [mine, setMine] = useState(false);
-  const [worksite, setWorksite] = useState('');
+  const [status, setStatus] = usePersistentState('statut', 'ouvertes', { forced: params.get('statut') }); // un lien avec ?statut l'impose
+  const [mine, setMine] = usePersistentState('miennes', false); // filtres gardés au retour
+  const [worksite, setWorksite] = usePersistentState('chantier', '');
   const [creating, setCreating] = useState(false);
   const url = `${QH}/actions?status=${status}${mine ? '&mine=1' : ''}${worksite ? `&worksite_id=${worksite}` : ''}`;
   const list = useResource(url);

@@ -1,8 +1,9 @@
 import { useEffect, useState } from 'react';
 import { Link, useNavigate, useParams } from 'react-router-dom';
-import { ArrowLeft, Plus, Trash2, ArrowUp, ArrowDown, ImagePlus, Map, FileText, PenTool, MapPin } from 'lucide-react';
+import { Plus, Trash2, ArrowUp, ArrowDown, ImagePlus, Map, FileText, PenTool, MapPin } from 'lucide-react';
 import { api } from '../lib/api';
 import { useAuth, useResource, useToast, useSaveAndReturn } from '../lib/app-context';
+import { usePageTitle } from '../lib/navigation';
 import { Card, Field, ErrorBox, Skeleton, Badge, Empty } from '../components/ui';
 import { MediaPicker } from '../components/MediaLibrary';
 import { Modal } from '../components/ui';
@@ -26,6 +27,7 @@ export default function ProjectEdit() {
   const toast = useToast();
   const saveAndReturn = useSaveAndReturn('/projets');
   const project = useResource(`/admin/projects/${id}`);
+  usePageTitle(project.data?.name || null); // en-tête et bouton retour
   const lists = useResource('/admin/refs');
   const settings = useResource('/admin/settings');
   const [form, setForm] = useState(null);
@@ -155,8 +157,7 @@ export default function ProjectEdit() {
 
   return (
     <div className="stack">
-      <div className="row-between">
-        <Link to="/projets" className="btn btn-ghost"><ArrowLeft />Projets</Link>
+      <div className="row" style={{ justifyContent: 'flex-end' }}>
         {saving && <div className="row">
           <ProjectActions project={project.data} disabled={busy} onBusyChange={setBusy} onChanged={project.reload} onDeleted={() => navigate('/projets')} />
           <button className="btn btn-primary" disabled={busy} onClick={save}>{busy ? 'Enregistrement…' : 'Enregistrer'}</button>

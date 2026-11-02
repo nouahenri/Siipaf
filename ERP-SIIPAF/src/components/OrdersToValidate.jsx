@@ -61,7 +61,7 @@ function OrderDrawer({ id, onClose, onDone }) {
   return (
     <Drawer title={o ? `${o.reference} · ${o.supplier_name}` : 'Bon de commande'} onClose={onClose}
       footer={o && <>{can('appro:read') && <Link className="btn btn-ghost" style={{ marginRight: 'auto' }} to={`/achats/commandes?fiche=${o.id}`}><ExternalLink />Ouvrir dans les Achats</Link>}
-        {refusing ? <><button className="btn" onClick={() => setRefusing(false)}>Retour</button><button className="btn btn-danger" disabled={busy || reason.trim().length < 3} onClick={() => act(false)}><X />Confirmer le refus</button></>
+        {refusing ? <><button className="btn" onClick={() => setRefusing(false)}>Annuler</button><button className="btn btn-danger" disabled={busy || reason.trim().length < 3} onClick={() => act(false)}><X />Confirmer le refus</button></>
           : <><button className="btn btn-ghost btn-danger" onClick={() => setRefusing(true)}><X />Refuser</button><button className="btn btn-primary" disabled={busy} onClick={() => act(true)}><Check />Valider</button></>}</>}>
       <ErrorBox error={d.error} />
       {!o ? <Skeleton h={300} /> : (

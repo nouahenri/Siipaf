@@ -7,6 +7,7 @@ import { useNavigate, useSearchParams } from 'react-router-dom';
 import { Plus, Search, HardHat, Check, Flag, ShoppingCart } from 'lucide-react';
 import { api, qs } from '@admin/lib/api';
 import { useAuth, useResource, useSaved } from '@admin/lib/app-context';
+import { usePersistentState } from '@admin/lib/navigation';
 import { Card, Empty, Skeleton, ErrorBox, Field, Modal, Badge, Advance } from '@admin/components/ui';
 import { date, fcfa } from '@admin/lib/format';
 import { CH, WS_TONES, useChantierRefs, body } from '../../lib/chantiers';
@@ -18,10 +19,10 @@ export default function Chantiers() {
   const { can } = useAuth();
   const navigate = useNavigate();
   const refs = useChantierRefs();
-  const [status, setStatus] = useState('ouverts');
-  const [project, setProject] = useState('');
-  const [text, setText] = useState('');
-  const [q, setQ] = useState('');
+  const [status, setStatus] = usePersistentState('statut', 'ouverts'); // filtres gardés au retour d'une fiche
+  const [project, setProject] = usePersistentState('programme', '');
+  const [text, setText] = usePersistentState('recherche', '');
+  const [q, setQ] = useState(text.trim());
   // Retour du dashboard après « Nouveau programme » : formulaire rouvert, programme créé déjà choisi
   const [params, setParams] = useSearchParams();
   const [creating, setCreating] = useState(params.get('nouveau') === '1' && can('chantiers:create'));

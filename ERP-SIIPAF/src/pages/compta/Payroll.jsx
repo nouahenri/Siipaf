@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
-import { useNavigate, useParams, useSearchParams, Link } from 'react-router-dom';
-import { Plus, RefreshCw, CheckCheck, Wallet, Printer, FileSpreadsheet, Trash2, ArrowLeft, Banknote } from 'lucide-react';
+import { useNavigate, useParams, useSearchParams } from 'react-router-dom';
+import { Plus, RefreshCw, CheckCheck, Wallet, Printer, FileSpreadsheet, Trash2, Banknote } from 'lucide-react';
 import { api } from '@admin/lib/api';
 import { useAuth, useResource, useToast, useSaved } from '@admin/lib/app-context';
 import { Card, Empty, Skeleton, ErrorBox, Modal, Field, Badge } from '@admin/components/ui';
@@ -99,7 +99,6 @@ export function PayrollRun() {
     <div className="stack">
       <div className="row-between">
         <div className="row">
-          <Link className="btn btn-ghost btn-sm" to="/compta/paie"><ArrowLeft />Paies</Link>
           <h2 style={{ fontSize: 18 }}>Paie de {periodLabel(d.period)}</h2>
           <Badge tone={RUN_STATUS[d.status].tone}>{RUN_STATUS[d.status].label}</Badge>
           {d.entries.map(e => <Badge key={e.id}>{e.number || 'écriture en brouillon'}</Badge>)}

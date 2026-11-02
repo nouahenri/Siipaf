@@ -4,10 +4,11 @@
  * les autres comptes autorisés consultent.
  */
 import { useState } from 'react';
-import { Link, useNavigate, useParams, useSearchParams } from 'react-router-dom';
-import { ArrowLeft, Pencil, Plus, Check, Trash2, CalendarRange, ListChecks, Wallet, Flag, BookText, Megaphone, Truck, Handshake, ArrowUp, ArrowDown, HardHat, MapPin, Gauge, AlertTriangle, Wrench, ShoppingCart, ShieldAlert } from 'lucide-react';
+import { useNavigate, useParams, useSearchParams } from 'react-router-dom';
+import { Pencil, Plus, Check, Trash2, CalendarRange, ListChecks, Wallet, Flag, BookText, Megaphone, Truck, Handshake, ArrowUp, ArrowDown, HardHat, MapPin, Gauge, AlertTriangle, Wrench, ShoppingCart, ShieldAlert } from 'lucide-react';
 import { api } from '@admin/lib/api';
 import { useAuth, useResource, useSaved, useToast } from '@admin/lib/app-context';
+import { usePageTitle } from '@admin/lib/navigation';
 import { Card, Empty, Skeleton, ErrorBox, Field, Modal, Badge, Advance } from '@admin/components/ui';
 import { date, fcfa, num } from '@admin/lib/format';
 import Gantt from '../../components/Gantt';
@@ -36,16 +37,14 @@ export default function Chantier() {
   const tab = tabs.some(t => t[0] === params.get('onglet')) ? params.get('onglet') : 'planning';
   const setTab = t => setParams(t === 'planning' ? {} : { onglet: t }, { replace: true });
   const w = res.data;
-  if (res.error) return <div className="stack"><BackLink /><ErrorBox error={res.error} /></div>;
-  if (!w || !refs) return <div className="stack"><BackLink /><Skeleton h={120} /><Skeleton h={300} /></div>;
+  usePageTitle(w ? `${w.reference} — ${w.name}` : null);
+  if (res.error) return <ErrorBox error={res.error} />;
+  if (!w || !refs) return <div className="stack"><Skeleton h={120} /><Skeleton h={300} /></div>;
   const update = data => res.setData(data);
 
   return (
     <div className="stack">
-      <div className="row-between">
-        <BackLink />
-        {w.can_manage && <button className="btn" onClick={() => setEditing(true)}><Pencil />Modifier le chantier</button>}
-      </div>
+      {w.can_manage && <div className="row" style={{ justifyContent: 'flex-end' }}><button className="btn" onClick={() => setEditing(true)}><Pencil />Modifier le chantier</button></div>}
 
       <Card>
         <div className="row-between" style={{ alignItems: 'flex-start', gap: 16 }}>
@@ -90,8 +89,6 @@ export default function Chantier() {
     </div>
   );
 }
-
-const BackLink = () => <Link to="/chantiers/liste" className="btn btn-ghost"><ArrowLeft />Tous les chantiers</Link>;
 
 // ─── Planning ───────────────────────────────────────────────────────────────
 

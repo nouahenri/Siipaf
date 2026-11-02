@@ -2,6 +2,7 @@ import { useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { Search, Users, List, Network, Plus, Link2 } from 'lucide-react';
 import { useAuth, useResource } from '@admin/lib/app-context';
+import { usePersistentState } from '@admin/lib/navigation';
 import { Card, Empty, Skeleton, ErrorBox, Badge } from '@admin/components/ui';
 import { date } from '@admin/lib/format';
 import { initials } from '@admin/lib/format';
@@ -14,10 +15,10 @@ export default function Staff() {
   const { can } = useAuth();
   const { meta } = useRhMeta();
   const navigate = useNavigate();
-  const [view, setView] = useState('liste');
-  const [q, setQ] = useState('');
-  const [dept, setDept] = useState('');
-  const [scope, setScope] = useState('1');
+  const [view, setView] = usePersistentState('vue', 'liste'); // filtres gardés au retour d'une fiche
+  const [q, setQ] = usePersistentState('recherche', '');
+  const [dept, setDept] = usePersistentState('service', '');
+  const [scope, setScope] = usePersistentState('statut', '1');
   const [creating, setCreating] = useState(false);
   const [importing, setImporting] = useState(false);
   const list = useResource(`${RH}/employees?active=${scope}`);

@@ -1,8 +1,9 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { Link, useSearchParams } from 'react-router-dom';
 import { Search, FileSignature, Plus, Printer } from 'lucide-react';
 import { api, qs } from '@admin/lib/api';
 import { useAuth, useResource, useToast, useSaved } from '@admin/lib/app-context';
+import { usePersistentState } from '@admin/lib/navigation';
 import { Card, Empty, Skeleton, ErrorBox, Drawer, Field, Badge, Pagination, Advance } from '@admin/components/ui';
 import { INSTALLMENT_STATUS } from '@admin/lib/domain';
 import { date, fcfa } from '@admin/lib/format';
@@ -19,16 +20,20 @@ const METHODS = { virement: 'Virement', mobile_money: 'Mobile Money', especes: '
 export default function Sales() {
   const meta = useCommercialMeta();
   const [params, setParams] = useSearchParams();
-  const [q, setQ] = useState('');
-  const [debounced, setDebounced] = useState('');
-  const [page, setPage] = useState(1);
-  const [pageSize, setPageSize] = useState(25);
+  const [q, setQ] = usePersistentState('recherche', ''); // recherche et page gardées au retour
+  const [debounced, setDebounced] = useState(q);
+  const [page, setPage] = usePersistentState('page', 1);
+  const [pageSize, setPageSize] = usePersistentState('par_page', 25);
   const filters = { project_id: params.get('project_id') || '', status: params.get('status') || '', vefa: params.get('vefa') || '', overdue: params.get('overdue') || '' };
   const saleId = Number(params.get('d')) || null;
-  useEffect(() => { const t = setTimeout(() => { setDebounced(q); setPage(1); }, 300); return () => clearTimeout(t); }, [q]);
+  // Retour à la page 1 seulement quand la recherche change (pas au chargement : la page retrouvée au retour reste)
+  const searched = useRef(q);
+  useEffect(() => { const t = setTimeout(() => { setDebounced(q); if (q !== searched.current) { searched.current = q; setPage(1); } }, 300); return () => clearTimeout(t); }, [q]);
   const list = useResource(`/admin/erp/commercial/sales${qs({ ...filters, q: debounced })}`);
   const set = (k, v) => { const p = new URLSearchParams(params); if (v) p.set(k, v); else p.delete(k); setParams(p); setPage(1); };
   const rows = list.data || [];
+  // Page retrouvée au retour, ramenée dans les bornes si la liste a raccourci (filtres d'un lien, dossiers clos)
+  const shown = Math.min(Number(page) || 1, Math.max(1, Math.ceil(rows.length / pageSize)));
   const live = rows.filter(r => r.status !== 'desiste');
   const sum = k => live.reduce((s, r) => s + (r[k] || 0), 0);
 
@@ -65,7 +70,7 @@ export default function Sales() {
             <div className="table-wrap"><table className="table">
               <thead><tr><th>Client</th><th>Bien</th><th>Paiement</th><th className="right">Prix</th><th>Payé</th><th>Avancement</th><th>Prochaine échéance</th><th>Statut</th></tr></thead>
               <tbody>
-                {rows.slice((page - 1) * pageSize, page * pageSize).map(s => (
+                {rows.slice((shown - 1) * pageSize, shown * pageSize).map(s => (
                   <tr key={s.id} className="clickable" onClick={() => set('d', String(s.id))}>
                     <td><b>{s.client_name}</b><div className="small muted">{s.client_code}{s.assigned_name ? ` · ${s.assigned_name}` : ''}</div></td>
                     <td className="small">{s.project_name}<div className="muted">{s.ilot ? `îlot ${s.ilot} · ` : ''}lot {s.lot_code}</div></td>
@@ -79,7 +84,7 @@ export default function Sales() {
                 ))}
               </tbody>
             </table></div>
-            <Pagination total={rows.length} page={page} pageSize={pageSize} onPage={setPage} onPageSize={n => { setPageSize(n); setPage(1); }} label="dossiers" />
+            <Pagination total={rows.length} page={shown} pageSize={pageSize} onPage={setPage} onPageSize={n => { setPageSize(n); setPage(1); }} label="dossiers" />
           </>
         )}
       </Card>

@@ -1,8 +1,9 @@
 import { useState } from 'react';
 import { useParams, useSearchParams, useLocation, Link } from 'react-router-dom';
-import { ArrowLeft, Pencil, Upload, Trash2, FileText, Plus, CalendarPlus, Star, Briefcase, KeyRound, ExternalLink, UserX, Truck } from 'lucide-react';
+import { Pencil, Upload, Trash2, FileText, Plus, CalendarPlus, Star, Briefcase, KeyRound, ExternalLink, UserX, Truck } from 'lucide-react';
 import { api } from '@admin/lib/api';
 import { useAuth, useResource, useToast, useSaved } from '@admin/lib/app-context';
+import { usePageTitle } from '@admin/lib/navigation';
 import { SafetyRemarks } from '../qhse/Links';
 import { Card, Empty, Skeleton, ErrorBox, Modal, Field, Badge } from '@admin/components/ui';
 import { date, fcfa, initials } from '@admin/lib/format';
@@ -24,6 +25,8 @@ export default function EmployeeFile() {
   const { meta } = useRhMeta();
   const file = useResource(`${RH}/employees/${id}`);
   const tab = params.get('onglet') || 'dossier';
+  const who = file.data?.employee;
+  usePageTitle(who ? `${who.last_name} ${who.first_name}` : null); // titre de l'en-tête et du bouton retour
   if (file.error) return <ErrorBox error={file.error} />;
   if (!file.data) return <Skeleton h={300} />;
   const d = file.data;
@@ -35,7 +38,6 @@ export default function EmployeeFile() {
     <div className="stack">
       <div className="row-between">
         <div className="row" style={{ gap: 14 }}>
-          <Link className="btn btn-ghost btn-icon" to={d.access === 'rh' && base === 'rh' ? '/rh/personnel' : `/${base}/moi`} aria-label="Retour"><ArrowLeft /></Link>
           <span className="avatar">{initials(`${e.first_name} ${e.last_name}`)}</span>
           <div>
             <h2 className="erp-hello" style={{ fontSize: 20 }}>{e.last_name} {e.first_name} {!e.active && <Badge>Sorti(e)</Badge>}</h2>

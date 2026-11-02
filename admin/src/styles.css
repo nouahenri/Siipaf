@@ -72,6 +72,12 @@ img { max-width: 100%; display: block; }
   padding: 0 28px; background: rgba(245, 246, 248, .9); backdrop-filter: blur(8px); border-bottom: 1px solid var(--border);
 }
 .topbar h1 { font-size: 18px; font-weight: 600; }
+.topbar h1 { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+/* Bouton retour de l'en-tête (lib/navigation.jsx) : page d'origine, ou liste parente d'une fiche */
+.back-btn { flex-shrink: 0; min-width: 0; max-width: 220px; gap: 6px; color: var(--ink-2); border: 1px solid var(--border); }
+.back-btn span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.back-btn svg { width: 18px; height: 18px; flex-shrink: 0; color: var(--ink); }
+.back-btn + h1 { padding-left: 12px; border-left: 1px solid var(--border); }
 .topbar .spacer { flex: 1; }
 .menu-btn { display: none; }
 .user-chip { display: flex; align-items: center; gap: 10px; }
@@ -316,6 +322,10 @@ table.table { width: 100%; border-collapse: collapse; }
 @media (max-width: 640px) {
   .content { padding: 16px; }
   .topbar { padding: 0 16px; }
+  .topbar { gap: 10px; }
+  .back-btn span { display: none; }
+  .back-btn { width: 36px; height: 36px; padding: 0; justify-content: center; }
+  .back-btn + h1 { padding-left: 0; border-left: 0; }
   .grid-4 { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; }
   .form-grid { grid-template-columns: 1fr; }
   .user-chip > div { display: none; }

@@ -3,9 +3,8 @@ import { CheckCircle2, Circle, ArrowRight, Info } from 'lucide-react';
 import { api } from '@admin/lib/api';
 import { useAuth, useResource, useToast } from '@admin/lib/app-context';
 import { Card, Skeleton, ErrorBox, Badge } from '@admin/components/ui';
-
-// Le dashboard est sur admin.siipaf.com quand l'ERP est sur erp.siipaf.com (admin.localhost en local)
-const dashboardUrl = path => `${window.location.protocol}//${window.location.host.replace(/^erp\./, 'admin.')}${path}`;
+import { withReturn } from '@admin/lib/navigation';
+import { dashboardUrl } from '../lib/links';
 
 /**
  * Guide « Bien démarrer » (choix du client du 23/10) : l'ordre de mise en place du dashboard et de l'ERP pour la
@@ -57,7 +56,7 @@ export default function Onboarding() {
                 <div className="row" style={{ gap: 6 }}>
                   {s.manual && can('users:edit') && <button className="btn btn-sm" onClick={() => toggle(s.key, !s.done)}>{s.done ? 'Décocher' : 'Marquer vérifié'}</button>}
                   {s.link ? <Link className="btn btn-ghost btn-sm" to={s.link}>Ouvrir <ArrowRight /></Link>
-                    : <a className="btn btn-ghost btn-sm" href={dashboardUrl(s.key === 'roles' ? '/roles' : '/utilisateurs')}>Dashboard <ArrowRight /></a>}
+                    : <a className="btn btn-ghost btn-sm" href={withReturn(dashboardUrl(s.key === 'roles' ? 'roles' : 'utilisateurs'))}>Dashboard <ArrowRight /></a>}
                 </div>
               </li>
             ))}

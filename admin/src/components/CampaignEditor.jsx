@@ -185,7 +185,7 @@ export default function CampaignEditor({ id, statuses, onBack, onChanged }) {
       {picker && <MediaPicker selectedId={form.image_media_id} onPick={m => { setImage(m); set('image_media_id', m.id); }} onClose={() => setPicker(false)} />}
       {confirm && (
         <Modal title="Envoyer la campagne" onClose={() => setConfirm(false)} footer={(
-          <><button className="btn btn-ghost" onClick={() => setConfirm(false)}>Retour</button>
+          <><button className="btn btn-ghost" onClick={() => setConfirm(false)}>Annuler</button>
             <button className="btn btn-primary" onClick={launch} disabled={!!busy}><Send />{busy === 'launch' ? 'Lancement…' : `Envoyer à ${num(c.active_subscribers)} abonnés`}</button></>
         )}>
           <p>« <strong>{form.subject}</strong> » va partir vers les <strong>{num(c.active_subscribers)}</strong> abonnés actifs.</p>

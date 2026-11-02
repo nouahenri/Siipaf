@@ -1,6 +1,7 @@
 import { Link } from 'react-router-dom';
 import { LifeBuoy, Calculator, Users, Scale, Building, HardHat, Boxes, Briefcase, ArrowRight, ShieldAlert, Megaphone } from 'lucide-react';
 import { useAuth, useResource } from '@admin/lib/app-context';
+import { MENU } from '@admin/lib/navigation';
 import { useErpNotifications } from '../components/NotificationCenter';
 import { ADMIN_SHOW, JURIDIQUE, JURIDIQUE_SHOW } from '../components/ErpLayout';
 import { CHANTIERS, CHANTIERS_SHOW } from '../lib/chantiers';
@@ -52,7 +53,7 @@ export default function Launcher() {
             </>
           );
           return ready
-            ? <Link key={m.id} to={m.to} className="card module-tile">{body}</Link>
+            ? <Link key={m.id} to={m.to} state={MENU} className="card module-tile">{body}</Link>
             : <div key={m.id} className="card module-tile off" aria-disabled="true">{body}</div>;
         })}
       </div>

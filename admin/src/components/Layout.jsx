@@ -5,6 +5,7 @@ import {
   LayoutDashboard, Building2, Map, Users, CalendarDays, Mail, Newspaper, Image, PanelsTopLeft, UserCog, LogOut, Menu, KeyRound, MessageSquareQuote, ShieldCheck, MessagesSquare, UserCheck, SlidersHorizontal, LayoutGrid,
 } from 'lucide-react';
 import { useAuth, useResource } from '../lib/app-context';
+import { MENU, PageTitleContext, matchDetail, useNavigationTrail, BackButton, withReturn } from '../lib/navigation';
 import { ROLE_LABELS } from '../lib/domain';
 import { initials } from '../lib/format';
 import NotificationBell, { useNotifications } from './NotificationBell';
@@ -38,6 +39,12 @@ const NAV = [
 
 // L'ERP (erp.siipaf.com, erp.localhost en local) partage la base du dashboard : mêmes prospects, clients, lots et ventes
 const erpUrl = () => `${window.location.protocol}//${window.location.host.replace(/^admin\./, 'erp.')}/`;
+// Fiches (navigation commune, lib/navigation) : titre de l'en-tête et liste parente du bouton retour sur arrivée directe
+const DETAILS = [
+  [/^\/projets\/\d+$/, () => ({ title: 'Projet', parent: { to: '/projets', label: 'Projets' } })],
+  [/^\/plans\/\d+$/, () => ({ title: 'Plan de masse', parent: { to: '/projets', label: 'Projets' } })],
+];
+const moduleOf = path => path?.split('/')[1] || '';
 const ERP_PERMS = ['commercial:read', 'vefa:read', 'vefa:write', 'sav:read'];
 
 const TITLES = {
@@ -48,8 +55,9 @@ const TITLES = {
 
 export default function Layout() {
   const { user, logout, can } = useAuth();
-  const { pathname } = useLocation();
+  const { pathname, search } = useLocation();
   const [open, setOpen] = useState(false);
+  const [pageTitle, setPageTitle] = useState(null);
   const [requestsOpen, setRequestsOpen] = useState(false);
   const stats = useResource('/admin/stats', [pathname]);
   const notif = useNotifications(can('leads:read'));
@@ -57,7 +65,9 @@ export default function Layout() {
   useRevealOnScroll(contentRef, [pathname]);
 
   useEffect(() => setOpen(false), [pathname]);
-  const title = TITLES[pathname] || TITLES['/' + pathname.split('/')[1]] || 'Administration';
+  const page = matchDetail(DETAILS, pathname, search);
+  const title = pageTitle || TITLES[pathname] || page?.title || TITLES['/' + pathname.split('/')[1]] || 'Administration';
+  const { back } = useNavigationTrail({ title, moduleOf, detail: page, otherHost: window.location.host.replace(/^admin\./, 'erp.'), otherLabel: 'ERP' });
   const unread = notif.data?.unread || 0;
   useEffect(() => { document.title = `${unread ? `(${unread}) ` : ''}${title} — SIIPAF Admin`; }, [title, unread]);
 
@@ -77,7 +87,7 @@ export default function Layout() {
                 const live = notif.data && notif.data[i.badge] != null ? notif.data[i.badge] : null;
                 const count = live != null ? live : i.badge && stats.data ? stats.data[i.badge] : 0;
                 return (
-                  <NavLink key={i.to} to={i.to} end={i.end} className={({ isActive }) => `nav-item ${isActive ? 'active' : ''}`}>
+                  <NavLink key={i.to} to={i.to} end={i.end} state={MENU} className={({ isActive }) => `nav-item ${isActive ? 'active' : ''}`}>
                     <i.icon aria-hidden="true" />{i.label}
                     {count > 0 && (i.panel
                       // Rendez-vous : la pastille ouvre le panneau des demandes du site, le libellé ouvre la page
@@ -91,8 +101,8 @@ export default function Layout() {
           );
         })}
         <div className="sidebar-foot">
-          {ERP_PERMS.some(can) && <a href={erpUrl()} className="nav-item"><LayoutGrid aria-hidden="true" />ERP SIIPAF</a>}
-          <NavLink to="/compte" className={({ isActive }) => `nav-item ${isActive ? 'active' : ''}`}><KeyRound aria-hidden="true" />Mon compte</NavLink>
+          {ERP_PERMS.some(can) && <a href={withReturn(erpUrl(), title)} className="nav-item"><LayoutGrid aria-hidden="true" />ERP SIIPAF</a>}
+          <NavLink to="/compte" state={MENU} className={({ isActive }) => `nav-item ${isActive ? 'active' : ''}`}><KeyRound aria-hidden="true" />Mon compte</NavLink>
           <button className="nav-item btn-ghost" style={{ width: '100%', border: 'none', cursor: 'pointer' }} onClick={logout}>
             <LogOut aria-hidden="true" />Déconnexion
           </button>
@@ -102,6 +112,7 @@ export default function Layout() {
       <div className="main">
         <header className="topbar">
           <button className="btn btn-ghost btn-icon menu-btn" onClick={() => setOpen(true)} aria-label="Ouvrir le menu"><Menu /></button>
+          <BackButton back={back} />
           <h1>{title}</h1>
           <div className="spacer" />
           <NotificationBell notif={notif} />
@@ -115,7 +126,7 @@ export default function Layout() {
         </header>
         {requestsOpen && <AppointmentRequests onClose={() => { setRequestsOpen(false); stats.reload(); }} />}
         <main className="content" ref={contentRef}>
-          <Outlet context={{ stats }} />
+          <PageTitleContext.Provider value={setPageTitle}><Outlet context={{ stats }} /></PageTitleContext.Provider>
         </main>
       </div>
     </div>

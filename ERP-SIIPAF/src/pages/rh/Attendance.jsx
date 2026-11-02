@@ -7,6 +7,7 @@ import { Card, Empty, Skeleton, ErrorBox, Modal, Field, Badge } from '@admin/com
 import { date, fcfa } from '@admin/lib/format';
 import { RH, hours, hm, today, thisMonth, useRhMeta, meters } from '../../lib/rh';
 import PlacePicker, { placeLabel, NO_PLACE } from '../../components/PlacePicker';
+import { usePersistentState } from '@admin/lib/navigation';
 
 /** Présences (référence : Odoo Présences) : qui est là, feuilles de chantier, corrections, heures supplémentaires. */
 export default function Attendance() {
@@ -120,10 +121,10 @@ function Records() {
   const { meta } = useRhMeta();
   const toast = useToast();
   const [params] = useSearchParams();
-  const [from, setFrom] = useState(() => new Date(Date.now() - 6 * 86400000).toISOString().slice(0, 10));
-  const [to, setTo] = useState(today());
-  const [employee, setEmployee] = useState('');
-  const [control, setControl] = useState(params.get('controle') || ''); // lien des notifications « pointage hors zone »
+  const [from, setFrom] = usePersistentState('du', new Date(Date.now() - 6 * 86400000).toISOString().slice(0, 10), { sameDay: true }); // gardés au retour, oubliés le lendemain
+  const [to, setTo] = usePersistentState('au', today(), { sameDay: true });
+  const [employee, setEmployee] = usePersistentState('employe', '');
+  const [control, setControl] = usePersistentState('controle', '', { forced: params.get('controle') }); // le lien des notifications « pointage hors zone » l'impose
   const [edit, setEdit] = useState(null);
   const list = useResource(`${RH}/attendance${qs({ from, to, employee_id: employee, controle: control })}`);
   const del = async a => { if (!window.confirm('Supprimer ce pointage ?')) return; try { await api.del(`${RH}/attendance/${a.id}`); list.reload(); } catch (e) { toast(e.message, 'err'); } };

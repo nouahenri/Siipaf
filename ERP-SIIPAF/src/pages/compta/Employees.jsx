@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { Search, Users } from 'lucide-react';
 import { useAuth, useResource } from '@admin/lib/app-context';
+import { usePersistentState } from '@admin/lib/navigation';
 import { Card, Empty, Skeleton, ErrorBox, Badge } from '@admin/components/ui';
 import { date, fcfa } from '@admin/lib/format';
 import { usePaieMeta } from '../../lib/paie';
@@ -10,8 +11,8 @@ import EmployeeForm from '../../components/EmployeeForm';
 export default function Employees() {
   const { can } = useAuth();
   const { meta } = usePaieMeta();
-  const [q, setQ] = useState('');
-  const [scope, setScope] = useState('1');
+  const [q, setQ] = usePersistentState('recherche', ''); // filtres gardés pendant la visite
+  const [scope, setScope] = usePersistentState('statut', '1');
   const [edit, setEdit] = useState(null);
   const list = useResource(`/admin/erp/paie/employees?active=${scope === 'all' ? 'all' : scope}`);
   const withPay = can('paie:read');

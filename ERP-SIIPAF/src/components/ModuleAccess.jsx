@@ -9,6 +9,8 @@ import { api } from '@admin/lib/api';
 import { useResource, useToast } from '@admin/lib/app-context';
 import { permRows } from '@admin/lib/permissions';
 import { Card, Skeleton, ErrorBox, Badge } from '@admin/components/ui';
+import { withReturn } from '@admin/lib/navigation';
+import { dashboardUrl } from '../lib/links';
 
 // Groupes du catalogue (lib/domain.js) affichés dans chaque module
 const MODULE_GROUPS = {
@@ -24,7 +26,6 @@ const MODULE_GROUPS = {
   qhse: ['ERP · QHSE'],
 };
 
-const dashboardUrl = () => `${window.location.protocol}//${window.location.host.replace(/^erp\./, 'admin.')}/roles`;
 
 export default function ModuleAccess({ module, label }) {
   const toast = useToast();
@@ -47,7 +48,7 @@ export default function ModuleAccess({ module, label }) {
     <div className="stack">
       <div className="callout-erp"><ShieldCheck /><span className="small">
         Ce que chaque rôle peut faire dans le module <b>{label}</b>. Un compte reçoit les actions de son rôle.
-        {canEdit ? ' Cliquez une case pour autoriser ou retirer une action.' : ' Seul le super administrateur peut les modifier.'} Les rôles se créent et s’attribuent aux comptes dans le dashboard (<a className="link" href={dashboardUrl()}>Rôles & privilèges <ExternalLink className="ico" /></a>).
+        {canEdit ? ' Cliquez une case pour autoriser ou retirer une action.' : ' Seul le super administrateur peut les modifier.'} Les rôles se créent et s’attribuent aux comptes dans le dashboard (<a className="link" href={withReturn(dashboardUrl('roles'))}>Rôles & privilèges <ExternalLink className="ico" /></a>).
       </span></div>
       {groups.map(g => (
         <Card key={g.group} title={g.group.replace(/^ERP · /, '')} bodyClass="">

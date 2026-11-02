@@ -5,10 +5,11 @@
  * Référentiels (ressources, ouvrages, modèles) : Chantiers › Réglages (DebourseSettings).
  */
 import { useEffect, useMemo, useState } from 'react';
-import { Link, useNavigate, useParams } from 'react-router-dom';
-import { Plus, Calculator, ArrowLeft, RefreshCw, Printer, Trash2, Wallet, Check, Pencil, TriangleAlert, Save, X } from 'lucide-react';
+import { useNavigate, useParams } from 'react-router-dom';
+import { Plus, Calculator, RefreshCw, Printer, Trash2, Wallet, Check, Pencil, TriangleAlert, Save, X } from 'lucide-react';
 import { api } from '@admin/lib/api';
 import { useAuth, useResource, useSaved, useToast } from '@admin/lib/app-context';
+import { usePageTitle } from '@admin/lib/navigation';
 import { Card, Empty, Skeleton, ErrorBox, Field, Modal, Badge } from '@admin/components/ui';
 import { date, fcfa, num } from '@admin/lib/format';
 import { CH } from '../../lib/chantiers';
@@ -155,6 +156,7 @@ export function EstimatePage() {
     try { est.setData(await api.patch(`${DS}/estimations/${id}`, body)); if (msg) saved(msg); } catch (err) { toast(err.message, 'err'); } finally { setBusy(false); }
   };
   const lots = useMemo(() => (refs ? Object.entries(refs.lots).sort((a, b) => a[1].sort - b[1].sort) : []), [refs]);
+  usePageTitle(e ? `${e.reference} — ${e.label}` : null);
   if (est.error) return <ErrorBox error={est.error} />;
   if (!e || !refs || !params) return <Skeleton h={300} />;
   const calc = e.calc;
@@ -171,9 +173,8 @@ export function EstimatePage() {
   };
   return (
     <div className="stack">
-      <div className="row-between">
-        <Link to="/chantiers/liste?onglet=debourse" className="btn btn-ghost btn-sm"><ArrowLeft />Estimations</Link>
-        <div className="row" style={{ gap: 8 }}>
+      <div className="row" style={{ justifyContent: 'flex-end' }}>
+        <div className="row" style={{ gap: 8, flexWrap: 'wrap' }}>
           {write && <button className="btn btn-sm" disabled={busy} onClick={reprice}><RefreshCw />Recalculer aux prix actuels</button>}
           {write && <button className="btn btn-sm" onClick={() => setBudget(true)}><Wallet />Reporter au budget d’un chantier</button>}
           <button className="btn btn-sm" onClick={() => window.print()}><Printer />Imprimer</button>

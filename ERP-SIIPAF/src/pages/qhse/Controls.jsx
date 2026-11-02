@@ -5,9 +5,10 @@
  */
 import { useEffect, useState } from 'react';
 import { Link, Navigate, useNavigate, useParams, useSearchParams } from 'react-router-dom';
-import { Plus, ClipboardCheck, Pencil, ArrowLeft, Users, AlertTriangle, Trash2, Info } from 'lucide-react';
+import { Plus, ClipboardCheck, Pencil, Users, AlertTriangle, Trash2, Info } from 'lucide-react';
 import { api } from '@admin/lib/api';
 import { useAuth, useResource, useSaved, useToast } from '@admin/lib/app-context';
+import { usePersistentState } from '@admin/lib/navigation';
 import { Badge, Card, Empty, ErrorBox, Field, Skeleton } from '@admin/components/ui';
 import {
   QH, useQhseRefs, RatingPicker, RatingBadge, PctBadge, Checklist, itemsState, itemsPayload, meanOf, conformityOf, PendingPhotos, uploadFiles, PhotoBlock,
@@ -18,8 +19,8 @@ import { ActionForm } from './Actions';
 export default function Controls() {
   const { can } = useAuth();
   const refs = useQhseRefs();
-  const [worksite, setWorksite] = useState('');
-  const [from, setFrom] = useState('');
+  const [worksite, setWorksite] = usePersistentState('chantier', ''); // filtres gardés au retour d'un contrôle
+  const [from, setFrom] = usePersistentState('depuis', '');
   const list = useResource(`${QH}/controls?kind=journalier${worksite ? `&worksite_id=${worksite}` : ''}${from ? `&from=${from}` : ''}`);
   if (list.error) return <ErrorBox error={list.error} />;
   if (!refs || !list.data) return <Skeleton h={300} />;
@@ -138,7 +139,6 @@ function ControlForm({ refs, initial = null, onDone }) {
 
   return (
     <form className="stack" onSubmit={save}>
-      {!initial && <Link to="/qhse/controles" className="btn btn-ghost" style={{ alignSelf: 'flex-start' }}><ArrowLeft />Contrôles journaliers</Link>}
       <ErrorBox error={error} />
       <Card title={initial ? 'Corriger le contrôle' : 'Contrôle du jour'}>
         <div className="form-grid">
@@ -267,7 +267,7 @@ function ControlView({ id, refs }) {
   const [action, setAction] = useState(false);
   const navigate = useNavigate();
   const d = res.data;
-  if (res.error) return <div className="stack"><Link to="/qhse/controles" className="btn btn-ghost" style={{ alignSelf: 'flex-start' }}><ArrowLeft />Contrôles journaliers</Link><ErrorBox error={res.error} /></div>;
+  if (res.error) return <ErrorBox error={res.error} />;
   if (!d) return <Skeleton h={400} />;
   if (d.kind === 'hebdomadaire') return <Navigate to={`/qhse/hebdomadaires/${id}`} replace />;
   if (editing) return <ControlForm refs={refs} initial={d} onDone={async () => { setEditing(false); await res.reload(); }} />;
@@ -276,8 +276,7 @@ function ControlView({ id, refs }) {
 
   return (
     <div className="stack">
-      <div className="row-between" style={{ flexWrap: 'wrap', gap: 8 }}>
-        <Link to="/qhse/controles" className="btn btn-ghost"><ArrowLeft />Contrôles journaliers</Link>
+      <div className="row" style={{ flexWrap: 'wrap', gap: 8, justifyContent: 'flex-end' }}>
         <div className="row" style={{ gap: 8 }}>
           {can('qhse:actions') && <button className="btn" onClick={() => setAction(true)}><AlertTriangle />Ouvrir une action corrective</button>}
           {d.editable && <button className="btn btn-primary" onClick={() => setEditing(true)}><Pencil />Corriger</button>}

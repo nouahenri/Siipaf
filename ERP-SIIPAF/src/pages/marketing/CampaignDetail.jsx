@@ -5,10 +5,11 @@
  * générale valide la campagne.
  */
 import { useEffect, useState } from 'react';
-import { useParams, Link } from 'react-router-dom';
+import { useParams } from 'react-router-dom';
 import { Bot, Send, Check, Archive, Sparkles, Plus, Pencil, Eye } from 'lucide-react';
 import { api } from '@admin/lib/api';
 import { useAuth, useResource, useSaved } from '@admin/lib/app-context';
+import { usePageTitle } from '@admin/lib/navigation';
 import { Badge, Card, Empty, ErrorBox, Field, Skeleton } from '@admin/components/ui';
 import { dateTime, num } from '@admin/lib/format';
 import { MK, CAMPAIGN_TONES, ModeBanner, fr } from '../../lib/marketing';
@@ -34,6 +35,7 @@ export default function CampaignDetail() {
   const c = res.data;
   const facts = useResource(showFacts && c ? `${MK}/facts${c.project_id ? `?project_id=${c.project_id}` : ''}` : null);
   useEffect(() => { if (refs && !gen.channels) setGen(g => ({ ...g, channels: refs.default_channels })); }, [refs, gen.channels]);
+  usePageTitle(c?.name || null);
   if (res.error) return <ErrorBox error={res.error} />;
   if (!c || !refs || !gen.channels) return <Skeleton h={400} />;
 
@@ -66,7 +68,6 @@ export default function CampaignDetail() {
       <ModeBanner mode={refs.mode} reason={refs.mode_reason} />
       <div className="row-between">
         <div className="row" style={{ gap: 8 }}>
-          <Link className="small" to="/marketing/campagnes">← Campagnes</Link>
           <Badge tone={CAMPAIGN_TONES[c.status]}>{c.status_label}</Badge>
           {c.permanent && <Badge>Ligne éditoriale permanente</Badge>}
         </div>

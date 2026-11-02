@@ -5,6 +5,7 @@ import { api } from '../lib/api';
 import { relative } from '../lib/format';
 import { SOURCES } from '../lib/domain';
 import { playSound, soundFor } from '../lib/sounds';
+import { withReturn } from '../lib/navigation';
 
 const POLL_MS = 30000;
 const ERP = '/admin/erp/notifications';
@@ -95,7 +96,7 @@ export default function NotificationBell({ notif }) {
   const goLead = id => { setOpen(false); navigate(`/prospects?fiche=${id}`); };
   const goErp = n => {
     setOpen(false);
-    (n.read ? Promise.resolve() : markRead({ ids: [n.id] })).finally(() => { window.location.href = erpUrl(n.link); });
+    (n.read ? Promise.resolve() : markRead({ ids: [n.id] })).finally(() => { window.location.href = withReturn(erpUrl(n.link)); }); // retour vers la page du dashboard quittée
   };
   const leadItems = (snapshot || leads)?.items || [];
   const erpItems = erp?.items || [];

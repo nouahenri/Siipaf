@@ -1,10 +1,11 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { Link, useNavigate, useParams } from 'react-router-dom';
+import { useNavigate, useParams } from 'react-router-dom';
 import {
-  ArrowLeft, MousePointer2, Pentagon, Square, Hand, ZoomIn, ZoomOut, Maximize, Undo2, Copy, Trash2, Save, Search, Eye, EyeOff, ChevronDown,
+  MousePointer2, Pentagon, Square, Hand, ZoomIn, ZoomOut, Maximize, Undo2, Copy, Trash2, Save, Search, Eye, EyeOff, ChevronDown,
 } from 'lucide-react';
 import { api } from '../lib/api';
 import { useAuth, useResource, useToast, useSaved } from '../lib/app-context';
+import { usePageTitle } from '../lib/navigation';
 import { Field, ErrorBox, Skeleton, StatusBadge } from '../components/ui';
 import { LOT_STATUSES, lotStatus, gridOfferFor } from '../lib/domain';
 import { fcfa } from '../lib/format';
@@ -48,6 +49,7 @@ export default function PlanEditor() {
   const toast = useToast();
   const saved = useSaved();
   const plan = useResource(`/admin/plans/${id}`);
+  usePageTitle(plan.data ? `${plan.data.project.name} — ${plan.data.name}` : null); // en-tête et bouton retour
   const editable = can('plans:lots'); // dessiner les lots sur le plan
   const navigate = useNavigate();
 
@@ -360,7 +362,6 @@ export default function PlanEditor() {
     <div className="plan-editor">
       <div className="row-between">
         <div className="row">
-          <Link to={`/projets/${plan.data.project.id}`} className="btn btn-ghost"><ArrowLeft />{plan.data.project.name}</Link>
           <strong>{plan.data.name}</strong>
           <span className="small muted tabular">{placed.length} lots placés · {unplaced.length} à placer</span>
         </div>

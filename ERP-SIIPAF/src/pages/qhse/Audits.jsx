@@ -5,7 +5,7 @@
  */
 import { useState } from 'react';
 import { Link, useNavigate, useParams, useSearchParams } from 'react-router-dom';
-import { Plus, SearchCheck, ArrowLeft, Play, Send, Check, X, Ban, Trash2, AlertTriangle } from 'lucide-react';
+import { Plus, SearchCheck, Play, Send, Check, X, Ban, Trash2, AlertTriangle } from 'lucide-react';
 import { api } from '@admin/lib/api';
 import { useAuth, useResource, useSaved } from '@admin/lib/app-context';
 import { Badge, Card, Empty, ErrorBox, Field, Skeleton } from '@admin/components/ui';
@@ -96,12 +96,11 @@ export function AuditPage() {
   const { id } = useParams();
   const refs = useQhseRefs();
   const res = useResource(`${QH}/audits/${id}`);
-  if (res.error) return <div className="stack"><BackLink /><ErrorBox error={res.error} /></div>;
+  if (res.error) return <ErrorBox error={res.error} />;
   if (!res.data || !refs) return <Skeleton h={400} />;
   return <AuditBody d={res.data} refs={refs} setData={res.setData} />;
 }
 
-const BackLink = () => <Link to="/qhse/audits" className="btn btn-ghost" style={{ alignSelf: 'flex-start' }}><ArrowLeft />Inspections et audits</Link>;
 
 function AuditBody({ d, refs, setData }) {
   const { can } = useAuth();
@@ -135,7 +134,6 @@ function AuditBody({ d, refs, setData }) {
 
   return (
     <div className="stack">
-      <BackLink />
       <ErrorBox error={error} />
       <Card>
         <div className="row-between" style={{ alignItems: 'flex-start', gap: 12, flexWrap: 'wrap' }}>
@@ -163,7 +161,7 @@ function AuditBody({ d, refs, setData }) {
         {rejecting && (
           <div className="stack" style={{ gap: 10, marginTop: 12 }}>
             <Field label="Motif du refus"><textarea className="textarea" rows={2} maxLength={500} value={reason} onChange={e => setReason(e.target.value)} /></Field>
-            <div className="row" style={{ gap: 8 }}><button className="btn btn-danger" disabled={busy || reason.trim().length < 3} onClick={() => call(() => api.post(`${base}/reject`, { reason }), 'Audit refusé')}>Refuser</button><button className="btn btn-ghost" onClick={() => setRejecting(false)}>Retour</button></div>
+            <div className="row" style={{ gap: 8 }}><button className="btn btn-danger" disabled={busy || reason.trim().length < 3} onClick={() => call(() => api.post(`${base}/reject`, { reason }), 'Audit refusé')}>Refuser</button><button className="btn btn-ghost" onClick={() => setRejecting(false)}>Annuler</button></div>
           </div>
         )}
       </Card>

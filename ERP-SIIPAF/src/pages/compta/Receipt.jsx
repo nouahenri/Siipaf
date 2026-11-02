@@ -1,4 +1,4 @@
-import { Link, useNavigate, useParams } from 'react-router-dom';
+import { Link, useParams } from 'react-router-dom';
 import { Printer } from 'lucide-react';
 import { useResource } from '@admin/lib/app-context';
 import { Skeleton, ErrorBox } from '@admin/components/ui';
@@ -12,15 +12,13 @@ const METHODS = { virement: 'Virement', mobile_money: 'Mobile Money', especes: '
  */
 export default function Receipt() {
   const { id } = useParams();
-  const navigate = useNavigate();
   const res = useResource(`/admin/payments/${id}/receipt`);
   const r = res.data;
   if (!r) return res.error ? <ErrorBox error={res.error} /> : <Skeleton h={400} />;
   return (
     <article className="appro-print receipt-print stack" aria-label={`Reçu ${r.receipt_number}`}>
       <div className="row appro-print-actions">
-        <button className="btn" onClick={() => navigate(-1)}>Retour</button>
-        <Link className="btn btn-ghost" to={`/commercial/ventes?d=${r.sale_id}`}>Dossier de vente</Link>
+        <Link className="btn btn-ghost" to={`/compta/ventes?d=${r.sale_id}`}>Dossier de vente</Link>
         <button className="btn btn-primary" onClick={() => window.print()}><Printer />Imprimer / PDF</button>
       </div>
       <div className="row-between" style={{ alignItems: 'flex-start' }}>

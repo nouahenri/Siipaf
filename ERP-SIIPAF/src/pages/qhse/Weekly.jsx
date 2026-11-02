@@ -5,7 +5,7 @@
  */
 import { useState } from 'react';
 import { Link, useNavigate, useParams, useSearchParams } from 'react-router-dom';
-import { Plus, CalendarRange, ArrowLeft, Check, Send, X, Gauge, SprayCan, HardHat, Leaf } from 'lucide-react';
+import { Plus, CalendarRange, Check, Send, X, Gauge, SprayCan, HardHat, Leaf } from 'lucide-react';
 import { api } from '@admin/lib/api';
 import { useAuth, useResource, useSaved } from '@admin/lib/app-context';
 import { Badge, Card, Empty, ErrorBox, Field, Skeleton } from '@admin/components/ui';
@@ -86,9 +86,9 @@ export function WeeklyPage() {
   const [error, setError] = useState(null);
   const [busy, setBusy] = useState(false);
   const d = res.data;
-  if (res.error) return <div className="stack"><BackLink /><ErrorBox error={res.error} /></div>;
+  if (res.error) return <ErrorBox error={res.error} />;
   if (!d || !refs) return <Skeleton h={400} />;
-  if (d.kind !== 'hebdomadaire') return <div className="stack"><BackLink /><ErrorBox error={new Error('Ce n’est pas un contrôle hebdomadaire.')} /></div>;
+  if (d.kind !== 'hebdomadaire') return <div className="stack"><ErrorBox error={new Error('Ce n’est pas un contrôle hebdomadaire.')} /></div>;
   const s = d.summary || {};
   const form = f || { rating_qualite: d.rating_qualite, rating_hygiene: d.rating_hygiene, remark_qualite: d.remark_qualite || '', remark_hygiene: d.remark_hygiene || '', remark_securite: d.remark_securite || '', remark_environnement: d.remark_environnement || '', observations: d.observations || '' };
   const set = patch => setF({ ...form, ...patch });
@@ -106,7 +106,6 @@ export function WeeklyPage() {
 
   return (
     <div className="stack">
-      <BackLink />
       <ErrorBox error={error} />
       <Card>
         <div className="row-between" style={{ alignItems: 'flex-start', gap: 12 }}>
@@ -184,7 +183,7 @@ export function WeeklyPage() {
           {rejecting ? (
             <div className="stack" style={{ gap: 10 }}>
               <Field label="Motif du refus"><textarea className="textarea" rows={2} maxLength={500} value={reason} onChange={e => setReason(e.target.value)} /></Field>
-              <div className="row" style={{ gap: 8 }}><button className="btn btn-danger" disabled={busy || reason.trim().length < 3} onClick={reject}>Refuser</button><button className="btn btn-ghost" onClick={() => setRejecting(false)}>Retour</button></div>
+              <div className="row" style={{ gap: 8 }}><button className="btn btn-danger" disabled={busy || reason.trim().length < 3} onClick={reject}>Refuser</button><button className="btn btn-ghost" onClick={() => setRejecting(false)}>Annuler</button></div>
             </div>
           ) : (
             <div className="row" style={{ gap: 8 }}>
@@ -200,4 +199,3 @@ export function WeeklyPage() {
   );
 }
 
-const BackLink = () => <Link to="/qhse/hebdomadaires" className="btn btn-ghost" style={{ alignSelf: 'flex-start' }}><ArrowLeft />Contrôles hebdomadaires</Link>;

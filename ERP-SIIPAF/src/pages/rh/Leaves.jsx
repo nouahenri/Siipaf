@@ -75,7 +75,7 @@ export function DecisionModal({ leave, action, onClose, onDone }) {
   };
   return (
     <Modal title={action === 'refuse' ? `Refuser — ${leave.employee_name}` : `Annuler l’absence — ${leave.employee_name}`} onClose={onClose}
-      footer={<><button className="btn btn-ghost" onClick={onClose}>Retour</button><button className="btn btn-primary" form="decision">Confirmer</button></>}>
+      footer={<><button className="btn btn-ghost" onClick={onClose}>Annuler</button><button className="btn btn-primary" form="decision">Confirmer</button></>}>
       <form id="decision" className="stack" style={{ gap: 12 }} onSubmit={save}>
         <ErrorBox error={error} />
         <p className="small">{leave.label} du {date(leave.start_date)} au {date(leave.end_date)} ({leave.days} j).</p>

@@ -1,6 +1,7 @@
 import { createContext, useCallback, useContext, useEffect, useRef, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { api, setUnauthorizedHandler } from './api';
+import { clearNavigation } from './navigation';
 
 const AuthContext = createContext(null);
 
@@ -55,6 +56,7 @@ export function AppProvider({ children }) {
   };
   const logout = async () => {
     await api.post('/auth/logout').catch(() => {});
+    clearNavigation(); // historique et filtres de l'onglet : pas pour le compte suivant
     setSession({ loading: false, user: null, permissions: [] });
   };
   // Une action, ou une liste d'actions (l'une d'elles suffit)
