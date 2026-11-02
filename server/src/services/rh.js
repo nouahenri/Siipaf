@@ -299,6 +299,20 @@ function documentUpload() {
   }).single('file');
 }
 
+// Pièce d'identité (recto, verso) : PDF, PNG ou JPG seulement (demande du client du 02/11)
+const IDENTITY_MIME = { 'application/pdf': '.pdf', 'image/png': '.png', 'image/jpeg': '.jpg' };
+function identityUpload() {
+  fs.mkdirSync(hrFilesDir, { recursive: true });
+  return multer({
+    storage: multer.diskStorage({
+      destination: hrFilesDir,
+      filename: (req, file, cb) => cb(null, `${Date.now()}-${crypto.randomBytes(8).toString('hex')}${IDENTITY_MIME[file.mimetype]}`),
+    }),
+    limits: { fileSize: 10 * 1024 * 1024, files: 1 },
+    fileFilter: (req, file, cb) => cb(IDENTITY_MIME[file.mimetype] ? null : new HttpError(400, 'Pièce d’identité : envoyez un PDF, un PNG ou un JPG.'), !!IDENTITY_MIME[file.mimetype]),
+  }).single('file');
+}
+
 // Champs suivis dans l'historique de carrière quand la fiche change
 const TRACKED = {
   job_title: ['promotion', 'Poste'], department: ['mutation', 'Service'], project_id: ['mutation', 'Affectation'], contract_type: ['avenant', 'Contrat'],
@@ -465,5 +479,5 @@ async function contractsTick(db, day = today()) {
 module.exports = {
   announceHire, contractsTick,
   getSettings, saveSettings, holidays, seedHolidays, employeeOf, getEmployee, isManagerOf, accessLevel, balanceOf, checkLeave, createLeave, decideLeave,
-  leaveQuery, serializeLeave, leaveDetail, toApprove, unpaidDays, documentUpload, hrFilesDir, logChanges, careerOf, objectivesOf, dashboard, normEmployee, calendarOverlap,
+  leaveQuery, serializeLeave, leaveDetail, toApprove, unpaidDays, documentUpload, identityUpload, hrFilesDir, logChanges, careerOf, objectivesOf, dashboard, normEmployee, calendarOverlap,
 };

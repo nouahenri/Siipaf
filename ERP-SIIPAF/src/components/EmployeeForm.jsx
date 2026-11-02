@@ -5,11 +5,11 @@
  * solde de congés repris → gérer les absences. Poste et service d'une fiche existante : « Changer de poste » (date d'effet, historique).
  */
 import { useState } from 'react';
-import { ArrowRightLeft } from 'lucide-react';
+import { ArrowRightLeft, FileText, Trash2 } from 'lucide-react';
 import { api } from '@admin/lib/api';
-import { useAuth, useResource, useSaved } from '@admin/lib/app-context';
+import { useAuth, useResource, useSaved, useToast } from '@admin/lib/app-context';
 import { ErrorBox, Modal, Field } from '@admin/components/ui';
-import { fcfa } from '@admin/lib/format';
+import { date, fcfa } from '@admin/lib/format';
 import { usePaieMeta } from '../lib/paie';
 import { RH } from '../lib/rh';
 import { PositionSelect, usePositions, ChangePositionModal } from './Positions';
@@ -41,6 +41,7 @@ export default function EmployeeForm({ employee, onClose, onSaved }) {
   const [f, setF] = useState(initial);
   const [error, setError] = useState(null);
   const [change, setChange] = useState(false);
+  const [idFiles, setIdFiles] = useState({ recto: null, verso: null }); // pièce d'identité à envoyer à l'enregistrement
   const set = k => e => setF(x => ({ ...x, [k]: e.target.type === 'checkbox' ? e.target.checked : e.target.value }));
   const suggested = Math.min(5, 1 + (f.marital_status === 'marie' ? 1 : 0) + 0.5 * (Number(f.children) || 0));
   const save = async e => {
@@ -53,15 +54,26 @@ export default function EmployeeForm({ employee, onClose, onSaved }) {
       body[k] = NUMBERS.includes(k) ? (v === '' || v == null ? null : Number(v)) : typeof v === 'string' && v === '' ? null : v;
     }
     for (const k of ['children', 'housing_allowance', 'transport_allowance', 'other_allowance', 'base_salary']) if (k in body) body[k] = body[k] ?? 0;
-    if (!isNew && !Object.keys(body).length) { onClose(); return; }
+    const sides = ['recto', 'verso'].filter(s => idFiles[s]);
+    if (!isNew && !Object.keys(body).length && !sides.length) { onClose(); return; }
     if (!body.position_id) delete body.position_id;
     if (isNew) delete body.active;
+    let id = employee.id;
     try {
-      await (isNew ? api.post(`${RH}/employees`, body) : api.patch(`${RH}/employees/${employee.id}`, body)); // création : service RH
-      // Sortie : le bilan de départ (compte, matériel, dossiers) est dans la fiche RH, les responsables sont prévenus
-      const leaving = !isNew && employee.active && !f.active;
-      reload(); saved(leaving ? 'Sortie enregistrée : le bilan de départ est dans la fiche RH (Ressources humaines › Personnel)' : isNew ? 'Fiche créée : la Comptabilité est prévenue pour la paie' : 'Fiche employé enregistrée'); onSaved();
-    } catch (err) { setError(err); }
+      if (isNew) id = (await api.post(`${RH}/employees`, body)).id; // création : service RH
+      else if (Object.keys(body).length) await api.patch(`${RH}/employees/${employee.id}`, body);
+    } catch (err) { setError(err); return; }
+    // Pièce d'identité choisie : envoyée une fois la fiche enregistrée ; un échec n'annule pas la fiche (à renvoyer en la modifiant)
+    let idError = null;
+    for (const side of sides) {
+      try { const fd = new FormData(); fd.append('file', idFiles[side]); await api.put(`${RH}/employees/${id}/identity/${side}`, fd); } catch (err) { idError = err; }
+    }
+    // Sortie : le bilan de départ (compte, matériel, dossiers) est dans la fiche RH, les responsables sont prévenus
+    const leaving = !isNew && employee.active && !f.active;
+    reload();
+    saved(idError ? `Fiche enregistrée, mais la pièce d’identité n’a pas été envoyée : ${idError.message}`
+      : leaving ? 'Sortie enregistrée : le bilan de départ est dans la fiche RH (Ressources humaines › Personnel)' : isNew ? 'Fiche créée : la Comptabilité est prévenue pour la paie' : 'Fiche employé enregistrée');
+    onSaved();
   };
   const users = (meta?.users || []).filter(u => !u.employee_id || u.employee_id === employee.id);
   const options = obj => obj && Object.entries(obj).map(([k, v]) => <option key={k} value={k}>{v}</option>);
@@ -83,6 +95,7 @@ export default function EmployeeForm({ employee, onClose, onSaved }) {
           <Field label="Adresse" className="full"><input className="input" value={f.address} onChange={set('address')} /></Field>
           <Field label="N° CNI / passeport"><input className="input" value={f.id_number} onChange={set('id_number')} /></Field>
           <Field label="N° CNPS"><input className="input" value={f.cnps_number} onChange={set('cnps_number')} /></Field>
+          <IdentityFiles employeeId={employee.id} files={idFiles} onPick={(side, file) => setIdFiles(x => ({ ...x, [side]: file }))} />
           <Field label="Contact en cas d’urgence"><input className="input" value={f.emergency_contact} onChange={set('emergency_contact')} placeholder="Nom, lien, téléphone" /></Field>
           <Field label="Compte du dashboard" hint={canLink ? 'Relie la fiche au compte de connexion de la même personne' : 'Réservé au droit « Modifier un compte »'}>
             <select className="select" disabled={!canLink} value={f.user_id || ''} onChange={set('user_id')}><option value="">— Aucun —</option>{users.map(u => <option key={u.id} value={u.id}>{u.name} ({u.email})</option>)}</select>
@@ -143,5 +156,60 @@ export default function EmployeeForm({ employee, onClose, onSaved }) {
       </form>
       {change && <ChangePositionModal d={{ employee, user: (meta?.users || []).find(u => u.id === employee.user_id) || null }} onClose={() => setChange(false)} onSaved={() => { setChange(false); onSaved(); }} />}
     </Modal>
+  );
+}
+
+const ID_TYPES = { 'application/pdf': 'PDF', 'image/png': 'PNG', 'image/jpeg': 'JPG' };
+const ID_MAX = 10 * 1024 * 1024;
+
+/**
+ * Pièce d'identité, recto et verso (demande du client du 02/11) : PDF, PNG ou JPG, une pièce par face, envoyée à
+ * l'enregistrement de la fiche. Dépôt : « Joindre et supprimer des pièces » ; consultation : « Voir les pièces du dossier ».
+ */
+function IdentityFiles({ employeeId, files, onPick }) {
+  const { can } = useAuth();
+  const toast = useToast();
+  const write = can('rh:documents_write');
+  const current = useResource(employeeId ? `${RH}/employees/${employeeId}/identity` : null);
+  const [error, setError] = useState(null);
+  const saved = current.data;
+  if (!write && !saved) return null;
+  const pick = side => e => {
+    const file = e.target.files?.[0] || null;
+    setError(null);
+    if (file && !ID_TYPES[file.type]) { setError('Pièce d’identité : choisissez un PDF, un PNG ou un JPG.'); e.target.value = ''; return; }
+    if (file && file.size > ID_MAX) { setError('Fichier trop lourd : 10 Mo au plus.'); e.target.value = ''; return; }
+    onPick(side, file);
+  };
+  const remove = async side => {
+    if (!window.confirm(`Retirer le ${side} de la pièce d’identité du dossier ?`)) return;
+    try { current.setData({ ...saved, ...(await api.del(`${RH}/employees/${employeeId}/identity/${side}`)) }); toast('Pièce retirée'); } catch (err) { toast(err.message, 'err'); }
+  };
+  return (
+    <div className="full stack" style={{ gap: 8 }}>
+      <span className="small" style={{ fontWeight: 500 }}>Pièce d’identité (CNI, passeport…) — PDF, PNG ou JPG, 10 Mo au plus</span>
+      <div className="form-grid">
+        {['recto', 'verso'].map(side => {
+          const doc = saved?.[side];
+          return (
+            <div key={side} className="stack" style={{ gap: 6 }}>
+              <span className="small muted">{side === 'recto' ? 'Recto' : 'Verso'}</span>
+              {doc && (
+                <div className="row small" style={{ gap: 8, flexWrap: 'wrap' }}>
+                  <FileText className="ico" aria-hidden="true" />
+                  {saved.can_view ? <a className="link" href={doc.url} target="_blank" rel="noreferrer">{doc.original_name || `Pièce (${side})`}</a> : <span>{doc.original_name || 'Pièce déposée'}</span>}
+                  <span className="muted">déposée le {date(doc.uploaded_at)}</span>
+                  {write && <button type="button" className="btn btn-ghost btn-icon btn-sm" onClick={() => remove(side)} aria-label={`Retirer le ${side}`}><Trash2 /></button>}
+                </div>
+              )}
+              {write && <input className="input" type="file" accept=".pdf,.png,.jpg,.jpeg,application/pdf,image/png,image/jpeg" onChange={pick(side)} aria-label={`Pièce d’identité, ${side}`} />}
+              {files[side] && <span className="small muted">{doc ? 'Remplacera la pièce actuelle' : 'Sera envoyée'} à l’enregistrement : {files[side].name}</span>}
+            </div>
+          );
+        })}
+      </div>
+      {error && <span className="small" style={{ color: 'var(--danger)' }}>{error}</span>}
+      {!write && <span className="small muted">Dépôt réservé au droit « Joindre et supprimer des pièces ».</span>}
+    </div>
   );
 }

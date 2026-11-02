@@ -136,7 +136,7 @@ const LEAVE_STATUSES = {
 const LEAVE_ACTIVE = ['en_attente', 'approuve_manager', 'approuvee'];
 
 const DOCUMENT_KINDS = {
-  contrat: 'Contrat de travail', avenant: 'Avenant', cni: 'Pièce d’identité', titre_sejour: 'Titre de séjour / permis de travail',
+  contrat: 'Contrat de travail', avenant: 'Avenant', cni: 'Pièce d’identité', cni_recto: 'Pièce d’identité (recto)', cni_verso: 'Pièce d’identité (verso)', titre_sejour: 'Titre de séjour / permis de travail',
   diplome: 'Diplôme, certificat', cv: 'CV', certificat_medical: 'Certificat médical', attestation: 'Attestation', sanction: 'Courrier disciplinaire', autre: 'Autre',
 };
 const CAREER_EVENTS = {

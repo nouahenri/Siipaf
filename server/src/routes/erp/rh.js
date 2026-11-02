@@ -375,6 +375,45 @@ module.exports = function rhRoutes(db) {
     res.status(201).json(await saveDocument(req, e.id));
   }));
 
+  // ─── Pièce d'identité, recto et verso (fiche employé ; demande du client du 02/11) ──
+  // Une pièce par face, remplacée au nouvel envoi ; PDF, PNG ou JPG. Consultation : « Voir les pièces du dossier » (route des documents)
+  const SIDES = { recto: 'cni_recto', verso: 'cni_verso' };
+  const identityOf = async employeeId => {
+    const rows = await db('hr_documents').where({ employee_id: employeeId }).whereIn('kind', Object.values(SIDES)).orderBy('id', 'desc');
+    const pick = kind => {
+      const d = rows.find(x => x.kind === kind);
+      return d ? { id: d.id, original_name: d.original_name, mime: d.mime, size: d.size, uploaded_at: d.created_at, url: `/api/admin/erp/rh/documents/${d.id}/file` } : null;
+    };
+    return { recto: pick(SIDES.recto), verso: pick(SIDES.verso) };
+  };
+  const removeIdentity = async (employeeId, kind) => {
+    for (const d of await db('hr_documents').where({ employee_id: employeeId, kind })) {
+      await db('hr_documents').where({ id: d.id }).del();
+      await fs.promises.unlink(path.join(rh.hrFilesDir, path.basename(d.filename))).catch(() => {});
+    }
+  };
+  r.get('/employees/:id/identity', requirePermission('rh:files', 'paie:employees', 'rh:documents', 'rh:documents_write'), ah(async (req, res) => {
+    const e = await rh.getEmployee(db, idParam(req));
+    res.json({ ...(await identityOf(e.id)), can_view: canSeeDocuments(req, e), can_write: req.can('rh:documents_write') });
+  }));
+  r.put('/employees/:id/identity/:side(recto|verso)', requirePermission('rh:documents_write'), rh.identityUpload(), ah(async (req, res) => {
+    const drop = () => (req.file ? fs.promises.unlink(req.file.path).catch(() => {}) : null);
+    const e = await rh.getEmployee(db, idParam(req)).catch(async err => { await drop(); throw err; });
+    if (!req.file) throw new HttpError(400, 'Aucun fichier reçu.');
+    const kind = SIDES[req.params.side];
+    await removeIdentity(e.id, kind);
+    await db('hr_documents').insert({
+      employee_id: e.id, kind, label: DOCUMENT_KINDS[kind], filename: req.file.filename, original_name: req.file.originalname.slice(0, 255),
+      mime: req.file.mimetype, size: req.file.size, uploaded_by: req.user.id,
+    });
+    res.json(await identityOf(e.id));
+  }));
+  r.delete('/employees/:id/identity/:side(recto|verso)', requirePermission('rh:documents_write'), ah(async (req, res) => {
+    const e = await rh.getEmployee(db, idParam(req));
+    await removeIdentity(e.id, SIDES[req.params.side]);
+    res.json(await identityOf(e.id));
+  }));
+
   r.get('/documents/:id/file', ah(async (req, res) => {
     const d = await db('hr_documents').where({ id: idParam(req) }).first();
     if (!d) throw new HttpError(404, 'Document introuvable.');
