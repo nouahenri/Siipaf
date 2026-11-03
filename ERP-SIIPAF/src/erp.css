@@ -40,6 +40,14 @@
   .report-kpi, .report-section tr { break-inside: avoid; }
   .report-section h3 { break-after: avoid; }
 }
+/* Liste du personnel imprimée : A4 paysage, police réduite (12 colonnes) */
+@page staff-list { size: A4 landscape; margin: 10mm; }
+@media print {
+  .staff-print { page: staff-list; }
+  .staff-print .table { font-size: 10px; }
+  .staff-print .table th, .staff-print .table td { padding: 4px 6px; }
+  .staff-print .table tr { break-inside: avoid; }
+}
 
 .sidebar-logo { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 6px 16px; align-items: center; flex-shrink: 0; }
 .sidebar-logo img { justify-self: start; }

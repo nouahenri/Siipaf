@@ -3,8 +3,8 @@
  * (titre, période, indicateurs) puis une feuille par tableau de détail. Nombres et dates en vraies cellules Excel (triables,
  * calculables). Rapport : { title, period: { from, to, label }, generated_at, generated_by, summary, sections } (serveur : services/rapports).
  */
-const NUMBER_FORMATS = { fcfa: '#,##0 "FCFA"', number: '#,##0', percent: '0.0 "%"', date: 'dd/mm/yyyy' };
-const WIDTHS = { fcfa: 16, number: 10, percent: 10, date: 12 };
+const NUMBER_FORMATS = { fcfa: '#,##0 "FCFA"', number: '#,##0', decimal: '#,##0.00', percent: '0.0 "%"', date: 'dd/mm/yyyy' };
+const WIDTHS = { fcfa: 16, number: 10, decimal: 10, percent: 10, date: 12 };
 
 /** Cellule typée selon le format de la colonne. */
 function cell(value, format) {
@@ -34,7 +34,7 @@ function fromRows(XLSX, rows, widths) {
   return ws;
 }
 
-/** Télécharge le classeur du rapport (nom : rapport-<module>-<du>-<au>.xlsx). */
+/** Télécharge le classeur du rapport (nom : `report.filename`, sinon rapport-<module>-<du>-<au>.xlsx). */
 export async function downloadReportExcel(report) {
   const XLSX = await import('xlsx');
   const wb = XLSX.utils.book_new();
@@ -52,5 +52,5 @@ export async function downloadReportExcel(report) {
     const widths = s.columns.map(c => Math.min(48, Math.max(WIDTHS[c.format] || 12, String(c.label).length + 2, ...s.rows.slice(0, 200).map(r => String(r[c.key] ?? '').length + 2))));
     XLSX.utils.book_append_sheet(wb, fromRows(XLSX, rows, widths), sheetName(s.title, used));
   }
-  XLSX.writeFile(wb, `rapport-${report.module}-${report.period.from}-${report.period.to}.xlsx`, { cellDates: true });
+  XLSX.writeFile(wb, report.filename || `rapport-${report.module}-${report.period.from}-${report.period.to}.xlsx`, { cellDates: true });
 }
