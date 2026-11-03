@@ -47,3 +47,20 @@ test('droits : dépôt réservé à « Joindre et supprimer des pièces » ; ret
   assert.equal(res.body.verso, null);
   assert.ok(res.body.recto, 'le recto reste');
 });
+
+test('type de pièce et fichier unique : un seul fichier remplace recto et verso, et inversement', async () => {
+  let res = await expl.patch(`${R}/employees/${employee.id}`).send({ id_type: 'passeport', id_number: 'P1234567' });
+  assert.equal(res.status, 200, JSON.stringify(res.body));
+  assert.equal((await db('employees').where({ id: employee.id }).first()).id_type, 'passeport');
+  assert.equal((await expl.patch(`${R}/employees/${employee.id}`).send({ id_type: 'carte_bancaire' })).status, 400, 'type inconnu');
+  assert.equal((await expl.get('/api/admin/erp/paie/meta')).body.id_types.passeport.single, true);
+  const put = (side, buf, name, type) => expl.put(`${R}/employees/${employee.id}/identity/${side}`).attach('file', buf, { filename: name, contentType: type });
+  res = await put('complet', pdf, 'passeport.pdf', 'application/pdf');
+  assert.equal(res.status, 200, JSON.stringify(res.body));
+  assert.equal(res.body.complet.original_name, 'passeport.pdf');
+  assert.equal(res.body.recto, null, 'le fichier unique remplace le recto');
+  res = await put('verso', png, 'verso.png', 'image/png');
+  assert.equal(res.body.complet, null, 'une face séparée remplace le fichier unique');
+  assert.equal(res.body.verso.original_name, 'verso.png');
+  assert.equal((await db('hr_documents').where({ employee_id: employee.id }).whereIn('kind', ['cni_complet', 'cni_recto', 'cni_verso'])).length, 1);
+});

@@ -7,7 +7,7 @@
 const { z } = require('../lib/zod');
 const { HttpError } = require('../lib/http');
 const { ensureNotAbove } = require('./permissions');
-const { CONTRACT_TYPES, DEPARTMENTS, MARITAL, PAY_METHODS } = require('../lib/paie');
+const { CONTRACT_TYPES, DEPARTMENTS, MARITAL, PAY_METHODS, ID_TYPES } = require('../lib/paie');
 const rh = require('./rh');
 const positions = require('./positions');
 const departures = require('./departures');
@@ -21,7 +21,7 @@ const employeeSchema = z.object({
   last_name: z.string().trim().min(1).max(80), first_name: z.string().trim().min(1).max(80), gender: z.enum(['F', 'M']).optional().nullable(),
   birth_date: day.optional().nullable(), birth_place: optText(80), nationality: optText(60), expatriate: z.boolean().optional(), phone: optText(40),
   email: z.string().trim().toLowerCase().email().optional().nullable().or(z.literal('').transform(() => null)), address: optText(255),
-  id_number: optText(60), cnps_number: optText(40), emergency_contact: optText(160),
+  id_type: z.enum(Object.keys(ID_TYPES)).optional().nullable(), id_number: optText(60), cnps_number: optText(40), emergency_contact: optText(160),
   marital_status: z.enum(Object.keys(MARITAL)).optional(), children: z.number().int().min(0).max(20).optional(),
   tax_parts: z.number().min(1).max(5).multipleOf(0.5).optional().nullable(), job_title: z.string().trim().min(2).max(120),
   position_id: z.number().int().positive().optional().nullable(),

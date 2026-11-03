@@ -3,7 +3,7 @@ const express = require('express');
 const { z } = require('../../lib/zod');
 const { ah, parse, idParam, HttpError, isoDay } = require('../../lib/http');
 const { requirePermission } = require('../../auth');
-const { CONTRACT_TYPES, DEPARTMENTS, MARITAL, PAY_METHODS, DEFAULT_PAYROLL } = require('../../lib/paie');
+const { CONTRACT_TYPES, DEPARTMENTS, MARITAL, PAY_METHODS, DEFAULT_PAYROLL, ID_TYPES } = require('../../lib/paie');
 const paie = require('../../services/paie');
 const employees = require('../../services/employees');
 const rh = require('../../services/rh');
@@ -20,7 +20,7 @@ module.exports = function paieRoutes(db) {
 
   r.get('/meta', seeStaff, ah(async (req, res) => {
     res.json({
-      contract_types: CONTRACT_TYPES, departments: DEPARTMENTS, marital: MARITAL, pay_methods: PAY_METHODS,
+      contract_types: CONTRACT_TYPES, departments: DEPARTMENTS, marital: MARITAL, pay_methods: PAY_METHODS, id_types: ID_TYPES,
       settings: req.can('paie:read') ? await paie.getSettings(db) : null, defaults: req.can('paie:read') ? DEFAULT_PAYROLL : null,
       projects: await db('projects').orderBy('name').select('id', 'name'),
       users: await db('users as u').leftJoin('employees as e', 'e.user_id', 'u.id').where('u.active', true).orderBy('u.name').select('u.id', 'u.name', 'u.email', 'u.role', 'e.id as employee_id'),

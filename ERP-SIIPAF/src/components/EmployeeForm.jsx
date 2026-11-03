@@ -19,7 +19,7 @@ const LEAVE = ['leave_opening_days', 'leave_opening_date'];
 const NUMBERS = ['children', 'tax_parts', 'base_salary', 'housing_allowance', 'transport_allowance', 'other_allowance', 'site_hourly_rate', 'accident_rate', 'project_id', 'user_id', 'position_id', 'manager_id', 'leave_opening_days'];
 const BLANK = {
   last_name: '', first_name: '', gender: '', birth_date: '', birth_place: '', nationality: 'Ivoirienne', expatriate: false, phone: '', email: '', address: '',
-  id_number: '', cnps_number: '', emergency_contact: '', user_id: '',
+  id_type: '', id_number: '', cnps_number: '', emergency_contact: '', user_id: '',
   job_title: '', position_id: '', department: 'administratif', category: '', contract_type: 'cdi', hire_date: new Date().toISOString().slice(0, 10), trial_end_date: '', end_date: '',
   manager_id: '', project_id: '', active: true, leave_opening_days: '', leave_opening_date: '',
   marital_status: 'celibataire', children: 0, tax_parts: '',
@@ -41,7 +41,7 @@ export default function EmployeeForm({ employee, onClose, onSaved }) {
   const [f, setF] = useState(initial);
   const [error, setError] = useState(null);
   const [change, setChange] = useState(false);
-  const [idFiles, setIdFiles] = useState({ recto: null, verso: null }); // pièce d'identité à envoyer à l'enregistrement
+  const [idFiles, setIdFiles] = useState({ complet: null, recto: null, verso: null }); // pièce d'identité à envoyer à l'enregistrement
   const set = k => e => setF(x => ({ ...x, [k]: e.target.type === 'checkbox' ? e.target.checked : e.target.value }));
   const suggested = Math.min(5, 1 + (f.marital_status === 'marie' ? 1 : 0) + 0.5 * (Number(f.children) || 0));
   const save = async e => {
@@ -54,7 +54,7 @@ export default function EmployeeForm({ employee, onClose, onSaved }) {
       body[k] = NUMBERS.includes(k) ? (v === '' || v == null ? null : Number(v)) : typeof v === 'string' && v === '' ? null : v;
     }
     for (const k of ['children', 'housing_allowance', 'transport_allowance', 'other_allowance', 'base_salary']) if (k in body) body[k] = body[k] ?? 0;
-    const sides = ['recto', 'verso'].filter(s => idFiles[s]);
+    const sides = ['complet', 'recto', 'verso'].filter(s => idFiles[s]);
     if (!isNew && !Object.keys(body).length && !sides.length) { onClose(); return; }
     if (!body.position_id) delete body.position_id;
     if (isNew) delete body.active;
@@ -93,9 +93,10 @@ export default function EmployeeForm({ employee, onClose, onSaved }) {
           <Field label="Téléphone"><input className="input" value={f.phone} onChange={set('phone')} /></Field>
           <Field label="E-mail"><input className="input" type="email" value={f.email} onChange={set('email')} /></Field>
           <Field label="Adresse" className="full"><input className="input" value={f.address} onChange={set('address')} /></Field>
-          <Field label="N° CNI / passeport"><input className="input" value={f.id_number} onChange={set('id_number')} /></Field>
+          <Field label="Type de pièce d’identité"><select className="select" value={f.id_type} onChange={set('id_type')}><option value="">—</option>{meta && Object.entries(meta.id_types || {}).map(([k, t]) => <option key={k} value={k}>{t.label}</option>)}</select></Field>
+          <Field label={meta?.id_types?.[f.id_type]?.number || 'N° de la pièce d’identité'}><input className="input" value={f.id_number} onChange={set('id_number')} /></Field>
           <Field label="N° CNPS"><input className="input" value={f.cnps_number} onChange={set('cnps_number')} /></Field>
-          <IdentityFiles employeeId={employee.id} files={idFiles} onPick={(side, file) => setIdFiles(x => ({ ...x, [side]: file }))} />
+          <IdentityFiles employeeId={employee.id} idType={f.id_type} idTypes={meta?.id_types} files={idFiles} onPick={(side, file) => setIdFiles(x => ({ ...x, [side]: file }))} />
           <Field label="Contact en cas d’urgence"><input className="input" value={f.emergency_contact} onChange={set('emergency_contact')} placeholder="Nom, lien, téléphone" /></Field>
           <Field label="Compte du dashboard" hint={canLink ? 'Relie la fiche au compte de connexion de la même personne' : 'Réservé au droit « Modifier un compte »'}>
             <select className="select" disabled={!canLink} value={f.user_id || ''} onChange={set('user_id')}><option value="">— Aucun —</option>{users.map(u => <option key={u.id} value={u.id}>{u.name} ({u.email})</option>)}</select>
@@ -159,55 +160,72 @@ export default function EmployeeForm({ employee, onClose, onSaved }) {
   );
 }
 
-const ID_TYPES = { 'application/pdf': 'PDF', 'image/png': 'PNG', 'image/jpeg': 'JPG' };
+const ID_FILE_TYPES = { 'application/pdf': 'PDF', 'image/png': 'PNG', 'image/jpeg': 'JPG' };
 const ID_MAX = 10 * 1024 * 1024;
+const ID_SLOTS = { un: [['complet', 'Recto et verso (un seul fichier)']], deux: [['recto', 'Recto'], ['verso', 'Verso']] };
+const SIDE_NAMES = { complet: 'la pièce', recto: 'le recto', verso: 'le verso' };
 
 /**
- * Pièce d'identité, recto et verso (demande du client du 02/11) : PDF, PNG ou JPG, une pièce par face, envoyée à
- * l'enregistrement de la fiche. Dépôt : « Joindre et supprimer des pièces » ; consultation : « Voir les pièces du dossier ».
+ * Pièce d'identité (demandes du client des 02 et 03/11) : PDF, PNG ou JPG, en un seul fichier (recto et verso dans le même
+ * fichier, ou page unique du passeport) ou en deux fichiers (recto, verso) ; envoyée à l'enregistrement de la fiche, une forme
+ * remplace l'autre. Dépôt : « Joindre et supprimer des pièces » ; consultation : « Voir les pièces du dossier ».
  */
-function IdentityFiles({ employeeId, files, onPick }) {
+function IdentityFiles({ employeeId, idType, idTypes, files, onPick }) {
   const { can } = useAuth();
   const toast = useToast();
   const write = can('rh:documents_write');
   const current = useResource(employeeId ? `${RH}/employees/${employeeId}/identity` : null);
   const [error, setError] = useState(null);
+  const [chosen, setChosen] = useState(null);
   const saved = current.data;
   if (!write && !saved) return null;
+  // Forme : celle déjà déposée, sinon celle d'usage pour le type de pièce (passeport, attestation : un seul fichier)
+  const mode = chosen || (saved?.complet ? 'un' : saved?.recto || saved?.verso ? 'deux' : idTypes?.[idType]?.single ? 'un' : 'deux');
+  const setMode = m => { setChosen(m); for (const [side] of ID_SLOTS[m === 'un' ? 'deux' : 'un']) onPick(side, null); };
   const pick = side => e => {
     const file = e.target.files?.[0] || null;
     setError(null);
-    if (file && !ID_TYPES[file.type]) { setError('Pièce d’identité : choisissez un PDF, un PNG ou un JPG.'); e.target.value = ''; return; }
+    if (file && !ID_FILE_TYPES[file.type]) { setError('Pièce d’identité : choisissez un PDF, un PNG ou un JPG.'); e.target.value = ''; return; }
     if (file && file.size > ID_MAX) { setError('Fichier trop lourd : 10 Mo au plus.'); e.target.value = ''; return; }
     onPick(side, file);
   };
   const remove = async side => {
-    if (!window.confirm(`Retirer le ${side} de la pièce d’identité du dossier ?`)) return;
+    if (!window.confirm(`Retirer ${SIDE_NAMES[side]} de la pièce d’identité du dossier ?`)) return;
     try { current.setData({ ...saved, ...(await api.del(`${RH}/employees/${employeeId}/identity/${side}`)) }); toast('Pièce retirée'); } catch (err) { toast(err.message, 'err'); }
   };
+  const other = mode === 'un' ? (saved?.recto || saved?.verso) : saved?.complet;
   return (
     <div className="full stack" style={{ gap: 8 }}>
-      <span className="small" style={{ fontWeight: 500 }}>Pièce d’identité (CNI, passeport…) — PDF, PNG ou JPG, 10 Mo au plus</span>
+      <div className="row-between" style={{ flexWrap: 'wrap', gap: 8 }}>
+        <span className="small" style={{ fontWeight: 500 }}>Fichier de la pièce d’identité — PDF, PNG ou JPG, 10 Mo au plus</span>
+        {write && (
+          <div className="seg" role="group" aria-label="Forme du fichier">
+            <button type="button" className={mode === 'un' ? 'active' : ''} onClick={() => setMode('un')}>Un seul fichier</button>
+            <button type="button" className={mode === 'deux' ? 'active' : ''} onClick={() => setMode('deux')}>Recto et verso séparés</button>
+          </div>
+        )}
+      </div>
       <div className="form-grid">
-        {['recto', 'verso'].map(side => {
+        {ID_SLOTS[mode].map(([side, label]) => {
           const doc = saved?.[side];
           return (
-            <div key={side} className="stack" style={{ gap: 6 }}>
-              <span className="small muted">{side === 'recto' ? 'Recto' : 'Verso'}</span>
+            <div key={side} className={`stack ${mode === 'un' ? 'full' : ''}`} style={{ gap: 6 }}>
+              <span className="small muted">{label}</span>
               {doc && (
                 <div className="row small" style={{ gap: 8, flexWrap: 'wrap' }}>
                   <FileText className="ico" aria-hidden="true" />
-                  {saved.can_view ? <a className="link" href={doc.url} target="_blank" rel="noreferrer">{doc.original_name || `Pièce (${side})`}</a> : <span>{doc.original_name || 'Pièce déposée'}</span>}
+                  {saved.can_view ? <a className="link" href={doc.url} target="_blank" rel="noreferrer">{doc.original_name || 'Pièce déposée'}</a> : <span>{doc.original_name || 'Pièce déposée'}</span>}
                   <span className="muted">déposée le {date(doc.uploaded_at)}</span>
-                  {write && <button type="button" className="btn btn-ghost btn-icon btn-sm" onClick={() => remove(side)} aria-label={`Retirer le ${side}`}><Trash2 /></button>}
+                  {write && <button type="button" className="btn btn-ghost btn-icon btn-sm" onClick={() => remove(side)} aria-label={`Retirer ${SIDE_NAMES[side]}`}><Trash2 /></button>}
                 </div>
               )}
-              {write && <input className="input" type="file" accept=".pdf,.png,.jpg,.jpeg,application/pdf,image/png,image/jpeg" onChange={pick(side)} aria-label={`Pièce d’identité, ${side}`} />}
-              {files[side] && <span className="small muted">{doc ? 'Remplacera la pièce actuelle' : 'Sera envoyée'} à l’enregistrement : {files[side].name}</span>}
+              {write && <input className="input" type="file" accept=".pdf,.png,.jpg,.jpeg,application/pdf,image/png,image/jpeg" onChange={pick(side)} aria-label={`Pièce d’identité, ${label.toLowerCase()}`} />}
+              {files[side] && <span className="small muted">{doc || other ? 'Remplacera la pièce actuelle' : 'Sera envoyée'} à l’enregistrement : {files[side].name}</span>}
             </div>
           );
         })}
       </div>
+      {other && write && <span className="small muted">Une pièce est déjà déposée sous l’autre forme ({mode === 'un' ? 'recto et verso séparés' : 'un seul fichier'}) : un nouvel envoi la remplacera.</span>}
       {error && <span className="small" style={{ color: 'var(--danger)' }}>{error}</span>}
       {!write && <span className="small muted">Dépôt réservé au droit « Joindre et supprimer des pièces ».</span>}
     </div>

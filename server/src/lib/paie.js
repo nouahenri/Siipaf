@@ -23,6 +23,13 @@ const DEFAULT_PAYROLL = {
   },
 };
 
+// Pièce d'identité de l'employé (demande du client du 03/11) ; single : d'ordinaire un seul fichier (recto et verso, ou page unique)
+const ID_TYPES = {
+  cni: { label: 'CNI (carte nationale d’identité)', number: 'N° de la CNI' }, passeport: { label: 'Passeport', number: 'N° du passeport', single: true },
+  permis: { label: 'Permis de conduire', number: 'N° du permis' }, carte_consulaire: { label: 'Carte consulaire', number: 'N° de la carte consulaire' },
+  titre_sejour: { label: 'Titre de séjour / carte de résident', number: 'N° du titre de séjour' }, attestation: { label: 'Attestation d’identité', number: 'N° de l’attestation', single: true },
+  autre: { label: 'Autre pièce', number: 'N° de la pièce' },
+};
 const CONTRACT_TYPES = { cdi: 'CDI', cdd: 'CDD', chantier: 'Contrat de chantier', stage: 'Stage', interim: 'Intérim', journalier: 'Journalier' };
 const DEPARTMENTS = { direction: 'Direction', commercial: 'Commercial', technique: 'Technique / bureau d’études', chantier: 'Chantier', administratif: 'Administratif', comptabilite: 'Comptabilité', juridique: 'Juridique', rh: 'Ressources humaines', sav: 'Client & SAV' };
 const MARITAL = { celibataire: 'Célibataire', marie: 'Marié(e)', divorce: 'Divorcé(e)', veuf: 'Veuf / veuve' };
@@ -125,4 +132,4 @@ function checkPayroll(s) {
   return [...new Set(errors)];
 }
 
-module.exports = { DEFAULT_PAYROLL, CONTRACT_TYPES, DEPARTMENTS, MARITAL, PAY_METHODS, suggestedParts, computeIts, computePayslip, checkPayroll };
+module.exports = { DEFAULT_PAYROLL, ID_TYPES, CONTRACT_TYPES, DEPARTMENTS, MARITAL, PAY_METHODS, suggestedParts, computeIts, computePayslip, checkPayroll };

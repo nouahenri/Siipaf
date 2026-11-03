@@ -27,7 +27,7 @@ export default function ForcePassword() {
         <div className="row" style={{ gap: 10 }}><KeyRound aria-hidden="true" /><h1 style={{ fontSize: 20 }}>Choisissez votre mot de passe</h1></div>
         <p className="small muted">Bonjour {user.name}. Votre compte a un mot de passe provisoire : remplacez-le par un mot de passe connu de vous seul pour continuer.</p>
         <ErrorBox error={error} />
-        <Field label="Mot de passe provisoire"><PasswordInput autoComplete="current-password" required value={form.current} onChange={set('current')} autoFocus /></Field>
+        <Field label="Mot de passe provisoire fourni par le service RH ou l’administrateur"><PasswordInput autoComplete="current-password" required value={form.current} onChange={set('current')} autoFocus /></Field>
         <Field label="Nouveau mot de passe" hint="10 caractères minimum."><PasswordInput autoComplete="new-password" required minLength={10} value={form.next} onChange={set('next')} /></Field>
         <Field label="Confirmer"><PasswordInput autoComplete="new-password" required value={form.confirm} onChange={set('confirm')} /></Field>
         <button className="btn btn-primary" disabled={busy}>Enregistrer et continuer</button>
