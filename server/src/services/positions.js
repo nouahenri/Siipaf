@@ -7,6 +7,7 @@
 const { HttpError, isoDay, isoTime, json } = require('../lib/http');
 const { POSITION_CHANGE_REASONS, CAREER_EVENTS } = require('../lib/rh');
 const { DEPARTMENTS } = require('../lib/paie');
+const { DIRECTIONS, directionOf } = require('../lib/org');
 const { requireRole } = require('./roles');
 const { inform } = require('./notifications');
 
@@ -19,6 +20,7 @@ async function list(db, { all = true } = {}) {
   const counts = await db('employees').where({ active: true }).whereNotNull('position_id').groupBy('position_id').select('position_id').count({ n: '*' });
   return rows.map(p => ({
     ...p, active: !!p.active, department_label: DEPARTMENTS[p.department] || p.department,
+    direction_label: DIRECTIONS[directionOf(p.department)] || null,
     employees: Number(counts.find(c => c.position_id === p.id)?.n || 0),
   }));
 }

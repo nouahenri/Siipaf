@@ -68,6 +68,13 @@ const servicesOf = directionKey => {
   const d = state.units.find(u => u.kind === 'direction' && u.key === directionKey);
   return d ? state.units.filter(u => u.kind === 'service' && u.parent_id === d.id).map(u => u.key) : [];
 };
+/** Direction d'un service (clé de la direction), sinon null. */
+const directionOf = serviceKey => {
+  const s = state.units.find(u => u.kind === 'service' && u.key === serviceKey);
+  return (s && state.units.find(u => u.kind === 'direction' && u.id === s.parent_id)?.key) || null;
+};
+/** { clé du service: clé de sa direction } pour les services rattachés à une direction. */
+const departmentDirections = () => Object.fromEntries(state.units.filter(u => u.kind === 'service').map(s => [s.key, directionOf(s.key)]).filter(([, d]) => d));
 const units = () => state.units;
 
-module.exports = { DEPARTMENTS, DIRECTIONS, ERP_MODULES, departmentKey, isActiveDepartment, moduleOf, moduleDepartments, servicesOf, units, load, ensure };
+module.exports = { DEPARTMENTS, DIRECTIONS, ERP_MODULES, departmentKey, isActiveDepartment, moduleOf, moduleDepartments, servicesOf, directionOf, departmentDirections, units, load, ensure };

@@ -74,3 +74,63 @@ test('archiver, fusionner, supprimer', async () => {
   assert.ok((await expl.get(O)).body.directions.find(d => d.id === daf.id).services.some(s => s.key === 'juridique'));
   assert.equal((await admin.post(`${O}/${daf.id}/merge`).send({ into: compta.id })).status, 400, 'direction dans un service : refusé');
 });
+
+// Demande du client du 03/11 (suite) : glisser-déposer, panneau du personnel, réaffectation tracée, suppression avec reprise
+test('glisser-déposer : un service passe sous une autre direction et l’ordre est gardé', async () => {
+  const list = (await expl.get(O)).body;
+  const [first, second] = list.directions;
+  const svc = all(list).find(s => s.key === 'sav');
+  const items = [second, first, ...list.directions.slice(2)].map(d => ({ id: d.id, direction_id: null }))
+    .concat({ id: svc.id, direction_id: first.id }, ...all(list).filter(s => s.id !== svc.id).map(s => ({ id: s.id, direction_id: s.direction_id })));
+  const res = await expl.put(`${O}/order`).send({ items });
+  assert.equal(res.status, 200, JSON.stringify(res.body));
+  assert.deepEqual(res.body.directions.slice(0, 2).map(d => d.id), [second.id, first.id]);
+  assert.equal(res.body.directions.find(d => d.id === first.id).services[0].key, 'sav', 'rangé en tête de la direction');
+  assert.equal((await expl.put(`${O}/order`).send({ items: [{ id: first.id, direction_id: second.id }] })).status, 400, 'une direction ne va pas sous une autre');
+  assert.equal((await commercial.put(`${O}/order`).send({ items })).status, 403);
+  // Fiche poste : la direction se lit d'après le service
+  assert.equal((await expl.get(`${R}/meta`)).body.department_directions.sav, first.key);
+});
+
+test('réaffecter le personnel puis supprimer le service avec un service de reprise', async () => {
+  const list = (await expl.get(O)).body;
+  const daf = list.directions.find(d => d.label.startsWith('Direction administrative'));
+  let res = await expl.post(O).send({ kind: 'service', label: 'Logistique', direction_id: daf.id });
+  const logi = all(res.body).find(s => s.label === 'Logistique');
+  const add = (m, last, user_id) => expl.post(`${R}/employees`).send({ matricule: m, last_name: last, first_name: 'Test', job_title: 'Magasinier', department: logi.key, hire_date: '2026-11-01', user_id });
+  const yao = (await db('users').where({ email: await createUser(db, 'commercial', 'yao@test.ci') }).first('id')).id;
+  const a = (await add('LG-001', 'Yao', yao)).body, b = (await add('LG-002', 'Kone')).body;
+  assert.ok(a.id && b.id, 'fiches créées');
+  const panel = await expl.get(`${O}/${logi.id}`);
+  assert.equal(panel.status, 200);
+  assert.deepEqual(panel.body.employees.map(e => e.matricule).sort(), ['LG-001', 'LG-002']);
+  assert.equal((await commercial.get(`${O}/${logi.id}`)).status, 403, 'personnel : privilège Directions et services');
+  // Encore du personnel : suppression refusée
+  assert.equal((await expl.delete(`${O}/${logi.id}`)).status, 409);
+  res = await expl.post(`${O}/reassign`).send({ employee_ids: [a.id], department: 'rh' });
+  assert.equal(res.status, 200, JSON.stringify(res.body));
+  assert.equal(res.body.moved, 1);
+  const event = await db('hr_career_events').where({ employee_id: a.id, kind: 'mutation' }).first();
+  assert.ok(event, 'inscrit dans l’historique de carrière');
+  assert.deepEqual(JSON.parse(event.details).department, { from: logi.key, to: 'rh' });
+  assert.ok(await db('notifications').where({ event: 'rh.service', user_id: yao }).first(), 'employé prévenu');
+  assert.equal((await expl.post(`${O}/reassign`).send({ employee_ids: [b.id], department: 'inconnu' })).status, 400);
+  await expl.post(`${O}/reassign`).send({ employee_ids: [b.id], department: 'administratif' });
+  // Plus de personnel actif : le reste (postes, historique) va au service de reprise
+  assert.equal((await expl.delete(`${O}/${logi.id}`)).status, 400, 'service de reprise exigé');
+  const compta = all(list).find(s => s.key === 'comptabilite');
+  assert.equal((await expl.delete(`${O}/${logi.id}?into=${compta.id}`)).status, 200);
+  assert.ok(!(await db('org_units').where({ key: logi.key }).first()));
+  assert.equal(await db('hr_positions').where({ department: logi.key }).first(), undefined, 'postes repris');
+});
+
+test('supprimer une direction : ses services passent à la direction choisie', async () => {
+  let res = await expl.post(O).send({ kind: 'direction', label: 'Direction des opérations' });
+  const ops = res.body.directions.find(d => d.label === 'Direction des opérations');
+  res = await expl.post(O).send({ kind: 'service', label: 'Atelier', direction_id: ops.id });
+  const target = res.body.directions.find(d => d.id !== ops.id);
+  assert.equal((await expl.delete(`${O}/${ops.id}?into=${target.id}`)).status, 200);
+  const after = (await expl.get(O)).body;
+  assert.ok(!after.directions.some(d => d.id === ops.id));
+  assert.ok(after.directions.find(d => d.id === target.id).services.some(s => s.label === 'Atelier'));
+});

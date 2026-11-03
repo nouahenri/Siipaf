@@ -7,6 +7,9 @@
  */
 const { HttpError, json } = require('../lib/http');
 const org = require('../lib/org');
+const rh = require('./rh');
+const kpi = require('./kpi');
+const { inform } = require('./notifications');
 
 const insertedId = r => (typeof r === 'object' ? r.id : r);
 
@@ -139,16 +142,97 @@ async function merge(db, id, intoId) {
   await org.load(db);
 }
 
-/** Suppression : seulement ce qui n'a jamais servi (sinon archiver ou fusionner). */
-async function remove(db, id) {
+/**
+ * Suppression (demande du client du 03/11). Direction : ses services passent à la direction choisie (`into`) ou restent sans
+ * direction. Service jamais utilisé : supprimé. Service qui a servi : son personnel actif est d'abord réaffecté (panneau du
+ * service, `reassign`) ; le reste (postes, fiches des anciens employés, courrier, demandes, objectifs) passe au service de
+ * reprise `into`, comme une fusion.
+ */
+async function remove(db, id, { into = null } = {}) {
   const u = await get(db, id);
-  if (u.kind === 'direction' && await db('org_units').where({ parent_id: u.id }).first('id')) throw new HttpError(409, 'Cette direction regroupe des services : déplacez-les, archivez-la ou fusionnez-la.');
-  if (u.kind === 'service' && (await usage(db))[u.key]) throw new HttpError(409, 'Ce service a déjà servi (fiches, postes, courrier…) : archivez-le ou fusionnez-le.');
+  if (u.kind === 'direction') {
+    if (into && (into === u.id || (await get(db, into)).kind !== 'direction')) throw new HttpError(400, 'Choisissez une autre direction pour ses services.');
+    await db.transaction(async trx => {
+      await trx('org_units').where({ parent_id: u.id }).update({ parent_id: into || null, updated_at: new Date() });
+      await trx('department_heads').where({ department: u.key }).del();
+      await trx('org_units').where({ id: u.id }).del();
+    });
+    return org.load(db);
+  }
+  if ((await usage(db))[u.key]) {
+    const staff = Number((await db('employees').where({ department: u.key, active: true }).count({ n: '*' }).first()).n);
+    if (staff) throw new HttpError(409, `Réaffectez d’abord ${staff === 1 ? 'l’employé' : `les ${staff} employés`} du service.`);
+    if (!into) throw new HttpError(400, 'Choisissez le service qui reprend ses postes, son courrier, ses demandes, ses objectifs et son historique.');
+    return merge(db, u.id, into);
+  }
   await db.transaction(async trx => {
     await trx('department_heads').where({ department: u.key }).del();
     await trx('org_units').where({ id: u.id }).del();
   });
-  await org.load(db);
+  return org.load(db);
 }
 
-module.exports = { list, get, create, update, merge, remove, REFERENCES };
+/** Panneau d'une direction ou d'un service : personnel actif (par service) et nombre d'éléments qu'il porte. */
+async function detail(db, id) {
+  const u = await get(db, id);
+  await org.load(db);
+  const services = u.kind === 'direction' ? org.units().filter(s => s.kind === 'service' && s.parent_id === u.id) : [u];
+  const staff = await db('employees').where({ active: true }).whereIn('department', services.map(s => s.key))
+    .orderBy([{ column: 'last_name' }, { column: 'first_name' }]).select('id', 'matricule', 'last_name', 'first_name', 'job_title', 'department', 'user_id');
+  return {
+    id: u.id, key: u.key, label: u.label, kind: u.kind, active: u.active,
+    services: services.map(s => ({ id: s.id, key: s.key, label: s.label })),
+    employees: staff.map(({ user_id, ...e }) => ({ ...e, has_account: !!user_id })),
+    used: u.kind === 'service' ? (await usage(db))[u.key] || 0 : 0,
+  };
+}
+
+/**
+ * Réaffecte des employés à un autre service : inscrit dans l'historique de carrière de chaque fiche (mutation), applique les
+ * modèles d'objectifs du nouveau service et prévient l'employé qui a un compte. Sa propre fiche se change par un autre.
+ */
+async function reassign(db, ids, department, { user }) {
+  if (!org.isActiveDepartment(department)) throw new HttpError(400, 'Service inconnu ou archivé.');
+  const rows = await db('employees').whereIn('id', ids).where({ active: true });
+  if (rows.length !== new Set(ids).size) throw new HttpError(404, 'Employé introuvable ou sorti des effectifs.');
+  if (user.role !== 'super_admin' && rows.some(e => e.user_id === user.id)) throw new HttpError(403, 'Votre propre service se change par une autre personne habilitée.');
+  const moved = rows.filter(e => e.department !== department);
+  await db.transaction(async trx => {
+    for (const e of moved) {
+      await trx('employees').where({ id: e.id }).update({ department, updated_at: new Date() });
+      await rh.logChanges(trx, rh.normEmployee(e), { department }, user.id);
+    }
+  });
+  const label = org.DEPARTMENTS[department];
+  for (const e of moved) {
+    await kpi.applyForEmployee(db, e.id, { user });
+    if (e.user_id) {
+      await inform(db, 'rh.service', {
+        direct: e.user_id, except: user.id, module: 'rh', link: '/rh/moi', key: `service:${e.id}:${department}`,
+        title: `Vous passez au service ${label}`,
+        body: `Votre fiche passe du service ${org.DEPARTMENTS[e.department] || e.department} au service ${label} (Directions et services). Vos demandes de service suivent ce nouveau service.`,
+      });
+    }
+  }
+  return moved.length;
+}
+
+/**
+ * Ordre et rattachement d'après le glisser-déposer : `items` liste les directions et les services dans l'ordre voulu,
+ * chaque service avec sa direction (null : sans direction).
+ */
+async function reorder(db, items) {
+  const kind = Object.fromEntries((await db('org_units').select('id', 'kind')).map(u => [u.id, u.kind]));
+  for (const it of items) {
+    if (!kind[it.id]) throw new HttpError(404, 'Direction ou service introuvable.');
+    if (it.direction_id && (kind[it.id] === 'direction' || kind[it.direction_id] !== 'direction')) throw new HttpError(400, 'Seul un service se range sous une direction.');
+  }
+  await db.transaction(async trx => {
+    for (const [i, it] of items.entries()) {
+      await trx('org_units').where({ id: it.id }).update({ sort: (i + 1) * 10, ...(kind[it.id] === 'service' ? { parent_id: it.direction_id || null } : {}), updated_at: new Date() });
+    }
+  });
+  return org.load(db);
+}
+
+module.exports = { list, get, create, update, merge, remove, detail, reassign, reorder, REFERENCES };

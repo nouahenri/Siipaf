@@ -67,7 +67,7 @@ module.exports = function rhRoutes(db) {
       objective_statuses: OBJECTIVE_STATUSES, objective_metrics: OBJECTIVE_METRICS, objective_periods: OBJECTIVE_PERIODS, ratings: REVIEW_RATINGS,
       expense_statuses: EXPENSE_STATUSES, attendance_sources: ATTENDANCE_SOURCES, geo_statuses: GEO_STATUSES, recruit_stages: RECRUIT_STAGES, recruit_sources: RECRUIT_SOURCES,
       refuse_reasons: REFUSE_REASONS, job_statuses: JOB_STATUSES, resume_kinds: RESUME_KINDS, training_statuses: TRAINING_STATUSES,
-      contract_types: CONTRACT_TYPES, departments: DEPARTMENTS, directions: require('../../lib/org').DIRECTIONS, marital: MARITAL,
+      contract_types: CONTRACT_TYPES, departments: DEPARTMENTS, directions: require('../../lib/org').DIRECTIONS, department_directions: require('../../lib/org').departmentDirections(), marital: MARITAL,
       settings: settingsRight ? await rh.getSettings(db) : employeeRules(await rh.getSettings(db)), defaults: settingsRight ? DEFAULT_RH : null,
       me: me ? { id: me.id, name: `${me.last_name} ${me.first_name}`, matricule: me.matricule } : null,
       team_size: Number(team?.n || 0),

@@ -285,8 +285,16 @@ function Positions() {
   const { meta } = useRhMeta();
   const toast = useToast();
   const list = useResource(`${RH}/positions?all=1`);
-  const blank = { title: '', department: 'administratif', category: '', default_role: '' };
+  const blank = { title: '', direction: '', department: '', category: '', default_role: '' };
   const [f, setF] = useState(blank);
+  // Direction : filtre la liste des services ; la direction d'un poste se déduit de son service (demande du client du 03/11)
+  const directionOf = k => meta?.department_directions?.[k] || '';
+  const services = Object.entries(meta?.departments || {}).filter(([k, v]) => !v.endsWith('(archivé)') || k === f.department);
+  const directions = Object.entries(meta?.directions || {}).filter(([k, v]) => !v.endsWith('(archivée)') || k === f.direction);
+  const serviceGroups = [...Object.entries(meta?.directions || {}), ['', 'Sans direction']].filter(([d]) => !f.direction || d === f.direction)
+    .map(([d, label]) => [label, services.filter(([k]) => directionOf(k) === d)]).filter(([, list]) => list.length);
+  const pickDirection = e => { const direction = e.target.value; setF(x => ({ ...x, direction, department: !direction || directionOf(x.department) === direction ? x.department : '' })); };
+  const pickService = e => { const department = e.target.value; setF(x => ({ ...x, department, direction: department ? directionOf(department) : x.direction })); };
   const [open, setOpen] = useState(null); // null : formulaire replié ; 'new' : nouveau poste ; id : poste modifié
   const [newRole, setNewRole] = useState(false);
   const write = can('rh:positions');
@@ -295,7 +303,7 @@ function Positions() {
   const superAdmin = user?.role === 'super_admin', lockedRole = roles.find(r => r.id === f.default_role)?.reserved && !superAdmin;
   const set = k => e => setF(x => ({ ...x, [k]: e.target.value }));
   const close = () => { setOpen(null); setF(blank); };
-  const edit = p => { setOpen(p.id); setF({ title: p.title, department: p.department, category: p.category || '', default_role: p.default_role || '' }); };
+  const edit = p => { setOpen(p.id); setF({ title: p.title, direction: directionOf(p.department), department: p.department, category: p.category || '', default_role: p.default_role || '' }); };
   // « Créer un rôle… » dans la liste : ouvre la fenêtre du rôle, puis le sélectionne
   const pickRole = e => (e.target.value === '__new' ? setNewRole(true) : set('default_role')(e));
   const save = async e => {
@@ -324,7 +332,15 @@ function Positions() {
       {write && open && (
         <form id="position-form" className="card-body form-grid" style={{ borderBottom: '1px solid var(--border)', background: 'var(--bg)' }} onSubmit={save}>
           <Field label={open === 'new' ? 'Nouveau poste' : 'Intitulé du poste'}><input className="input" required minLength={2} maxLength={120} value={f.title} onChange={set('title')} placeholder="Responsable commercial, conducteur de travaux…" autoFocus /></Field>
-          <Field label="Service"><select className="select" value={f.department} onChange={set('department')}>{meta && Object.entries(meta.departments).map(([k, v]) => <option key={k} value={k}>{v}</option>)}</select></Field>
+          <Field label="Direction" hint="Filtre la liste des services ; la direction du poste est celle de son service">
+            <select className="select" value={f.direction} onChange={pickDirection}><option value="">— Toutes les directions —</option>{directions.map(([k, v]) => <option key={k} value={k}>{v}</option>)}</select>
+          </Field>
+          <Field label="Service">
+            <select className="select" required value={f.department} onChange={pickService}>
+              <option value="">— Choisir le service —</option>
+              {serviceGroups.map(([label, list]) => <optgroup key={label} label={label}>{list.map(([k, v]) => <option key={k} value={k}>{v}</option>)}</optgroup>)}
+            </select>
+          </Field>
           <Field label="Catégorie habituelle"><input className="input" maxLength={40} value={f.category} onChange={set('category')} placeholder="Cadre, agent de maîtrise…" /></Field>
           <Field label="Rôle du compte proposé" hint={lockedRole ? 'Rôle réservé : seul un super administrateur le modifie' : can('roles:write') ? 'Absent de la liste : « + Créer un nouveau rôle ». Super administrateur : droits fixes, réservé au super administrateur' : 'Rôle absent : à créer par le super administrateur ou la personne qui en a le droit'}>
             <select className="select" value={f.default_role} onChange={pickRole} disabled={lockedRole}>
@@ -341,10 +357,11 @@ function Positions() {
       {newRole && <NewRoleModal onClose={() => setNewRole(false)} onCreated={role => { setNewRole(false); setF(x => ({ ...x, default_role: role.id })); list.reload(); }} />}
       {!list.data ? <div className="card-body"><Skeleton h={120} /></div> : !list.data.positions.length ? <div className="card-body"><Empty icon={Briefcase}>Aucun poste : ajoutez-en ci-dessous.</Empty></div> : (
         <div className="table-wrap"><table className="table">
-          <thead><tr><th>Poste</th><th>Service</th><th>Catégorie</th><th>Rôle proposé</th><th className="right">Employés</th><th /></tr></thead>
+          <thead><tr><th>Poste</th><th>Direction</th><th>Service</th><th>Catégorie</th><th>Rôle proposé</th><th className="right">Employés</th><th /></tr></thead>
           <tbody>{list.data.positions.map(p => (
             <tr key={p.id} style={p.active ? undefined : { opacity: 0.55 }}>
               <td><b>{p.title}</b>{!p.active && <span className="small muted"> · archivé</span>}</td>
+              <td className="small">{p.direction_label || '—'}</td>
               <td className="small">{p.department_label}</td>
               <td className="small">{p.category || '—'}</td>
               <td className="small">{roles.find(r => r.id === p.default_role)?.label || '—'}</td>
