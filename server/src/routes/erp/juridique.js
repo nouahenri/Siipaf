@@ -2,6 +2,7 @@
 const fs = require('fs');
 const express = require('express');
 const { z } = require('../../lib/zod');
+const { departmentKey } = require('../../lib/org');
 const { ah, parse, idParam, HttpError } = require('../../lib/http');
 const { requirePermission } = require('../../auth');
 const { DEED_STEPS, LITIGATION_ORIGINS, LITIGATION_STAGES, LITIGATION_OUTCOMES, GUARANTEE_DIRECTIONS, GUARANTEE_STATUSES, LEGAL_SETTINGS } = require('../../lib/domain');
@@ -19,7 +20,7 @@ const id = num(z.number().int().positive());
 const litigationSchema = z.object({
   origin: z.enum(Object.keys(LITIGATION_ORIGINS)), title: z.string().trim().min(3).max(200), opponent: z.string().trim().min(2).max(200),
   amount_fcfa: num(z.number().int().min(0)), stage: opt(z.enum(Object.keys(LITIGATION_STAGES).filter(s => s !== 'clos'))),
-  department: opt(z.enum(Object.keys(DEPARTMENTS))), owner_id: id, lawyer: opt(z.string().trim().max(160)), court: opt(z.string().trim().max(160)),
+  department: opt(departmentKey), owner_id: id, lawyer: opt(z.string().trim().max(160)), court: opt(z.string().trim().max(160)),
   sale_id: id, sav_ticket_id: id, supplier_id: id, contract_id: id, employee_id: id,
   next_date: opt(day), next_label: opt(z.string().trim().max(160)), opened_on: opt(day), notes: opt(z.string().trim().max(4000)),
 });

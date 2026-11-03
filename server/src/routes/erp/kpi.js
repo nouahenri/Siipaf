@@ -6,6 +6,7 @@
  */
 const express = require('express');
 const { z } = require('../../lib/zod');
+const { departmentKey } = require('../../lib/org');
 const { ah, parse, idParam, HttpError } = require('../../lib/http');
 const { requirePermission } = require('../../auth');
 const { KPI_LEVELS, OBJECTIVE_PERIODS, OBJECTIVE_STATUSES, OBJECTIVE_METRICS, periodRange } = require('../../lib/rh');
@@ -27,10 +28,10 @@ const lineSchema = z.object({
   target_value: z.number().int().min(0).nullable().optional(), weight: z.number().int().min(1).max(10).default(1),
 });
 const scopeSchema = z.object({
-  scope: z.enum(['service', 'poste']), department: z.enum(Object.keys(DEPARTMENTS)).optional().nullable(), position_id: z.number().int().positive().optional().nullable(),
+  scope: z.enum(['service', 'poste']), department: departmentKey.optional().nullable(), position_id: z.number().int().positive().optional().nullable(),
 });
 const collectiveSchema = z.object({
-  department: z.enum(Object.keys(DEPARTMENTS)), year: z.number().int().min(2000).max(2100), period: z.enum(Object.keys(OBJECTIVE_PERIODS)).default('annee'),
+  department: departmentKey, year: z.number().int().min(2000).max(2100), period: z.enum(Object.keys(OBJECTIVE_PERIODS)).default('annee'),
   period_index: z.number().int().min(1).max(12).optional().nullable(), kpi_id: z.number().int().positive().optional().nullable(),
   title: z.string().trim().min(3).max(200), description: optText(1000), target_value: z.number().int().min(0).optional().nullable(),
   weight: z.number().int().min(1).max(10).default(1), progress: z.number().int().min(0).max(100).optional(), status: z.enum(Object.keys(OBJECTIVE_STATUSES)).optional(),

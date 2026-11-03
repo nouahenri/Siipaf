@@ -5,6 +5,7 @@
  * salaire, indemnités, paiement, parts fiscales, expatriation → paie:salary ; solde de congés repris → conges:adjust.
  */
 const { z } = require('../lib/zod');
+const { departmentKey } = require('../lib/org');
 const { HttpError } = require('../lib/http');
 const { ensureNotAbove } = require('./permissions');
 const { CONTRACT_TYPES, DEPARTMENTS, MARITAL, PAY_METHODS, ID_TYPES } = require('../lib/paie');
@@ -38,7 +39,7 @@ const employeeSchema = z.object({
   marital_status: z.enum(Object.keys(MARITAL)).optional(), children: z.number().int().min(0).max(20).optional(),
   tax_parts: z.number().min(1).max(5).multipleOf(0.5).optional().nullable(), job_title: z.string().trim().min(2).max(120),
   position_id: z.number().int().positive().optional().nullable(),
-  department: z.enum(Object.keys(DEPARTMENTS)).optional(), category: optText(40), contract_type: z.enum(Object.keys(CONTRACT_TYPES)).optional(),
+  department: departmentKey.optional(), category: optText(40), contract_type: z.enum(Object.keys(CONTRACT_TYPES)).optional(),
   hire_date: day, end_date: day.optional().nullable(), trial_end_date: day.optional().nullable(),
   manager_id: z.number().int().positive().optional().nullable(), project_id: z.number().int().positive().optional().nullable(),
   user_id: z.number().int().positive().optional().nullable(), active: z.boolean().optional(), notes: optText(500),

@@ -31,7 +31,8 @@ const ID_TYPES = {
   autre: { label: 'Autre pièce', number: 'N° de la pièce' },
 };
 const CONTRACT_TYPES = { cdi: 'CDI', cdd: 'CDD', chantier: 'Contrat de chantier', stage: 'Stage', interim: 'Intérim', journalier: 'Journalier' };
-const DEPARTMENTS = { direction: 'Direction', commercial: 'Commercial', technique: 'Technique / bureau d’études', chantier: 'Chantier', administratif: 'Administratif', comptabilite: 'Comptabilité', juridique: 'Juridique', rh: 'Ressources humaines', sav: 'Client & SAV' };
+// Services : tenus en base (Directions et services, RH › Réglages) ; même objet partout, tenu à jour par lib/org
+const { DEPARTMENTS } = require('./org');
 const MARITAL = { celibataire: 'Célibataire', marie: 'Marié(e)', divorce: 'Divorcé(e)', veuf: 'Veuf / veuve' };
 const PAY_METHODS = { virement: 'Virement', especes: 'Espèces', mobile_money: 'Mobile Money', cheque: 'Chèque' };
 

@@ -6,6 +6,7 @@ const path = require('path');
 const fs = require('fs');
 const express = require('express');
 const { z } = require('../../lib/zod');
+const { departmentKey } = require('../../lib/org');
 const { ah, parse, idParam, HttpError, isoDay } = require('../../lib/http');
 const { requirePermission } = require('../../auth');
 const {
@@ -66,7 +67,7 @@ module.exports = function rhRoutes(db) {
       objective_statuses: OBJECTIVE_STATUSES, objective_metrics: OBJECTIVE_METRICS, objective_periods: OBJECTIVE_PERIODS, ratings: REVIEW_RATINGS,
       expense_statuses: EXPENSE_STATUSES, attendance_sources: ATTENDANCE_SOURCES, geo_statuses: GEO_STATUSES, recruit_stages: RECRUIT_STAGES, recruit_sources: RECRUIT_SOURCES,
       refuse_reasons: REFUSE_REASONS, job_statuses: JOB_STATUSES, resume_kinds: RESUME_KINDS, training_statuses: TRAINING_STATUSES,
-      contract_types: CONTRACT_TYPES, departments: DEPARTMENTS, marital: MARITAL,
+      contract_types: CONTRACT_TYPES, departments: DEPARTMENTS, directions: require('../../lib/org').DIRECTIONS, marital: MARITAL,
       settings: settingsRight ? await rh.getSettings(db) : employeeRules(await rh.getSettings(db)), defaults: settingsRight ? DEFAULT_RH : null,
       me: me ? { id: me.id, name: `${me.last_name} ${me.first_name}`, matricule: me.matricule } : null,
       team_size: Number(team?.n || 0),
@@ -86,7 +87,7 @@ module.exports = function rhRoutes(db) {
     res.json({ positions: await positions.list(db, { all: req.query.all === '1' }), roles, reasons: POSITION_CHANGE_REASONS });
   }));
   const positionSchema = z.object({
-    title: z.string().trim().min(2).max(120), department: z.enum(Object.keys(DEPARTMENTS)), category: optText(40),
+    title: z.string().trim().min(2).max(120), department: departmentKey, category: optText(40),
     default_role: z.string().trim().max(40).optional().nullable().transform(v => v || null), active: z.boolean().optional(),
   });
   // Chef de chaque service (demandes au nom du service, choix du client du 29/10)
@@ -124,7 +125,7 @@ module.exports = function rhRoutes(db) {
   r.post('/employees/:id/position', requirePermission('rh:career'), ah(async (req, res) => {
     const e = await rh.getEmployee(db, idParam(req));
     const data = parse(z.object({
-      position_id: z.number().int().positive(), department: z.enum(Object.keys(DEPARTMENTS)).optional(), effective_date: day,
+      position_id: z.number().int().positive(), department: departmentKey.optional(), effective_date: day,
       reason: z.enum(Object.keys(POSITION_CHANGE_REASONS)), note: optText(500), category: optText(40),
       base_salary: z.number().int().min(0).max(1000000000).optional().nullable(), change_manager: z.boolean().optional(),
       manager_id: z.number().int().positive().optional().nullable(), team_ids: z.array(z.number().int().positive()).max(200).optional(),
@@ -628,7 +629,7 @@ module.exports = function rhRoutes(db) {
       night_rate: z.number().min(0).max(300), sunday_rate: z.number().min(0).max(300), sunday_night_rate: z.number().min(0).max(300),
       night_start: z.number().int().min(0).max(23), night_end: z.number().int().min(0).max(23), overtime_year_cap: z.number().int().min(0).max(1000),
       geolocation: z.boolean(), geofence_radius: z.number().int().min(5).max(5000), geofence_notify: z.boolean(), break_minutes: z.number().int().min(0).max(180), break_after_hours: z.number().min(0).max(12),
-      overtime_exempt_departments: z.array(z.enum(Object.keys(DEPARTMENTS))),
+      overtime_exempt_departments: z.array(departmentKey),
       expense_categories: z.record(z.object({ label: z.string().trim().min(2).max(80), account: z.string().trim().regex(/^\d{2,12}$/, 'Compte de 2 à 12 chiffres') })),
       expense_payable_account: z.string().trim().regex(/^\d{2,12}$/, 'Compte de 2 à 12 chiffres'),
     }).partial(), req.body);

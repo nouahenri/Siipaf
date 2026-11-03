@@ -14,7 +14,6 @@ import { useRevealOnScroll } from '@admin/lib/reveal';
 import { ROLE_LABELS } from '@admin/lib/domain';
 import { initials } from '@admin/lib/format';
 import { dashboardUrl } from '../lib/links';
-import { MODULE_DEPARTMENT } from '../lib/departments';
 import NotificationCenter from './NotificationCenter';
 import { ReportActions } from './Reports';
 
@@ -224,10 +223,11 @@ export default function ErpLayout() {
   const stats = useResource(statsUrl, [pathname]);
   // Mon espace et Demandes du service : dans chaque module, sans passer par Ressources humaines
   const espace = useResource(mod ? '/admin/erp/demandes/espace' : null, [pathname]);
-  const dept = MODULE_DEPARTMENT[moduleId];
+  // Services rattachés à ce module (Directions et services) dont le compte est membre ou chef
   const mine = espace.data?.departments;
-  const serviceNav = !!dept && !!espace.data && (user.role === 'super_admin' || mine?.member === dept || !!mine?.heads.includes(dept));
-  const waiting = serviceNav ? espace.data.waiting?.[dept] || 0 : 0;
+  const depts = (espace.data?.module_departments?.[moduleId] || []).filter(d => user.role === 'super_admin' || mine?.member === d || !!mine?.heads.includes(d));
+  const serviceNav = depts.length > 0;
+  const waiting = depts.reduce((n, d) => n + (espace.data.waiting?.[d] || 0), 0);
   const navCls = ({ isActive }) => `nav-item ${isActive ? 'active' : ''}`;
   const contentRef = useRef(null);
   useRevealOnScroll(contentRef, [pathname]);

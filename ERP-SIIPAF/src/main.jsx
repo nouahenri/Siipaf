@@ -62,7 +62,7 @@ import ServiceRequests from './components/ServiceRequests';
 import DisplaySettings from '@admin/components/DisplaySettings';
 import { ReportPage } from './components/Reports';
 import { DepartmentPage } from './components/DepartmentRequests';
-import { MODULE_DEPARTMENT } from './lib/departments';
+import OrgSettings from './components/OrgSettings';
 import { MODULES } from './components/ErpLayout';
 import RhDashboard from './pages/rh/RhDashboard';
 import MySpace from './pages/rh/MySpace';
@@ -169,7 +169,7 @@ function App() {
         {/* Mon espace et Demandes du service dans chaque module : on reste dans le module ouvert */}
         {Object.keys(MODULES).map(m => <Route key={`${m}-moi`} path={`${m}/moi`} element={<MySpace />} />)}
         {Object.keys(MODULES).map(m => <Route key={`${m}-dossier`} path={`${m}/moi/dossier/:id`} element={<EmployeeFile />} />)}
-        {Object.entries(MODULE_DEPARTMENT).map(([m, d]) => <Route key={`${m}-service`} path={`${m}/service`} element={<DepartmentPage department={d} />} />)}
+        {Object.keys(MODULES).map(m => <Route key={`${m}-service`} path={`${m}/service`} element={<DepartmentPage module={m} />} />)}
         <Route path="rh/personnel" element={<Guard perm="rh:read"><Staff /></Guard>} />
         <Route path="rh/personnel/:id" element={<EmployeeFile />} />
         <Route path="rh/conges" element={<Leaves />} />
@@ -191,7 +191,7 @@ function App() {
         <Route path="administration/documents" element={<Documents />} />
         <Route path="administration/demandes" element={<Demandes />} />
         <Route path="administration/lieux" element={<Guard perm={['lieux:write', 'direction:read']}><Lieux /></Guard>} />
-        <Route path="administration/reglages" element={<ModuleSettings module="administration" />} />
+        <Route path="administration/reglages" element={<div className="stack" style={{ gap: 16 }}><ModuleSettings module="administration" /><OrgSettings /></div>} />
         <Route path="administration/circuit" element={<Guard perm={['circuit:write', 'direction:read']}><Circuit /></Guard>} />
         <Route path="administration/acces" element={<Guard perm="users:read"><ModuleAccess module="administration" label="Administration générale" /></Guard>} />
         <Route path="juridique" element={<JuridiqueHome />} />

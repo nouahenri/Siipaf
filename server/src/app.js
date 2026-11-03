@@ -26,6 +26,9 @@ function createApp(db) {
   const json = express.json({ limit: '2mb', verify: (req, res, buf) => { if (req.originalUrl.split('?')[0] === '/api/public/meta/webhook') req.rawBody = buf; } });
   app.use((req, res, next) => (req.path === '/api/admin/erp/compta/import/sage' && req.method === 'POST' ? next() : json(req, res, next)));
   app.use(cookieParser());
+  // Directions et services tenus en base : copie en mémoire à jour (lib/org) avant chaque requête
+  const org = require('./lib/org');
+  app.use((req, res, next) => { org.ensure(db).then(() => next(), next); });
 
   // CORS : seul le site public (autre domaine) appelle l'API publique. `Vary: Origin` sur TOUTES les réponses : le cache de
   // l'hébergeur (Varnish LWS) ne doit jamais servir à siipaf.com une copie prise sans autorisation CORS (bulle de Sita absente).
@@ -81,6 +84,7 @@ function createApp(db) {
   admin.use(require('./routes/settings')(db));
   admin.use('/erp/notifications', require('./routes/erp/notifications')(db));
   admin.use('/erp/reglages', require('./routes/erp/reglages')(db));
+  admin.use('/erp/organisation', require('./routes/erp/organisation')(db));
   admin.use('/erp/sav', require('./routes/erp/sav')(db));
   admin.use('/erp/commercial/sita', require('./routes/sita').erpSita(db)); // avant le Service commercial : « sita » n'est pas un identifiant
   admin.use('/erp/commercial', require('./routes/erp/commercial')(db));

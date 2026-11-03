@@ -531,7 +531,7 @@ const PERMISSIONS = {
     ...APPRO_ACTIONS, 'appro:articles',
     'projects:read', 'lots:read', 'leads:read', 'appointments:read', 'sales:read', 'payments:write',
     'schedule:write', 'client_messages', 'commercial:read', 'leads:all', 'compta:read', ...COMPTA_ACTIONS,
-    'rh:read', ...RH_ACTIONS, 'kpi:write', 'presence:write', 'paie:read', ...PAIE_ACTIONS, 'contrats:read', 'parc:read', 'chantiers:read', 'lieux:write', 'qhse:read', 'qhse:all', 'qhse:validate', ...SELF_SERVICE,
+    'rh:read', ...RH_ACTIONS, 'org:structure', 'kpi:write', 'presence:write', 'paie:read', ...PAIE_ACTIONS, 'contrats:read', 'parc:read', 'chantiers:read', 'lieux:write', 'qhse:read', 'qhse:all', 'qhse:validate', ...SELF_SERVICE,
   ]),
   resp_exploitation: splitPermissions([
     ...APPRO_ACTIONS, 'appro:direction', 'appro:articles',
@@ -540,7 +540,7 @@ const PERMISSIONS = {
     'sales:read', 'sales:write', 'documents:write', 'testimonials:write',
     'client_access:write', 'client_messages', 'site_updates:write', 'schedule:write', 'settings:write',
     'leads:all', 'leads:assign', 'clients:edit', 'sav:read', ...SAV_ACTIONS, 'commercial:read', 'targets:write', 'vefa:write', 'property:write', 'compta:read',
-    'rh:read', ...RH_ACTIONS, 'kpi:write', 'presence:write', 'presence:zones', 'direction:read', ...COURRIER_ACTIONS, ...CONTRACT_ACTIONS, ...PARC_ACTIONS, ...DOCS_ACTIONS, ...REQUEST_ACTIONS, ...LEGAL_ACTIONS,
+    'rh:read', ...RH_ACTIONS, 'org:structure', 'kpi:write', 'presence:write', 'presence:zones', 'direction:read', ...COURRIER_ACTIONS, ...CONTRACT_ACTIONS, ...PARC_ACTIONS, ...DOCS_ACTIONS, ...REQUEST_ACTIONS, ...LEGAL_ACTIONS,
     'chantiers:read', 'chantiers:write', 'chantiers:estimate', 'lieux:write', 'marketing:read', 'marketing:generate', 'marketing:validate',
     ...QHSE_ACTIONS, ...SELF_SERVICE, // QHSE : tous les droits, réglages compris (décision du client du 31/10)
   ]),
@@ -686,6 +686,7 @@ const PERMISSION_CATALOG = [
     ['rh:rules', 'Règles des congés et des frais', 'Congés, heures supplémentaires, catégories de frais, géolocalisation du pointage (rayon par défaut, alerte hors zone)', 'Réglages RH'],
     ['rh:positions', 'Postes et grille', 'Postes, salaires de référence, fusion, rôle du compte', 'Réglages RH'],
     ['rh:heads', 'Chefs de service', 'Désigner le chef de chaque service', 'Réglages RH'],
+    ['org:structure', 'Directions et services', 'Ajouter, renommer, archiver et fusionner les directions et les services ; module de l’ERP de chaque service (RH › Réglages, Administration générale › Réglages)', 'Réglages RH'],
     ['rh:holidays', 'Jours fériés', 'Calendrier des jours fériés', 'Réglages RH'],
   ] },
   { group: 'ERP · Espace employé', items: [

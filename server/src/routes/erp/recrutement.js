@@ -3,6 +3,7 @@ const fs = require('fs');
 const path = require('path');
 const express = require('express');
 const { z } = require('../../lib/zod');
+const { departmentKey } = require('../../lib/org');
 const { ah, parse, idParam, HttpError } = require('../../lib/http');
 const { requirePermission } = require('../../auth');
 const { RECRUIT_STAGES, RECRUIT_SOURCES, REFUSE_REASONS, JOB_STATUSES } = require('../../lib/rh');
@@ -32,7 +33,7 @@ module.exports = function recrutementRoutes(db) {
 
   // ─── Postes ───────────────────────────────────────────────
   const jobSchema = z.object({
-    title: z.string().trim().min(3).max(160), department: z.enum(Object.keys(DEPARTMENTS)), project_id: z.number().int().positive().optional().nullable(),
+    title: z.string().trim().min(3).max(160), department: departmentKey, project_id: z.number().int().positive().optional().nullable(),
     contract_type: z.enum(Object.keys(CONTRACT_TYPES)), openings: z.number().int().min(1).max(50), location: optText(120), description: optText(10000),
     status: z.enum(Object.keys(JOB_STATUSES)).optional(), published: z.boolean().optional(), recruiter_id: z.number().int().positive().optional().nullable(),
     closing_date: day.optional().nullable(),

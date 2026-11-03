@@ -1,6 +1,7 @@
 /** ERP · Administration générale › Demandes internes : demande, validations, prise en charge, clôture. */
 const express = require('express');
 const { z } = require('../../lib/zod');
+const { departmentKey } = require('../../lib/org');
 const { ah, parse, idParam, HttpError } = require('../../lib/http');
 const { requirePermission } = require('../../auth');
 const { REQUEST_KINDS, REQUEST_SERVICES, REQUEST_STATUSES } = require('../../lib/domain');
@@ -31,6 +32,8 @@ module.exports = function requestRoutes(db) {
   r.get('/espace', ah(async (req, res) => res.json({
     has_employee: !!(await db('employees').where({ user_id: req.user.id }).first('id')),
     departments: req.depts, waiting: await requests.departmentWaiting(db, v(req)),
+    // Services rattachés au module ouvert (Directions et services) : « Demandes du service » dans son menu
+    module_departments: require('../../lib/org').moduleDepartments(),
   })));
 
   // Bons de commande soumis par les Achats : le validateur ou la Direction les voit et décide ici aussi
@@ -53,7 +56,7 @@ module.exports = function requestRoutes(db) {
       worksite_id: z.number().int().positive().nullable().optional(), place_id: z.number().int().positive().nullable().optional(),
       location: z.string().trim().max(120).nullable().optional(), needed_by: day.nullable().optional(), urgency: z.enum(['normale', 'urgente']).optional(),
       service: z.enum(Object.keys(REQUEST_SERVICES)).nullable().optional(),
-      department: z.enum(Object.keys(DEPARTMENTS)).nullable().optional(),
+      department: departmentKey.nullable().optional(),
     }), req.body);
     const id = await requests.create(db, data, { user: req.user });
     const row = await requests.load(db, id);

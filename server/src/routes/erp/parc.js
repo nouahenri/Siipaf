@@ -2,6 +2,7 @@
 const fs = require('fs');
 const express = require('express');
 const { z } = require('../../lib/zod');
+const { departmentKey } = require('../../lib/org');
 const { ah, parse, idParam, HttpError } = require('../../lib/http');
 const { requirePermission } = require('../../auth');
 const { ASSET_KINDS, ASSET_STATUSES, ASSET_ASSIGNMENT_KINDS, ASSET_DOC_KINDS, ASSET_COST_KINDS, RESERVATION_STATUSES, ASSET_PAYMENT_MODES, COST_ACCOUNTING_STATUSES, addMonths } = require('../../lib/domain');
@@ -184,7 +185,7 @@ module.exports = function parcRoutes(db) {
   r.post('/reservations', requirePermission('self:vehicule'), ah(async (req, res) => {
     const data = parse(z.object({
       start_at: slot, end_at: slot, purpose: z.string().trim().min(3).max(255), destination: opt(z.string().trim().max(160)),
-      passengers: num(z.number().int().min(1).max(60)), department: opt(z.enum(Object.keys(DEPARTMENTS))),
+      passengers: num(z.number().int().min(1).max(60)), department: opt(departmentKey),
     }), req.body);
     if (data.department && !(await require('../../services/departments').departmentsOf(db, req.user.id)).heads.includes(data.department)) throw new HttpError(403, 'Seul le chef du service, désigné dans Réglages RH, demande un véhicule au nom du service.');
     const id = await parc.request(db, data, { user: req.user });

@@ -16,9 +16,18 @@ import { VehicleForm, RESERVATION_TONES, slotLabel } from './VehicleRequests';
 
 const URL = '/admin/erp/demandes';
 
-/** Page « Demandes du service » de la barre latérale du module. */
-export function DepartmentPage({ department }) {
-  return <DepartmentRequests department={department} page />;
+/**
+ * Page « Demandes du service » de la barre latérale du module : un bloc par service rattaché au module (Directions et
+ * services) dont le compte est membre ou chef (tous pour le super administrateur).
+ */
+export function DepartmentPage({ module }) {
+  const espace = useOutletContext()?.espace;
+  const { user } = useAuth();
+  const mine = espace?.data?.departments;
+  if (!espace?.data) return <Skeleton h={200} />;
+  const depts = (espace.data.module_departments?.[module] || []).filter(d => user?.role === 'super_admin' || mine?.member === d || !!mine?.heads.includes(d));
+  if (!depts.length) return <Empty icon={Users}>Réservé au chef et aux membres d’un service rattaché à ce module (RH › Réglages › Directions et services).</Empty>;
+  return <div className="stack" style={{ gap: 16 }}>{depts.map(d => <DepartmentRequests key={d} department={d} page />)}</div>;
 }
 
 export default function DepartmentRequests({ department, page = false }) {
