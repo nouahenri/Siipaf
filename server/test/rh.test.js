@@ -38,10 +38,10 @@ test('règles : Pâques, jours fériés, jours ouvrables, acquisition de 2,2 jou
 test('dossiers : fiches reliées aux comptes, responsable direct, historique de carrière', async () => {
   const awaUser = await db('users').where({ email: 'commercial@test.ci' }).first();
   const koffiUser = await db('users').where({ email: 'conducteur_travaux@test.ci' }).first();
-  let res = await comptable.post(`${P}/employees`).send({ last_name: 'Kouassi', first_name: 'Koffi', gender: 'M', job_title: 'Conducteur de travaux', department: 'technique', hire_date: '2023-06-01', base_salary: 600000, user_id: koffiUser.id });
+  let res = await comptable.post(`${P}/employees`).send({ matricule: 'T-33', last_name: 'Kouassi', first_name: 'Koffi', gender: 'M', job_title: 'Conducteur de travaux', department: 'technique', hire_date: '2023-06-01', base_salary: 600000, user_id: koffiUser.id });
   assert.equal(res.status, 201, JSON.stringify(res.body));
   koffi = res.body;
-  res = await comptable.post(`${P}/employees`).send({ last_name: 'Koné', first_name: 'Awa', gender: 'F', job_title: 'Commerciale', department: 'commercial', hire_date: '2024-01-01', base_salary: 300000, user_id: awaUser.id, manager_id: koffi.id });
+  res = await comptable.post(`${P}/employees`).send({ matricule: 'T-34', last_name: 'Koné', first_name: 'Awa', gender: 'F', job_title: 'Commerciale', department: 'commercial', hire_date: '2024-01-01', base_salary: 300000, user_id: awaUser.id, manager_id: koffi.id });
   assert.equal(res.status, 201, JSON.stringify(res.body));
   awa = res.body;
   assert.equal((await comptable.patch(`${R}/employees/${koffi.id}`).send({ manager_id: awa.id })).status, 400, 'pas de boucle hiérarchique');

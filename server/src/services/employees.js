@@ -12,12 +12,25 @@ const rh = require('./rh');
 const positions = require('./positions');
 const departures = require('./departures');
 const kpi = require('./kpi');
+const { inform } = require('./notifications');
 
 const day = z.string().regex(/^\d{4}-\d{2}-\d{2}$/, 'Date attendue au format AAAA-MM-JJ');
 const optText = max => z.string().trim().max(max).optional().nullable().transform(v => v || null);
 const money = z.number().int().min(0);
 
+/**
+ * Matricule attribué par le service RH (demande du client du 03/11 : saisi, jamais numéroté automatiquement). Il sert
+ * d'identifiant à la borne de pointage et de code de tiers en Comptabilité : unique, 3 à 20 caractères (lettres, chiffres,
+ * tirets), rangé en majuscules comme le cherche la borne.
+ */
+const matricule = z.string().trim().toUpperCase().regex(/^[A-Z0-9][A-Z0-9-]{2,19}$/, 'Matricule : 3 à 20 caractères (lettres, chiffres, tirets).');
+async function assertMatriculeFree(db, value, selfId = null) {
+  const taken = await db('employees').where({ matricule: value }).whereNot('id', selfId || 0).first('first_name', 'last_name');
+  if (taken) throw new HttpError(409, `Le matricule ${value} est déjà attribué à ${taken.last_name} ${taken.first_name}.`);
+}
+
 const employeeSchema = z.object({
+  matricule: matricule.optional(),
   last_name: z.string().trim().min(1).max(80), first_name: z.string().trim().min(1).max(80), gender: z.enum(['F', 'M']).optional().nullable(),
   birth_date: day.optional().nullable(), birth_place: optText(80), nationality: optText(60), expatriate: z.boolean().optional(), phone: optText(40),
   email: z.string().trim().toLowerCase().email().optional().nullable().or(z.literal('').transform(() => null)), address: optText(255),
@@ -81,6 +94,12 @@ async function update(db, id, data, { user, can }) {
   if (data.manager_id && !superAdmin && (await db('employees').where({ id: data.manager_id }).first('user_id'))?.user_id === user.id) {
     throw new HttpError(403, 'Vous ne pouvez pas vous nommer responsable d’un employé : demandez au service RH.');
   }
+  // Le matricule s'attribue et se corrige au service RH ; l'employé est prévenu (son identifiant à la borne change)
+  const newMatricule = data.matricule !== undefined && data.matricule !== before.matricule;
+  if (newMatricule) {
+    if (!can('rh:files')) throw new HttpError(403, 'Le matricule est attribué par le service RH (droit « Gérer les dossiers du personnel »).');
+    await assertMatriculeFree(db, data.matricule, id);
+  }
   if (data.manager_id === id) throw new HttpError(400, 'Un employé ne peut pas être son propre responsable.');
   if (data.manager_id && !(await db('employees').where({ id: data.manager_id }).first())) throw new HttpError(404, 'Responsable introuvable.');
   // Pas de boucle dans la hiérarchie (A responsable de B, B responsable de A)
@@ -97,6 +116,13 @@ async function update(db, id, data, { user, can }) {
     await rh.logChanges(trx, rh.normEmployee(before), data, user.id);
   });
   const after = await db('employees').where({ id }).first();
+  if (newMatricule && after.user_id) {
+    await inform(db, 'rh.matricule', {
+      direct: after.user_id, except: user.id, module: 'rh', link: '/rh/moi', key: `matricule:${id}:${after.matricule}`,
+      title: `Votre matricule devient ${after.matricule}`,
+      body: `Le service RH a remplacé ${before.matricule} par ${after.matricule}. Utilisez ce nouveau matricule pour pointer à la borne.`,
+    });
+  }
   // Sortie : compte, matériel et dossiers à régler sont signalés à ceux qui les reprennent
   if (before.active && data.active === false) await departures.notifyDeparture(db, after, { user });
   // Nouveau poste ou nouveau service : leurs modèles d'objectifs s'appliquent (un objectif déjà présent est gardé)
@@ -119,12 +145,14 @@ async function create(db, data, { user, can }) {
   // Solde de congés repris : « Ajuster les soldes » (le compte relié à une nouvelle fiche reste libre : l'embauche ne reprend la
   // fiche de personne ; changer le compte d'une fiche existante demande « Modifier un compte », voir guardUserLink)
   if (LEAVE_FIELDS.some(k => data[k] != null) && !can('conges:adjust')) throw new HttpError(403, 'Le solde d’ouverture des congés se règle avec le droit « Ajuster les soldes ».');
+  if (!data.matricule) throw new HttpError(400, 'Saisissez le matricule attribué par le service RH.');
+  await assertMatriculeFree(db, data.matricule);
   await checkUser(db, data.user_id);
   if (data.manager_id && !(await db('employees').where({ id: data.manager_id }).first('id'))) throw new HttpError(404, 'Responsable introuvable.');
   const row = { base_salary: 0, ...data };
   const id = await db.transaction(async trx => {
     Object.assign(row, await positions.resolve(trx, row));
-    const newId = insertedId((await trx('employees').insert({ ...row, matricule: await require('./paie').nextMatricule(trx) }))[0]);
+    const newId = insertedId((await trx('employees').insert(row))[0]);
     await trx('hr_career_events').insert({ employee_id: newId, date: row.hire_date, kind: 'embauche', label: `Embauche : ${row.job_title}`, details: JSON.stringify({ contract_type: row.contract_type || 'cdi' }), created_by: user.id });
     return newId;
   });
@@ -137,15 +165,25 @@ async function create(db, data, { user, can }) {
 /** Fiches créées depuis des comptes du dashboard (reprise du personnel déjà présent) : nom, e-mail, poste et service tirés du compte. */
 const ROLE_JOBS = { super_admin: 'Direction', commercial: 'Commercial(e)', editeur: 'Chargé(e) de communication', conducteur_travaux: 'Conducteur de travaux', comptable: 'Comptable', resp_exploitation: 'Responsable des exploitations' };
 const ROLE_DEPTS = { super_admin: 'direction', commercial: 'commercial', editeur: 'administratif', conducteur_travaux: 'technique', comptable: 'comptabilite', resp_exploitation: 'direction' };
-async function createFromUsers(db, userIds, hireDate, { user }) {
+async function createFromUsers(db, people, hireDate, { user }) {
+  // Un matricule saisi par le service RH pour chaque compte choisi : ni deux fois le même, ni un matricule déjà pris
+  // (un compte qui a déjà sa fiche est ignoré, son matricule saisi aussi)
+  const linked = new Set(await db('employees').whereIn('user_id', people.map(p => p.user_id)).pluck('user_id'));
+  people = people.filter(p => !linked.has(p.user_id));
+  const seen = new Set();
+  for (const p of people) {
+    if (seen.has(p.matricule)) throw new HttpError(400, `Le matricule ${p.matricule} est saisi deux fois.`);
+    seen.add(p.matricule);
+    await assertMatriculeFree(db, p.matricule);
+  }
   const ids = [];
   await db.transaction(async trx => {
-    for (const uid of userIds) {
+    for (const { user_id: uid, matricule: code } of people) {
       const u = await trx('users').where({ id: uid }).first();
       if (!u || await trx('employees').where({ user_id: uid }).first()) continue;
       const [first, ...rest] = u.name.trim().split(/\s+/);
       const [id] = await trx('employees').insert({
-        matricule: await require('./paie').nextMatricule(trx), user_id: u.id, first_name: first, last_name: rest.join(' ') || first, email: u.email, phone: u.phone || null,
+        matricule: code, user_id: u.id, first_name: first, last_name: rest.join(' ') || first, email: u.email, phone: u.phone || null,
         ...(await positions.resolve(trx, { job_title: ROLE_JOBS[u.role] || 'Employé(e)', department: ROLE_DEPTS[u.role] || 'administratif' })), hire_date: hireDate, base_salary: 0,
       });
       ids.push(insertedId(id));
@@ -155,4 +193,4 @@ async function createFromUsers(db, userIds, hireDate, { user }) {
   return ids.length;
 }
 
-module.exports = { employeeSchema, checkUser, guardUserLink, create, createFromUsers, update, PAY_FIELDS, LEAVE_FIELDS };
+module.exports = { employeeSchema, matricule, assertMatriculeFree, checkUser, guardUserLink, create, createFromUsers, update, PAY_FIELDS, LEAVE_FIELDS };

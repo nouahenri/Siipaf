@@ -43,11 +43,6 @@ async function saveSettings(db, patch) {
   return next;
 }
 
-async function nextMatricule(trx) {
-  const last = await trx('employees').where('matricule', 'like', 'EMP-%').orderBy('matricule', 'desc').first('matricule');
-  return `EMP-${String(last ? Number(last.matricule.slice(4)) + 1 : 1).padStart(4, '0')}`;
-}
-
 /** Fiche employé pour l'affichage ; les éléments de salaire ne sont donnés qu'aux personnes autorisées à voir la paie. */
 function serializeEmployee(e, { withPay }) {
   const out = {
@@ -271,4 +266,4 @@ async function payRun(db, runId, { date }, userId) {
   return runDetail(db, runId);
 }
 
-module.exports = { getSettings, saveSettings, nextMatricule, serializeEmployee, createRun, updatePayslip, refreshRun, runDetail, validateRun, payRun, daysInPeriod, lastDay };
+module.exports = { getSettings, saveSettings, serializeEmployee, createRun, updatePayslip, refreshRun, runDetail, validateRun, payRun, daysInPeriod, lastDay };

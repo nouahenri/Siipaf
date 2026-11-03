@@ -18,8 +18,8 @@ before(async () => {
   editeur = await login(app, await createUser(db, 'editeur'), 'motdepasse-test-123');
   const awaUser = await db('users').where({ email: 'commercial@test.ci' }).first();
   const koffiUser = await db('users').where({ email: 'conducteur_travaux@test.ci' }).first();
-  koffi = (await comptable.post(`${P}/employees`).send({ last_name: 'Kouassi', first_name: 'Koffi', gender: 'M', job_title: 'Conducteur de travaux', department: 'technique', hire_date: '2023-06-01', base_salary: 173330, user_id: koffiUser.id })).body;
-  awa = (await comptable.post(`${P}/employees`).send({ last_name: 'Koné', first_name: 'Awa', gender: 'F', job_title: 'Commerciale', department: 'commercial', hire_date: '2024-01-01', base_salary: 300000, user_id: awaUser.id, manager_id: koffi.id })).body;
+  koffi = (await comptable.post(`${P}/employees`).send({ matricule: 'T-26', last_name: 'Kouassi', first_name: 'Koffi', gender: 'M', job_title: 'Conducteur de travaux', department: 'technique', hire_date: '2023-06-01', base_salary: 173330, user_id: koffiUser.id })).body;
+  awa = (await comptable.post(`${P}/employees`).send({ matricule: 'T-27', last_name: 'Koné', first_name: 'Awa', gender: 'F', job_title: 'Commerciale', department: 'commercial', hire_date: '2024-01-01', base_salary: 300000, user_id: awaUser.id, manager_id: koffi.id })).body;
   await comptable.post('/api/admin/erp/compta/fiscal-years').send({ label: '2026', start_date: '2026-01-01', end_date: '2026-12-31' });
 });
 after(() => db.destroy());
@@ -140,7 +140,7 @@ test('recrutement : candidature du site, étapes, refus motivé, embauche qui cr
   const other = res.body;
 
   assert.equal((await editeur.get(`${R}/applicants`)).status, 403);
-  assert.equal((await comptable.post(`${R}/applicants/${id}/hire`).send({ hire_date: '2026-04-01' })).status, 400, 'proposition d’abord');
+  assert.equal((await comptable.post(`${R}/applicants/${id}/hire`).send({ matricule: 'T-28', hire_date: '2026-04-01' })).status, 400, 'proposition d’abord');
   await comptable.post(`${R}/applicants/${id}/move`).send({ stage: 'entretien_1', note: 'Bon contact' });
   await comptable.post(`${R}/applicants/${id}/move`).send({ stage: 'proposition' });
   await comptable.post(`${R}/applicants/${other.id}/move`).send({ refuse_reason: 'experience' });
@@ -148,7 +148,7 @@ test('recrutement : candidature du site, étapes, refus motivé, embauche qui cr
   assert.equal(res.body.source, 'site_web');
   assert.ok(res.body.logs.some(l => l.summary.includes('Premier entretien')));
 
-  res = await comptable.post(`${R}/applicants/${id}/hire`).send({ hire_date: '2026-04-01', base_salary: 450000, trial_end_date: '2026-06-30' });
+  res = await comptable.post(`${R}/applicants/${id}/hire`).send({ matricule: 'T-29', hire_date: '2026-04-01', base_salary: 450000, trial_end_date: '2026-06-30' });
   assert.equal(res.status, 201, JSON.stringify(res.body));
   const e = await db('employees').where({ id: res.body.employee_id }).first();
   assert.deepEqual([e.first_name, e.last_name, e.job_title, e.department, e.contract_type, Number(e.base_salary)], ['Yao', 'Serge', 'Chef de chantier', 'chantier', 'cdd', 450000]);

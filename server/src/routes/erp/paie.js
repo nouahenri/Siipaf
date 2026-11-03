@@ -52,8 +52,9 @@ module.exports = function paieRoutes(db) {
   }));
 
   r.post('/employees/from-users', requirePermission('paie:employees'), ah(async (req, res) => {
-    const { user_ids, hire_date } = parse(z.object({ user_ids: z.array(z.number().int().positive()).min(1).max(200), hire_date: day }), req.body);
-    res.status(201).json({ created: await employees.createFromUsers(db, user_ids, hire_date, { user: req.user }) });
+    // Un matricule attribué par le service RH pour chaque compte (demande du client du 03/11)
+    const { people, hire_date } = parse(z.object({ people: z.array(z.object({ user_id: z.number().int().positive(), matricule: employees.matricule })).min(1).max(200), hire_date: day }), req.body);
+    res.status(201).json({ created: await employees.createFromUsers(db, people, hire_date, { user: req.user }) });
   }));
 
   // ─── Paies mensuelles ─────────────────────────────────────

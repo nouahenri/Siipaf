@@ -110,7 +110,7 @@ module.exports = function recrutementRoutes(db) {
   }));
   r.post('/applicants/:id/hire', hire, ah(async (req, res) => {
     const data = parse(z.object({
-      hire_date: day, base_salary: z.number().int().min(0).optional(), trial_end_date: day.optional().nullable(),
+      matricule: require('../../services/employees').matricule, hire_date: day, base_salary: z.number().int().min(0).optional(), trial_end_date: day.optional().nullable(),
       contract_type: z.enum(Object.keys(CONTRACT_TYPES)).optional(), job_title: z.string().trim().min(2).max(120).optional(),
     }), req.body);
     // Le salaire de la fiche relève de la Paie : sans ce droit, la fiche est créée à 0 et la Comptabilité le fixe

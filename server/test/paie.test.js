@@ -40,10 +40,10 @@ test('barème : ITS par tranches, réduction pour charges de famille, prorata, t
 test('droits : la paie est réservée au comptable ; le responsable voit le personnel sans les salaires', async () => {
   assert.equal((await commercial.get(`${P}/employees`)).status, 403);
   assert.equal((await exploitation.get(`${P}/runs`)).status, 403);
-  let res = await comptable.post(`${P}/employees`).send({ last_name: 'Koné', first_name: 'Awa', job_title: 'Assistante commerciale', department: 'commercial', hire_date: `${year}-01-01`, base_salary: 350000, transport_allowance: 30000, marital_status: 'marie', children: 1, pay_method: 'virement' });
+  let res = await comptable.post(`${P}/employees`).send({ matricule: 'T-18', last_name: 'Koné', first_name: 'Awa', job_title: 'Assistante commerciale', department: 'commercial', hire_date: `${year}-01-01`, base_salary: 350000, transport_allowance: 30000, marital_status: 'marie', children: 1, pay_method: 'virement' });
   assert.equal(res.status, 201, JSON.stringify(res.body));
   awa = res.body;
-  assert.equal(awa.matricule, 'EMP-0001');
+  assert.equal(awa.matricule, 'T-18', 'matricule saisi par le service RH, jamais numéroté');
   const seen = (await exploitation.get(`${P}/employees`)).body[0];
   assert.equal(seen.last_name, 'Koné');
   assert.equal(seen.base_salary, undefined, 'salaire masqué');
@@ -51,9 +51,9 @@ test('droits : la paie est réservée au comptable ; le responsable voit le pers
 
 test('fiches reliées aux comptes du dashboard, sans doublon', async () => {
   const user = await db('users').where({ email: 'commercial@test.ci' }).first();
-  let res = await comptable.post(`${P}/employees/from-users`).send({ user_ids: [user.id], hire_date: `${year}-02-01` });
+  let res = await comptable.post(`${P}/employees/from-users`).send({ people: [{ user_id: user.id, matricule: 'T-19' }], hire_date: `${year}-02-01` });
   assert.equal(res.body.created, 1);
-  assert.equal((await comptable.post(`${P}/employees/from-users`).send({ user_ids: [user.id], hire_date: `${year}-02-01` })).body.created, 0);
+  assert.equal((await comptable.post(`${P}/employees/from-users`).send({ people: [{ user_id: user.id, matricule: 'T-20' }], hire_date: `${year}-02-01` })).body.created, 0);
   koffi = (await db('employees').where({ user_id: user.id }).first());
   assert.equal(koffi.department, 'commercial');
   // Changer le compte d'une fiche existante demande « Modifier un compte » (audit du 30/10) : le comptable seul est refusé

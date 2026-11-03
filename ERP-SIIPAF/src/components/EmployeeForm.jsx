@@ -18,7 +18,7 @@ const PAY = ['base_salary', 'housing_allowance', 'transport_allowance', 'other_a
 const LEAVE = ['leave_opening_days', 'leave_opening_date'];
 const NUMBERS = ['children', 'tax_parts', 'base_salary', 'housing_allowance', 'transport_allowance', 'other_allowance', 'site_hourly_rate', 'accident_rate', 'project_id', 'user_id', 'position_id', 'manager_id', 'leave_opening_days'];
 const BLANK = {
-  last_name: '', first_name: '', gender: '', birth_date: '', birth_place: '', nationality: 'Ivoirienne', expatriate: false, phone: '', email: '', address: '',
+  matricule: '', last_name: '', first_name: '', gender: '', birth_date: '', birth_place: '', nationality: 'Ivoirienne', expatriate: false, phone: '', email: '', address: '',
   id_type: '', id_number: '', cnps_number: '', emergency_contact: '', user_id: '',
   job_title: '', position_id: '', department: 'administratif', category: '', contract_type: 'cdi', hire_date: new Date().toISOString().slice(0, 10), trial_end_date: '', end_date: '',
   manager_id: '', project_id: '', active: true, leave_opening_days: '', leave_opening_date: '',
@@ -37,6 +37,8 @@ export default function EmployeeForm({ employee, onClose, onSaved }) {
   const seePay = isNew || employee.base_salary !== undefined, canPay = can('paie:salary') && seePay, canLeave = can('conges:adjust'), canLink = isNew || can('users:edit'); // changer le compte d'une fiche existante : « Modifier un compte »
   // Fiche existante : poste et service changent par « Changer de poste » (date d'effet, motif, historique) quand on tient les dossiers RH
   const viaChange = !isNew && can('rh:files');
+  // Matricule attribué par le service RH (jamais numéroté automatiquement) : identifiant à la borne et code de tiers en Comptabilité
+  const canMatricule = can('rh:files');
   const [initial] = useState(() => Object.fromEntries(Object.entries(BLANK).map(([k, v]) => [k, employee[k] ?? v])));
   const [f, setF] = useState(initial);
   const [error, setError] = useState(null);
@@ -50,9 +52,11 @@ export default function EmployeeForm({ employee, onClose, onSaved }) {
     for (const [k, v] of Object.entries(f)) {
       if ((PAY.includes(k) && !canPay) || (LEAVE.includes(k) && !canLeave) || (k === 'user_id' && !canLink)) continue;
       if (viaChange && ['job_title', 'position_id', 'department'].includes(k)) continue;
+      if (k === 'matricule' && !canMatricule) continue;
       if (!isNew && v === initial[k]) continue; // fiche existante : seuls les champs modifiés sont envoyés
       body[k] = NUMBERS.includes(k) ? (v === '' || v == null ? null : Number(v)) : typeof v === 'string' && v === '' ? null : v;
     }
+    if (body.matricule) body.matricule = body.matricule.trim().toUpperCase();
     for (const k of ['children', 'housing_allowance', 'transport_allowance', 'other_allowance', 'base_salary']) if (k in body) body[k] = body[k] ?? 0;
     const sides = ['complet', 'recto', 'verso'].filter(s => idFiles[s]);
     if (!isNew && !Object.keys(body).length && !sides.length) { onClose(); return; }
@@ -84,7 +88,10 @@ export default function EmployeeForm({ employee, onClose, onSaved }) {
         <ErrorBox error={error} />
         <h3 className="erp-h3">Identité</h3>
         <div className="form-grid">
-          <Field label="Nom"><input className="input" required value={f.last_name} onChange={set('last_name')} autoFocus={isNew} /></Field>
+          <Field label="Matricule" hint={canMatricule ? (isNew ? 'Attribué par le service RH : 3 à 20 caractères (lettres, chiffres, tirets). Sert aussi à pointer à la borne.' : 'Le changer prévient l’employé : c’est son identifiant à la borne de pointage.') : 'Attribué par le service RH'}>
+            <input className="input" style={{ textTransform: 'uppercase' }} required={isNew} readOnly={!canMatricule} minLength={3} maxLength={20} pattern="[A-Za-z0-9][A-Za-z0-9\-]{2,19}" title="3 à 20 caractères : lettres, chiffres, tirets" value={f.matricule} onChange={set('matricule')} autoFocus={isNew} />
+          </Field>
+          <Field label="Nom"><input className="input" required value={f.last_name} onChange={set('last_name')} /></Field>
           <Field label="Prénoms"><input className="input" required value={f.first_name} onChange={set('first_name')} /></Field>
           <Field label="Sexe"><select className="select" value={f.gender} onChange={set('gender')}><option value="">—</option><option value="F">Femme</option><option value="M">Homme</option></select></Field>
           <Field label="Nationalité"><input className="input" value={f.nationality} onChange={set('nationality')} /></Field>

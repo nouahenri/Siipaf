@@ -64,6 +64,7 @@ module.exports = function userRoutes(db) {
       ...base, password: z.string().min(10, 'Mot de passe : 10 caractères minimum.').optional(),
       employee_id: z.number().int().positive().optional().nullable(),
       employee: z.object({
+        matricule: require('../services/employees').matricule,
         job_title: z.string().trim().min(2).max(120), position_id: z.number().int().positive().optional().nullable(),
         department: z.string().trim().min(2).max(20), hire_date: day, contract_type: z.string().trim().max(12).optional(),
       }).optional().nullable(),
@@ -74,6 +75,7 @@ module.exports = function userRoutes(db) {
     await notAbove(req, { role: data.role });
     if ((data.employee_id || data.employee) && !(req.can('rh:files') || req.can('paie:employees'))) throw new HttpError(403, 'Relier ou créer une fiche employé demande un droit sur les fiches du personnel.');
     const { password, employee_id, employee, ...rest } = data;
+    if (employee) await require('../services/employees').assertMatriculeFree(db, employee.matricule);
     const temporary = password ? null : temporaryPassword();
     let newEmployee = null;
     const id = await db.transaction(async trx => {
@@ -91,7 +93,7 @@ module.exports = function userRoutes(db) {
         // Poste de la liste (RH › Réglages), ou ajouté à la liste s'il n'y figure pas
         const post = await require('../services/positions').resolve(trx, employee);
         const eid = insertedId((await trx('employees').insert({
-          matricule: await require('../services/paie').nextMatricule(trx), user_id: userId, first_name: first, last_name: others.join(' ') || first,
+          matricule: employee.matricule, user_id: userId, first_name: first, last_name: others.join(' ') || first,
           email: rest.email, phone: rest.phone || null, job_title: post.job_title, position_id: post.position_id, department: employee.department, contract_type: contract,
           hire_date: employee.hire_date, base_salary: 0,
         }))[0]);

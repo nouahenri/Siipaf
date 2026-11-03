@@ -431,7 +431,7 @@ test('achats:validate : valider une facture d’achat ou une dépense du Parc ; 
 
 // ─── Point 4 / B8. Fiche employé reliée à un compte ──────────────────────────
 test('fiche employé : relier un compte demande users:edit, la garde contre l’élévation, jamais son compte ni un super admin', async () => {
-  const mkEmp = body => admin.post(`${ERP}/paie/employees`).send({ last_name: 'Fiche', first_name: `Test${Math.random().toString(36).slice(2, 6)}`, job_title: 'Assistant', hire_date: '2025-01-10', base_salary: 100000, department: 'administratif', ...body });
+  const mkEmp = body => admin.post(`${ERP}/paie/employees`).send({ matricule: `T-${Math.random().toString(36).slice(2, 8).toUpperCase()}`, last_name: 'Fiche', first_name: `Test${Math.random().toString(36).slice(2, 6)}`, job_title: 'Assistant', hire_date: '2025-01-10', base_salary: 100000, department: 'administratif', ...body });
   const emp = (await mkEmp()).body;
   assert.ok(emp.id);
   const idResp = await idOf('resp_exploitation@test.ci');
@@ -453,12 +453,12 @@ test('fiche employé : relier un compte demande users:edit, la garde contre l’
   // Création par la Comptabilité : même règle, et solde de congés repris = conges:adjust
   const paie = await roleWith('paie_fiches', ['paie:read', 'paie:employees', 'paie:salary']);
   const body = { last_name: 'Nouvelle', first_name: 'Fiche', job_title: 'Aide', hire_date: '2025-02-01', base_salary: 90000, department: 'administratif' };
-  assert.equal((await paie.post(`${ERP}/paie/employees`).send({ ...body, leave_opening_days: 12 })).status, 403);
-  assert.equal((await paie.post(`${ERP}/paie/employees`).send({ ...body, last_name: 'Embauche', user_id: idA })).status, 201, 'embauche : le compte de la nouvelle personne se relie librement');
+  assert.equal((await paie.post(`${ERP}/paie/employees`).send({ matricule: 'T-4', ...body, leave_opening_days: 12 })).status, 403);
+  assert.equal((await paie.post(`${ERP}/paie/employees`).send({ matricule: 'T-5', ...body, last_name: 'Embauche', user_id: idA })).status, 201, 'embauche : le compte de la nouvelle personne se relie librement');
   const hired = await db('employees').where({ last_name: 'Embauche' }).first();
   assert.equal((await paie.patch(`${ERP}/paie/employees/${hired.id}`).send({ user_id: null })).status, 403, 'changer le compte d’une fiche existante : users:edit');
-  assert.equal((await paie.post(`${ERP}/paie/employees`).send(body)).status, 201);
-  assert.equal((await admin.post(`${ERP}/paie/employees`).send({ ...body, first_name: 'Reprise', leave_opening_days: 12, leave_opening_date: '2025-02-01' })).status, 201);
+  assert.equal((await paie.post(`${ERP}/paie/employees`).send({ matricule: 'T-460', ...body })).status, 201);
+  assert.equal((await admin.post(`${ERP}/paie/employees`).send({ matricule: 'T-6', ...body, first_name: 'Reprise', leave_opening_days: 12, leave_opening_date: '2025-02-01' })).status, 201);
   // PUT /users/:id/employee : garde contre l'élévation
   const putLink = (who, uid, employee_id) => who.put(`/api/admin/users/${uid}/employee`).send({ employee_id });
   assert.equal((await putLink(rhComptes, idResp, emp.id)).status, 403, 'compte plus privilégié');
@@ -479,7 +479,7 @@ test('litiges : celui qui vise un employé échappe à la vue « service » et �
   const mk = async (email, name) => {
     const g = await roleWith(email.split('@')[0], ['sav:read']);
     const uid = await idOf(email);
-    const e = (await admin.post(`${ERP}/paie/employees`).send({ last_name: name, first_name: 'Agent', job_title: 'Agent', hire_date: '2025-01-10', base_salary: 100000, department: 'administratif', user_id: uid })).body;
+    const e = (await admin.post(`${ERP}/paie/employees`).send({ matricule: `LIT-${name.toUpperCase()}`, last_name: name, first_name: 'Agent', job_title: 'Agent', hire_date: '2025-01-10', base_salary: 100000, department: 'administratif', user_id: uid })).body;
     return { agent: g, uid, emp: e };
   };
   const a = await mk('collegue_a@test.ci', 'Alpha'), b = await mk('collegue_b@test.ci', 'Bravo');
@@ -512,7 +512,7 @@ test('courrier du Juridique : Juridique, registre du courrier ou membre du servi
   assert.equal((await registre.get(C)).status, 200);
   const membre = await roleWith('membre_juridique', ['sav:read']);
   assert.equal((await membre.get(C)).status, 403);
-  await admin.post(`${ERP}/paie/employees`).send({ last_name: 'Juriste', first_name: 'Agent', job_title: 'Assistant juridique', hire_date: '2025-01-10', base_salary: 100000, department: 'juridique', user_id: await idOf('membre_juridique@test.ci') });
+  await admin.post(`${ERP}/paie/employees`).send({ matricule: 'T-8', last_name: 'Juriste', first_name: 'Agent', job_title: 'Assistant juridique', hire_date: '2025-01-10', base_salary: 100000, department: 'juridique', user_id: await idOf('membre_juridique@test.ci') });
   assert.equal((await membre.get(C)).status, 200);
 });
 
@@ -520,7 +520,7 @@ test('courrier du Juridique : Juridique, registre du courrier ou membre du servi
 test('borne : 5 échecs en 15 minutes verrouillent le matricule ; matricule inconnu traité comme un code faux', async () => {
   const presences = require('../src/services/presences');
   presences.resetKioskLocks();
-  const emp = (await admin.post(`${ERP}/paie/employees`).send({ last_name: 'Borne', first_name: 'Test', job_title: 'Ouvrier', hire_date: '2025-01-10', base_salary: 100000, department: 'chantier' })).body;
+  const emp = (await admin.post(`${ERP}/paie/employees`).send({ matricule: 'T-9', last_name: 'Borne', first_name: 'Test', job_title: 'Ouvrier', hire_date: '2025-01-10', base_salary: 100000, department: 'chantier' })).body;
   assert.ok(emp.matricule, JSON.stringify(emp));
   assert.equal((await admin.put(`${ERP}/rh/employees/${emp.id}/pin`).send({ pin: '4321' })).status, 200);
   const kiosk = (matricule, pin) => admin.post(`${ERP}/rh/attendance/kiosk`).send({ matricule, pin });
@@ -556,7 +556,7 @@ test('lectures RH ouvertes : réglages, chefs de service et organigramme sans do
   assert.ok((await settingsOnly.get(`${RH}/meta`)).body.settings.overtime_tiers);
 
   // Chef de service
-  const emp = (await admin.post(`${ERP}/paie/employees`).send({ last_name: 'Chef', first_name: 'Service', job_title: 'Chef', hire_date: '2025-01-10', base_salary: 100000, department: 'commercial', user_id: idA })).body;
+  const emp = (await admin.post(`${ERP}/paie/employees`).send({ matricule: 'T-10', last_name: 'Chef', first_name: 'Service', job_title: 'Chef', hire_date: '2025-01-10', base_salary: 100000, department: 'commercial', user_id: idA })).body;
   assert.equal((await admin.put(`${RH}/department-heads/commercial`).send({ employee_id: emp.id })).status, 200);
   assert.equal((await resp.get(`${RH}/department-heads`)).body.commercial.user_id, idA);
   const heads = (await sellerB.get(`${RH}/department-heads`)).body;
@@ -575,7 +575,7 @@ test('pièces du dossier : rh:documents (service RH) ; rh:read seul ne les ouvre
   const RH = `${ERP}/rh`;
   const owner = await roleWith('salarie_dossier', ['sav:read', 'self:conges']);
   const ownerId = await idOf('salarie_dossier@test.ci');
-  const emp = (await admin.post(`${ERP}/paie/employees`).send({ last_name: 'Dossier', first_name: 'Privé', job_title: 'Agent', hire_date: '2025-01-10', base_salary: 100000, department: 'administratif', user_id: ownerId })).body;
+  const emp = (await admin.post(`${ERP}/paie/employees`).send({ matricule: 'T-11', last_name: 'Dossier', first_name: 'Privé', job_title: 'Agent', hire_date: '2025-01-10', base_salary: 100000, department: 'administratif', user_id: ownerId })).body;
   const up = await admin.post(`${RH}/employees/${emp.id}/documents`).field('kind', 'cni').attach('file', Buffer.from('%PDF-1.4 cni'), { filename: 'cni.pdf', contentType: 'application/pdf' });
   assert.equal(up.status, 201, JSON.stringify(up.body));
   const doc = up.body;
@@ -643,8 +643,8 @@ test('objectifs et entretien : evaluation:objectives et evaluation:reviews ne fi
   const RH = `${ERP}/rh`;
   const eval1 = await roleWith('evaluateur', ['rh:read', 'evaluation:objectives', 'evaluation:reviews']);
   const evalId = await idOf('evaluateur@test.ci');
-  const mine = (await admin.post(`${ERP}/paie/employees`).send({ last_name: 'Evalue', first_name: 'Moi', job_title: 'Agent', hire_date: '2025-01-10', base_salary: 100000, department: 'administratif', user_id: evalId })).body;
-  const other = (await admin.post(`${ERP}/paie/employees`).send({ last_name: 'Evalue', first_name: 'Autre', job_title: 'Agent', hire_date: '2025-01-10', base_salary: 100000, department: 'administratif' })).body;
+  const mine = (await admin.post(`${ERP}/paie/employees`).send({ matricule: 'T-12', last_name: 'Evalue', first_name: 'Moi', job_title: 'Agent', hire_date: '2025-01-10', base_salary: 100000, department: 'administratif', user_id: evalId })).body;
+  const other = (await admin.post(`${ERP}/paie/employees`).send({ matricule: 'T-13', last_name: 'Evalue', first_name: 'Autre', job_title: 'Agent', hire_date: '2025-01-10', base_salary: 100000, department: 'administratif' })).body;
   const year = new Date().getFullYear();
   const objective = { year, title: 'Réduire les retards', period: 'annee', weight: 1 };
   assert.equal((await eval1.post(`${RH}/employees/${mine.id}/objectives`).send(objective)).status, 403);

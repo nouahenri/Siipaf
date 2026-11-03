@@ -1820,6 +1820,7 @@ const INFO_EVENTS = {
   'pv.action.veille': { module: 'administration', label: 'Action de réunion à mener avant l’échéance', audiences: [], priority: 'action' },
   'pv.action.retard': { module: 'administration', label: 'Action de réunion en retard', audiences: [], priority: 'urgent' },
   'rh.chef_service': { module: 'rh', label: 'Nomination comme chef de service', audiences: [] },
+  'rh.matricule': { module: 'rh', label: 'Matricule attribué ou changé par le service RH (prévient l’employé)', audiences: [] },
   'poste.change': { module: 'rh', label: 'Changement de poste appliqué (l’employé est prévenu)', audiences: [] },
   'objectifs.fixes': { module: 'rh', label: 'Objectifs de l’année fixés d’après un modèle (l’employé est prévenu)', audiences: [] },
   // Chantiers

@@ -63,7 +63,7 @@ function NewAccount({ roles, onClose, onCreated }) {
   const files = can('rh:files') || can('paie:employees');
   const unlinked = useResource(files ? '/admin/users/unlinked-employees' : null);
   const positions = usePositions();
-  const [f, setF] = useState({ name: '', email: '', phone: '', role: 'commercial', link: files ? 'create' : 'none', employee_id: '', job_title: '', department: 'administratif', hire_date: new Date().toISOString().slice(0, 10) });
+  const [f, setF] = useState({ name: '', email: '', phone: '', role: 'commercial', link: files ? 'create' : 'none', employee_id: '', matricule: '', job_title: '', department: 'administratif', hire_date: new Date().toISOString().slice(0, 10) });
   const [error, setError] = useState(null);
   const [busy, setBusy] = useState(false);
   const set = k => e => setF(x => ({ ...x, [k]: e.target.value }));
@@ -76,7 +76,7 @@ function NewAccount({ roles, onClose, onCreated }) {
     e.preventDefault(); setError(null); setBusy(true);
     const body = { name: f.name, email: f.email, phone: f.phone || null, role: f.role };
     if (f.link === 'existing') body.employee_id = Number(f.employee_id);
-    if (f.link === 'create') body.employee = { job_title: f.job_title, position_id: f.position_id || null, department: f.department, hire_date: f.hire_date };
+    if (f.link === 'create') body.employee = { matricule: f.matricule.trim().toUpperCase(), job_title: f.job_title, position_id: f.position_id || null, department: f.department, hire_date: f.hire_date };
     try { onCreated(await api.post('/admin/users', body)); } catch (err) { setError(err); setBusy(false); }
   };
   return (
@@ -102,6 +102,7 @@ function NewAccount({ roles, onClose, onCreated }) {
           </Field>
         )}
         {f.link === 'create' && <>
+          <Field label="Matricule" hint="Attribué par le service RH : 3 à 20 caractères (lettres, chiffres, tirets)"><input className="input" style={{ textTransform: 'uppercase' }} required minLength={3} maxLength={20} pattern="[A-Za-z0-9][A-Za-z0-9\-]{2,19}" title="3 à 20 caractères : lettres, chiffres, tirets" value={f.matricule} onChange={set('matricule')} /></Field>
           <Field label="Poste" hint="Le service et, s’il est prévu, le rôle du poste sont repris d’office">
             <PositionSelect value={f.job_title} positions={positions.data?.positions}
               onPick={p => setF(x => ({ ...x, job_title: p.title, position_id: p.id, department: p.department, role: p.default_role && assignable(roles, user).some(r => r.id === p.default_role) ? p.default_role : x.role }))} />

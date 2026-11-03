@@ -98,13 +98,13 @@ async function move(db, id, { stage = null, refuse_reason = null, note = null },
  * Embauche : crée la fiche employé (matricule, poste, service, contrat, salaire proposé, fin d'essai) à partir de
  * la candidature et du poste, ajoute l'événement « Embauche » au dossier et clôt le poste s'il est pourvu.
  */
-async function hire(db, id, { hire_date, base_salary, trial_end_date = null, contract_type = null, job_title = null }, userId) {
-  const paie = require('./paie');
+async function hire(db, id, { matricule, hire_date, base_salary, trial_end_date = null, contract_type = null, job_title = null }, userId) {
   const a = await db('hr_applicants').where({ id }).first();
   if (!a) throw new HttpError(404, 'Candidature introuvable.');
   if (a.employee_id) throw new HttpError(409, 'Candidat déjà embauché.');
   if (a.refuse_reason) throw new HttpError(409, 'Candidature refusée : réactivez-la d’abord.');
   if (STAGE_ORDER.indexOf(a.stage) < STAGE_ORDER.indexOf('proposition')) throw new HttpError(400, 'Faites d’abord une proposition d’embauche.');
+  await require('./employees').assertMatriculeFree(db, matricule);
   const job = a.job_id ? await db('hr_jobs').where({ id: a.job_id }).first() : null;
   const [first, ...rest] = a.name.trim().split(/\s+/);
   const employeeId = await db.transaction(async trx => {
@@ -112,7 +112,7 @@ async function hire(db, id, { hire_date, base_salary, trial_end_date = null, con
     const post = await require('./positions').resolve(trx, { job_title: job_title || job?.title || 'Employé(e)', department: job?.department || 'administratif' });
     const title = post.job_title;
     const [eid] = await trx('employees').insert({
-      matricule: await paie.nextMatricule(trx), last_name: rest.length ? rest.join(' ') : first, first_name: first, email: a.email, phone: a.phone,
+      matricule, last_name: rest.length ? rest.join(' ') : first, first_name: first, email: a.email, phone: a.phone,
       job_title: title, position_id: post.position_id, department: job?.department || 'administratif', contract_type: contract_type || job?.contract_type || 'cdi', project_id: job?.project_id || null,
       hire_date, trial_end_date, base_salary: base_salary ?? Number(a.proposed_salary || 0),
     });

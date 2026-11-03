@@ -244,13 +244,13 @@ function HireForm({ applicant, onClose, onDone }) {
   const canPay = can('paie:salary'); // salaire de la fiche : Paie
   const toast = useToast();
   const saved = useSaved();
-  const [f, setF] = useState({ hire_date: applicant.available_from || today(), base_salary: applicant.proposed_salary || applicant.expected_salary || '', trial_end_date: '', contract_type: '', job_title: applicant.job_title || '' });
+  const [f, setF] = useState({ matricule: '', hire_date: applicant.available_from || today(), base_salary: applicant.proposed_salary || applicant.expected_salary || '', trial_end_date: '', contract_type: '', job_title: applicant.job_title || '' });
   const [error, setError] = useState(null);
   const set = k => e => setF(x => ({ ...x, [k]: e.target.value }));
   const save = async e => {
     e.preventDefault();
     try {
-      await api.post(`${RH}/applicants/${applicant.id}/hire`, { hire_date: f.hire_date, ...(canPay ? { base_salary: Number(f.base_salary) || 0 } : {}), trial_end_date: f.trial_end_date || null, ...(f.contract_type ? { contract_type: f.contract_type } : {}), ...(f.job_title ? { job_title: f.job_title } : {}) });
+      await api.post(`${RH}/applicants/${applicant.id}/hire`, { matricule: f.matricule.trim().toUpperCase(), hire_date: f.hire_date, ...(canPay ? { base_salary: Number(f.base_salary) || 0 } : {}), trial_end_date: f.trial_end_date || null, ...(f.contract_type ? { contract_type: f.contract_type } : {}), ...(f.job_title ? { job_title: f.job_title } : {}) });
       saved('Fiche employé créée : complétez-la dans le dossier et la paie'); onDone();
     } catch (err) { setError(err); }
   };
@@ -258,6 +258,7 @@ function HireForm({ applicant, onClose, onDone }) {
     <Modal title={`Embaucher ${applicant.name}`} onClose={onClose} footer={<><button className="btn btn-ghost" onClick={onClose}>Annuler</button><button className="btn btn-primary" form="hire"><UserPlus />Créer la fiche employé</button></>}>
       <form id="hire" className="form-grid" onSubmit={save}>
         <div className="full"><ErrorBox error={error} /><p className="small muted">La fiche reprend le nom, le contact, le poste, le service et le contrat de l’offre. Elle apparaît dans le personnel et la paie.</p></div>
+        <Field label="Matricule" hint="Attribué par le service RH : 3 à 20 caractères (lettres, chiffres, tirets). Sert aussi à pointer à la borne."><input className="input" style={{ textTransform: 'uppercase' }} required minLength={3} maxLength={20} pattern="[A-Za-z0-9][A-Za-z0-9\-]{2,19}" title="3 à 20 caractères : lettres, chiffres, tirets" value={f.matricule} onChange={set('matricule')} autoFocus /></Field>
         <Field label="Poste"><input className="input" value={f.job_title} onChange={set('job_title')} /></Field>
         <Field label="Contrat"><select className="select" value={f.contract_type} onChange={set('contract_type')}><option value="">Celui de l’offre</option>{meta && Object.entries(meta.contract_types).map(([k, v]) => <option key={k} value={k}>{v}</option>)}</select></Field>
         <Field label="Date d’entrée"><input className="input" type="date" required value={f.hire_date} onChange={set('hire_date')} /></Field>

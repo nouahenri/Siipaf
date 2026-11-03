@@ -138,7 +138,7 @@ test('statut de lot : « Réservé » et « Vendu » refusés à la main, « Ré
 test('paie : validation et paiement préviennent la Comptabilité et la Direction générale', async () => {
   const P = '/api/admin/erp/paie';
   const period = `${year}-02`;
-  const emp = await comptable.post(`${P}/employees`).send({ last_name: 'Paie', first_name: 'Awa', job_title: 'Assistante', department: 'commercial', hire_date: `${year - 1}-01-01`, base_salary: 300000, pay_method: 'virement' });
+  const emp = await comptable.post(`${P}/employees`).send({ matricule: 'T-17', last_name: 'Paie', first_name: 'Awa', job_title: 'Assistante', department: 'commercial', hire_date: `${year - 1}-01-01`, base_salary: 300000, pay_method: 'virement' });
   assert.equal(emp.status, 201, JSON.stringify(emp.body));
   const run = (await comptable.post(`${P}/runs`).send({ period })).body;
   assert.equal((await comptable.post(`${P}/runs/${run.id}/validate`)).status, 200);

@@ -17,8 +17,9 @@ before(async () => {
   commercial = await login(app, await createUser(db, 'commercial'), 'motdepasse-test-123');
   exploitation = await login(app, await createUser(db, 'resp_exploitation'), 'motdepasse-test-123');
   const user = email => db('users').where({ email }).first();
+  let seq = 0;
   const hire = async body => {
-    const res = await comptable.post(`${P}/employees`).send({ gender: 'F', hire_date: '2024-01-01', base_salary: 300000, ...body });
+    const res = await comptable.post(`${P}/employees`).send({ matricule: `K-${++seq}`, gender: 'F', hire_date: '2024-01-01', base_salary: 300000, ...body });
     assert.equal(res.status, 201, JSON.stringify(res.body));
     return res.body;
   };
@@ -128,7 +129,7 @@ test('périodes : objectifs mensuels regroupés sur l’année, un seul sur le m
 
 test('nouvel arrivant : les modèles de son poste et de son service s’appliquent pour l’année en cours, à partir du mois en cours', async () => {
   const u = await createUser(db, 'commercial', 'nouveau@test.ci');
-  const res = await comptable.post(`${P}/employees`).send({ last_name: 'Nouveau', first_name: 'Ange', gender: 'M', job_title: 'Commerciale', department: 'commercial', hire_date: `${Y}-01-01`, base_salary: 200000, user_id: (await db('users').where({ email: u }).first()).id });
+  const res = await comptable.post(`${P}/employees`).send({ matricule: 'T-16', last_name: 'Nouveau', first_name: 'Ange', gender: 'M', job_title: 'Commerciale', department: 'commercial', hire_date: `${Y}-01-01`, base_salary: 200000, user_id: (await db('users').where({ email: u }).first()).id });
   assert.equal(res.status, 201, JSON.stringify(res.body));
   const objs = await db('hr_objectives').where({ employee_id: res.body.id, year: Y });
   const month = new Date().getUTCMonth() + 1;

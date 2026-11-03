@@ -17,8 +17,8 @@ after(() => db.destroy());
 
 test('RH crée la fiche ; matricule, embauche au parcours, Comptabilité prévenue (salaire à fixer)', async () => {
   const body = { last_name: 'Yao', first_name: 'Marc', job_title: 'Chef de chantier', department: 'chantier', hire_date: '2026-11-03', contract_type: 'cdd', end_date: '2027-05-02' };
-  assert.equal((await editeur.post(`${R}/employees`).send(body)).status, 403, 'réservé à « Identité, contrat et responsable »');
-  const res = await expl.post(`${R}/employees`).send(body);
+  assert.equal((await editeur.post(`${R}/employees`).send({ matricule: 'RC-001', ...body })).status, 403, 'réservé à « Identité, contrat et responsable »');
+  const res = await expl.post(`${R}/employees`).send({ matricule: 'RC-001', ...body });
   assert.equal(res.status, 201, JSON.stringify(res.body));
   assert.match(res.body.matricule, /\w/);
   const e = await db('employees').where({ id: res.body.id }).first();
@@ -32,8 +32,8 @@ test('RH crée la fiche ; matricule, embauche au parcours, Comptabilité préven
 });
 
 test('reprise depuis les comptes du dashboard par le service RH', async () => {
-  assert.equal((await editeur.post(`${R}/employees/from-users`).send({ user_ids: [users.editeur], hire_date: '2026-11-03' })).status, 403);
-  const res = await expl.post(`${R}/employees/from-users`).send({ user_ids: [users.editeur], hire_date: '2026-11-03' });
+  assert.equal((await editeur.post(`${R}/employees/from-users`).send({ people: [{ user_id: users.editeur, matricule: 'T-30' }], hire_date: '2026-11-03' })).status, 403);
+  const res = await expl.post(`${R}/employees/from-users`).send({ people: [{ user_id: users.editeur, matricule: 'T-31' }], hire_date: '2026-11-03' });
   assert.equal(res.status, 201);
   assert.equal(res.body.created, 1);
   assert.equal((await db('employees').where({ user_id: users.editeur }).first()).department, 'administratif');

@@ -188,7 +188,7 @@ test('objectifs du mois : cible et réalisé par commercial, objectifs mensuels 
   let res = await admin.put(`${M}/targets`).send({ month, user_id: sellerId, ca_fcfa: 64000000 });
   assert.equal(res.status, 409, 'compte sans fiche du personnel : pas de cible');
   assert.equal((await admin.get(`${M}/targets?month=${month}`)).body.rows.find(r => r.user_id === sellerId).employee_id, null);
-  res = await admin.post('/api/admin/erp/paie/employees').send({ last_name: 'Vendeur', first_name: 'Test', gender: 'F', job_title: 'Commerciale', department: 'commercial', hire_date: '2024-01-01', base_salary: 300000, user_id: sellerId });
+  res = await admin.post('/api/admin/erp/paie/employees').send({ matricule: 'T-14', last_name: 'Vendeur', first_name: 'Test', gender: 'F', job_title: 'Commerciale', department: 'commercial', hire_date: '2024-01-01', base_salary: 300000, user_id: sellerId });
   assert.equal(res.status, 201, JSON.stringify(res.body));
   const employeeId = res.body.id;
 

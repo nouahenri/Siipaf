@@ -40,7 +40,7 @@ test('comptabilité et espace employé par action ; prospects de l’équipe', a
   assert.equal((await comptable.get('/api/admin/erp/compta/entries')).status, 200, 'consultation gardée');
 
   const user = await db('users').where({ email: 'commercial@test.ci' }).first();
-  await comptable.post('/api/admin/erp/paie/employees').send({ last_name: 'Koné', first_name: 'Awa', job_title: 'Commerciale', hire_date: '2025-01-01', base_salary: 300000, user_id: user.id });
+  await comptable.post('/api/admin/erp/paie/employees').send({ matricule: 'T-1', last_name: 'Koné', first_name: 'Awa', job_title: 'Commerciale', hire_date: '2025-01-01', base_salary: 300000, user_id: user.id });
   assert.equal((await commercial.post('/api/admin/erp/rh/me/attendance').send({})).status, 200);
   await setRole('commercial', [], ['self:pointage']);
   assert.equal((await commercial.post('/api/admin/erp/rh/me/attendance').send({})).status, 403, 'pointage en ligne retiré au rôle');
@@ -69,7 +69,7 @@ test('migration : les anciens droits larges deviennent les actions qu’ils couv
 });
 
 test('comptes créés depuis l’ERP : mot de passe provisoire, fiche employé reliée ou créée, réinitialisation', async () => {
-  let res = await admin.post('/api/admin/users').send({ name: 'Yao Christelle', email: 'christelle@test.ci', role: 'editeur', employee: { job_title: 'Assistante', department: 'administratif', hire_date: '2026-01-05' } });
+  let res = await admin.post('/api/admin/users').send({ name: 'Yao Christelle', email: 'christelle@test.ci', role: 'editeur', employee: { matricule: 'T-2', job_title: 'Assistante', department: 'administratif', hire_date: '2026-01-05' } });
   assert.equal(res.status, 201, JSON.stringify(res.body));
   const temp = res.body.temporary_password;
   assert.equal(temp.length, 12);

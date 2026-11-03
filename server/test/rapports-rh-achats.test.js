@@ -26,7 +26,7 @@ before(async () => {
 
   // ─── Personnel ───
   const hire = async (last_name, first_name, hire_date, extra = {}) => ok(await admin.post('/api/admin/erp/paie/employees')
-    .send({ last_name, first_name, gender: 'F', job_title: 'Agent', department: 'commercial', hire_date, base_salary: 987654, ...extra }), 201);
+    .send({ matricule: `RH-${last_name}-${first_name}`.normalize('NFD').replace(/[^A-Za-z-]/g, '').slice(0, 20), last_name, first_name, gender: 'F', job_title: 'Agent', department: 'commercial', hire_date, base_salary: 987654, ...extra }), 201);
   awa = await hire('Koné', 'Awa', '2024-01-01');
   yao = await hire('Yao', 'Marc', '2026-09-15', { department: 'chantier' }); // entrée de la période
   kone = await hire('Kouassi', 'Paul', '2025-01-01');

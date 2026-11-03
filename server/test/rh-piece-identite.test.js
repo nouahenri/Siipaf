@@ -12,7 +12,7 @@ before(async () => {
   ({ db, app } = await setup());
   expl = await login(app, await createUser(db, 'resp_exploitation'), 'motdepasse-test-123');
   editeur = await login(app, await createUser(db, 'editeur'), 'motdepasse-test-123');
-  employee = (await expl.post(`${R}/employees`).send({ last_name: 'Kouadio', first_name: 'Ama', job_title: 'Assistante', department: 'administratif', hire_date: '2026-11-03' })).body;
+  employee = (await expl.post(`${R}/employees`).send({ matricule: 'T-32', last_name: 'Kouadio', first_name: 'Ama', job_title: 'Assistante', department: 'administratif', hire_date: '2026-11-03' })).body;
 });
 after(() => db.destroy());
 

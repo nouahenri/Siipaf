@@ -19,7 +19,7 @@ before(async () => {
   awaAgent = await login(app, await createUser(db, 'commercial'), 'motdepasse-test-123');
   koffiAgent = await login(app, await createUser(db, 'conducteur_travaux'), 'motdepasse-test-123');
   users = Object.fromEntries((await db('users').select('id', 'role')).map(u => [u.role, u.id]));
-  awa = (await admin.post('/api/admin/erp/paie/employees').send({ last_name: 'Koné', first_name: 'Awa', gender: 'F', job_title: 'Commerciale', department: 'commercial', hire_date: '2024-01-01', base_salary: 300000, user_id: users.commercial })).body;
+  awa = (await admin.post('/api/admin/erp/paie/employees').send({ matricule: 'T-21', last_name: 'Koné', first_name: 'Awa', gender: 'F', job_title: 'Commerciale', department: 'commercial', hire_date: '2024-01-01', base_salary: 300000, user_id: users.commercial })).body;
   await awaAgent.put(`${R}/me/pin`).send({ pin: '4821' });
   siege = await db('places').where({ kind: 'siege' }).first();
 });

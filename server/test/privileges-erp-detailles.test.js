@@ -234,10 +234,10 @@ test('paie : le salaire se règle avec « Salaire et paiement », pas avec « G�
   assert.equal((await db('employees').where({ id: employee }).first()).base_salary, 300000);
   // Création d'une fiche : sans salaire, elle part à 0 ; avec un salaire, il faut le droit
   const body = { last_name: 'Nouveau', first_name: 'Test', job_title: 'Aide', hire_date: '2026-01-01' };
-  const created = await fiches.post(`${ERP}/paie/employees`).send(body);
+  const created = await fiches.post(`${ERP}/paie/employees`).send({ matricule: 'T-237', ...body });
   assert.equal(created.status, 201, JSON.stringify(created.body));
-  assert.equal((await fiches.post(`${ERP}/paie/employees`).send({ ...body, last_name: 'Autre', base_salary: 200000 })).status, 403);
-  assert.equal((await salaire.post(`${ERP}/paie/employees`).send({ ...body, last_name: 'Autre', base_salary: 200000 })).status, 201);
+  assert.equal((await fiches.post(`${ERP}/paie/employees`).send({ matricule: 'T-24', ...body, last_name: 'Autre', base_salary: 200000 })).status, 403);
+  assert.equal((await salaire.post(`${ERP}/paie/employees`).send({ matricule: 'T-25', ...body, last_name: 'Autre', base_salary: 200000 })).status, 201);
 });
 
 test('RH : annuler une absence commencée demande conges:cancel ; ajuster un solde demande conges:adjust', async () => {

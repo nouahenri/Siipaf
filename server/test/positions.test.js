@@ -15,10 +15,10 @@ before(async () => {
   await createUser(db, 'commercial');
   ids = Object.fromEntries((await db('users').select('id', 'role')).map(u => [u.role, u.id]));
   // Le responsable d'exploitation (RH : fiches) et le comptable (paie) créent les fiches par les écrans habituels
-  let res = await comptable.post('/api/admin/erp/paie/employees').send({ last_name: 'Koné', first_name: 'Awa', job_title: 'Commercial', department: 'commercial', hire_date: '2024-01-15', base_salary: 350000, user_id: ids.commercial });
+  let res = await comptable.post('/api/admin/erp/paie/employees').send({ matricule: 'T-22', last_name: 'Koné', first_name: 'Awa', job_title: 'Commercial', department: 'commercial', hire_date: '2024-01-15', base_salary: 350000, user_id: ids.commercial });
   assert.equal(res.status, 201, JSON.stringify(res.body));
   emp = { awa: res.body.id };
-  res = await comptable.post('/api/admin/erp/paie/employees').send({ last_name: 'Yao', first_name: 'Paul', job_title: 'commercial', department: 'commercial', hire_date: '2024-03-01', base_salary: 300000 });
+  res = await comptable.post('/api/admin/erp/paie/employees').send({ matricule: 'T-23', last_name: 'Yao', first_name: 'Paul', job_title: 'commercial', department: 'commercial', hire_date: '2024-03-01', base_salary: 300000 });
   emp.paul = res.body.id;
 });
 after(() => db.destroy());

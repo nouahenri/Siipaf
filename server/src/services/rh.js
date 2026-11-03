@@ -316,7 +316,7 @@ function identityUpload() {
 // Champs suivis dans l'historique de carrière quand la fiche change
 const TRACKED = {
   job_title: ['promotion', 'Poste'], department: ['mutation', 'Service'], project_id: ['mutation', 'Affectation'], contract_type: ['avenant', 'Contrat'],
-  category: ['promotion', 'Catégorie'], base_salary: ['augmentation', 'Salaire de base'], end_date: ['fin_contrat', 'Fin de contrat'], trial_end_date: ['fin_essai', 'Fin de la période d’essai'],
+  matricule: ['autre', 'Matricule'], category: ['promotion', 'Catégorie'], base_salary: ['augmentation', 'Salaire de base'], end_date: ['fin_contrat', 'Fin de contrat'], trial_end_date: ['fin_essai', 'Fin de la période d’essai'],
 };
 /** Historique de carrière tenu automatiquement à partir des modifications de la fiche employé. */
 async function logChanges(trx, before, after, userId) {
