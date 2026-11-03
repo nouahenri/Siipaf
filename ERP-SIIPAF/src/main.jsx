@@ -59,6 +59,8 @@ import Employees from './pages/compta/Employees';
 import Payroll, { PayrollRun } from './pages/compta/Payroll';
 import Receipt from './pages/compta/Receipt';
 import ServiceRequests from './components/ServiceRequests';
+import DisplaySettings from '@admin/components/DisplaySettings';
+import { ReportPage } from './components/Reports';
 import { DepartmentPage } from './components/DepartmentRequests';
 import { MODULE_DEPARTMENT } from './lib/departments';
 import { MODULES } from './components/ErpLayout';
@@ -152,7 +154,8 @@ function App() {
         <Route path="commercial/sita" element={<Guard perm="commercial:read"><SitaConversations /></Guard>} />
         <Route path="commercial/reglages" element={<ModuleSettings module="commercial" />} />
         <Route path="compta" element={<Guard perm="compta:read"><ComptaDashboard /></Guard>} />
-        <Route path="compta/recu/:id" element={<Guard perm={['sales:read', 'payments:write']}><Receipt /></Guard>} />
+        <Route path="rapports/:module" element={<ReportPage />} />
+        <Route path="compta/recu/:id"element={<Guard perm={['sales:read', 'payments:write']}><Receipt /></Guard>} />
         <Route path="compta/ecritures" element={<Guard perm="compta:read"><Entries /></Guard>} />
         <Route path="compta/achats" element={<Guard perm="compta:read"><Purchases /></Guard>} />
         <Route path="compta/etats" element={<Guard perm="compta:read"><Reports /></Guard>} />
@@ -178,6 +181,7 @@ function App() {
         <Route path="rh/objectifs" element={<Reviews />} />
         <Route path="rh/reglages" element={<Settings module="rh" perm="rh:read" who="le service des ressources humaines"><RhSettings /></Settings>} />
         <Route path="comptes" element={<Guard perm="users:read"><Accounts /></Guard>} />
+        <Route path="parametres" element={<div className="erp-settings"><DisplaySettings /></div>} />
         <Route path="demarrer" element={<Guard perm={['users:read', 'rh:read']}><Onboarding /></Guard>} />
         <Route path="commercial/acces" element={<Guard perm="users:read"><ModuleAccess module="commercial" label="Service commercial" /></Guard>} />
         <Route path="administration" element={<AdminHome />} />

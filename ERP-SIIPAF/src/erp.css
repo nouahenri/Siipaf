@@ -27,6 +27,20 @@
   .appro-print .table th { position: static; }
 }
 
+/* Rapports des tableaux de bord (Exporter, Imprimer) : boutons de l'en-tête, période, page imprimable. */
+.report-btn svg { width: 15px; height: 15px; }
+@media (max-width: 640px) { .report-btn span { display: none; } .report-btn { padding: 6px 8px; } }
+.report-periods { display: flex; flex-wrap: wrap; overflow: visible; }
+.report-head { align-items: flex-start; gap: 16px; padding-bottom: 12px; border-bottom: 2px solid var(--border); }
+.report-kpis { display: grid; grid-template-columns: repeat(auto-fill, minmax(190px, 1fr)); gap: 10px; }
+.report-kpi { display: grid; gap: 4px; padding: 10px 12px; border: 1px solid var(--border); border-radius: var(--radius-sm); }
+.report-kpi b { font-size: 17px; }
+@media print {
+  .report-kpis { grid-template-columns: repeat(3, 1fr); }
+  .report-kpi, .report-section tr { break-inside: avoid; }
+  .report-section h3 { break-after: avoid; }
+}
+
 .sidebar-logo { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 6px 16px; align-items: center; flex-shrink: 0; }
 .sidebar-logo img { justify-self: start; }
 .erp-tag { justify-self: end; font-size: 24px; line-height: 1; font-weight: 700; letter-spacing: .08em; color: #000; }
@@ -497,3 +511,39 @@ button.gantt-row:focus-visible { outline: 2px solid var(--focus); outline-offset
   .qhse-rate.big button { min-height: 60px; }
   .qhse-worker-row { grid-template-columns: minmax(0, 1fr); }
 }
+
+/*
+ * Boutons de l'ERP plus identifiables (demande du client du 03/11, ERP seulement — le dashboard garde son style) :
+ * secondaires (.btn sans variante) en gris-noir, texte blanc ; rouge réservé à l'action principale ; boutons transparents
+ * (.btn-ghost : icônes, Annuler, Tout voir…) sur fond gris clair. Les variantes sont rétablies en .btn.xxx car ce fichier
+ * est chargé après styles.css (même spécificité sinon). Inventaire et cas particuliers : agent code-explorer du 03/11.
+ */
+:root { --btn-2: #23262d; --btn-2-hover: #000; --btn-2-border: #23262d; --btn-2-ink: #fff; --btn-soft: #e3e6eb; --btn-soft-hover: #d5d9e0; }
+:root[data-theme="sombre"] { --btn-2: #424854; --btn-2-hover: #545b69; --btn-2-border: #5a606d; --btn-2-ink: #fff; --btn-soft: #2c313a; --btn-soft-hover: #3a404b; }
+
+.btn { background: var(--btn-2); border-color: var(--btn-2-border); color: var(--btn-2-ink); }
+.btn:hover:not(:disabled) { background: var(--btn-2-hover); border-color: var(--btn-2-hover); color: var(--btn-2-ink); }
+.btn:disabled:hover { background: var(--btn-2); border-color: var(--btn-2-border); }
+a.btn.disabled { opacity: .55; pointer-events: none; }
+
+.btn.btn-primary, .btn.btn-primary:disabled:hover { background: var(--brand); border-color: var(--brand); color: #fff; }
+.btn.btn-primary:hover:not(:disabled) { background: var(--brand-dk); border-color: var(--brand-dk); color: #fff; }
+
+/* Transparents : fond gris clair, texte de leur contexte (pas de couleur imposée) */
+.btn.btn-ghost, .btn.btn-ghost:disabled:hover { background: var(--btn-soft); border-color: transparent; color: inherit; }
+.btn.btn-ghost:hover:not(:disabled) { background: var(--btn-soft-hover); border-color: transparent; color: inherit; }
+.btn.back-btn { border: 1px solid var(--border-strong); color: var(--ink-2); }
+.notif-head .btn.btn-ghost { color: var(--ink-2); }
+
+/* Refus / suppression non transparents : contour rouge sur fond clair, pour ne pas concurrencer le rouge principal */
+.btn.btn-danger:not(.btn-ghost), .btn.btn-danger:not(.btn-ghost):disabled:hover { background: var(--surface); border-color: var(--danger); color: var(--danger); }
+.btn.btn-danger:not(.btn-ghost):hover:not(:disabled) { background: var(--danger); border-color: var(--danger); color: #fff; }
+.btn.btn-ghost.btn-danger, .btn.btn-ghost.btn-danger:hover:not(:disabled) { color: var(--danger); }
+
+/* Exceptions : visionneuse de photos (fond noir) et boutons posés sur les vignettes gardent leur style */
+.lightbox-top .btn.btn-ghost.btn-icon, .lightbox-top .btn.btn-ghost.btn-icon:hover:not(:disabled) { background: transparent; color: #fff; }
+.lightbox-top .btn.btn-ghost.btn-icon:hover:not(:disabled) { background: rgba(255, 255, 255, .12); }
+.media-thumb .btn.btn-icon, .journal-photo .btn.btn-icon { background: var(--surface); border-color: var(--border); color: var(--ink); }
+
+/* ERP › Paramètres (affichage du compte, même carte que Dashboard › Paramètres › Affichage). */
+.erp-settings { max-width: 640px; }

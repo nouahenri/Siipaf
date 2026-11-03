@@ -16,6 +16,7 @@ import { initials } from '@admin/lib/format';
 import { dashboardUrl } from '../lib/links';
 import { MODULE_DEPARTMENT } from '../lib/departments';
 import NotificationCenter from './NotificationCenter';
+import { ReportActions } from './Reports';
 
 const COURRIER = ['courrier:read', 'courrier:write', 'courrier:assign'];
 const CONTRATS = ['contrats:read', 'contrats:write', 'contrats:close', 'contrats:documents'];
@@ -44,8 +45,12 @@ const DETAILS = [
   [/^\/achats\/(prix|commandes)\/(\d+)\/impression$/, m => (m[1] === 'prix'
     ? { title: 'Impression de la demande de prix', parent: { to: `/achats/prix?fiche=${m[2]}`, label: 'Demande de prix' } }
     : { title: 'Impression du bon de commande', parent: { to: `/achats/commandes?fiche=${m[2]}`, label: 'Bon de commande' } })],
+  [/^\/rapports\/([a-z]+)$/, m => ({ title: `Rapport — ${MODULES[m[1]]?.label || 'module'}`, parent: { to: reportHome(m[1]), label: MODULES[m[1]]?.label || 'Module' } })],
 ];
-const moduleOf = path => path?.split('/')[1] || '';
+// Page du rapport d'un module (/rapports/<module>) : rattachée à son module (menu, retour)
+const moduleOf = path => (path?.startsWith('/rapports/') ? path.split('/')[2] : path?.split('/')[1]) || '';
+/** Écran d'où partent Exporter et Imprimer : le tableau de bord du module, la liste pour les chantiers. */
+const reportHome = id => (id === 'chantiers' ? '/chantiers/liste' : `/${id}`);
 
 // Navigation de chaque module ; les modules suivants (comptabilité, RH…) viendront s'ajouter ici
 const MODULES = {
@@ -203,7 +208,7 @@ const TITLES = {
   '/qhse': 'QHSE', '/qhse/controles': 'Contrôles journaliers', '/qhse/controles/nouveau': 'Contrôle du jour', '/qhse/hebdomadaires': 'Contrôles hebdomadaires', '/qhse/audits': 'Inspections et audits', '/qhse/actions': 'Actions correctives', '/qhse/reglages': 'Réglages — QHSE', '/qhse/acces': 'Rôles et privilèges — QHSE',
   '/chantiers/liste': 'Chantiers', '/chantiers/reglages': 'Réglages — Chantiers', '/chantiers/acces': 'Rôles et privilèges — Chantiers',
   '/compta': 'Comptabilité', '/compta/ecritures': 'Écritures comptables', '/compta/achats': 'Achats et fournisseurs', '/compta/etats': 'États comptables',
-  '/compta/plan': 'Plan comptable SYSCOHADA', '/compta/parametres': 'Réglages — Comptabilité', '/compta/paie': 'Paie', '/compta/parc': 'Parc auto et matériel — Comptabilité', '/compta/employes': 'Employés', '/rh': 'Ressources humaines', '/rh/moi': 'Mon espace', '/rh/personnel': 'Personnel', '/rh/conges': 'Congés et absences', '/rh/presences': 'Présences', '/rh/borne': 'Borne de pointage', '/rh/frais': 'Notes de frais', '/rh/recrutement': 'Recrutement', '/rh/competences': 'Compétences et formations', '/rh/objectifs': 'Performance et entretiens', '/rh/reglages': 'Réglages — Ressources humaines', '/commercial/acces': 'Rôles et privilèges — Service commercial', '/compta/acces': 'Rôles et privilèges — Comptabilité', '/rh/acces': 'Rôles et privilèges — Ressources humaines', '/sav/acces': 'Rôles et privilèges — Client & SAV', '/comptes': 'Comptes utilisateurs', '/sav': 'Client & SAV', '/sav/reclamations': 'Réclamations', '/sav/reserves': 'Réserves de livraison', '/sav/interventions': 'Interventions',
+  '/compta/plan': 'Plan comptable SYSCOHADA', '/compta/parametres': 'Réglages — Comptabilité', '/compta/paie': 'Paie', '/compta/parc': 'Parc auto et matériel — Comptabilité', '/compta/employes': 'Employés', '/rh': 'Ressources humaines', '/rh/moi': 'Mon espace', '/rh/personnel': 'Personnel', '/rh/conges': 'Congés et absences', '/rh/presences': 'Présences', '/rh/borne': 'Borne de pointage', '/rh/frais': 'Notes de frais', '/rh/recrutement': 'Recrutement', '/rh/competences': 'Compétences et formations', '/rh/objectifs': 'Performance et entretiens', '/rh/reglages': 'Réglages — Ressources humaines', '/commercial/acces': 'Rôles et privilèges — Service commercial', '/compta/acces': 'Rôles et privilèges — Comptabilité', '/rh/acces': 'Rôles et privilèges — Ressources humaines', '/sav/acces': 'Rôles et privilèges — Client & SAV', '/comptes': 'Comptes utilisateurs', '/parametres': 'Paramètres', '/sav': 'Client & SAV', '/sav/reclamations': 'Réclamations', '/sav/reserves': 'Réserves de livraison', '/sav/interventions': 'Interventions',
 };
 
 
@@ -213,7 +218,7 @@ export default function ErpLayout() {
   const { pathname, search } = useLocation();
   const [open, setOpen] = useState(false);
   const [pageTitle, setPageTitle] = useState(null);
-  const moduleId = pathname.split('/')[1];
+  const moduleId = moduleOf(pathname);
   const mod = MODULES[moduleId];
   const statsUrl = moduleId === 'achats' && can('appro:read') ? '/admin/erp/achats/dashboard' : moduleId === 'sav' && can('sav:read') ? '/admin/erp/sav/stats' : moduleId === 'commercial' && can('commercial:read') ? '/admin/erp/commercial/dashboard' : moduleId === 'compta' && can('compta:read') ? '/admin/erp/compta/dashboard' : moduleId === 'rh' ? '/admin/erp/rh/badges' : moduleId === 'administration' ? '/admin/erp/direction/badges' : moduleId === 'juridique' ? '/admin/erp/juridique/badges' : moduleId === 'chantiers' ? '/admin/erp/chantiers/badges' : moduleId === 'marketing' && can('marketing:read') ? '/admin/erp/marketing/badges' : moduleId === 'qhse' && can('qhse:read') ? '/admin/erp/qhse/badges' : null;
   const stats = useResource(statsUrl, [pathname]);
@@ -233,6 +238,9 @@ export default function ErpLayout() {
   const title = pageTitle || TITLES[pathname] || page?.title || (mod && pathname.startsWith(`/${moduleId}/moi`) ? 'Mon espace' : mod && pathname === `/${moduleId}/service` ? 'Demandes du service' : mod ? mod.label : 'ERP');
   const { back } = useNavigationTrail({ title, moduleOf, detail: page, otherHost: window.location.host.replace(/^erp\./, 'admin.'), otherLabel: 'dashboard' });
   useEffect(() => { document.title = `${title} — SIIPAF ERP`; }, [title]);
+  // Exporter / Imprimer : sur le tableau de bord du module (la liste pour les chantiers), pour qui voit cet écran
+  const home = mod && pathname === reportHome(moduleId) ? mod.items.find(i => i.to === pathname) : null;
+  const reports = !!home && (can(home.perm) || !!home.show?.(stats.data));
 
   return (
     <div className="shell">
@@ -276,6 +284,7 @@ export default function ErpLayout() {
           {(can('users:read') || can('rh:read')) && <NavLink to="/demarrer" state={MENU} className={({ isActive }) => `nav-item ${isActive ? 'active' : ''}`}><Rocket aria-hidden="true" />Bien démarrer</NavLink>}
           {can('users:read') && <NavLink to="/comptes" state={MENU} className={({ isActive }) => `nav-item ${isActive ? 'active' : ''}`}><UserCog aria-hidden="true" />Comptes utilisateurs</NavLink>}
           <a href={withReturn(dashboardUrl(), title)} className="nav-item"><ExternalLink aria-hidden="true" />Dashboard du site</a>
+          <NavLink to="/parametres" state={MENU} className={({ isActive }) => `nav-item ${isActive ? 'active' : ''}`}><Settings2 aria-hidden="true" />Paramètres</NavLink>
           <button className="nav-item btn-ghost" style={{ width: '100%', border: 'none', cursor: 'pointer' }} onClick={logout}>
             <LogOut aria-hidden="true" />Déconnexion
           </button>
@@ -288,6 +297,7 @@ export default function ErpLayout() {
           <BackButton back={back} />
           <h1>{title}</h1>
           <div className="spacer" />
+          {reports && <ReportActions module={moduleId} title={mod.label} />}
           <NotificationCenter />
           <div className="user-chip">
             <div className="right">

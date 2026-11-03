@@ -22,7 +22,7 @@ module.exports = function comptaRoutes(db) {
   const r = express.Router();
   // Salaire de chacun : les lignes nominatives de la paie (net à payer, salaire versé, avance retenue) ne montrent ni le nom
   // ni la personne sans le droit « Consulter la paie » ; les montants restent, les totaux et les états sont exacts (audit du 29/10)
-  const PAY_LINE = /^(Net à payer|Salaire .* — |Avance retenue) /;
+  const PAY_LINE = /^(Net à payer|Salaire .+|Avance retenue) — /;
   const maskPay = v => {
     if (Array.isArray(v)) return v.map(maskPay);
     if (!v || typeof v !== 'object') return v;
