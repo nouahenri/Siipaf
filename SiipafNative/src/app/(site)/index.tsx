@@ -48,13 +48,13 @@ function BrandCard({ count, cities }: { count: number; cities: string[] }) {
       <View style={{ position: 'absolute', right: -34, top: -30, width: 150, height: 150, borderRadius: 75, backgroundColor: c.red, opacity: 0.9 }} />
       <View style={{ position: 'absolute', right: 54, bottom: -46, width: 104, height: 104, borderRadius: 52, borderWidth: 18, borderColor: c.goldLight, opacity: 0.85 }} />
       <View style={{ position: 'absolute', right: 18, top: 62, width: 46, height: 46, borderRadius: 14, backgroundColor: '#fff', opacity: 0.12, transform: [{ rotate: '18deg' }] }} />
-      <View style={{ flexDirection: 'row', alignItems: 'center', gap: 10 }}>
-        <Image source={LOGO_ON_DARK} style={{ width: 165, height: 165 / LOGO_RATIO }} contentFit="contain" accessibilityElementsHidden />
-      </View>
-      {/* Agrément : en haut à droite, sur le disque rouge */}
-      <View style={{ position: 'absolute', top: space.lg, right: space.md, flexDirection: 'row', alignItems: 'center', gap: 4, backgroundColor: 'rgba(0,0,0,0.3)', borderRadius: 999, paddingHorizontal: 8, paddingVertical: 4 }}>
-        <BadgeCheck size={13} color="#fff" />
-        <Txt style={{ fontFamily: fonts.semibold, fontSize: 11, color: '#fff' }} numberOfLines={1}>{t('Promoteur agréé MCLU')}</Txt>
+      {/* Logo et agrément sur la même ligne, centrés verticalement (agrément sur le disque rouge) */}
+      <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: 6 }}>
+        <Image source={LOGO_ON_DARK} style={{ width: 156, height: 156 / LOGO_RATIO }} contentFit="contain" accessibilityElementsHidden />
+        <View style={{ flexShrink: 1, flexDirection: 'row', alignItems: 'center', gap: 4, backgroundColor: 'rgba(0,0,0,0.35)', borderRadius: 999, paddingHorizontal: 8, paddingVertical: 4 }}>
+          <BadgeCheck size={13} color="#6EE7A8" />
+          <Txt style={{ flexShrink: 1, fontFamily: fonts.semibold, fontSize: 11, color: '#fff' }} numberOfLines={2}>{t('Promoteur agréé MCLU')}</Txt>
+        </View>
       </View>
       {cities.length ? <Txt style={{ marginTop: space.sm, maxWidth: '62%', fontSize: 12.5, color: 'rgba(255,255,255,0.7)' }} numberOfLines={1}>{cities.join(' · ')}</Txt> : null}
       {count ? (
