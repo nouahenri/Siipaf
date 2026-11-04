@@ -156,8 +156,8 @@ export function PaySheet({ dossier, line, onClose }: { dossier: DossierDetail; l
               <View style={{ gap: space.sm }}>
                 {channels.data.map(x => (
                   <Pressable key={x.key} onPress={() => { Haptics.selectionAsync().catch(() => {}); setCh(x); }} accessibilityRole="button" accessibilityLabel={`Payer avec ${x.label}`}
-                    style={({ pressed }) => ({ flexDirection: 'row', alignItems: 'center', gap: space.md, minHeight: 68, paddingHorizontal: space.md, borderRadius: radius.lg, borderWidth: 1, borderColor: c.line, backgroundColor: pressed ? c.surfaceAlt : c.surface })}>
-                    <Logo k={x.key} />
+                    style={({ pressed }) => ({ flexDirection: 'row', alignItems: 'center', gap: space.md, minHeight: 72, paddingHorizontal: space.md, borderRadius: radius.lg, borderWidth: 1, borderColor: c.line, backgroundColor: pressed ? c.surfaceAlt : c.surface })}>
+                    <Logo k={x.key} size={54} />
                     <View style={{ flex: 1, minWidth: 0 }}>
                       <Txt style={{ fontFamily: fonts.semibold, fontSize: 15.5, color: c.ink }}>{x.label}</Txt>
                       <Txt variant="tiny" numberOfLines={1}>{x.link ? `Paiement direct dans l’application ${x.key === 'paypal' ? 'PayPal' : x.label}` : `Numéro marchand ${x.number}`}</Txt>
@@ -184,21 +184,24 @@ export function PaySheet({ dossier, line, onClose }: { dossier: DossierDetail; l
 
           {/* Étape 1 : payer dans l'application de l'opérateur (lien marchand prioritaire, numéro en secours) */}
           <View style={{ padding: space.md, borderRadius: radius.lg, backgroundColor: c.surfaceAlt, gap: space.sm, marginBottom: space.lg }}>
-            <View style={{ flexDirection: 'row', alignItems: 'center', gap: space.md }}>
-              <Logo k={ch.key} size={40} />
-              <Txt style={{ flex: 1, fontFamily: fonts.semibold, fontSize: 15, color: c.ink }}>1. Payez {fcfa(sum)} avec {ch.label}</Txt>
+            {/* Logo à gauche ; titre, bouton et numéro compacts à droite */}
+            <View style={{ flexDirection: 'row', alignItems: 'flex-start', gap: space.md }}>
+              <Logo k={ch.key} size={64} />
+              <View style={{ flex: 1, minWidth: 0, gap: 8 }}>
+                <Txt style={{ fontFamily: fonts.semibold, fontSize: 15, color: c.ink }}>1. Payez {fcfa(sum)} avec {ch.label}</Txt>
+                {ch.link ? <Button label={`Payer dans ${ch.key === 'paypal' ? 'PayPal' : ch.label}`} icon={ExternalLink} variant="dark" size="sm" block haptic onPress={() => openLink(ch.link!)} /> : null}
+                {ch.number ? (
+                  <Pressable onPress={() => copy(ch.number!)} accessibilityRole="button" accessibilityLabel={`Copier le numéro marchand ${ch.number}`}
+                    style={({ pressed }) => ({ flexDirection: 'row', alignItems: 'center', gap: 8, minHeight: 40, paddingHorizontal: 12, paddingVertical: 4, borderRadius: radius.md, backgroundColor: pressed ? c.line : c.surface, borderWidth: 1, borderColor: c.line })}>
+                    <View style={{ flex: 1, minWidth: 0 }}>
+                      <Txt style={{ fontSize: 10.5, color: c.ink3 }} numberOfLines={1}>{ch.link ? 'Ou au numéro marchand' : 'Numéro marchand SIIPAF'}</Txt>
+                      <Txt style={{ fontFamily: fonts.bold, fontSize: 15, color: c.ink, letterSpacing: 0.4 }} numberOfLines={1}>{ch.number}</Txt>
+                    </View>
+                    <Copy size={15} color={c.primary} /><Txt style={{ fontFamily: fonts.semibold, fontSize: 13, color: c.primary }}>Copier</Txt>
+                  </Pressable>
+                ) : null}
+              </View>
             </View>
-            {ch.link ? <Button label={`Payer dans ${ch.key === 'paypal' ? 'PayPal' : ch.label}`} icon={ExternalLink} variant="dark" block haptic onPress={() => openLink(ch.link!)} /> : null}
-            {ch.number ? (
-              <Pressable onPress={() => copy(ch.number!)} accessibilityRole="button" accessibilityLabel={`Copier le numéro ${ch.number}`}
-                style={({ pressed }) => ({ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', minHeight: 52, paddingHorizontal: space.md, borderRadius: radius.md, backgroundColor: pressed ? c.line : c.surface, borderWidth: 1, borderColor: c.line })}>
-                <View>
-                  <Txt variant="tiny">{ch.link ? 'Ou envoyez au numéro marchand SIIPAF' : 'Numéro marchand SIIPAF'}</Txt>
-                  <Txt style={{ fontFamily: fonts.bold, fontSize: 18, color: c.ink, letterSpacing: 0.5 }}>{ch.number}</Txt>
-                </View>
-                <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}><Copy size={16} color={c.primary} /><Txt style={{ fontFamily: fonts.semibold, color: c.primary }}>Copier</Txt></View>
-              </Pressable>
-            ) : null}
             <Txt variant="tiny">Indiquez en motif votre code client {client?.client_code ? <Txt variant="tiny" style={{ fontFamily: fonts.semibold, color: c.ink }}>{client.client_code}</Txt> : null}.</Txt>
           </View>
 
