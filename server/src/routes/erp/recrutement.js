@@ -167,7 +167,7 @@ module.exports.publicCareers = function publicCareers(db) {
       }), req.body);
       if (!req.file) throw new HttpError(400, 'Joignez votre CV (PDF ou Word).');
       const { website, ...fields } = data;
-      const id = await recrutement.createApplicant(db, { ...fields, source: fields.job_id ? 'site_web' : 'spontanee' }, { file: req.file, fromSite: true });
+      const id = await recrutement.createApplicant(db, { ...fields, source: req.get('x-siipaf-app') === 'mobile' ? 'application_mobile' : fields.job_id ? 'site_web' : 'spontanee' }, { file: req.file, fromSite: true });
       const job = fields.job_id ? await db('hr_jobs').where({ id: fields.job_id }).first('title') : null;
       notifyTeam(`Nouvelle candidature : ${fields.name}`, `${fields.name} a postulé ${job ? `au poste « ${job.title} »` : '(candidature spontanée)'} depuis le site.\nÀ traiter dans l’ERP › RH › Recrutement.`);
       // Cloche du service RH (circuit d'information)

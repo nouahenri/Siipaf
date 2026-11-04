@@ -1,11 +1,11 @@
 /** Réglages généraux (Paramètres › Général), avec repli sur la configuration du serveur. */
 const { optionDaysDefault } = require('../config');
 
-const { REQUEST_DG_THRESHOLD, APP_SETTINGS, monthChoices } = require('../lib/domain');
+const { REQUEST_DG_THRESHOLD, APP_SETTINGS, listValues } = require('../lib/domain');
 
 const FALLBACK = {
   option_days_default: optionDaysDefault, request_dg_threshold: REQUEST_DG_THRESHOLD,
-  deposit_default: 0, balance_months_default: 36, balance_months_choices: '6, 12, 24, 36',
+  deposit_default: 0, balance_months_default: 36, balance_months_choices: '6, 12, 24, 36', budget_tiers: '10, 25, 50, 100',
 };
 
 async function getSettings(db) {
@@ -13,8 +13,8 @@ async function getSettings(db) {
   const out = { ...FALLBACK };
   for (const r of rows) {
     if (!(r.key in FALLBACK) || r.value == null || r.value === '') continue;
-    // Réglage en liste (délais de solde proposés) : texte normalisé « 6, 12, 24 » ; les autres sont des nombres
-    out[r.key] = APP_SETTINGS[r.key]?.list ? monthChoices(r.value).join(', ') || FALLBACK[r.key] : Number(r.value);
+    // Réglage en liste (délais de solde, paliers de budget) : texte normalisé « 6, 12, 24 » ; les autres sont des nombres
+    out[r.key] = APP_SETTINGS[r.key]?.list ? listValues(r.value, APP_SETTINGS[r.key]).join(', ') || FALLBACK[r.key] : Number(r.value);
   }
   return out;
 }

@@ -17,6 +17,7 @@ import SiteContent from './pages/SiteContent';
 import Media from './pages/Media';
 import Messages from './pages/Messages';
 import ClientMessages from './pages/ClientMessages';
+import PushNotifications from './pages/PushNotifications';
 import Newsletter from './pages/Newsletter';
 import Testimonials from './pages/Testimonials';
 import UsersPage from './pages/Users';
@@ -51,6 +52,7 @@ function App() {
         <Route path="medias" element={<Guard perm="projects:read"><Media /></Guard>} />
         <Route path="messages" element={<Guard perm="contacts:read"><Messages /></Guard>} />
         <Route path="messagerie-clients" element={<Guard perm="client_messages"><ClientMessages /></Guard>} />
+        <Route path="notifications-push" element={<Guard perm="push:read"><PushNotifications /></Guard>} />
         <Route path="temoignages" element={<Guard perm="testimonials:write"><Testimonials /></Guard>} />
         <Route path="newsletter" element={<Guard perm="newsletter:read"><Newsletter /></Guard>} />
         <Route path="utilisateurs" element={<Guard perm="users:read"><UsersPage /></Guard>} />

@@ -83,7 +83,7 @@ const RECRUIT_STAGES = {
   proposition: 'Proposition d’embauche', embauche: 'Embauché(e)',
 };
 const RECRUIT_SOURCES = {
-  site_web: 'Site SIIPAF', linkedin: 'LinkedIn', emploi_ci: 'Sites d’emploi', cooptation: 'Cooptation', bouche_a_oreille: 'Bouche-à-oreille',
+  site_web: 'Site SIIPAF', application_mobile: 'Application mobile SIIPAF', linkedin: 'LinkedIn', emploi_ci: 'Sites d’emploi', cooptation: 'Cooptation', bouche_a_oreille: 'Bouche-à-oreille',
   cabinet: 'Cabinet de recrutement', agepe: 'AGEPE', spontanee: 'Candidature spontanée', autre: 'Autre',
 };
 const REFUSE_REASONS = {

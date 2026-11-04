@@ -32,17 +32,34 @@ function createApp(db) {
 
   // CORS : seul le site public (autre domaine) appelle l'API publique. `Vary: Origin` sur TOUTES les réponses : le cache de
   // l'hébergeur (Varnish LWS) ne doit jamais servir à siipaf.com une copie prise sans autorisation CORS (bulle de Sita absente).
+  // Hors production, l'aperçu web de l'application mobile (Expo, http://localhost:8081) est aussi autorisé
+  const localOrigin = origin => !isProd && /^http:\/\/(localhost|127\.0\.0\.1):\d+$/.test(origin);
   app.use('/api/public', (req, res, next) => {
     const origin = req.get('origin');
     res.vary('Origin');
-    if (origin && corsOrigins.includes(origin)) {
+    if (origin && (corsOrigins.includes(origin) || localOrigin(origin))) {
       res.set('Access-Control-Allow-Origin', origin);
-      res.set('Access-Control-Allow-Headers', 'Content-Type');
+      res.set('Access-Control-Allow-Headers', 'Content-Type, X-Siipaf-App');
       res.set('Access-Control-Allow-Methods', 'GET,POST,OPTIONS');
     }
     if (req.method === 'OPTIONS') return res.sendStatus(204);
     next();
   });
+  // Application mobile (SiipafNative) : une application native n'envoie pas d'origine et n'a pas besoin de CORS. Hors production
+  // seulement, son aperçu web (Expo, http://localhost:8081) peut appeler l'espace client avec son jeton.
+  if (!isProd) {
+    app.use('/api/client', (req, res, next) => {
+      const origin = req.get('origin');
+      if (origin && localOrigin(origin)) {
+        res.vary('Origin');
+        res.set('Access-Control-Allow-Origin', origin);
+        res.set('Access-Control-Allow-Headers', 'Content-Type, Authorization, X-Siipaf-App');
+        res.set('Access-Control-Allow-Methods', 'GET,POST,PUT,OPTIONS');
+        if (req.method === 'OPTIONS') return res.sendStatus(204);
+      }
+      next();
+    });
+  }
 
   app.get('/api/health', async (req, res) => {
     await db.raw('select 1');
@@ -75,6 +92,7 @@ function createApp(db) {
   admin.use(require('./routes/sales')(db));
   admin.use(require('./routes/crm')(db));
   admin.use(require('./routes/newsletter')(db));
+  admin.use(require('./routes/push')(db));
   admin.use(require('./routes/content')(db));
   admin.use(adminTestimonials(db));
   admin.use(require('./routes/sita').adminSita(db));

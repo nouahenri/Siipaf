@@ -7,7 +7,7 @@ const express = require('express');
 const rateLimit = require('express-rate-limit');
 const { z } = require('../lib/zod');
 const { ah, parse, HttpError, json } = require('../lib/http');
-const { LOT_STATUS_LABELS, SELLABLE_STATUSES, paymentTerms, monthChoices, siteFigures } = require('../lib/domain');
+const { LOT_STATUS_LABELS, SELLABLE_STATUSES, APP_SETTINGS, paymentTerms, monthChoices, listValues, siteFigures } = require('../lib/domain');
 const { findOrCreateLead, placeOption, throttledExpiry } = require('../services/lots');
 const { notifyTeam, sendMail } = require('../lib/mailer');
 const { projectRefs, stateLabels } = require('../services/refs');
@@ -16,6 +16,10 @@ const { isTest } = require('../config');
 const { publicSiteImages } = require('../services/siteImages');
 const { resolveUtm } = require('../services/marketing');
 const liaisons = require('../services/liaisons');
+const { fromMobileApp } = require('../auth/client');
+
+/** Origine du prospect : « mobile » pour toute demande venue de l'application SIIPAF (choix du client du 03/11). */
+const originOf = (req, webSource) => (fromMobileApp(req) ? 'mobile' : webSource);
 
 const phone = z.string().trim().min(6, 'Téléphone trop court').max(40);
 const contactFields = {
@@ -59,7 +63,7 @@ module.exports = function publicRoutes(db) {
   };
   /** Types de biens cochés des projets (ordre de la fiche). */
   const propertyTypesOf = ids => (ids.length ? db('project_property_types as t').join('ref_items as r', 'r.id', 't.item_id')
-    .whereIn('t.project_id', ids).orderBy(['t.project_id', 't.sort']).select('t.project_id', 'r.label') : []);
+    .whereIn('t.project_id', ids).orderBy(['t.project_id', 't.sort']).select('t.project_id', 't.item_id', 'r.label') : []);
   // Conditions de paiement affichées sur la tuile et la fiche : acompte, délai de solde, propositions de durée
   const termsOf = (p, settings) => ({ ...paymentTerms(p, settings), balance_months_choices: monthChoices(settings.balance_months_choices) });
 
@@ -77,6 +81,9 @@ module.exports = function publicRoutes(db) {
     const typeLabel = id => types.find(t => t.id === id)?.label || null;
     res.json(projects.map(p => ({
       id: p.id, slug: p.slug, name: p.name, city: p.city, location: p.location, tagline: p.tagline,
+      // Filtres de l'application mobile (listes de Paramètres) : ville, localisation, types de biens
+      city_id: p.city_id || null, location_id: p.location_id || null,
+      property_type_ids: propertyTypes.filter(t => t.project_id === p.id).map(t => t.item_id),
       description: p.description, amenities: json(p.amenities, []), project_type: typeLabel(p.project_type_id),
       // Chiffres clés réglés dans la fiche projet (pictogramme, valeur, libellé)
       key_figures: siteFigures(p.key_figures),
@@ -90,6 +97,45 @@ module.exports = function publicRoutes(db) {
       ...termsOf(p, settings),
       documents: docs.filter(d => d.project_id === p.id).map(d => ({ label: d.label, state: d.state || 'prevu', state_label: labels.document[d.state || 'prevu'] })),
     })));
+  }));
+
+  /**
+   * Filtres de la recherche de l'application mobile, tirés de la base : villes et localisations (rattachées à leur ville,
+   * Paramètres › Listes) des programmes publiés, types de biens cochés dans les fiches, paliers de budget (Paramètres ›
+   * Général, en millions FCFA) qui comptent au moins un programme dans la grille de prix. Chaque entrée a son compte.
+   */
+  r.get('/filtres', ah(async (req, res) => {
+    const projects = await db('projects').where({ published: true }).whereNull('archived_at').select('id', 'city_id', 'location_id', 'category');
+    const ids = projects.map(p => p.id);
+    const [refs, types, offers, settings] = await Promise.all([
+      db('ref_items').whereIn('kind', ['ville', 'localisation']).select('id', 'kind', 'label', 'parent_id', 'sort').orderBy(['sort', 'label']),
+      propertyTypesOf(ids),
+      ids.length ? db('project_offers').whereIn('project_id', ids).whereNotNull('price_fcfa').select('project_id', 'price_fcfa') : [],
+      getSettings(db),
+    ]);
+    const count = key => id => projects.filter(p => p[key] === id).length;
+    const villes = refs.filter(r => r.kind === 'ville').map(r => ({ id: r.id, label: r.label, count: count('city_id')(r.id) })).filter(v => v.count);
+    const localisations = refs.filter(r => r.kind === 'localisation')
+      .map(r => ({ id: r.id, label: r.label, ville_id: r.parent_id || null, count: count('location_id')(r.id) })).filter(l => l.count);
+    const typeMap = new Map();
+    for (const t of types) {
+      const e = typeMap.get(t.item_id) || { id: t.item_id, label: t.label, projects: new Set() };
+      e.projects.add(t.project_id);
+      typeMap.set(t.item_id, e);
+    }
+    const types_bien = [...typeMap.values()].map(e => ({ id: e.id, label: e.label, count: e.projects.size }));
+    const steps = listValues(settings.budget_tiers, APP_SETTINGS.budget_tiers).map(m => m * 1e6);
+    const bounds = [0, ...steps, null];
+    const budgets = bounds.slice(0, -1).map((min, i) => {
+      const max = bounds[i + 1];
+      const label = min === 0 ? `Moins de ${steps[0] / 1e6} M` : max == null ? `Plus de ${min / 1e6} M` : `${min / 1e6} à ${max / 1e6} M`;
+      const n = new Set(offers.filter(o => Number(o.price_fcfa) >= min && (max == null || Number(o.price_fcfa) < max)).map(o => o.project_id)).size;
+      return { key: `${min}-${max ?? ''}`, min, max, label: `${label} FCFA`, count: n };
+    }).filter(b => b.count);
+    res.json({
+      categories: { logement: projects.filter(p => p.category !== 'lotissement').length, lotissement: projects.filter(p => p.category === 'lotissement').length },
+      villes, localisations, types_bien, budgets,
+    });
   }));
 
   r.get('/projects/:slug', ah(async (req, res) => {
@@ -125,6 +171,29 @@ module.exports = function publicRoutes(db) {
     });
   }));
 
+  // Carte du programme (application mobile) : position saisie dans le dashboard, sinon position approchée de l'adresse
+  r.get('/projects/:slug/position', ah(async (req, res) => {
+    const p = await db('projects').where({ slug: req.params.slug, published: true }).whereNull('archived_at').first('latitude', 'longitude', 'location', 'city');
+    if (!p) throw new HttpError(404, 'Projet introuvable.');
+    const exact = geo(p);
+    if (exact) return res.json({ ...exact, approx: false, precision: 'gps' });
+    const approx = await require('../services/geocode').approxPosition(p);
+    res.json(approx ? { ...approx, approx: true } : null);
+  }));
+
+  // Application mobile : « Recevoir des notifications push » (Paramètres), connecté ou non. Le jeton Expo suffit à
+  // identifier le téléphone ; la ville préférée et la langue servent au ciblage des annonces du dashboard.
+  r.post('/devices', formLimiter, ah(async (req, res) => {
+    const push = require('../services/push');
+    await push.registerDevice(db, parse(push.deviceSchema, req.body));
+    res.json({ ok: true });
+  }));
+  r.post('/devices/remove', formLimiter, ah(async (req, res) => {
+    const push = require('../services/push');
+    await push.removeDevice(db, parse(push.tokenSchema, req.body).token);
+    res.json({ ok: true });
+  }));
+
   // Manifestation d'intérêt (sur un projet ou un lot), sans blocage du lot
   const interestSchema = z.object({
     ...contactFields,
@@ -142,10 +211,11 @@ module.exports = function publicRoutes(db) {
       lotCode = lot.code;
     }
     const utm = await resolveUtm(db, data.utm);
-    const lead = await db.transaction(trx => findOrCreateLead(trx, { ...data, utm, source: data.lot_id ? 'plan' : 'site' }));
+    const source = originOf(req, data.lot_id ? 'plan' : 'site');
+    const lead = await db.transaction(trx => findOrCreateLead(trx, { ...data, utm, source }));
     notifyTeam('Nouvelle manifestation d’intérêt', `${data.name} — ${data.phone || ''} ${data.email || ''}\nLot : ${data.lot_id || '—'}\n${data.message || ''}`);
     // Responsables commerciaux (prospect à attribuer) ou commercial de la fiche, et accusé de réception au prospect
-    await liaisons.announceInbound(db, lead, { what: lotCode ? `manifestation d’intérêt pour le lot ${lotCode}` : 'manifestation d’intérêt', source: data.lot_id ? 'plan' : 'site' }).catch(() => {});
+    await liaisons.announceInbound(db, lead, { what: lotCode ? `manifestation d’intérêt pour le lot ${lotCode}` : 'manifestation d’intérêt', source }).catch(() => {});
     liaisons.acknowledge(data, 'Nous avons bien reçu votre demande — SIIPAF', ['Merci de l’intérêt que vous portez à nos programmes : votre demande est bien reçue.', 'Un conseiller SIIPAF vous contacte très prochainement. Une question ? +225 01 02 27 95 95.']);
     res.status(201).json({ ok: true, lead_id: lead.id });
   }));
@@ -155,10 +225,10 @@ module.exports = function publicRoutes(db) {
 
   r.post('/lots/:id/option', formLimiter, ah(async (req, res) => {
     const data = parse(optionSchema, req.body);
-    const result = await placeOption(db, { lotId: Number(req.params.id), leadData: { ...data, utm: await resolveUtm(db, data.utm), source: 'plan' } });
+    const result = await placeOption(db, { lotId: Number(req.params.id), leadData: { ...data, utm: await resolveUtm(db, data.utm), source: originOf(req, 'plan') } });
     const lot = await db('lots').where({ id: result.lot_id }).first();
     notifyTeam('Nouvelle pré-réservation', `${data.name} — ${data.phone || ''} ${data.email || ''}\nLot ${lot.code} — expire le ${result.expires_at.toLocaleString('fr-FR')}`);
-    await liaisons.announceInbound(db, result.lead, { what: `pré-réservation du lot ${lot.code} (jusqu’au ${result.expires_at.toLocaleDateString('fr-FR')})`, source: 'plan' }).catch(() => {});
+    await liaisons.announceInbound(db, result.lead, { what: `pré-réservation du lot ${lot.code} (jusqu’au ${result.expires_at.toLocaleDateString('fr-FR')})`, source: originOf(req, 'plan') }).catch(() => {});
     if (data.email) {
       sendMail({
         to: data.email,
@@ -183,16 +253,16 @@ module.exports = function publicRoutes(db) {
     const utm = await resolveUtm(db, data.utm);
     let leadId = null;
     const id = await db.transaction(async trx => {
-      const lead = await findOrCreateLead(trx, { ...data, utm, source: 'site' });
+      const lead = await findOrCreateLead(trx, { ...data, utm, source: originOf(req, 'site') });
       leadId = lead.id;
       const [apptId] = await trx('appointments').insert({
         lead_id: lead.id, kind: data.kind, starts_at: data.starts_at, project_id: data.project_id || null,
-        lot_id: data.lot_id || null, source: 'site', notes: data.message || null,
+        lot_id: data.lot_id || null, source: originOf(req, 'site'), notes: data.message || null,
       });
       return apptId;
     });
     notifyTeam('Demande de rendez-vous', `${data.name} — ${data.kind} le ${data.starts_at.toLocaleString('fr-FR')}`);
-    await liaisons.announceInbound(db, leadId, { what: `demande de rendez-vous (${data.kind}) le ${data.starts_at.toLocaleString('fr-FR')}`, source: 'site' }).catch(() => {});
+    await liaisons.announceInbound(db, leadId, { what: `demande de rendez-vous (${data.kind}) le ${data.starts_at.toLocaleString('fr-FR')}`, source: originOf(req, 'site') }).catch(() => {});
     liaisons.acknowledge(data, 'Votre demande de rendez-vous — SIIPAF', [`Nous avons bien reçu votre demande de rendez-vous du ${data.starts_at.toLocaleString('fr-FR')}.`, 'Un conseiller SIIPAF vous le confirmera très vite par e-mail ou par téléphone.']);
     res.status(201).json({ ok: true, appointment_id: id });
   }));
@@ -211,7 +281,7 @@ module.exports = function publicRoutes(db) {
     const utm = await resolveUtm(db, data.utm);
     let contactLeadId = null;
     const id = await db.transaction(async trx => {
-      const lead = await findOrCreateLead(trx, { ...data, utm, project_id: project && project.id, source: 'site' });
+      const lead = await findOrCreateLead(trx, { ...data, utm, project_id: project && project.id, source: originOf(req, 'site') });
       contactLeadId = lead.id;
       const [msgId] = await trx('contact_messages').insert({
         name: data.name, email: data.email || null, phone: data.phone || null, subject: data.subject || null,
@@ -220,7 +290,7 @@ module.exports = function publicRoutes(db) {
       return msgId;
     });
     notifyTeam('Nouveau message de contact', `${data.name} — ${data.phone || ''} ${data.email || ''}\n${[project && project.name, data.property_type, data.subject].filter(Boolean).join(' · ')}\n\n${data.message}`);
-    await liaisons.announceInbound(db, contactLeadId, { what: `message de contact${data.subject ? ` : ${data.subject}` : ''}`, source: 'site' }).catch(() => {});
+    await liaisons.announceInbound(db, contactLeadId, { what: `message de contact${data.subject ? ` : ${data.subject}` : ''}`, source: originOf(req, 'site') }).catch(() => {});
     liaisons.acknowledge(data, 'Nous avons bien reçu votre message — SIIPAF', ['Merci pour votre message : il est bien arrivé à notre équipe, qui vous répond très prochainement.', 'Une urgence ? +225 01 02 27 95 95.']);
     res.status(201).json({ ok: true, message_id: id });
   }));

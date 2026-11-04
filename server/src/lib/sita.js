@@ -11,12 +11,13 @@ const { FINANCING_PLANS } = require('./domain');
 
 const PROMPT_VERSION = 'sita-2026-10-31.1';
 
-// Canaux de conversation : le site, puis les messages privés de la page Facebook et du compte Instagram (webhooks Meta)
-const CHANNELS = { site: 'Site', messenger: 'Messenger', instagram: 'Instagram' };
+// Canaux de conversation : le site, l'application mobile SIIPAF, puis les messages privés de la page Facebook et du compte
+// Instagram (webhooks Meta)
+const CHANNELS = { site: 'Site', mobile: 'Application mobile', messenger: 'Messenger', instagram: 'Instagram' };
 const channelLabel = c => CHANNELS[c] || CHANNELS.site;
 /** « le site », « Messenger »… : d'où vient la demande (annonce aux responsables). */
-const viaLabel = c => ({ site: 'l’assistante IA du site', messenger: 'Sita sur Messenger', instagram: 'Sita sur Instagram' }[c] || 'l’assistante IA du site');
-const onLabel = c => ({ site: 'sur le site', messenger: 'sur Messenger', instagram: 'sur Instagram' }[c] || 'sur le site');
+const viaLabel = c => ({ site: 'l’assistante IA du site', mobile: 'Sita dans l’application mobile', messenger: 'Sita sur Messenger', instagram: 'Sita sur Instagram' }[c] || 'l’assistante IA du site');
+const onLabel = c => ({ site: 'sur le site', mobile: 'dans l’application mobile', messenger: 'sur Messenger', instagram: 'sur Instagram' }[c] || 'sur le site');
 
 const GENDERS = { femme: 'Une femme', homme: 'Un homme' };
 const TONES = { chaleureux: 'Chaleureux et simple', professionnel: 'Professionnel et posé', decontracte: 'Détendu et proche' };
@@ -280,7 +281,7 @@ function systemPrompt({ settings, facts, focus = null, now = new Date(), relayAv
   };
   const t = effectiveTexts(settings);
   return [
-    `Tu es ${settings.name}, ${g.conseiller} immobilier${feminine(settings) ? '(ère)' : ''} virtuel${feminine(settings) ? 'le' : ''} de SIIPAF SA (${t.title}), promoteur immobilier en Côte d’Ivoire (programmes en VEFA, lotissements, ventes à distance pour la diaspora). ${channel === 'site' ? 'Tu réponds aux visiteurs du site public siipaf.com dans une fenêtre de discussion.' : `Tu réponds en message privé ${channel === 'instagram' ? 'sur Instagram' : 'sur Messenger'} aux personnes qui écrivent à SIIPAF : réponses en texte brut (aucun markdown), très courtes (800 caractères au plus), sans lien autre que celui renvoyé par l’outil passer_la_main.`} Tu es une intelligence artificielle et tu ne le caches jamais si on te le demande ; l’équipe SIIPAF (conseillers humains) reste joignable.`,
+    `Tu es ${settings.name}, ${g.conseiller} immobilier${feminine(settings) ? '(ère)' : ''} virtuel${feminine(settings) ? 'le' : ''} de SIIPAF SA (${t.title}), promoteur immobilier en Côte d’Ivoire (programmes en VEFA, lotissements, ventes à distance pour la diaspora). ${channel === 'site' ? 'Tu réponds aux visiteurs du site public siipaf.com dans une fenêtre de discussion.' : channel === 'mobile' ? 'Tu réponds aux utilisateurs de l’application mobile SIIPAF dans une fenêtre de discussion : réponses courtes, faciles à lire sur un téléphone.' : `Tu réponds en message privé ${channel === 'instagram' ? 'sur Instagram' : 'sur Messenger'} aux personnes qui écrivent à SIIPAF : réponses en texte brut (aucun markdown), très courtes (800 caractères au plus), sans lien autre que celui renvoyé par l’outil passer_la_main.`} Tu es une intelligence artificielle et tu ne le caches jamais si on te le demande ; l’équipe SIIPAF (conseillers humains) reste joignable.`,
     `Genre à respecter dans tes accords : ${feminine(settings) ? 'féminin (« je suis ravie », « prête »)' : 'masculin (« je suis ravi », « prêt »)'}.`,
     '',
     'Règles absolues :',

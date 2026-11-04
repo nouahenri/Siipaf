@@ -117,6 +117,8 @@ async function buildFacts(db) {
 // ─── Conversations ────────────────────────────────────────────────────────
 
 const VISITOR_KEY = /^[A-Za-z0-9_-]{16,64}$/;
+// Origine du prospect : « mobile » pour une conversation dans l'application SIIPAF, « ia » ailleurs (site, Messenger, Instagram)
+const leadSource = channel => (channel === 'mobile' ? 'mobile' : 'ia');
 // Messenger et Instagram : « messenger-<identifiant propre à la page> » (jamais une donnée personnelle)
 const META_KEY = /^(messenger|instagram)-\d{5,40}$/;
 
@@ -174,7 +176,7 @@ function makeTools(db, ctx) {
     const message = [`[Sita] ${summary}`, budget ? `Budget indiqué : ${S.fcfa(budget)}` : null, project ? `Programme : ${project.name}` : null].filter(Boolean).join('\n');
     const lead = await db.transaction(trx => findOrCreateLead(trx, {
       name: input.name, email: input.email || null, phone: input.phone || null, project_id: project?.id || null, financing: financing || null,
-      message, source: 'ia', utm,
+      message, source: leadSource(ctx.conv.channel), utm,
     }));
     const first = !conv.lead_id;
     const patch = { lead_id: lead.id, consent_contact: true, consent_at: conv.consent_at || new Date(), summary: summary.slice(0, 800), updated_at: new Date() };
@@ -183,7 +185,7 @@ function makeTools(db, ctx) {
     if (first) {
       await logActivity(db, lead.id, { kind: 'note', summary: `Conversation avec Sita (${S.channelLabel(conv.channel)})`, note: `${summary}\n\nConversation n° ${conv.id} : Service commercial › Conversations de Sita.` });
       notifyTeam(`Nouveau prospect via Sita (${S.channelLabel(conv.channel)})`, `${input.name} — ${input.phone || ''} ${input.email || ''}\n${summary}`);
-      await liaisons.announceInbound(db, lead, { what: lead.created ? 'conversation avec Sita : coordonnées laissées' : 'a repris contact en discutant avec Sita', source: 'ia', via: S.viaLabel(conv.channel) }).catch(() => {});
+      await liaisons.announceInbound(db, lead, { what: lead.created ? 'conversation avec Sita : coordonnées laissées' : 'a repris contact en discutant avec Sita', source: leadSource(ctx.conv.channel), via: S.viaLabel(conv.channel) }).catch(() => {});
       liaisons.acknowledge({ name: input.name, email: input.email }, 'Nous avons bien reçu votre demande — SIIPAF', ['Merci d’avoir échangé avec notre assistante : vos coordonnées sont bien enregistrées.', 'Un conseiller SIIPAF vous recontacte très prochainement. Une question ? +225 01 02 27 95 95.']);
     }
     return { lead, created: !!lead.created, first };
@@ -224,10 +226,10 @@ function makeTools(db, ctx) {
       let apptId = existing?.id;
       if (!apptId) {
         apptId = insertedId((await db('appointments').insert({
-          lead_id: leadId, kind: d.kind, starts_at: when, project_id: project?.id || null, source: 'ia', notes: [d.note, 'Demande prise avec Sita'].filter(Boolean).join(' — '),
+          lead_id: leadId, kind: d.kind, starts_at: when, project_id: project?.id || null, source: leadSource(ctx.conv.channel), notes: [d.note, 'Demande prise avec Sita'].filter(Boolean).join(' — '),
         }))[0]);
         notifyTeam('Demande de rendez-vous (Sita)', `${S.APPOINTMENT_KINDS[d.kind]} le ${frDateTime(when)}`);
-        await liaisons.announceInbound(db, leadId, { what: `demande de rendez-vous (${S.APPOINTMENT_KINDS[d.kind]}) le ${frDateTime(when)}`, source: 'ia', via: S.viaLabel(ctx.conv.channel) }).catch(() => {});
+        await liaisons.announceInbound(db, leadId, { what: `demande de rendez-vous (${S.APPOINTMENT_KINDS[d.kind]}) le ${frDateTime(when)}`, source: leadSource(ctx.conv.channel), via: S.viaLabel(ctx.conv.channel) }).catch(() => {});
         const lead = await db('leads').where({ id: leadId }).first('name', 'email');
         liaisons.acknowledge(lead, 'Votre demande de rendez-vous — SIIPAF', [`Nous avons bien reçu votre demande de rendez-vous du ${frDateTime(when)}.`, 'Un conseiller SIIPAF vous le confirmera très vite par e-mail ou par téléphone.']);
       }
@@ -298,7 +300,7 @@ async function handleMessage(db, input) {
   const settings = await getSettings(db);
   if (!settings.enabled) throw new HttpError(403, 'L’assistante n’est pas disponible pour le moment.');
   const channel = S.CHANNELS[input.channel] ? input.channel : 'site';
-  if (!(channel === 'site' ? VISITOR_KEY : META_KEY).test(String(input.visitorKey || ''))) throw new HttpError(400, 'Identifiant de visiteur invalide.');
+  if (!(['site', 'mobile'].includes(channel) ? VISITOR_KEY : META_KEY).test(String(input.visitorKey || ''))) throw new HttpError(400, 'Identifiant de visiteur invalide.');
   const message = S.cleanMessage(input.message);
   if (!message) throw new HttpError(400, 'Écrivez votre message.');
   const lang = settings.languages.includes('en') && input.lang === 'en' ? 'en' : 'fr';

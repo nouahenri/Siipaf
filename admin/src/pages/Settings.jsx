@@ -18,6 +18,7 @@ const SETTING_HELP = {
   deposit_default: 'Pour les projets dont la fiche ne précise pas d’acompte : affiché sur la tuile et la fiche du site, et première échéance des nouveaux dossiers de vente en formule Diaspora (0 = pas d’acompte).',
   balance_months_default: 'Pour les projets dont la fiche ne précise pas de délai de solde : nombre de mensualités de la formule Diaspora (site et échéancier des nouveaux dossiers de vente).',
   balance_months_choices: 'Choix offerts dans le menu « Délai de solde » de chaque fiche projet, séparés par des virgules (ex. 6, 12, 24, 36). Le délai par défaut y est toujours ajouté.',
+  budget_tiers: 'Menu « Budget » de la recherche de l’application mobile, en millions de FCFA, séparés par des virgules. « 10, 25, 50, 100 » propose : moins de 10 M, 10 à 25 M, 25 à 50 M, 50 à 100 M, plus de 100 M. Un palier sans programme n’est pas affiché.',
 };
 const HELP = {
   ville: 'Villes proposées dans la fiche projet.',
@@ -287,7 +288,7 @@ function General({ editable }) {
         {Object.entries(settings.data.fields).map(([k, f]) => (
           <Field key={k} label={f.label} hint={SETTING_HELP[k] || null}>
             {f.list
-              ? <input className="input tabular" value={v[k] ?? ''} onChange={e => setValues({ ...v, [k]: e.target.value })} placeholder="6, 12, 24, 36" />
+              ? <input className="input tabular" value={v[k] ?? ''} onChange={e => setValues({ ...v, [k]: e.target.value })} placeholder={k === 'budget_tiers' ? '10, 25, 50, 100' : '6, 12, 24, 36'} />
               : <input className="input" type="number" min={f.min} max={f.max} value={v[k] ?? ''} onChange={e => setValues({ ...v, [k]: e.target.value })} />}
           </Field>
         ))}

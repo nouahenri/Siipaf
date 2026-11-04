@@ -34,7 +34,7 @@ async function notifyClient(trx, sale, calls, userId) {
   if (!calls.length) return;
   const lines = calls.map(c => `• ${c.label} (${Number(c.pct)} %) : ${fcfa(c.amount_fcfa)}, à régler avant le ${frDate(c.due_date)}.`);
   const total = calls.reduce((s, c) => s + Number(c.amount_fcfa), 0);
-  await require('./clients').tellClient(trx, sale, `Appel de fonds — ${calls.length > 1 ? 'les étapes suivantes sont atteintes' : 'une étape du chantier est atteinte'} :\n${lines.join('\n')}${calls.length > 1 ? `\nTotal : ${fcfa(total)}.` : ''}\nLe détail figure dans « Paiements ».`, userId);
+  await require('./clients').tellClient(trx, sale, `Appel de fonds — ${calls.length > 1 ? 'les étapes suivantes sont atteintes' : 'une étape du chantier est atteinte'} :\n${lines.join('\n')}${calls.length > 1 ? `\nTotal : ${fcfa(total)}.` : ''}\nLe détail figure dans « Paiements ».`, userId, { kind: 'paiements', title: 'Appel de fonds' });
 }
 
 /**

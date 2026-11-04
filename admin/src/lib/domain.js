@@ -101,7 +101,7 @@ export const PROJECT_CATEGORIES = {
   lotissement: 'Lotissement (terrains)',
 };
 export const FINANCING = { apport: 'Avec apport (30 %)', diaspora: 'Diaspora (0 % apport)', credit: 'Crédit bancaire', comptant: 'Comptant' };
-export const SOURCES = { site: 'Site web', plan: 'Plan de masse', ia: 'Assistant IA', meta_lead: 'Formulaire de publicité Meta', whatsapp: 'WhatsApp', admin: 'Saisie interne', import: 'Import' };
+export const SOURCES = { site: 'Site web', plan: 'Plan de masse', ia: 'Assistant IA', meta_lead: 'Formulaire de publicité Meta', mobile: 'Application mobile', whatsapp: 'WhatsApp', admin: 'Saisie interne', import: 'Import' };
 export const APPT_KINDS = { visite: 'Visite sur site', appel: 'Appel', bureau: 'RDV au bureau', visio: 'Visio' };
 export const APPT_STATUS = {
   demande: { label: 'Demandé', tone: 'warn' },

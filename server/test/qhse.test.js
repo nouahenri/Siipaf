@@ -272,7 +272,8 @@ test('actions correctives : responsable obligatoire avec accès QHSE, levée ave
 });
 
 test('contrôle du jour manquant : alerte au conducteur à l’heure réglée, jours ouvrés seulement', async () => {
-  const wed = (h) => new Date(`2026-11-04T${h}:00:00Z`);
+  // Semaine fixe, loin de la date du jour (les tests précédents saisissent des contrôles « aujourd'hui »)
+  const wed = (h) => new Date(`2027-01-13T${h}:00:00Z`);
   assert.equal((await suivi.tick(db, wed('12'))).missing, 0, 'avant l’heure réglée (17 h)');
   const stats = await suivi.tick(db, wed('18'));
   assert.equal(stats.missing, 2, 'les deux chantiers en cours sans contrôle ce jour-là');
@@ -280,12 +281,12 @@ test('contrôle du jour manquant : alerte au conducteur à l’heure réglée, j
   assert.equal(mine.length, 1);
   assert.match(mine[0].title, /CH-2026-9002/);
   assert.equal((await suivi.tick(db, wed('19'))).missing, 0, 'une alerte par chantier et par jour');
-  const sat = new Date('2026-11-07T18:00:00Z');
+  const sat = new Date('2027-01-16T18:00:00Z');
   assert.equal((await suivi.tick(db, sat)).missing, 0, 'samedi : non ouvré');
-  await db('hr_holidays').insert({ date: '2026-11-05', label: 'Férié test' });
-  assert.equal((await suivi.tick(db, new Date('2026-11-05T18:00:00Z'))).missing, 0, 'jour férié');
+  await db('hr_holidays').insert({ date: '2027-01-14', label: 'Férié test' });
+  assert.equal((await suivi.tick(db, new Date('2027-01-14T18:00:00Z'))).missing, 0, 'jour férié');
   // Un contrôle saisi résout l'alerte
-  await db('qhse_controls').insert({ worksite_id: w1, kind: 'journalier', period_start: '2026-11-04', status: 'saisi', rating_qualite: 3, rating_hygiene: 3, workers_present: 1, workers_compliant: 1, safety_pct: 100 });
+  await db('qhse_controls').insert({ worksite_id: w1, kind: 'journalier', period_start: '2027-01-13', status: 'saisi', rating_qualite: 3, rating_hygiene: 3, workers_present: 1, workers_compliant: 1, safety_pct: 100 });
 });
 
 test('inspections et audits : planifié ou inopiné, grille, constats, action obligatoire, validation', async () => {

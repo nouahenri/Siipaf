@@ -1,6 +1,8 @@
 /**
  * API de l'espace client (/api/client) : connexion par code client ou téléphone, dossiers, échéancier,
  * documents, chantier et messagerie. Chaque requête est cloisonnée sur l'acquéreur connecté.
+ * L'application mobile (en-tête X-Siipaf-App: mobile) reçoit son jeton dans la réponse (`token`), inscrit le téléphone aux
+ * notifications push (/push) et règle les catégories reçues (/push/prefs).
  */
 const path = require('path');
 const express = require('express');
@@ -9,6 +11,7 @@ const { z } = require('../lib/zod');
 const { ah, parse, idParam, HttpError, isoTime } = require('../lib/http');
 const { checkPassword, hashPassword } = require('../auth');
 const { issueClientSession, clearClientSession, requireClient } = require('../auth/client');
+const push = require('../services/push');
 const { isTest, uploadsDir } = require('../config');
 const { notifyTeam } = require('../lib/mailer');
 const { CLIENT_PASSWORD_MIN } = require('../lib/domain');
@@ -44,6 +47,7 @@ module.exports = function clientRoutes(db) {
       property_type: lead.property_type || null, project_name: lead.project_name || null,
       progress: progress.client(sales, lead.project_id), // avancement global du chantier
       must_change_password: !!account.must_change_password, unread_messages: Number(n),
+      push_prefs: push.readPrefs(account),
     };
   }
 
@@ -60,14 +64,17 @@ module.exports = function clientRoutes(db) {
       throw new HttpError(401, 'Identifiant ou mot de passe incorrect.');
     }
     await db('client_accounts').where({ id: account.id }).update({ last_login_at: new Date() });
-    issueClientSession(res, account);
-    res.json({ client: await profile(account) });
+    const token = issueClientSession(res, account, req);
+    res.json({ client: await profile(account), ...(token ? { token } : {}) });
   }));
 
-  r.post('/logout', (req, res) => {
+  // Déconnexion : le téléphone qui se déconnecte ne reçoit plus de notifications (jeton push envoyé par l'application)
+  r.post('/logout', ah(async (req, res) => {
+    const pushToken = typeof req.body?.push_token === 'string' ? req.body.push_token : null;
+    if (pushToken) await db('client_push_tokens').where({ token: pushToken }).del();
     clearClientSession(res);
     res.json({ ok: true });
-  });
+  }));
 
   r.get('/me', pending, ah(async (req, res) => res.json({ client: await profile(req.client) })));
 
@@ -75,10 +82,13 @@ module.exports = function clientRoutes(db) {
     const { current, next } = parse(z.object({ current: z.string().min(1), next: newPassword }), req.body);
     if (!(await checkPassword(current, req.client.password_hash))) throw new HttpError(400, 'Mot de passe actuel incorrect.');
     if (current === next) throw new HttpError(400, 'Choisissez un mot de passe différent du mot de passe provisoire.');
+    // Les autres appareils sont déconnectés ; celui-ci reçoit une session à la nouvelle version
+    const account = { ...req.client, must_change_password: false, token_version: (Number(req.client.token_version) || 0) + 1 };
     await db('client_accounts').where({ id: req.client.id }).update({
-      password_hash: await hashPassword(next), must_change_password: false, updated_at: new Date(),
+      password_hash: await hashPassword(next), must_change_password: false, token_version: account.token_version, updated_at: new Date(),
     });
-    res.json({ client: await profile({ ...req.client, must_change_password: false }) });
+    const token = issueClientSession(res, account, req);
+    res.json({ client: await profile(account), ...(token ? { token } : {}) });
   }));
 
   r.post('/password/forgot', limiter(5), ah(async (req, res) => {
@@ -90,9 +100,22 @@ module.exports = function clientRoutes(db) {
   r.post('/password/reset', limiter(10), ah(async (req, res) => {
     const { token, password } = parse(z.object({ token: z.string().min(32).max(128), password: newPassword }), req.body);
     const account = await resetPassword(db, token, password);
-    issueClientSession(res, account);
-    res.json({ client: await profile({ ...account, must_change_password: false }) });
+    const appToken = issueClientSession(res, account, req);
+    res.json({ client: await profile({ ...account, must_change_password: false }), ...(appToken ? { token: appToken } : {}) });
   }));
+
+  // ─── Notifications de l'application mobile ───────────────
+  r.post('/push', pending, limiter(30), ah(async (req, res) => {
+    await push.register(db, req.client.id, parse(push.tokenSchema, req.body));
+    res.status(201).json({ ok: true, prefs: push.readPrefs(req.client) });
+  }));
+  r.post('/push/remove', pending, ah(async (req, res) => {
+    const { token } = parse(push.tokenSchema.pick({ token: true }), req.body);
+    await push.unregister(db, req.client.id, token);
+    res.json({ ok: true });
+  }));
+  r.get('/push/prefs', authed, (req, res) => res.json({ prefs: push.readPrefs(req.client), kinds: Object.fromEntries(Object.entries(push.PUSH_KINDS).map(([k, v]) => [k, v.label])) }));
+  r.put('/push/prefs', authed, ah(async (req, res) => res.json({ prefs: await push.savePrefs(db, req.client, parse(push.prefsSchema, req.body)) })));
 
   // ─── Dossiers ─────────────────────────────────────────────
   r.get('/dossiers', authed, ah(async (req, res) => res.json(await clientSales(db, req.client.lead_id))));

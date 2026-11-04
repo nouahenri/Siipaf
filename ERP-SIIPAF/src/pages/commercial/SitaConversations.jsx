@@ -8,7 +8,7 @@ import { APPT_KINDS } from '@admin/lib/domain';
 import LeadDrawer from './LeadDrawer';
 
 const FILTERS = [
-  ['toutes', 'Toutes'], ['site', 'Canal : site'], ['messenger', 'Canal : Messenger'], ['instagram', 'Canal : Instagram'], ['coordonnees', 'A laissé ses coordonnées'], ['rdv', 'Rendez-vous pris'], ['main', 'Passage de main'], ['sans', 'Sans coordonnées'],
+  ['toutes', 'Toutes'], ['site', 'Canal : site'], ['messenger', 'Canal : Messenger'], ['instagram', 'Canal : Instagram'], ['mobile', 'Canal : application mobile'], ['coordonnees', 'A laissé ses coordonnées'], ['rdv', 'Rendez-vous pris'], ['main', 'Passage de main'], ['sans', 'Sans coordonnées'],
 ];
 
 /**
@@ -32,7 +32,7 @@ export default function SitaConversations() {
       {s && (
         <div className="kpi-row" style={{ display: 'flex', gap: 12, flexWrap: 'wrap' }}>
           <Badge>{s.month} conversation(s) ce mois-ci</Badge>
-          {s.by_channel && (s.by_channel.messenger > 0 || s.by_channel.instagram > 0) && <Badge>Site {s.by_channel.site} · Messenger {s.by_channel.messenger} · Instagram {s.by_channel.instagram}</Badge>}
+          {s.by_channel && (s.by_channel.messenger > 0 || s.by_channel.instagram > 0 || s.by_channel.mobile > 0) && <Badge>Site {s.by_channel.site} · Application {s.by_channel.mobile || 0} · Messenger {s.by_channel.messenger} · Instagram {s.by_channel.instagram}</Badge>}
           <Badge tone="ok">{s.with_contact} avec coordonnées</Badge>
           <Badge tone="ok">{s.with_appointment} avec rendez-vous</Badge>
           <Badge tone={s.handed_over ? 'warn' : ''}>{s.handed_over} passage(s) de main</Badge>

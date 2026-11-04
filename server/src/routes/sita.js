@@ -12,6 +12,7 @@ const { ah, parse, idParam } = require('../lib/http');
 const { requirePermission } = require('../auth');
 const { jwtSecret } = require('../config');
 const sita = require('../services/sita');
+const { fromMobileApp } = require('../auth/client');
 
 const messageSchema = z.object({
   visitor_id: z.string().trim().regex(/^[A-Za-z0-9_-]{16,64}$/, 'Identifiant de visiteur invalide.'),
@@ -35,7 +36,8 @@ function publicSita(db) {
     const d = parse(messageSchema, req.body);
     const ip = req.ip;
     await sita.throttle(db, { visitorKey: d.visitor_id, ip });
-    const out = await sita.handleMessage(db, { visitorKey: d.visitor_id, message: d.message, page: d.page, utm: d.utm, lang: d.lang, ipHash: ipHash(ip) });
+    // Application mobile SIIPAF : canal « mobile » (prospects classés « Application mobile »)
+    const out = await sita.handleMessage(db, { visitorKey: d.visitor_id, message: d.message, page: d.page, utm: d.utm, lang: d.lang, ipHash: ipHash(ip), ...(fromMobileApp(req) ? { channel: 'mobile' } : {}) });
     res.set('Cache-Control', 'no-store');
     const { conversation_id: _internal, ...visible } = out; // l'identifiant interne de la conversation ne sort pas vers le site
     res.json(visible);

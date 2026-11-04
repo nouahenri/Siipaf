@@ -140,12 +140,15 @@ const APP_SETTINGS = {
   // Conditions de paiement des projets (une fiche projet peut les préciser) : tuile du site et formule Diaspora
   deposit_default: { label: 'Acompte par défaut (FCFA)', min: 0, max: 1000000000 },
   balance_months_default: { label: 'Délai de solde par défaut (mois)', min: 1, max: 120 },
-  balance_months_choices: { label: 'Délais de solde proposés (mois)', list: true, min: 1, max: 120 },
+  balance_months_choices: { label: 'Délais de solde proposés (mois)', list: true, min: 1, max: 120, unit: 'mois' },
+  // Application mobile : paliers du menu « Budget » de la recherche (« 10, 25, 50, 100 » → moins de 10 M … plus de 100 M)
+  budget_tiers: { label: 'Paliers de budget de l’application mobile (millions FCFA)', list: true, min: 1, max: 10000, unit: 'millions FCFA' },
 };
 
-/** Délais de solde proposés, « 6, 12, 24, 36 » → [6, 12, 24, 36] (triés, sans doublon, bornés). */
-function monthChoices(text) {
-  const f = APP_SETTINGS.balance_months_choices;
+/** Délais de solde proposés, « 6, 12, 24, 36 » → [6, 12, 24, 36]. */
+const monthChoices = text => listValues(text, APP_SETTINGS.balance_months_choices);
+/** Réglage en liste « 6, 12, 24 » → valeurs triées, sans doublon, bornées par le réglage `f`. */
+function listValues(text, f) {
   return [...new Set(String(text || '').split(/[^\d]+/).map(Number).filter(n => Number.isInteger(n) && n >= f.min && n <= f.max))].sort((a, b) => a - b);
 }
 
@@ -166,8 +169,9 @@ const LEAD_STAGES = ['prospection', 'visite', 'decision', 'choix_bien', 'paiemen
 // À partir du paiement, la personne est un client (code client attribué d'office) : prospect OU client, jamais les deux
 const CLIENT_STAGES = ['paiement', 'contrat', 'notaire', 'livraison', 'sav'];
 
-// Prospects venus d'eux-mêmes (formulaires du site, plan interactif, assistant IA, formulaires de publicité Meta) : signalés à l'équipe
-const PUBLIC_LEAD_SOURCES = ['site', 'plan', 'ia', 'meta_lead'];
+// Prospects venus d'eux-mêmes (formulaires du site, plan interactif, assistant IA, formulaires de publicité Meta, application
+// mobile SIIPAF — formulaires, plan et Sita dans l'app) : signalés à l'équipe
+const PUBLIC_LEAD_SOURCES = ['site', 'plan', 'ia', 'meta_lead', 'mobile'];
 
 /**
  * Alerte posée sur un prospect à sa création ou à une nouvelle demande. Une demande publique (même d'une personne
@@ -519,7 +523,7 @@ const PERMISSIONS = {
   ]),
   editeur: splitPermissions([
     'projects:read', 'projects:write', 'plans:write', 'lots:read', 'content:write', 'media:write',
-    'newsletter:read', 'newsletter:write', 'newsletter:send', 'contacts:read', 'contacts:handle', 'testimonials:write', 'settings:write', 'property:write', 'marketing:read', 'marketing:generate', 'site:assistant', ...SELF_SERVICE,
+    'newsletter:read', 'newsletter:write', 'newsletter:send', 'push:read', 'push:send', 'contacts:read', 'contacts:handle', 'testimonials:write', 'settings:write', 'property:write', 'marketing:read', 'marketing:generate', 'site:assistant', ...SELF_SERVICE,
   ]),
   conducteur_travaux: splitPermissions([
     ...APPRO_ACTIONS,
@@ -536,7 +540,7 @@ const PERMISSIONS = {
   resp_exploitation: splitPermissions([
     ...APPRO_ACTIONS, 'appro:direction', 'appro:articles',
     'projects:read', 'projects:write', 'plans:write', 'lots:read', 'lots:status', 'leads:read', 'leads:delete',
-    'appointments:read', 'appointments:create', 'contacts:read', 'contacts:handle', 'users:read', 'newsletter:read',
+    'appointments:read', 'appointments:create', 'contacts:read', 'contacts:handle', 'users:read', 'newsletter:read', 'push:read', 'push:send',
     'sales:read', 'sales:write', 'documents:write', 'testimonials:write',
     'client_access:write', 'client_messages', 'site_updates:write', 'schedule:write', 'settings:write',
     'leads:all', 'leads:assign', 'clients:edit', 'sav:read', ...SAV_ACTIONS, 'commercial:read', 'targets:write', 'vefa:write', 'property:write', 'compta:read',
@@ -595,6 +599,8 @@ const PERMISSION_CATALOG = [
     ['client_access:disable', 'Désactiver ou réactiver un accès', null, 'Accès des clients'],
     ['client_messages', 'Lire et répondre', 'Messages de ses clients (de tous les clients avec la portée « toute l’équipe »)', 'Messagerie clients'],
     ['client_messages:group', 'Écrire à plusieurs clients', 'Même message dans la conversation de chaque client choisi', 'Messagerie clients'],
+    ['push:read', 'Voir les notifications push', 'Téléphones inscrits par ville et historique des annonces envoyées', 'Notifications push'],
+    ['push:send', 'Envoyer une notification push', 'Annonce à tous les téléphones où l’application est installée, ou à une ville', 'Notifications push'],
     ['site_updates:write', 'Publier l’avancement du chantier', 'Étapes, pourcentages, photos et vidéos pour les acquéreurs ; n’émet pas d’appel de fonds (déclaration de la Direction)'],
     ['schedule:generate', 'Générer l’échéancier', 'Recalculer l’échéancier type d’un dossier selon son financement (les versements enregistrés sont réimputés)', 'Échéanciers'],
     ['schedule:edit', 'Modifier les échéances', 'Remplacer les échéances d’un dossier (dates et montants)', 'Échéanciers'],
@@ -2040,7 +2046,7 @@ module.exports = {
   LOTISSEMENT_STAGES, LOTISSEMENT_STAGE_LABELS, ALL_SITE_STAGES, siteStagesFor, siteStageLabel, siteStageIndex, siteStageError,
   MESSAGE_SENDERS, CLIENT_PASSWORD_MIN, CLIENT_RESET_HOURS, CLIENT_VISIBLE_SALE_STATUSES,
   addMonths, buildSchedule, allocatePayments, phoneKey, looksLikeClientCode, PROTECTED_ROLES, DELETABLE_LOT_STATUSES, NEW_LOT_STATUSES, PROJECT_CATEGORIES,
-  REF_KINDS, FEATURE_KINDS, SITE_FIGURE_ICONS, siteFigures, VIABILISATION_STATES, APP_SETTINGS, THEMES, categoryForProjectType, monthChoices, paymentTerms, monthlyFor,
+  REF_KINDS, FEATURE_KINDS, SITE_FIGURE_ICONS, siteFigures, VIABILISATION_STATES, APP_SETTINGS, THEMES, categoryForProjectType, monthChoices, listValues, paymentTerms, monthlyFor,
   offerSurface, gridOfferFor, GRID_PRICED_STATUSES,
   SAV_CATEGORIES, SAV_PRIORITIES, SAV_STATUSES, SAV_STATUS_LABELS, SAV_OPEN_STATUSES, SAV_TRANSITIONS, SAV_SOURCES,
   WARRANTIES, warrantyFor, warrantyDates, SAV_LAND_CATEGORIES, SAV_RESERVE_STATUSES, SAV_INTERVENTION_STATUSES,

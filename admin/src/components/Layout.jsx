@@ -2,7 +2,7 @@ import { useEffect, useRef, useState } from 'react';
 import { useRevealOnScroll } from '../lib/reveal';
 import { NavLink, Outlet, useLocation } from 'react-router-dom';
 import {
-  LayoutDashboard, Building2, Map, Users, CalendarDays, Mail, Newspaper, Image, PanelsTopLeft, UserCog, LogOut, Menu, KeyRound, MessageSquareQuote, ShieldCheck, MessagesSquare, UserCheck, SlidersHorizontal, LayoutGrid,
+  LayoutDashboard, Building2, Map, Users, CalendarDays, Mail, Newspaper, Image, PanelsTopLeft, UserCog, LogOut, Menu, KeyRound, MessageSquareQuote, ShieldCheck, MessagesSquare, BellRing, UserCheck, SlidersHorizontal, LayoutGrid,
 } from 'lucide-react';
 import { useAuth, useResource } from '../lib/app-context';
 import { MENU, PageTitleContext, matchDetail, useNavigationTrail, BackButton, withReturn } from '../lib/navigation';
@@ -18,6 +18,7 @@ const NAV = [
     { to: '/clients', label: 'Clients', icon: UserCheck, perm: 'clients:read' },
     { to: '/rendez-vous', label: 'Rendez-vous', icon: CalendarDays, perm: 'appointments:read', badge: 'site_appointment_requests', panel: true },
     { to: '/messagerie-clients', label: 'Messagerie clients', icon: MessagesSquare, perm: 'client_messages', badge: 'unread_client_messages' },
+    { to: '/notifications-push', label: 'Notifications push', icon: BellRing, perm: 'push:read' },
   ] },
   { group: 'Catalogue', items: [
     { to: '/projets', label: 'Projets', icon: Building2, perm: 'projects:read' },
@@ -49,7 +50,7 @@ const ERP_PERMS = ['commercial:read', 'vefa:read', 'vefa:write', 'sav:read'];
 
 const TITLES = {
   '/': 'Tableau de bord', '/prospects': 'Prospects', '/clients': 'Clients', '/rendez-vous': 'Rendez-vous', '/lots': 'Biens & disponibilités',
-  '/projets': 'Projets', '/contenu': 'Contenu du site', '/medias': 'Médiathèque', '/messages': 'Messages', '/messagerie-clients': 'Messagerie clients',
+  '/projets': 'Projets', '/contenu': 'Contenu du site', '/medias': 'Médiathèque', '/messages': 'Messages', '/messagerie-clients': 'Messagerie clients', '/notifications-push': 'Notifications push',
   '/newsletter': 'Newsletter', '/temoignages': 'Témoignages', '/plans': 'Plan de masse', '/utilisateurs': 'Utilisateurs', '/roles': 'Rôles & privilèges', '/parametres': 'Paramètres', '/compte': 'Mon compte',
 };
 

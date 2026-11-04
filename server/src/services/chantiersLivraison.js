@@ -37,7 +37,7 @@ async function worksiteForLot(db, lot) {
 }
 
 /** Message de l'équipe dans l'espace client de l'acquéreur, avec l'e-mail « nouveau message » (services/clients.js : tellClient, chemin unique). */
-const tellClient = (db, sale, body, userId = null) => require('./clients').tellClient(db, sale, body, userId);
+const tellClient = (db, sale, body, userId = null, push = { kind: 'chantier' }) => require('./clients').tellClient(db, sale, body, userId, push);
 
 // ─── TMA ──────────────────────────────────────────────────────────────────
 
@@ -119,7 +119,7 @@ async function quoteChange(db, t, { amount_fcfa, delay_days = null, quote_note =
   });
   await resolve(db, `tma:${t.id}:demandee`);
   const sale = await db('sales').where({ id: t.sale_id }).first();
-  await tellClient(db, sale, `Devis de travaux modificatifs ${t.reference} — « ${t.title} » : ${money(amount_fcfa)}${delay_days ? `, réalisation en ${delay_days} jours` : ''}.${quote_note ? `\n${quote_note}` : ''}\nAcceptez-le ou refusez-le dans « Chantier » › Travaux modificatifs. Accepté, son montant s’ajoute à votre échéancier.`, userId);
+  await tellClient(db, sale, `Devis de travaux modificatifs ${t.reference} — « ${t.title} » : ${money(amount_fcfa)}${delay_days ? `, réalisation en ${delay_days} jours` : ''}.${quote_note ? `\n${quote_note}` : ''}\nAcceptez-le ou refusez-le dans « Chantier » › Travaux modificatifs. Accepté, son montant s’ajoute à votre échéancier.`, userId, { kind: 'chantier', title: 'Devis de travaux modificatifs' });
   if (t.assigned_to) {
     await inform(db, 'tma.chiffree', {
       direct: [t.assigned_to], except: userId, title: `Devis TMA envoyé : ${t.client_name} — ${money(amount_fcfa)}`,
@@ -143,7 +143,7 @@ async function answerChange(db, { leadId, id, accept, note = null }) {
       await trx('worksite_changes').where({ id }).update({ status: 'acceptee', answered_at: new Date(), due_date: due, client_note: note, updated_at: new Date() });
       await require('./sales').refreshSaleStatus(trx, sale.id); // un dossier soldé redevient en cours
     });
-    await tellClient(db, sale, `Merci : vous avez accepté les travaux modificatifs ${t.reference} — « ${t.title} ». ${money(t.amount_fcfa)} à régler avant le ${fr(due)} ; l’échéance figure dans « Paiements ».`);
+    await tellClient(db, sale, `Merci : vous avez accepté les travaux modificatifs ${t.reference} — « ${t.title} ». ${money(t.amount_fcfa)} à régler avant le ${fr(due)} ; l’échéance figure dans « Paiements ».`, null, { kind: 'paiements', title: 'Travaux modificatifs acceptés' });
     await inform(db, 'tma.acceptee', {
       direct, key: `tma:${id}:acceptee`, link, links: { compta: '/compta' },
       title: `TMA acceptée : ${t.title} — lot ${t.lot_code}`, body: `${t.client_name} · ${money(t.amount_fcfa)} à régler avant le ${fr(due)} (ajouté à l’échéancier du dossier)`,
@@ -169,7 +169,7 @@ async function setChangeStatus(db, t, { status, done_on = null }, { userId }) {
     if (day > today()) throw new HttpError(400, 'La réalisation ne se date pas à l’avance.');
     await db('worksite_changes').where({ id: t.id }).update({ status, done_on: day, updated_at: new Date() });
     const sale = await db('sales').where({ id: t.sale_id }).first();
-    await tellClient(db, sale, `Les travaux modificatifs ${t.reference} — « ${t.title} » sont réalisés (le ${fr(day)}).`, userId);
+    await tellClient(db, sale, `Les travaux modificatifs ${t.reference} — « ${t.title} » sont réalisés (le ${fr(day)}).`, userId, { kind: 'chantier', title: 'Travaux modificatifs réalisés' });
   } else throw new HttpError(400, 'Statut inconnu.');
   return serializeChange(await loadChange(db, t.id));
 }
@@ -346,7 +346,7 @@ async function handover(db, w, saleId, { handed_on, client_signed = true, attend
   }
 
   const g = warrantyDates(handed_on);
-  await tellClient(db, sale, `Réception de votre lot ${lot.code} le ${fr(handed_on)}${client_signed ? ' (procès-verbal signé)' : ''}. ${reserves.length ? `${reserves.length} réserve(s) notée(s) : leur levée est suivie dans « Chantier » › Livraison.` : 'Aucune réserve n’a été notée.'}\nVos garanties courent à partir de cette date : parfait achèvement jusqu’au ${fr(g.parfait_achevement)}, biennale jusqu’au ${fr(g.biennale)}, décennale jusqu’au ${fr(g.decennale)}.`, userId);
+  await tellClient(db, sale, `Réception de votre lot ${lot.code} le ${fr(handed_on)}${client_signed ? ' (procès-verbal signé)' : ''}. ${reserves.length ? `${reserves.length} réserve(s) notée(s) : leur levée est suivie dans « Chantier » › Livraison.` : 'Aucune réserve n’a été notée.'}\nVos garanties courent à partir de cette date : parfait achèvement jusqu’au ${fr(g.parfait_achevement)}, biennale jusqu’au ${fr(g.biennale)}, décennale jusqu’au ${fr(g.decennale)}.`, userId, { kind: 'chantier', title: 'Réception de votre lot' });
   await inform(db, 'lot.livre', {
     direct: info.assigned_to ? [info.assigned_to] : [], except: userId, key: `livraison:${sale.id}`,
     title: `Lot ${lot.code} réceptionné : ${info.client_name}`, body: `${info.project_name} · le ${fr(handed_on)} · ${reserves.length} réserve(s)${declarationId ? ' · dernier appel de fonds à déclarer' : ''}`,
@@ -393,7 +393,7 @@ async function deliverFromSav(db, saleId, deliveredAt, { userId }) {
     db('lots as l').join('projects as p', 'p.id', 'l.project_id').where('l.id', sale.lot_id).first('l.code', 'p.name as project_name'),
   ]);
   const g = warrantyDates(deliveredAt);
-  await tellClient(db, sale, `Réception de votre lot ${info.code} le ${fr(deliveredAt)}. Vos garanties courent à partir de cette date : parfait achèvement jusqu’au ${fr(g.parfait_achevement)}, biennale jusqu’au ${fr(g.biennale)}, décennale jusqu’au ${fr(g.decennale)}.`, userId);
+  await tellClient(db, sale, `Réception de votre lot ${info.code} le ${fr(deliveredAt)}. Vos garanties courent à partir de cette date : parfait achèvement jusqu’au ${fr(g.parfait_achevement)}, biennale jusqu’au ${fr(g.biennale)}, décennale jusqu’au ${fr(g.decennale)}.`, userId, { kind: 'chantier', title: 'Réception de votre lot' });
   await inform(db, 'lot.livre', {
     direct: client.assigned_to ? [client.assigned_to] : [], except: userId, key: `livraison:${saleId}`, directLink: '/commercial/ventes',
     title: `Lot ${info.code} livré : ${client.name}`, body: `${info.project_name} · le ${fr(deliveredAt)} (date saisie dans Client & SAV)`,

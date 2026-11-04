@@ -50,7 +50,7 @@ async function announceInbound(db, leadOrId, { what, source = 'site', via: viaOv
   const id = typeof leadOrId === 'object' ? leadOrId.id : leadOrId;
   const lead = await db('leads').where({ id }).first('id', 'name', 'assigned_to', 'phone', 'email');
   if (!lead) return 0;
-  const via = viaOverride || { site: 'le site', plan: 'le plan interactif', ia: 'l’assistante IA du site', meta_lead: 'un formulaire de publicité Meta' }[source] || 'le site';
+  const via = viaOverride || { site: 'le site', plan: 'le plan interactif', ia: 'l’assistante IA du site', meta_lead: 'un formulaire de publicité Meta', mobile: 'l’application mobile SIIPAF' }[source] || 'le site';
   const body = [lead.phone, lead.email, `par ${via}`].filter(Boolean).join(' · ');
   if (lead.assigned_to) {
     return inform(db, 'prospect.demande', {
@@ -185,7 +185,7 @@ async function announceProgress(db, update, user, stageLabel = null) {
   let told = 0;
   for (const s of sales) {
     if (!(await sentOnce(db, `site_update:${update.id}:sale:${s.id}`))) continue;
-    await tellClient(db, { leadId: s.lead_id, saleId: s.id }, `Nouveau point d’avancement de votre chantier : « ${update.title} »${stageLabel ? ` (${stageLabel}, ${update.progress_pct} %)` : ''}. Retrouvez-le dans « Chantier ».`, user?.id || null);
+    await tellClient(db, { leadId: s.lead_id, saleId: s.id }, `Nouveau point d’avancement de votre chantier : « ${update.title} »${stageLabel ? ` (${stageLabel}, ${update.progress_pct} %)` : ''}. Retrouvez-le dans « Chantier ».`, user?.id || null, { kind: 'chantier', title: 'Nouveau point d’avancement de votre chantier' });
     told++;
   }
   const commercials = [...new Set(sales.map(s => s.assigned_to).filter(Boolean))];
@@ -205,7 +205,7 @@ async function announceDocument(db, doc, user) {
   if (!(await sentOnce(db, `document:${doc.id}:${doc.media_id}:client`))) return false;
   const sale = await db('sales').where({ id: doc.sale_id }).first('id', 'lead_id');
   if (!sale) return false;
-  await require('./clients').tellClient(db, sale, `Un nouveau document est disponible dans votre espace client : « ${doc.label} ». Retrouvez-le dans « Documents ».`, user?.id || null);
+  await require('./clients').tellClient(db, sale, `Un nouveau document est disponible dans votre espace client : « ${doc.label} ». Retrouvez-le dans « Documents ».`, user?.id || null, { kind: 'documents', title: 'Nouveau document disponible' });
   return true;
 }
 
@@ -222,7 +222,7 @@ async function announceSchedule(db, sale, user) {
     title: `Échéancier modifié : ${s.name} — lot ${s.lot_code}`, body: `${s.project_name} · par ${user.name}`, link: '/commercial/ventes',
   });
   if (await sentOnce(db, `echeancier:${sale.id}:${day}:client`)) {
-    await require('./clients').tellClient(db, { leadId: s.lead_id, saleId: sale.id }, `Votre échéancier de paiement du lot ${s.lot_code} a été mis à jour. Consultez-le dans « Paiements ».`, user.id);
+    await require('./clients').tellClient(db, { leadId: s.lead_id, saleId: sale.id }, `Votre échéancier de paiement du lot ${s.lot_code} a été mis à jour. Consultez-le dans « Paiements ».`, user.id, { kind: 'paiements', title: 'Échéancier mis à jour' });
   }
   return n;
 }
@@ -232,7 +232,7 @@ async function announcePayment(db, sale, payment, user) {
   const { totals } = require('./sales');
   const t = await totals(db, sale);
   const paid = new Date(payment.paid_at);
-  await require('./clients').tellClient(db, sale, `Nous avons bien enregistré votre versement de ${money(payment.amount_fcfa)} du ${fr(paid.toISOString())}. Votre reçu est disponible dans « Paiements ».${t.remaining_fcfa ? ` Reste à payer : ${money(t.remaining_fcfa)}.` : ' Votre dossier est soldé : merci.'}`, user.id);
+  await require('./clients').tellClient(db, sale, `Nous avons bien enregistré votre versement de ${money(payment.amount_fcfa)} du ${fr(paid.toISOString())}. Votre reçu est disponible dans « Paiements ».${t.remaining_fcfa ? ` Reste à payer : ${money(t.remaining_fcfa)}.` : ' Votre dossier est soldé : merci.'}`, user.id, { kind: 'paiements', title: 'Versement enregistré : votre reçu est prêt' });
 }
 
 const DEED_TEXT = {
@@ -254,7 +254,7 @@ async function announceDeedStep(db, saleId, key, date, user) {
     direct: s.assigned_to ? [s.assigned_to] : [], except: user.id, key: `acte:${saleId}:etape:${key}:${date}`,
     title: `${text.commercial} : ${s.name} — lot ${s.lot_code}`, body: `${s.project_name} · le ${fr(date)}`, link: '/commercial/ventes',
   });
-  if (await sentOnce(db, `acte:${saleId}:etape:${key}:${date}:client`)) await require('./clients').tellClient(db, { leadId: s.lead_id, saleId }, `${text.client} (${fr(date)})`, user.id);
+  if (await sentOnce(db, `acte:${saleId}:etape:${key}:${date}:client`)) await require('./clients').tellClient(db, { leadId: s.lead_id, saleId }, `${text.client} (${fr(date)})`, user.id, { kind: 'documents', title: 'Votre dossier juridique avance' });
   return n;
 }
 

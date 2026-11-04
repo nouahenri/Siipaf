@@ -268,6 +268,10 @@ async function addComment(db, ticketId, { author, userId = null, body, internal 
     // Un client qui répond sur une demande résolue la rouvre
     if (author === 'client' && t.status === 'resolu') patch.status = 'en_cours';
     await trx('sav_tickets').where({ id: t.id }).update(patch);
+    // Réponse visible de l'équipe : notification de l'application mobile (envoyée une fois la transaction validée)
+    if (author === 'equipe' && !internal && t.lead_id) {
+      await require('./push').notifyLead(trx, t.lead_id, { kind: 'sav', title: `Réponse à votre demande ${t.ref}`, saleId: t.sale_id }).catch(() => null);
+    }
     return trx('sav_tickets').where({ id: t.id }).first();
   });
 }
@@ -546,7 +550,7 @@ async function announceTicket(db, t, { by = null } = {}) {
 /** Changement de statut : le client est prévenu dans son espace (e-mail « nouveau message »), le commercial quand elle est résolue ou rejetée. */
 async function announceTicketStatus(db, t, to, { by = null } = {}) {
   if (t.lead_id) {
-    await require('./clients').tellClient(db, { leadId: t.lead_id, saleId: t.sale_id }, `Votre demande ${t.ref} « ${t.title} » est maintenant : ${SAV_STATUS_LABELS[to]}. Suivez-la dans « Mes demandes ».`, by);
+    await require('./clients').tellClient(db, { leadId: t.lead_id, saleId: t.sale_id }, `Votre demande ${t.ref} « ${t.title} » est maintenant : ${SAV_STATUS_LABELS[to]}. Suivez-la dans « Mes demandes ».`, by, { kind: 'sav', title: `Demande ${t.ref} : ${SAV_STATUS_LABELS[to]}` });
   }
   if (!['resolu', 'rejete'].includes(to) || !t.lead_id) return 0;
   const lead = await db('leads').where({ id: t.lead_id }).first('name', 'assigned_to');
@@ -573,7 +577,7 @@ async function announceReserveLifted(db, reserveId, by) {
   const sale = await db('sales').where({ id: r.sale_id }).first('id', 'lead_id');
   const lot = await db('lots').where({ id: r.lot_id }).first('code');
   const stamp = r.lifted_at ? new Date(r.lifted_at).getTime() : Date.now();
-  if (sale) await require('./clients').tellClient(db, sale, `La réserve « ${r.label} » de votre lot ${lot?.code || ''} a été levée. Retrouvez le suivi dans « Chantier » › Livraison.`, by);
+  if (sale) await require('./clients').tellClient(db, sale, `La réserve « ${r.label} » de votre lot ${lot?.code || ''} a été levée. Retrouvez le suivi dans « Chantier » › Livraison.`, by, { kind: 'chantier', title: 'Réserve levée' });
   const w = await lotWorksite(db, r.lot_id);
   return require('./notifications').inform(db, 'reserve.levee', {
     direct: w?.manager_id ? [{ id: w.manager_id, link: `/chantiers/${w.id}?onglet=livraisons` }] : [], except: by, key: `reserve:${r.id}:levee:${stamp}`,

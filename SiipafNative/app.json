@@ -1,0 +1,110 @@
+{
+  "expo": {
+    "name": "SIIPAF",
+    "slug": "siipaf",
+    "version": "1.0.0",
+    "orientation": "portrait",
+    "icon": "./assets/images/icon.png",
+    "scheme": "siipaf",
+    "userInterfaceStyle": "automatic",
+    "description": "SIIPAF SA, promoteur et aménageur immobilier agréé MCLU : programmes, lotissements, conseillère Sita et espace client.",
+    "ios": {
+      "bundleIdentifier": "com.siipaf.app",
+      "supportsTablet": true,
+      "icon": "./assets/images/icon.png",
+      "config": {
+        "usesNonExemptEncryption": false
+      },
+      "infoPlist": {
+        "NSCameraUsageDescription": "SIIPAF utilise l’appareil photo pour joindre une photo à une demande de service après-vente.",
+        "NSPhotoLibraryUsageDescription": "SIIPAF accède à vos photos pour les joindre à une demande de service après-vente.",
+        "NSFaceIDUsageDescription": "SIIPAF utilise Face ID pour protéger l’accès à votre espace client.",
+        "CFBundleDevelopmentRegion": "fr",
+        "CFBundleAllowMixedLocalizations": true
+      }
+    },
+    "android": {
+      "package": "com.siipaf.app",
+      "adaptiveIcon": {
+        "backgroundColor": "#FFFFFF",
+        "foregroundImage": "./assets/images/android-icon-foreground.png",
+        "backgroundImage": "./assets/images/android-icon-background.png",
+        "monochromeImage": "./assets/images/android-icon-monochrome.png"
+      },
+      "permissions": [
+        "CAMERA",
+        "USE_BIOMETRIC",
+        "POST_NOTIFICATIONS"
+      ],
+      "blockedPermissions": [
+        "android.permission.RECORD_AUDIO"
+      ],
+      "predictiveBackGestureEnabled": false
+    },
+    "web": {
+      "output": "single",
+      "favicon": "./assets/images/favicon.png",
+      "name": "SIIPAF",
+      "themeColor": "#E30613"
+    },
+    "plugins": [
+      "expo-router",
+      [
+        "expo-splash-screen",
+        {
+          "backgroundColor": "#0A0A0A",
+          "image": "./assets/images/site/logo-emblem.png",
+          "imageWidth": 76,
+          "dark": {
+            "backgroundColor": "#0A0A0A",
+            "image": "./assets/images/site/logo-emblem.png"
+          }
+        }
+      ],
+      "expo-secure-store",
+      "expo-sharing",
+      "expo-video",
+      "expo-asset",
+      "expo-font",
+      [
+        "expo-local-authentication",
+        {
+          "faceIDPermission": "SIIPAF utilise Face ID pour protéger l’accès à votre espace client."
+        }
+      ],
+      [
+        "expo-notifications",
+        {
+          "icon": "./assets/images/notification-icon.png",
+          "color": "#E30613",
+          "defaultChannel": "default"
+        }
+      ],
+      [
+        "expo-image-picker",
+        {
+          "photosPermission": "SIIPAF accède à vos photos pour les joindre à une demande de service après-vente.",
+          "cameraPermission": "SIIPAF utilise l’appareil photo pour joindre une photo à une demande de service après-vente.",
+          "microphonePermission": false
+        }
+      ],
+      [
+        "expo-document-picker",
+        {
+          "iCloudContainerEnvironment": "Production"
+        }
+      ],
+      "@react-native-community/datetimepicker",
+      "expo-localization"
+    ],
+    "extra": {
+      "apiUrl": "https://client.siipaf.com",
+      "siteUrl": "https://siipaf.com",
+      "eas": {}
+    },
+    "experiments": {
+      "typedRoutes": true,
+      "reactCompiler": true
+    }
+  }
+}

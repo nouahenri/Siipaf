@@ -59,8 +59,11 @@ async function grantAccess(db, { leadId, user, notify = true }) {
     reset_token_hash: null, reset_expires_at: null, updated_at: new Date(),
   };
   const existing = await db('client_accounts').where({ lead_id: lead.id }).first();
-  if (existing) await db('client_accounts').where({ id: existing.id }).update(patch);
-  else await db('client_accounts').insert({ ...patch, lead_id: lead.id, created_by: user.id });
+  if (existing) {
+    // Nouvel accès : les appareils connectés avec l'ancien mot de passe sont déconnectés (et ne reçoivent plus de notifications)
+    await db('client_accounts').where({ id: existing.id }).update({ ...patch, token_version: (Number(existing.token_version) || 0) + 1 });
+    await db('client_push_tokens').where({ account_id: existing.id }).del();
+  } else await db('client_accounts').insert({ ...patch, lead_id: lead.id, created_by: user.id });
 
   let emailed = false;
   if (notify && lead.email) {
@@ -121,11 +124,13 @@ async function resetPassword(db, token, password) {
   const account = await db('client_accounts').where({ reset_token_hash: sha256(String(token)), active: true }).first();
   const expires = account && toDate(account.reset_expires_at);
   if (!account || !expires || expires.getTime() < Date.now()) throw new HttpError(400, 'Lien invalide ou expiré. Refaites une demande.');
+  // Les autres appareils sont déconnectés (version des jetons) ; la session ouverte par la réinitialisation porte la nouvelle version
+  const token_version = (Number(account.token_version) || 0) + 1;
   await db('client_accounts').where({ id: account.id }).update({
-    password_hash: await hashPassword(password), must_change_password: false,
+    password_hash: await hashPassword(password), must_change_password: false, token_version,
     reset_token_hash: null, reset_expires_at: null, updated_at: new Date(),
   });
-  return account;
+  return { ...account, token_version };
 }
 
 /**
@@ -133,8 +138,9 @@ async function resetPassword(db, token, password) {
  * il reçoit l'e-mail « nouveau message », sans le contenu (qui reste dans son espace). Un seul chemin pour les messages écrits par
  * l'équipe et pour les messages automatiques (appels de fonds VEFA, TMA, PV de réception, versement, réclamation, acte, document…).
  * `target` : un dossier de vente (objet avec `lead_id` et `id`) ou { leadId, saleId }. Renvoie l'identifiant du message.
+ * `push` : notification de l'application mobile { kind, title } (services/push.js) — par défaut « Nouveau message de SIIPAF ».
  */
-async function tellClient(db, target, body, userId = null) {
+async function tellClient(db, target, body, userId = null, push = {}) {
   const leadId = target.leadId ?? target.lead_id;
   const saleId = target.saleId !== undefined ? target.saleId : (target.lead_id ? target.id : null);
   const [id] = await db('client_messages').insert({ lead_id: leadId, sale_id: saleId || null, sender: 'equipe', user_id: userId || null, body });
@@ -149,6 +155,8 @@ async function tellClient(db, target, body, userId = null) {
       text: `Bonjour ${lead.name},\n\nL’équipe SIIPAF vous a écrit. Lisez et répondez depuis votre espace client :\n${clientAppUrl}\n\nSIIPAF SA`,
     }).catch(() => {});
   }
+  // Notification de l'application mobile : préparée ici (même transaction), envoyée sans attendre
+  if (access) await require('./push').notifyLead(db, leadId, { kind: push.kind || 'message', title: push.title, saleId }).catch(() => null);
   return typeof id === 'object' ? id.id : id;
 }
 

@@ -513,7 +513,7 @@ async function announceGuaranteeReleased(db, g, date, userId) {
   if (g.sale_id) {
     const sale = await db('sales as s').join('lots as l', 'l.id', 's.lot_id').where('s.id', g.sale_id).first('s.id', 's.lead_id', 'l.code as lot_code');
     if (sale) {
-      await require('./clients').tellClient(db, { leadId: sale.lead_id, saleId: sale.id }, `La garantie qui couvrait votre dossier du lot ${sale.lot_code} (${g.kind_label}, ${money(g.amount_fcfa)}) a été libérée le ${when}.`, userId);
+      await require('./clients').tellClient(db, { leadId: sale.lead_id, saleId: sale.id }, `La garantie qui couvrait votre dossier du lot ${sale.lot_code} (${g.kind_label}, ${money(g.amount_fcfa)}) a été libérée le ${when}.`, userId, { kind: 'documents', title: 'Garantie de votre dossier libérée' });
       told.push('acheteur');
     }
   }
@@ -678,7 +678,7 @@ async function tick(db, day = today()) {
       })) stats.unpaid_reminders = (stats.unpaid_reminders || 0) + 1;
       if (await liaisons.sentOnce(db, `relance:${u.sale_id}:${relance}:${u.oldest_due}:client`)) {
         const sale = await db('sales').where({ id: u.sale_id }).first('id', 'lead_id');
-        if (sale) await require('./clients').tellClient(db, sale, `Rappel : une échéance de votre dossier (lot ${u.lot_code}) est impayée depuis le ${fr(u.oldest_due)}, soit ${money(u.overdue_fcfa)}. Merci de régulariser votre situation ou de contacter votre conseiller.`);
+        if (sale) await require('./clients').tellClient(db, sale, `Rappel : une échéance de votre dossier (lot ${u.lot_code}) est impayée depuis le ${fr(u.oldest_due)}, soit ${money(u.overdue_fcfa)}. Merci de régulariser votre situation ou de contacter votre conseiller.`, null, { kind: 'paiements', title: 'Rappel : échéance impayée' });
       }
     }
     if (u.transmitted && !u.litigation && await inform(db, 'impaye.transmis', {
