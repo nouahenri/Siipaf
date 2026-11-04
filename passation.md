@@ -97,7 +97,7 @@
 >
 > **MISE EN LIGNE** : procédure dans « Procédure de mise en ligne (rappel) » plus bas. Leçons du 23/10 : la liste Fileman `list_files` est mise en cache (ajouter `&x=<aléatoire>` pour voir le fichier déposé) ; l'affichage du terminal cPanel peut se figer en cours de script → lire `~/deploiement-<commit>.log` avec Fileman `get_file_content` ; un onglet Chrome du dashboard de production peut se bloquer → travailler dans un nouvel onglet.
 >
-> **DÉMO LOCALE** : aperçus `erp-demo-2` (port 4003 : `erp.localhost`, `admin.localhost`) et `site-demo-2` (site sur le port 8765, branché sur l'API 4003 grâce à `SIIPAF_API` dans `server/scripts/serve-site.js`) ; les ports 4000 et 4002 peuvent être pris par une autre discussion. « TEST SITE TERRAINS » est publié dans la démo (Bingerville, 500 000 FCFA, 24 mois, viabilisation, documents du bien).
+> **DÉMO LOCALE** (`.claude/launch.json` nettoyé le 04/11, 5 aperçus gardés, tous sur `server/data/demo.sqlite`) : `admin-demo` (dashboard, `admin.localhost:4000`), `erp-demo` (ERP, `erp.localhost:4002`), `client-demo` (API de l'application mobile et espace client, port 4001), `mobile-web` (application mobile en web, port 8081, branchée sur 4001), `siipaf` (site public, port 8765, qui appelle l’API 4000 d’`admin-demo`). Supprimés : `site-demo-2`, `erp-demo-2`, `erp-demo-3`, `site-demo-3`, `erp-demo-4`, `erp-kpi`, `erp-verif`, `site-verif` (copie de l'ancien fichier : scratchpad de la discussion du 04/11). « TEST SITE TERRAINS » est publié dans la démo (Bingerville, 500 000 FCFA, 24 mois, viabilisation, documents du bien).
 >
 > **Plus tard** : menu « Actualités » du site (publications Facebook), à cadrer avec le client (voir plus bas).
 >
