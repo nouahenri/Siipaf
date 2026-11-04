@@ -146,14 +146,15 @@ export function PendingPayments({ onChange }) {
     try { await api.post(`/admin/payment-declarations/${x.id}/reject`, { reason }); saved('Versement refusé : le commercial est prévenu'); refresh(); } catch (e) { toast(e.message, 'err'); }
   };
   return (
-    <Card title={<span className="row" style={{ gap: 8 }}>Versements déclarés par les commerciaux, à confirmer <Badge tone="warn">{rows.length}</Badge></span>} bodyClass="">
+    <Card title={<span className="row" style={{ gap: 8 }}>Versements déclarés (commerciaux et clients), à confirmer <Badge tone="warn">{rows.length}</Badge></span>} bodyClass="">
       <div className="table-wrap"><table className="table table-compact">
         <thead><tr><th>Client</th><th>Bien</th><th>Versement</th><th>Déclaré par</th><th className="right">Montant</th><th /></tr></thead>
         <tbody>{rows.map(x => (
           <tr key={x.id}>
             <td><b>{x.client_name}</b><div className="small muted">{x.client_code}</div></td>
             <td className="small">{x.project_name} · lot {x.lot_code}</td>
-            <td className="small">{date(x.paid_at)} · {METHODS[x.method] || x.method}{x.reference ? ` · ${x.reference}` : ''}{x.note && <div className="muted">{x.note}</div>}</td>
+            <td className="small">{date(x.paid_at)} · {METHODS[x.method] || x.method}{x.reference ? ` · ${x.reference}` : ''}{x.note && <div className="muted">{x.note}</div>}
+              {x.proof_file_id ? <a href={`/api/admin/payment-declarations/${x.id}/proof`} target="_blank" rel="noreferrer">Voir la capture du reçu</a> : null}</td>
             <td className="small">{x.declared_by_name}</td>
             <td className="right tabular"><b>{fcfa(x.amount_fcfa)}</b></td>
             <td className="nowrap right">

@@ -9,6 +9,7 @@ const { setup, login, request } = require('./helpers');
 const push = require('../src/services/push');
 
 let db, app, admin, lead, password;
+const ok = (r, code = 200) => { assert.equal(r.status, code, JSON.stringify(r.body)); return r.body; };
 const APP = { 'X-Siipaf-App': 'mobile' };
 const PUSH_TOKEN = 'ExponentPushToken[testAppareil-0001]';
 const sentPushes = [];
@@ -208,4 +209,46 @@ test('carte du programme : position GPS du dashboard, sinon position approchée 
     geocode.setTransport(old);
     geocode.enableInTest(false);
   }
+});
+
+test('« Régler » depuis l’application : moyens réglés dans le dashboard, déclaration à confirmer, plafond, refus signalé au client', async () => {
+  const tok = (await mobile('post', '/api/client/login').send({ login: lead.client_code, password: 'MotDePasseMobile-2026' })).body.token;
+  assert.ok(tok);
+  assert.deepEqual((await mobile('get', '/api/client/payer', tok)).body, [], 'aucun moyen tant que rien n’est réglé');
+  const saved = await admin.put('/api/admin/settings').send({ pay_wave: '07 00 00 00 01', pay_paypal: 'https://paypal.me/siipaf' });
+  assert.equal(saved.status, 200, JSON.stringify(saved.body));
+  const channels = (await mobile('get', '/api/client/payer', tok)).body;
+  assert.deepEqual(channels.map(c => [c.key, c.link, c.number]), [['wave', null, '07 00 00 00 01'], ['paypal', 'https://paypal.me/siipaf', null]]);
+  // Lien marchand Wave : prioritaire, le numéro reste en secours ; une valeur qui n'est pas une adresse est ignorée
+  ok(await admin.put('/api/admin/settings').send({ pay_wave_link: 'https://pay.wave.com/m/M_ci_test/c/ci/', pay_orange_money_link: 'pas un lien' }));
+  const wave = (await mobile('get', '/api/client/payer', tok)).body.find(c => c.key === 'wave');
+  assert.deepEqual([wave.link, wave.number], ['https://pay.wave.com/m/M_ci_test/c/ci/', '07 00 00 00 01']);
+  assert.equal((await mobile('get', '/api/client/payer', tok)).body.some(c => c.key === 'orange_money'), false);
+
+  const dossier = (await mobile('get', '/api/client/dossiers', tok)).body[0];
+  const detail = (await mobile('get', `/api/client/dossiers/${dossier.id}`, tok)).body;
+  const remaining = detail.remaining_fcfa;
+  assert.ok(remaining > 0);
+  const body = { channel: 'wave', amount_fcfa: 100000, reference: 'WV-123456', schedule_id: detail.schedule[0]?.id || null };
+  assert.equal((await mobile('post', `/api/client/dossiers/${dossier.id}/declarations`, tok).send({ ...body, channel: 'moov_money' })).status, 400, 'moyen non réglé');
+  assert.equal((await mobile('post', `/api/client/dossiers/${dossier.id}/declarations`, tok).send({ ...body, reference: '' })).status, 400, 'référence obligatoire');
+  assert.equal((await mobile('post', `/api/client/dossiers/${dossier.id}/declarations`, tok).send({ ...body, amount_fcfa: remaining + 1 })).status, 409, 'plafond');
+  const res = await mobile('post', `/api/client/dossiers/${dossier.id}/declarations`, tok).send(body);
+  assert.equal(res.status, 201, JSON.stringify(res.body));
+  assert.equal((await mobile('post', `/api/client/dossiers/${dossier.id}/declarations`, tok).send({ ...body, amount_fcfa: remaining - 50000 })).status, 409, 'déclarations en attente déduites');
+
+  // Rien ne compte avant la Comptabilité ; la déclaration apparaît dans le dossier du client et dans l'ERP
+  const after = (await mobile('get', `/api/client/dossiers/${dossier.id}`, tok)).body;
+  assert.equal(after.remaining_fcfa, remaining);
+  assert.equal(after.declarations[0].status, 'a_confirmer');
+  const list = ok(await admin.get('/api/admin/payment-declarations'));
+  const decl = list.find(d => d.id === res.body.id);
+  assert.equal(decl.declared_by_name, 'le client (application)');
+  assert.equal(decl.method, 'mobile_money');
+
+  // Refus : motif envoyé dans l'espace du client
+  ok(await admin.post(`/api/admin/payment-declarations/${decl.id}/reject`).send({ reason: 'Transaction introuvable sur le relevé Wave' }));
+  const msgs = await db('client_messages').where({ lead_id: lead.id }).orderBy('id', 'desc').first();
+  assert.match(msgs.body, /Transaction introuvable/);
+  assert.equal((await mobile('get', `/api/client/dossiers/${dossier.id}`, tok)).body.declarations[0].status, 'rejete');
 });

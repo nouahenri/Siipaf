@@ -52,6 +52,7 @@ export default function ProjectEdit() {
     setForm({
       ...Object.fromEntries(FIELDS.map(k => [k, p[k] ?? ''])), checked, published: !!p.published, gps: gpsText(p), type_ids: (p.property_type_ids || []).map(String),
       key_figures: (p.key_figures || []).map(f => ({ ...f })),
+      gallery: [...(p.gallery || [])],
     });
     setOffers(p.offers.map(o => ({ ...o })));
   }, [project.data]);
@@ -109,6 +110,7 @@ export default function ProjectEdit() {
   const moveOffer = (i, d) => setOffers(list => { const l = [...list]; [l[i], l[i + d]] = [l[i + d], l[i]]; return l; });
   // Chiffres clés du site : liste ordonnée (pictogramme, valeur, libellé)
   const setFigure = (i, k, v) => setForm(f => ({ ...f, key_figures: f.key_figures.map((x, j) => (j === i ? { ...x, [k]: v } : x)) }));
+  const moveGallery = (i, d) => setForm(f => { const l = [...f.gallery]; [l[i], l[i + d]] = [l[i + d], l[i]]; return { ...f, gallery: l }; });
   const moveFigure = (i, d) => setForm(f => { const l = [...f.key_figures]; [l[i], l[i + d]] = [l[i + d], l[i]]; return { ...f, key_figures: l }; });
   const intOrNull = v => (v === '' || v == null ? null : Math.round(Number(String(v).replace(/[\s ]/g, ''))));
   // Équivalent en euros affiché sur le site : parité fixe du franc CFA (1 € = 655,957 FCFA)
@@ -231,6 +233,28 @@ export default function ProjectEdit() {
               <button type="button" className="slide-thumb" style={{ width: '100%', backgroundImage: form.cover_media_id ? `url(/uploads/by-id/${form.cover_media_id})` : undefined, border: '1px solid var(--border)' }} onClick={() => setPicker('cover')} aria-label="Choisir l’image principale">
                 {!form.cover_media_id && <ImagePlus />}
               </button>
+            </Card>
+            {/* Galerie : photos affichées après l'image principale dans l'application mobile (photo à balayer et vignettes) */}
+            <Card title={`Galerie photos (${form.gallery.length}/20)`}>
+              <p className="small muted" style={{ marginTop: 0 }}>Affichées après l’image principale dans l’application mobile. Flèches : ordre d’affichage.</p>
+              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 8 }}>
+                {form.gallery.map((id, i) => (
+                  <div key={id} style={{ position: 'relative', aspectRatio: '4 / 3', borderRadius: 8, overflow: 'hidden', border: '1px solid var(--border)', backgroundImage: `url(/uploads/by-id/${id})`, backgroundSize: 'cover', backgroundPosition: 'center' }}>
+                    <div className="row" style={{ position: 'absolute', left: 4, right: 4, bottom: 4, gap: 4, justifyContent: 'space-between' }}>
+                      <span className="row" style={{ gap: 4 }}>
+                        <button type="button" className="btn btn-sm" disabled={i === 0} onClick={() => moveGallery(i, -1)} aria-label="Avancer la photo">‹</button>
+                        <button type="button" className="btn btn-sm" disabled={i === form.gallery.length - 1} onClick={() => moveGallery(i, 1)} aria-label="Reculer la photo">›</button>
+                      </span>
+                      <button type="button" className="btn btn-sm" onClick={() => setForm(f => ({ ...f, gallery: f.gallery.filter(x => x !== id) }))} aria-label="Retirer la photo de la galerie">✕</button>
+                    </div>
+                  </div>
+                ))}
+                {form.gallery.length < 20 && (
+                  <button type="button" className="slide-thumb" style={{ aspectRatio: '4 / 3', border: '1px dashed var(--border)' }} onClick={() => setPicker('gallery')} aria-label="Ajouter une photo à la galerie">
+                    <ImagePlus />
+                  </button>
+                )}
+              </div>
             </Card>
           </div>
         </div>
@@ -394,6 +418,7 @@ export default function ProjectEdit() {
       </Card>
 
       {picker === 'cover' && <MediaPicker selectedId={form.cover_media_id} onPick={m => setForm(f => ({ ...f, cover_media_id: m.id }))} onClose={() => setPicker(null)} />}
+      {picker === 'gallery' && <MediaPicker onPick={m => setForm(f => (f.gallery.includes(m.id) || m.id === f.cover_media_id ? f : { ...f, gallery: [...f.gallery, m.id] }))} onClose={() => setPicker(null)} />}
       {picker === 'plan' && <AddPlanModal projectId={Number(id)} onClose={() => setPicker(null)} onDone={() => { setPicker(null); project.reload(); }} />}
       {termsOpen && (
         <PaymentTermsModal form={form} defaults={defaults} choices={choices} offers={offers} editable={editable} canLists={canLists}

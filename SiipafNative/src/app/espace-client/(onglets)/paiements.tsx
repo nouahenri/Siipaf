@@ -8,6 +8,7 @@ import { useMemo, useState } from 'react';
 import { RefreshControl, ScrollView, View } from 'react-native';
 import { CalendarDays, Check, ChevronRight, Clock, Landmark, MessageCircle, Receipt, TriangleAlert, Wallet } from 'lucide-react-native';
 import { ClientHeader, NoDossier } from '@/components/client/common';
+import { PaySheet } from '@/components/client/PaySheet';
 import { Badge, Button, Callout, Card, Chip, ChipRow, Divider, Empty, ErrorState, PageSkeleton, ProgressBar, Row, Segmented, Sheet, Txt } from '@/components/ui';
 import { INSTALLMENT_STATUS, PAYMENT_METHODS } from '@/lib/domain';
 import { amount, date, daysUntil, fcfa, plural, shortDate } from '@/lib/format';
@@ -44,6 +45,7 @@ export default function Paiements() {
   const [tab, setTab] = useState<'echeancier' | 'versements'>('echeancier');
   const [filter, setFilter] = useState<'tout' | 'a_venir' | 'en_retard' | 'payee' | null>(null);
   const [open, setOpen] = useState<Installment | null>(null);
+  const [paying, setPaying] = useState<Installment | null>(null);
   const allocations = useMemo(() => (d ? allocate(d.schedule, d.payments) : {}), [d]);
 
   const body = () => {
@@ -135,7 +137,12 @@ export default function Paiements() {
         {body()}
       </ScrollView>
       <Sheet visible={!!open} title={open?.label || ''} onClose={() => setOpen(null)}
-        footer={open && open.status !== 'payee' ? <Button label="Une question ? Écrire à SIIPAF" icon={MessageCircle} variant="ghost" block onPress={() => { setOpen(null); router.navigate('/espace-client/messages'); }} /> : undefined}>
+        footer={open && open.status !== 'payee' ? (
+          <View style={{ gap: space.sm }}>
+            <Button label="Régler" icon={Wallet} block haptic onPress={() => { setPaying(open); setOpen(null); }} />
+            <Button label="Une question ? Écrire à SIIPAF" icon={MessageCircle} variant="ghost" block onPress={() => { setOpen(null); router.navigate('/espace-client/messages'); }} />
+          </View>
+        ) : undefined}>
         {open && st && d && (
           <>
             <View style={{ flexDirection: 'row', alignItems: 'center', gap: 10 }}>
@@ -150,25 +157,37 @@ export default function Paiements() {
               <Row title="Reste à régler" end={<Txt>{fcfa(open.remaining_fcfa)}</Txt>} />
               <Row title="Position" end={<Txt>{open.seq} sur {d.schedule.length}</Txt>} last />
             </Card>
-            <Txt variant="h3" style={{ marginTop: space.xl, marginBottom: space.sm }}>Réglée par</Txt>
-            {!(allocations[open.seq] || []).length ? <Txt variant="small">Aucun versement imputé pour l’instant.</Txt> : (
+            {/* Reçus des versements imputés sur l'échéance : seulement quand elle est réglée, même en partie */}
+            {(allocations[open.seq] || []).length > 0 && (
+              <>
+              <Txt variant="h3" style={{ marginTop: space.xl, marginBottom: space.sm }}>{open.status === 'payee' ? 'Réglée par' : 'Déjà réglé par'}</Txt>
               <Card padded={false}>
                 {allocations[open.seq].map((a, i, all) => (
                   <Row key={a.id} icon={Receipt} iconTone="ok" title={a.receipt_number} sub={shortDate(a.paid_at)} end={<Txt variant="bodyStrong" style={{ fontSize: 14 }}>{fcfa(a.amount)}</Txt>}
                     onPress={() => { setOpen(null); router.push(`/espace-client/recu/${a.id}`); }} last={i === all.length - 1} />
                 ))}
               </Card>
+              </>
             )}
+            {/* Paiements déclarés depuis l'application pour cette échéance */}
+            {(d.declarations || []).filter(x => !x.schedule_id || x.schedule_id === open.id).map(x => (
+              <View key={x.id} style={{ marginTop: space.md }}>
+                <Callout icon={x.status === 'rejete' ? TriangleAlert : Clock} tone={x.status === 'rejete' ? 'danger' : 'gold'}
+                  title={x.status === 'rejete' ? `Paiement de ${fcfa(x.amount_fcfa)} non confirmé` : `${fcfa(x.amount_fcfa)} déclarés, en vérification`}
+                  text={x.status === 'rejete' ? x.reject_reason || 'Voir le message du service comptable.' : `Réf. ${x.reference || '—'} · confirmé par la Comptabilité sous peu`} />
+              </View>
+            ))}
             {open.status !== 'payee' && (
               <>
                 <Divider />
                 <Txt variant="h3" style={{ marginTop: space.xl, marginBottom: space.sm }}>Comment payer</Txt>
-                <Txt variant="small" style={{ color: c.ink2 }}>Par virement ou Mobile Money auprès de SIIPAF, en indiquant votre code client. Le reçu apparaît ici dès l’enregistrement du versement par notre service comptable.</Txt>
+                <Txt variant="small" style={{ color: c.ink2 }}>Touchez « Régler » : Wave, Orange Money, MTN MoMo, Moov Money ou PayPal / carte Visa, puis déclarez votre paiement. Le reçu apparaît ici dès sa confirmation par notre service comptable.</Txt>
               </>
             )}
           </>
         )}
       </Sheet>
+      {paying && d ? <PaySheet dossier={d} line={paying} onClose={() => setPaying(null)} /> : null}
     </View>
   );
 }

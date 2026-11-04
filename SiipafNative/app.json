@@ -100,7 +100,9 @@
     "extra": {
       "apiUrl": "https://client.siipaf.com",
       "siteUrl": "https://siipaf.com",
-      "eas": {}
+      "eas": {},
+      "appStoreUrl": "",
+      "playStoreUrl": ""
     },
     "experiments": {
       "typedRoutes": true,

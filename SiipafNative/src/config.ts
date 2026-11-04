@@ -6,7 +6,7 @@
  */
 import Constants from 'expo-constants';
 
-const extra = (Constants.expoConfig?.extra ?? {}) as { apiUrl?: string; siteUrl?: string; shareUrl?: string; privacyUrl?: string };
+const extra = (Constants.expoConfig?.extra ?? {}) as { apiUrl?: string; siteUrl?: string; shareUrl?: string; privacyUrl?: string; appStoreUrl?: string; playStoreUrl?: string };
 
 export const API_URL = (process.env.EXPO_PUBLIC_API_URL || extra.apiUrl || 'https://client.siipaf.com').replace(/\/$/, '');
 export const SITE_URL = (process.env.EXPO_PUBLIC_SITE_URL || extra.siteUrl || 'https://siipaf.com').replace(/\/$/, '');
@@ -27,3 +27,6 @@ export const PASSWORD_MIN = 10;
 export const SHARE_URL = extra.shareUrl || SITE_URL;
 /** Politique de confidentialité exigée par les stores (page à publier par SIIPAF ; vide tant qu'elle n'existe pas). */
 export const PRIVACY_URL = extra.privacyUrl || '';
+/** Fiches de l'application dans les stores (app.json › extra, à remplir une fois l'application publiée) : ajoutées au partage. */
+export const APP_STORE_URL = extra.appStoreUrl || '';
+export const PLAY_STORE_URL = extra.playStoreUrl || '';

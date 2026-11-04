@@ -297,11 +297,13 @@ async function clientSaleDetail(db, leadId, saleId) {
   const sale = await ownSale(db, leadId, saleId);
   const summary = await saleSummary(db, sale);
   const livraison = require('./chantiersLivraison');
-  const [payments, documents, schedule, changes, delivery] = await Promise.all([
+  const [payments, documents, schedule, changes, delivery, declarations] = await Promise.all([
     db('payments').where({ sale_id: sale.id }).orderBy([{ column: 'paid_at', order: 'desc' }, { column: 'id', order: 'desc' }]),
     db('sale_documents').where({ sale_id: sale.id, visible_client: true }).orderBy('sort'),
     scheduleStatus(db, sale, summary),
     livraison.clientChanges(db, sale.id), livraison.clientDelivery(db, sale.id),
+    // Paiements déclarés par le client (application) : en vérification ou refusés
+    db('payment_declarations').where({ sale_id: sale.id, source: 'client' }).whereIn('status', ['a_confirmer', 'rejete']).orderBy('id', 'desc'),
   ]);
   return {
     ...summary,
@@ -313,6 +315,10 @@ async function clientSaleDetail(db, leadId, saleId) {
     payments: payments.map(p => ({
       id: p.id, receipt_number: receiptNumber(p), amount_fcfa: Number(p.amount_fcfa), paid_at: isoDay(p.paid_at),
       method: PAYMENT_METHODS.includes(p.method) ? p.method : 'autre', reference: p.reference,
+    })),
+    declarations: declarations.map(d => ({
+      id: d.id, amount_fcfa: Number(d.amount_fcfa), paid_at: isoDay(d.paid_at), channel: d.channel, reference: d.reference, status: d.status,
+      reject_reason: d.reject_reason || null, schedule_id: d.schedule_id || null,
     })),
     documents: documents.map(d => ({
       id: d.id, type: d.type, label: d.label, status: d.status, note: d.note, updated_at: isoTime(d.updated_at),

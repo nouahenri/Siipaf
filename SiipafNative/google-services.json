@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "1075033811641",
+    "project_id": "siipaf",
+    "storage_bucket": "siipaf.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:1075033811641:android:beb06baa08418b1f388968",
+        "android_client_info": {
+          "package_name": "com.siipaf.com"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyBvCLRbVAZTDjxV3XmemDMo984drqVg84w"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}

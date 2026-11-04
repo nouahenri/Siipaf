@@ -46,6 +46,13 @@ module.exports = function publicRoutes(db) {
   const formLimiter = rateLimit({ windowMs: 15 * 60 * 1000, limit: isTest ? 1000 : 20, standardHeaders: true, legacyHeaders: false });
 
   const mediaUrl = id => (id ? `/uploads/by-id/${id}` : null);
+  const galleryOf = async p => {
+    const ids = [...new Set([p.cover_media_id, ...json(p.gallery, [])].filter(Boolean))];
+    if (!ids.length) return [];
+    const rows = await db('media').whereIn('id', ids).where('mime', 'like', 'image/%').select('id', 'alt');
+    const byId = new Map(rows.map(m => [m.id, m]));
+    return ids.filter(id => byId.has(id)).map(id => ({ id, url: mediaUrl(id), alt: byId.get(id).alt || null }));
+  };
 
   r.get('/content', ah(async (req, res) => {
     const rows = await db('site_content').whereIn('key', ['hero', 'site', 'ticker', 'stats', 'editorial']);
@@ -159,6 +166,8 @@ module.exports = function publicRoutes(db) {
       documents: features.document.map(f => ({ label: f.label, state: f.state, state_label: labels.document[f.state] })),
       ...termsOf(p, settings),
       cover: mediaUrl(p.cover_media_id), option_days: p.option_days || settings.option_days_default,
+      // Image principale puis galerie du dashboard (photos encore présentes dans la médiathèque, sans doublon)
+      gallery: await galleryOf(p),
       offers,
       statuses: LOT_STATUS_LABELS,
       plans: plans.map(pl => ({

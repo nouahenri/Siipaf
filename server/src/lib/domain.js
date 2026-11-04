@@ -143,6 +143,25 @@ const APP_SETTINGS = {
   balance_months_choices: { label: 'Délais de solde proposés (mois)', list: true, min: 1, max: 120, unit: 'mois' },
   // Application mobile : paliers du menu « Budget » de la recherche (« 10, 25, 50, 100 » → moins de 10 M … plus de 100 M)
   budget_tiers: { label: 'Paliers de budget de l’application mobile (millions FCFA)', list: true, min: 1, max: 10000, unit: 'millions FCFA' },
+  // Application mobile, bouton « Régler » : numéro marchand ou lien de paiement de chaque moyen (vide = moyen non proposé)
+  pay_wave_link: { label: 'Wave : lien de paiement marchand', text: true, max: 300 },
+  pay_wave: { label: 'Wave : numéro marchand (secours)', text: true, max: 60 },
+  pay_orange_money_link: { label: 'Orange Money : lien de paiement marchand', text: true, max: 300 },
+  pay_orange_money: { label: 'Orange Money : numéro marchand (secours)', text: true, max: 60 },
+  pay_mtn_money_link: { label: 'MTN MoMo : lien de paiement marchand', text: true, max: 300 },
+  pay_mtn_money: { label: 'MTN MoMo : numéro marchand (secours)', text: true, max: 60 },
+  pay_moov_money_link: { label: 'Moov Money : lien de paiement marchand', text: true, max: 300 },
+  pay_moov_money: { label: 'Moov Money : numéro marchand (secours)', text: true, max: 60 },
+  pay_paypal: { label: 'Paiement PayPal / carte Visa : lien de paiement (paypal.me…)', text: true, max: 300 },
+};
+
+/** Moyens du bouton « Régler » de l'application : réglage du dashboard et mode de versement retenu par la Comptabilité. */
+const CLIENT_PAY_CHANNELS = {
+  wave: { label: 'Wave', setting: 'pay_wave', link: 'pay_wave_link', method: 'mobile_money' },
+  orange_money: { label: 'Orange Money', setting: 'pay_orange_money', link: 'pay_orange_money_link', method: 'mobile_money' },
+  mtn_money: { label: 'MTN MoMo', setting: 'pay_mtn_money', link: 'pay_mtn_money_link', method: 'mobile_money' },
+  moov_money: { label: 'Moov Money', setting: 'pay_moov_money', link: 'pay_moov_money_link', method: 'mobile_money' },
+  paypal: { label: 'PayPal / carte Visa', setting: null, link: 'pay_paypal', method: 'autre' },
 };
 
 /** Délais de solde proposés, « 6, 12, 24, 36 » → [6, 12, 24, 36]. */
@@ -1715,7 +1734,7 @@ const INFO_EVENTS = {
   'chantier.marche_receptionne': { module: 'chantiers', label: 'Travaux d’un sous-traitant réceptionnés (libération de la retenue programmée)', audiences: ['juridique', 'compta'] },
   'chantier.phase_retard': { module: 'chantiers', label: 'Phase de chantier en retard sur le planning', audiences: ['exploitation'], priority: 'action' },
   'vente.versement': { module: 'commercial', label: 'Versement d’un client enregistré ou confirmé', audiences: ['compta'], recipient_hint: 'Le commercial du client est toujours prévenu ; les responsables commerciaux se cochent ici (ils ne reçoivent plus chaque versement par défaut).' },
-  'versement.a_confirmer': { module: 'compta', label: 'Versement déclaré par un commercial, à confirmer', audiences: ['compta'], priority: 'action', recipient_hint: 'Le commercial est prévenu de la confirmation ou du refus.' },
+  'versement.a_confirmer': { module: 'compta', label: 'Versement déclaré par un commercial ou par le client (application), à confirmer', audiences: ['compta'], priority: 'action', recipient_hint: 'Le commercial est prévenu de la confirmation ou du refus.' },
   'prospect.transfert_demande': { module: 'commercial', label: 'Demande de transfert d’un prospect ou d’un client à valider', audiences: ['commercial_resp'], priority: 'action', recipient_hint: 'Le commercial qui a fait la demande est prévenu de la décision.' },
   'echeance.impayee': { module: 'commercial', label: 'Échéance d’un client impayée', audiences: ['compta'], priority: 'action' },
   'marketing.a_valider': { module: 'marketing', label: 'Contenu préparé par l’IA ou soumis, à valider', audiences: ['marketing'], priority: 'action', requiredPerms: ['marketing:read'], recipient_hint: 'Accès au Marketing & Communication requis.' },
@@ -2040,7 +2059,7 @@ module.exports = {
   SELF_SERVICE, SAV_ACTIONS, PRESENCE_ACTIONS, RH_SETTINGS_ACTIONS, RECRUIT_ACTIONS, KPI_ACTIONS, FORMATION_ACTIONS, COURRIER_ACTIONS, COMPTA_ACTIONS, PAIE_ACTIONS, RH_ACTIONS,
   LOT_STATUSES, LOT_STATUS_LABELS, SELLABLE_STATUSES, LOT_TRANSITIONS, LOT_STATUS_BY_PROCESS,
   LEAD_STAGES, CLIENT_STAGES, PUBLIC_LEAD_SOURCES, leadAlert, ROLES, ROLE_LABELS, PERMISSIONS, roleKey, can, checkLotTransition,
-  SALE_STATUSES, PAYMENT_METHODS, DOCUMENT_STATUSES, DOCUMENT_TYPES, DEFAULT_DOCUMENTS,
+  SALE_STATUSES, PAYMENT_METHODS, CLIENT_PAY_CHANNELS, DOCUMENT_STATUSES, DOCUMENT_TYPES, DEFAULT_DOCUMENTS,
   PERMISSION_CATALOG, PERMISSION_IDS, PERMISSION_SPLITS, splitPermissions,
   FINANCING_PLANS, FINANCINGS, saleTerms, financingLabel, SCHEDULE_KINDS, INSTALLMENT_STATUS_LABELS, SITE_STAGES, SITE_STAGE_LABELS,
   LOTISSEMENT_STAGES, LOTISSEMENT_STAGE_LABELS, ALL_SITE_STAGES, siteStagesFor, siteStageLabel, siteStageIndex, siteStageError,

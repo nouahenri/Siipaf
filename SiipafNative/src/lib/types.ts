@@ -17,6 +17,8 @@ export type PlanLot = { id: number; plan_id: number; offer_id?: number | null; c
 export type SitePlan = { id: number; name: string; image: string | null; width: number; height: number; lots: PlanLot[] };
 export type ProjectDetail = Project & {
   commodites: string[]; viabilisation: DocState[]; option_days: number; statuses: Record<string, string>; plans: SitePlan[];
+  /** Image principale puis galerie du dashboard. */
+  gallery?: { id: number; url: string; alt?: string | null }[];
 };
 
 export type HeroSlide = { media_id?: number | null; badge?: string; title?: string; title_em?: string; text?: string; cta_label?: string; cta_href?: string; cta2_label?: string; cta2_href?: string; active?: boolean };
@@ -53,7 +55,9 @@ export type Dossier = {
   financing_label?: string | null;
 };
 export type DossierDetail = Dossier & {
-  schedule: Installment[]; payments: Payment[]; documents: SaleDocument[]; vefa_upcoming?: { seq: number; label: string; pct: number; amount_fcfa: number }[];
+  schedule: Installment[]; payments: Payment[]; documents: SaleDocument[];
+  /** Paiements déclarés depuis l'application : en vérification par la Comptabilité, ou refusés. */
+  declarations?: { id: number; amount_fcfa: number; paid_at: string; channel?: string | null; reference?: string | null; status: 'a_confirmer' | 'rejete'; reject_reason?: string | null; schedule_id?: number | null }[]; vefa_upcoming?: { seq: number; label: string; pct: number; amount_fcfa: number }[];
   changes?: Change[]; can_request_changes?: boolean; delivery?: Delivery | null;
 };
 

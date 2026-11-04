@@ -18,7 +18,7 @@ import { Txt } from '@/components/ui/Text';
 import { LOGO_ON_RED, LOGO_RATIO, useSite } from '@/lib/content';
 import { initials } from '@/lib/format';
 import { call, whatsapp } from '@/lib/links';
-import { SHARE_URL } from '@/config';
+import { APP_STORE_URL, PLAY_STORE_URL, SHARE_URL } from '@/config';
 import { getPrefs } from '@/lib/prefs';
 import { useT } from '@/providers/preferences';
 import { useSession } from '@/providers/session';
@@ -32,8 +32,19 @@ const M = {
 
 const MenuContext = createContext<{ open: () => void; close: () => void }>({ open: () => {}, close: () => {} });
 
-/** Partage natif de l'application (lien des stores une fois l'app publiée, réglé dans app.json › extra.shareUrl). */
-export const shareApp = () => Share.share({ message: `${getPrefs().language === 'fr' ? 'Découvrez SIIPAF, promoteur immobilier agréé en Côte d’Ivoire : programmes, terrains et suivi de votre acquisition.' : getPrefs().language === 'es' ? 'Descubre SIIPAF, promotor inmobiliario autorizado en Costa de Marfil.' : 'Discover SIIPAF, licensed real estate developer in Côte d’Ivoire.'} ${SHARE_URL}`, url: SHARE_URL, title: 'SIIPAF' }).catch(() => {});
+/**
+ * Partage natif de l'application : présentation, lien du site, puis liens de téléchargement App Store et Google Play dès
+ * qu'ils sont réglés (app.json › extra.appStoreUrl / extra.playStoreUrl, une fois l'application publiée).
+ */
+export const shareApp = () => {
+  const lang = getPrefs().language;
+  const intro = lang === 'fr' ? 'Découvrez SIIPAF, promoteur immobilier agréé en Côte d’Ivoire : programmes, terrains et suivi de votre acquisition.'
+    : lang === 'es' ? 'Descubre SIIPAF, promotor inmobiliario autorizado en Costa de Marfil.' : 'Discover SIIPAF, licensed real estate developer in Côte d’Ivoire.';
+  const site = lang === 'fr' ? 'Site' : lang === 'es' ? 'Sitio' : 'Website';
+  const stores = [APP_STORE_URL && `iPhone (App Store) : ${APP_STORE_URL}`, PLAY_STORE_URL && `Android (Google Play) : ${PLAY_STORE_URL}`].filter(Boolean);
+  const message = [intro, `${site} : ${SHARE_URL}`, ...stores].join('\n');
+  return Share.share({ message, url: SHARE_URL, title: 'SIIPAF' }).catch(() => {});
+};
 
 const ENTRIES: { icon: LucideIcon; title: string; to: string }[] = [
   { icon: Building, title: 'Qui sommes-nous', to: '/infos/a-propos' },

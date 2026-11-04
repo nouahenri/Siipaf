@@ -17,6 +17,8 @@ import {
   Moon, ScanFace, Share2, ShieldCheck, Smartphone, Star, Trash2, Type, Vibrate, Volume2, Wallet, Zap, type LucideIcon,
 } from 'lucide-react-native';
 import { BottomSheet, OptionList, type SelectOption } from '@/components/ui/Select';
+import { CountrySheet, Flag } from '@/components/ui/CountryField';
+import { countryByName } from '@/lib/countries';
 import { AppSwitch, Segmented, Txt } from '@/components/ui';
 import { PRIVACY_URL } from '@/config';
 import { clientApi } from '@/lib/api';
@@ -33,7 +35,6 @@ import { useSession } from '@/providers/session';
 import { useToast } from '@/providers/toast';
 import { useTheme } from '@/theme';
 
-const COUNTRIES = ['Côte d’Ivoire', 'France', 'Belgique', 'Suisse', 'Canada', 'États-Unis', 'Royaume-Uni', 'Italie', 'Espagne', 'Allemagne', 'Burkina Faso', 'Mali', 'Sénégal', 'Autre pays'];
 
 function Group({ title, children }: { title: string; children: ReactNode }) {
   const { c, space, radius } = useTheme();
@@ -79,6 +80,25 @@ function Choice<V extends string | number | null>({ icon, label, value, options,
       <BottomSheet visible={open} title={label} onClose={() => setOpen(false)}>
         <OptionList options={options} value={value} onPick={v => { onChange(v); setOpen(false); }} />
       </BottomSheet>
+    </>
+  );
+}
+
+/** Pays de résidence : tous les pays du monde, avec drapeau (repris dans les formulaires de demande). */
+function CountryChoice({ label, value, onChange }: { label: string; value: string; onChange: (v: string) => void }) {
+  const { c } = useTheme();
+  const { prefs, t } = usePrefs();
+  const [open, setOpen] = useState(false);
+  const chosen = countryByName(value);
+  return (
+    <>
+      <Item icon={Globe} label={label} last onPress={() => setOpen(true)}
+        right={<View style={{ flexDirection: 'row', alignItems: 'center', gap: 6, maxWidth: '50%' }}>
+          {chosen ? <Flag code={chosen.code} size={20} /> : null}
+          <Txt style={{ flexShrink: 1, fontSize: 14, color: c.ink3 }} numberOfLines={1}>{chosen ? chosen.name[prefs.language] : value || t('Non renseigné')}</Txt>
+          <ChevronRight size={18} color={c.ink3} />
+        </View>} />
+      <CountrySheet visible={open} title={label} value={value} onPick={onChange} onClose={() => setOpen(false)} clearLabel={t('Non renseigné')} />
     </>
   );
 }
@@ -185,8 +205,7 @@ export default function Parametres() {
           options={[{ value: 'echelonne', label: t('Paiement échelonné') }, { value: 'diaspora', label: t('Formule Diaspora') }, { value: 'comptant', label: t('Paiement comptant') }]} />
         <Choice icon={MapPin} label={t('Ville préférée')} value={prefs.preferredCity} onChange={v => set('preferredCity', v)}
           options={[{ value: null, label: t('Aucune') }, ...(filters.data?.villes || []).map(v => ({ value: v.id, label: v.label }))]} />
-        <Choice icon={Globe} label={t('Pays de résidence')} value={prefs.country} onChange={v => set('country', v)} last
-          options={[{ value: '', label: t('Non renseigné') }, ...COUNTRIES.map(p => ({ value: p, label: t(p) }))]} />
+        <CountryChoice label={t('Pays de résidence')} value={prefs.country} onChange={v => set('country', v)} />
       </Group>
 
       {/* Données */}

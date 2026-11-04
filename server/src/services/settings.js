@@ -6,6 +6,8 @@ const { REQUEST_DG_THRESHOLD, APP_SETTINGS, listValues } = require('../lib/domai
 const FALLBACK = {
   option_days_default: optionDaysDefault, request_dg_threshold: REQUEST_DG_THRESHOLD,
   deposit_default: 0, balance_months_default: 36, balance_months_choices: '6, 12, 24, 36', budget_tiers: '10, 25, 50, 100',
+  // Coordonnées de paiement de l'application (texte libre ; vide = moyen non proposé)
+  ...Object.fromEntries(Object.entries(APP_SETTINGS).filter(([, f]) => f.text).map(([k]) => [k, ''])),
 };
 
 async function getSettings(db) {
@@ -14,7 +16,8 @@ async function getSettings(db) {
   for (const r of rows) {
     if (!(r.key in FALLBACK) || r.value == null || r.value === '') continue;
     // Réglage en liste (délais de solde, paliers de budget) : texte normalisé « 6, 12, 24 » ; les autres sont des nombres
-    out[r.key] = APP_SETTINGS[r.key]?.list ? listValues(r.value, APP_SETTINGS[r.key]).join(', ') || FALLBACK[r.key] : Number(r.value);
+    const f = APP_SETTINGS[r.key];
+    out[r.key] = f?.text ? String(r.value) : f?.list ? listValues(r.value, f).join(', ') || FALLBACK[r.key] : Number(r.value);
   }
   return out;
 }

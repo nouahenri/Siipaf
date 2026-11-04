@@ -42,6 +42,8 @@ module.exports = function catalogRoutes(db) {
     description: z.string().max(10000).nullable().optional(),
     category: z.enum(Object.keys(PROJECT_CATEGORIES)).nullable().optional(),
     cover_media_id: z.number().int().positive().nullable().optional(),
+    // Galerie photos (médiathèque), affichée après l'image principale dans l'application mobile
+    gallery: z.array(z.number().int().positive()).max(20, 'Galerie : 20 photos au plus.').optional(),
     option_days: z.number().int().min(1).max(60).nullable().optional(),
     // Conditions de paiement (vides = Paramètres › Réglages généraux) : acompte et délai de solde
     deposit_fcfa: z.number().int().min(0).max(1000000000).nullable().optional(),
@@ -79,10 +81,11 @@ module.exports = function catalogRoutes(db) {
   const encodeProject = d => ({
     ...d,
     ...('amenities' in d ? { amenities: JSON.stringify(d.amenities) } : {}),
+    ...('gallery' in d ? { gallery: d.gallery.length ? JSON.stringify([...new Set(d.gallery)]) : null } : {}),
     ...('key_figures' in d ? { key_figures: d.key_figures.length ? JSON.stringify(d.key_figures) : null } : {}),
   });
   const decodeProject = p => p && {
-    ...p, amenities: json(p.amenities, []), key_figures: json(p.key_figures, []), published: !!p.published, deposit_fcfa: p.deposit_fcfa == null ? null : Number(p.deposit_fcfa),
+    ...p, amenities: json(p.amenities, []), key_figures: json(p.key_figures, []), gallery: json(p.gallery, []), published: !!p.published, deposit_fcfa: p.deposit_fcfa == null ? null : Number(p.deposit_fcfa),
   };
 
   r.get('/projects', requirePermission('projects:read'), ah(async (req, res) => {

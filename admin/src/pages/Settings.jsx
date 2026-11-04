@@ -18,6 +18,15 @@ const SETTING_HELP = {
   deposit_default: 'Pour les projets dont la fiche ne précise pas d’acompte : affiché sur la tuile et la fiche du site, et première échéance des nouveaux dossiers de vente en formule Diaspora (0 = pas d’acompte).',
   balance_months_default: 'Pour les projets dont la fiche ne précise pas de délai de solde : nombre de mensualités de la formule Diaspora (site et échéancier des nouveaux dossiers de vente).',
   balance_months_choices: 'Choix offerts dans le menu « Délai de solde » de chaque fiche projet, séparés par des virgules (ex. 6, 12, 24, 36). Le délai par défaut y est toujours ajouté.',
+  pay_wave_link: 'Bouton « Régler » de l’application mobile : lien de paiement marchand Wave (https://pay.wave.com/m/…). Prioritaire : il ouvre l’application Wave du client sur le compte SIIPAF, puis le client revient déclarer son paiement.',
+  pay_wave: 'Numéro marchand Wave affiché en secours, à copier (ex. 07 00 00 00 00). Lien et numéro vides : Wave n’est pas proposé.',
+  pay_orange_money_link: 'Lien de paiement marchand Orange Money (prioritaire, ouvre l’application Orange Money).',
+  pay_orange_money: 'Numéro marchand Orange Money affiché en secours. Lien et numéro vides : moyen non proposé.',
+  pay_mtn_money_link: 'Lien de paiement marchand MTN MoMo (prioritaire).',
+  pay_mtn_money: 'Numéro marchand MTN MoMo affiché en secours. Lien et numéro vides : moyen non proposé.',
+  pay_moov_money_link: 'Lien de paiement marchand Moov Money (prioritaire).',
+  pay_moov_money: 'Numéro marchand Moov Money affiché en secours. Lien et numéro vides : moyen non proposé.',
+  pay_paypal: 'Lien de paiement PayPal (paypal.me/… ou lien de facture) : le client paie par compte PayPal ou carte Visa. Les paiements déclarés arrivent dans ERP › Comptabilité, versements à confirmer.',
   budget_tiers: 'Menu « Budget » de la recherche de l’application mobile, en millions de FCFA, séparés par des virgules. « 10, 25, 50, 100 » propose : moins de 10 M, 10 à 25 M, 25 à 50 M, 50 à 100 M, plus de 100 M. Un palier sans programme n’est pas affiché.',
 };
 const HELP = {
@@ -275,7 +284,7 @@ function General({ editable }) {
     setError(null);
     try {
       // Réglage en liste (délais de solde proposés) envoyé tel quel, les autres en nombre
-      const body = Object.fromEntries(Object.entries(v).map(([k, x]) => [k, settings.data.fields[k]?.list ? String(x) : Number(x)]));
+      const body = Object.fromEntries(Object.entries(v).map(([k, x]) => [k, settings.data.fields[k]?.list || settings.data.fields[k]?.text ? String(x ?? '') : Number(x)]));
       await api.put('/admin/settings', body);
       saved('Réglages enregistrés');
       setValues(null); settings.reload();
@@ -287,7 +296,9 @@ function General({ editable }) {
       <fieldset disabled={!editable} style={{ border: 'none' }} className="form-grid">
         {Object.entries(settings.data.fields).map(([k, f]) => (
           <Field key={k} label={f.label} hint={SETTING_HELP[k] || null}>
-            {f.list
+            {f.text
+              ? <input className="input" value={v[k] ?? ''} maxLength={f.max} onChange={e => setValues({ ...v, [k]: e.target.value })} placeholder={k === 'pay_paypal' ? 'https://paypal.me/…' : k.endsWith('_link') ? 'https://…' : 'Numéro marchand'} />
+              : f.list
               ? <input className="input tabular" value={v[k] ?? ''} onChange={e => setValues({ ...v, [k]: e.target.value })} placeholder={k === 'budget_tiers' ? '10, 25, 50, 100' : '6, 12, 24, 36'} />
               : <input className="input" type="number" min={f.min} max={f.max} value={v[k] ?? ''} onChange={e => setValues({ ...v, [k]: e.target.value })} />}
           </Field>

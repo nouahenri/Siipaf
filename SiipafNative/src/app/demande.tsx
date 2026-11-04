@@ -11,6 +11,7 @@ import { router, Stack, useLocalSearchParams } from 'expo-router';
 import { useMemo, useState } from 'react';
 import { Pressable, View } from 'react-native';
 import { Building, CalendarCheck, CircleCheck, MapPin, Phone, Send, Video, type LucideIcon } from 'lucide-react-native';
+import { CountryField } from '@/components/ui/CountryField';
 import { DateTimeField, toIsoDay } from '@/components/ui/DateTimeField';
 import { Alert, Button, Chip, ChipRow, Field, Screen, Segmented, Txt } from '@/components/ui';
 import { publicApi } from '@/lib/api';
@@ -65,13 +66,20 @@ export default function Demande() {
   const set = (k: keyof typeof f) => (v: string | boolean) => setF(x => ({ ...x, [k]: v }));
   const project = (projects.data || []).find(p => p.slug === f.project);
 
+  // « Nous écrire » et « Rendez-vous » : tous les champs obligatoires (demande du client du 04/11) ;
+  // intérêt et pré-réservation d'un lot : le nom et un moyen de contact suffisent
+  const strict = mode === 'message' || mode === 'rdv';
+  const req = (label: string) => (strict ? `${label} *` : label);
   const validate = () => {
     const e: Record<string, string> = {};
     if (f.name.trim().length < 2) e.name = t('Indiquez votre nom.');
-    if (!f.phone.trim() && !f.email.trim()) e.phone = t('Indiquez un téléphone ou un e-mail.');
+    if (strict && !f.phone.trim()) e.phone = t('Indiquez votre téléphone.');
+    else if (!strict && !f.phone.trim() && !f.email.trim()) e.phone = t('Indiquez un téléphone ou un e-mail.');
     if (f.phone.trim() && f.phone.replace(/\D/g, '').length < 8) e.phone = t('Numéro trop court.');
-    if (f.email.trim() && !/^\S+@\S+\.\S+$/.test(f.email.trim())) e.email = t('Adresse e-mail invalide.');
-    if (mode === 'message' && f.message.trim().length < 5) e.message = t('Écrivez votre message (5 caractères au moins).');
+    if (strict && !f.email.trim()) e.email = t('Indiquez votre e-mail.');
+    else if (f.email.trim() && !/^\S+@\S+\.\S+$/.test(f.email.trim())) e.email = t('Adresse e-mail invalide.');
+    if (strict && f.diaspora && f.country.trim().length < 2) e.country = t('Indiquez votre pays de résidence.');
+    if (strict && f.message.trim().length < 5) e.message = t('Écrivez votre message (5 caractères au moins).');
     if (mode === 'rdv') {
       const d = new Date(`${f.date}T12:00:00Z`);
       if (Number.isNaN(d.getTime()) || f.date < toIsoDay(minDay) || f.date > toIsoDay(maxDay)) e.date = t('Choisissez une date entre demain et dans trois mois.');
@@ -151,9 +159,9 @@ export default function Demande() {
       </Txt>
       <Alert>{error}</Alert>
 
-      <Field label={t('Nom et prénom')} value={f.name} onChangeText={set('name')} autoComplete="name" textContentType="name" returnKeyType="next" error={errors.name} />
-      <Field label={t('Téléphone (WhatsApp de préférence)')} value={f.phone} onChangeText={set('phone')} keyboardType="phone-pad" autoComplete="tel" textContentType="telephoneNumber" placeholder="+225 07 00 00 00 00" error={errors.phone} />
-      <Field label={t('E-mail')} value={f.email} onChangeText={set('email')} keyboardType="email-address" autoCapitalize="none" autoComplete="email" textContentType="emailAddress" error={errors.email} />
+      <Field label={req(t('Nom et prénom'))} value={f.name} onChangeText={set('name')} autoComplete="name" textContentType="name" returnKeyType="next" error={errors.name} />
+      <Field label={req(t('Téléphone (WhatsApp de préférence)'))} value={f.phone} onChangeText={set('phone')} keyboardType="phone-pad" autoComplete="tel" textContentType="telephoneNumber" placeholder="+225 07 00 00 00 00" error={errors.phone} />
+      <Field label={req(t('E-mail'))} value={f.email} onChangeText={set('email')} keyboardType="email-address" autoCapitalize="none" autoComplete="email" textContentType="emailAddress" error={errors.email} />
 
       <Pressable onPress={() => set('diaspora')(!f.diaspora)} accessibilityRole="checkbox" accessibilityState={{ checked: f.diaspora }}
         style={{ flexDirection: 'row', alignItems: 'center', gap: 10, marginBottom: space.lg, minHeight: 44 }}>
@@ -162,7 +170,7 @@ export default function Demande() {
         </View>
         <Txt style={{ flex: 1 }}>{t('J’habite hors de Côte d’Ivoire (diaspora)')}</Txt>
       </Pressable>
-      {f.diaspora && <Field label={t('Pays de résidence')} value={f.country} onChangeText={set('country')} autoComplete="country" />}
+      {f.diaspora && <CountryField label={req(t('Pays de résidence'))} value={f.country} onChange={v => { set('country')(v); setErrors(e => ({ ...e, country: '' })); }} error={errors.country} />}
 
       {!lotId && (
         <View style={{ marginBottom: space.lg }}>
@@ -200,27 +208,27 @@ export default function Demande() {
           </View>
           <View style={{ flexDirection: 'row', gap: space.sm }}>
             <View style={{ flex: 1.4 }}>
-              <DateTimeField mode="date" label={t('Date')} value={f.date} minimumDate={minDay} maximumDate={maxDay} error={errors.date}
+              <DateTimeField mode="date" label={req(t('Date'))} value={f.date} minimumDate={minDay} maximumDate={maxDay} error={errors.date}
                 onChange={v => { set('date')(v); setErrors(e => ({ ...e, date: '' })); }} />
             </View>
             <View style={{ flex: 1 }}>
-              <DateTimeField mode="time" label={t('Heure')} value={f.time} minTime="08:00" maxTime="17:30" minuteInterval={30} onChange={set('time')} />
+              <DateTimeField mode="time" label={req(t('Heure'))} value={f.time} minTime="08:00" maxTime="17:30" minuteInterval={30} onChange={set('time')} />
             </View>
           </View>
           <Txt variant="tiny">{t('Du lundi au samedi, de 8 h à 17 h 30 (heure d’Abidjan). Un conseiller vous confirme le rendez-vous.')}</Txt>
         </View>
       )}
 
-      {mode !== 'option' && mode !== 'rdv' && ( // pas sur la prise de rendez-vous (demande du client du 04/11)
+      {mode === 'interet' && ( // retiré de « Nous écrire » et des rendez-vous (demandes du client du 04/11)
         <View style={{ marginBottom: space.lg }}>
           <Txt variant="label" style={{ marginBottom: 6 }}>{t('Mode de financement envisagé (facultatif)')}</Txt>
           <ChipRow>{Object.entries(FINANCING_LABELS).map(([k, l]) => <Chip key={k} label={l} selected={f.financing === k} onPress={() => set('financing')(f.financing === k ? '' : k)} />)}</ChipRow>
         </View>
       )}
 
-      <Field label={mode === 'message' ? t('Votre message') : t('Précisions (facultatif)')} value={f.message} onChangeText={set('message')} multiline maxLength={2000}
+      <Field label={strict ? req(t('Votre message')) : t('Précisions (facultatif)')} value={f.message} onChangeText={set('message')} multiline maxLength={2000}
         placeholder={mode === 'message' ? t('Votre projet, vos questions, le meilleur moment pour vous appeler…') : t('Questions, disponibilités…')} error={errors.message} />
-      <Txt variant="tiny" style={{ marginTop: -space.sm }}>{t('Vos coordonnées servent uniquement à vous recontacter au sujet de votre demande.')}</Txt>
+      <Txt variant="tiny" style={{ marginTop: -space.sm }}>{strict ? `${t('* Champs obligatoires')} · ` : ''}{t('Vos coordonnées servent uniquement à vous recontacter au sujet de votre demande.')}</Txt>
     </Screen>
   );
 }

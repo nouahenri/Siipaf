@@ -3,10 +3,10 @@
  * squelettes de chargement, états vide et erreur, anneau et barre d'avancement. Tout vient du thème (src/theme).
  */
 import * as Haptics from '@/lib/haptics';
-import { type ComponentProps, type ReactNode, useEffect, useState } from 'react';
+import { type ComponentProps, type ReactNode, useEffect, useRef, useState } from 'react';
 import {
-  ActivityIndicator, Animated, KeyboardAvoidingView, Modal, Platform, Pressable, RefreshControl, ScrollView, StyleSheet, Switch,
-  TextInput, View, type PressableProps, type StyleProp, type TextInputProps, type ViewStyle,
+  ActivityIndicator, Animated, Easing, KeyboardAvoidingView, Modal, PanResponder, Platform, Pressable, RefreshControl, ScrollView, StyleSheet, Switch,
+  TextInput, View, useWindowDimensions, type PressableProps, type StyleProp, type TextInputProps, type ViewStyle,
 } from 'react-native';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import Svg, { Circle } from 'react-native-svg';
@@ -246,19 +246,70 @@ export function Callout({ icon: Icon, title, text, tone = 'info', onPress, right
 
 /* ─── Feuille modale ────────────────────────────────────── */
 
-export function Sheet({ visible, title, onClose, children, footer }: { visible: boolean; title: string; onClose: () => void; children: ReactNode; footer?: ReactNode }) {
-  const { c, space } = useTheme();
+/**
+ * Feuille modale coulissante : monte du bas avec un ressort, fond assombri en fondu, poignée et titre à faire glisser
+ * vers le bas pour fermer (au-delà d'un seuil ou d'un geste rapide ; sinon elle revient). Le fond et la croix ferment
+ * aussi en glissant. Coins arrondis, hauteur selon le contenu (92 % de l'écran au plus), actions en bas.
+ */
+export function Sheet({ visible, title, onClose, children, footer, beforeClose }: {
+  visible: boolean; title: string; onClose: () => void; children: ReactNode; footer?: ReactNode;
+  /** Appelée avant de fermer (glissement, fond, croix) : false garde la feuille ouverte (ex. paiement non déclaré). */
+  beforeClose?: () => Promise<boolean> | boolean;
+}) {
+  const { c, space, isDark } = useTheme();
   const insets = useSafeAreaInsets();
+  const { height } = useWindowDimensions();
+  const [y] = useState(() => new Animated.Value(height));
+  useEffect(() => {
+    if (!visible) return;
+    y.setValue(height);
+    Animated.spring(y, { toValue: 0, useNativeDriver: true, damping: 24, stiffness: 240, mass: 0.9 }).start();
+  }, [visible, y, height]);
+  const back = () => Animated.spring(y, { toValue: 0, useNativeDriver: true, damping: 22, stiffness: 260 }).start();
+  const close = async () => {
+    if (beforeClose && !(await beforeClose())) { back(); return; }
+    Animated.timing(y, { toValue: height, duration: 220, easing: Easing.in(Easing.cubic), useNativeDriver: true }).start(() => onClose());
+  };
+  // Fermeture lue au moment du geste (elle dépend des propriétés du dernier rendu)
+  const closeRef = useRef(close);
+  useEffect(() => { closeRef.current = close; });
+  // Les rappels du geste ne lisent la fermeture qu'au relâchement, jamais pendant le rendu
+  // eslint-disable-next-line react-hooks/refs
+  const [pan] = useState(() => PanResponder.create({
+    onStartShouldSetPanResponder: () => true,
+    onMoveShouldSetPanResponder: (_, g) => Math.abs(g.dy) > 4,
+    onPanResponderTerminationRequest: () => false,
+    onPanResponderMove: (_, g) => y.setValue(Math.max(0, g.dy)),
+    onPanResponderRelease: (_, g) => {
+      if (g.dy > 110 || g.vy > 0.9) closeRef.current();
+      else Animated.spring(y, { toValue: 0, useNativeDriver: true, damping: 22, stiffness: 260 }).start();
+    },
+    onPanResponderTerminate: () => Animated.spring(y, { toValue: 0, useNativeDriver: true, damping: 22, stiffness: 260 }).start(),
+  }));
+  const backdrop = y.interpolate({ inputRange: [0, height * 0.6], outputRange: [1, 0], extrapolate: 'clamp' });
   return (
-    <Modal visible={visible} animationType="slide" presentationStyle="pageSheet" onRequestClose={onClose} transparent={Platform.OS === 'web'}>
-      <KeyboardAvoidingView style={{ flex: 1, backgroundColor: c.bg }} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
-        <View style={{ flexDirection: 'row', alignItems: 'center', paddingHorizontal: space.lg, paddingTop: Platform.OS === 'android' ? insets.top + space.md : space.lg, paddingBottom: space.md, borderBottomWidth: StyleSheet.hairlineWidth, borderBottomColor: c.line, backgroundColor: c.surface }}>
-          <Txt variant="h3" style={{ flex: 1 }} numberOfLines={2} accessibilityRole="header">{title}</Txt>
-          <IconButton icon={X} label="Fermer" onPress={onClose} size={38} />
-        </View>
-        <ScrollView contentContainerStyle={{ padding: space.lg, paddingBottom: space.xxl }} keyboardShouldPersistTaps="handled">{children}</ScrollView>
-        {footer ? <View style={{ padding: space.lg, paddingBottom: Math.max(insets.bottom, space.lg), borderTopWidth: StyleSheet.hairlineWidth, borderTopColor: c.line, backgroundColor: c.surface }}>{footer}</View> : null}
-      </KeyboardAvoidingView>
+    <Modal visible={visible} transparent animationType="none" onRequestClose={close} statusBarTranslucent>
+        <KeyboardAvoidingView style={{ flex: 1, justifyContent: 'flex-end' }} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
+          <Animated.View style={[StyleSheet.absoluteFill, { backgroundColor: c.overlay, opacity: backdrop }]}>
+            <Pressable style={{ flex: 1 }} onPress={close} accessibilityRole="button" accessibilityLabel="Fermer" />
+          </Animated.View>
+          <Animated.View accessibilityViewIsModal
+            style={{ maxHeight: '92%', backgroundColor: c.surface, borderTopLeftRadius: 28, borderTopRightRadius: 28, overflow: 'hidden', transform: [{ translateY: y }],
+              shadowColor: '#000', shadowOpacity: isDark ? 0 : 0.18, shadowRadius: 24, shadowOffset: { width: 0, height: -6 }, elevation: 16 }}>
+            {/* Poignée et titre : zone de glissement (le contenu reste libre de défiler) */}
+            <View {...pan.panHandlers}>
+                <View style={{ alignItems: 'center', paddingTop: 10, paddingBottom: 4 }} accessibilityElementsHidden>
+                  <View style={{ width: 44, height: 5, borderRadius: 3, backgroundColor: c.line }} />
+                </View>
+                <View style={{ flexDirection: 'row', alignItems: 'center', gap: space.sm, paddingHorizontal: space.lg, paddingTop: 6, paddingBottom: space.md }}>
+                  <Txt variant="h3" style={{ flex: 1 }} numberOfLines={2} accessibilityRole="header">{title}</Txt>
+                  <IconButton icon={X} label="Fermer" onPress={close} size={38} />
+                </View>
+            </View>
+            <ScrollView style={{ flexShrink: 1 }} contentContainerStyle={{ paddingHorizontal: space.lg, paddingBottom: footer ? space.lg : Math.max(insets.bottom, space.lg) + space.md }} keyboardShouldPersistTaps="handled">{children}</ScrollView>
+            {footer ? <View style={{ paddingHorizontal: space.lg, paddingTop: space.md, paddingBottom: Math.max(insets.bottom, space.lg), borderTopWidth: StyleSheet.hairlineWidth, borderTopColor: c.line, backgroundColor: c.surface }}>{footer}</View> : null}
+          </Animated.View>
+        </KeyboardAvoidingView>
     </Modal>
   );
 }

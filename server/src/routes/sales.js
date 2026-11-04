@@ -14,6 +14,9 @@ const { seesAllLeads, saleInScope, leadInScope } = require('../services/commerci
 
 const day = z.coerce.date();
 
+/** Déclaration faite par le client depuis l'application : « le client (application) » à la place du nom d'un commercial. */
+const declarant = d => ({ ...d, declared_by_name: d.declared_by_name || (d.source === 'client' ? 'le client (application)' : null) });
+
 module.exports = function salesRoutes(db) {
   const r = express.Router();
 
@@ -24,7 +27,7 @@ module.exports = function salesRoutes(db) {
         .select('p.*', 'u.name as recorded_by_name', 'd.name as declared_by_name').orderBy([{ column: 'p.paid_at', order: 'desc' }, { column: 'p.id', order: 'desc' }]),
       // Versements déclarés par un commercial : à confirmer ou refusés (ne comptent pas dans les totaux)
       db('payment_declarations as pd').leftJoin('users as u', 'u.id', 'pd.declared_by').where('pd.sale_id', sale.id).whereIn('pd.status', ['a_confirmer', 'rejete'])
-        .select('pd.*', 'u.name as declared_by_name').orderBy('pd.id', 'desc'),
+        .select('pd.*', 'u.name as declared_by_name').orderBy('pd.id', 'desc').then(rows => rows.map(declarant)),
       db('sale_documents as d').leftJoin('media as m', 'm.id', 'd.media_id').where('d.sale_id', sale.id)
         .select('d.*', 'm.filename', 'm.original_name').orderBy('d.sort'),
       totals(db, sale),
@@ -259,7 +262,7 @@ module.exports = function salesRoutes(db) {
       .orderBy('pd.id', 'desc').limit(300);
     if (status !== 'tous') q.where('pd.status', status);
     if (!req.can('payments:write')) q.where(b => b.where('pd.declared_by', req.user.id).orWhere('ld.assigned_to', req.user.id));
-    res.json((await q).map(d => ({ ...d, amount_fcfa: Number(d.amount_fcfa), paid_at: isoDay(d.paid_at) })));
+    res.json((await q).map(d => declarant({ ...d, amount_fcfa: Number(d.amount_fcfa), paid_at: isoDay(d.paid_at) })));
   }));
 
   const pendingDeclaration = async req => {
@@ -268,6 +271,14 @@ module.exports = function salesRoutes(db) {
     if (d.status !== 'a_confirmer') throw new HttpError(409, 'Ce versement a déjà été traité.');
     return d;
   };
+
+  // Capture du reçu jointe par le client (application) : fichier privé lu par la Comptabilité et le commercial
+  r.get('/payment-declarations/:id/proof', requirePermission('payments:write', 'payments:record'), ah(async (req, res) => {
+    const d = await db('payment_declarations').where({ id: idParam(req) }).first('proof_file_id');
+    const f = d?.proof_file_id ? await db('sav_files').where({ id: d.proof_file_id }).first() : null;
+    if (!f) throw new HttpError(404, 'Aucune capture jointe.');
+    res.set('Cache-Control', 'private, no-store').type(f.mime).sendFile(require('path').join(require('../services/sav').savFilesDir, f.filename));
+  }));
 
   // Réception des fonds confirmée : le versement entre dans le dossier (solde, espace client, reçu, comptabilité)
   r.post('/payment-declarations/:id/confirm', requirePermission('payments:write'), ah(async (req, res) => {
@@ -295,6 +306,11 @@ module.exports = function salesRoutes(db) {
       title: `Versement non confirmé : ${info.client_name} — ${Number(d.amount_fcfa).toLocaleString('fr-FR')} FCFA`,
       body: `Motif de la Comptabilité : ${reason}`, link: '/commercial/ventes',
     });
+    // Déclaration faite par le client dans l'application : il reçoit le motif dans son espace (et en notification)
+    if (d.source === 'client') {
+      const sale = await db('sales').where({ id: d.sale_id }).first('lead_id');
+      await require('../services/clients').tellClient(db, { leadId: sale.lead_id, saleId: d.sale_id }, `Votre paiement déclaré de ${Number(d.amount_fcfa).toLocaleString('fr-FR')} FCFA n’a pas pu être confirmé par notre service comptable. Motif : ${reason}`, req.user.id, { kind: 'paiements', title: 'Paiement non confirmé' }).catch(() => {});
+    }
     res.json(await saleDetail(await db('sales').where({ id: d.sale_id }).first()));
   }));
 

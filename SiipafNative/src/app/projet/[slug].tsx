@@ -4,7 +4,6 @@
  * carte interactive des lots (plan de masse), « Sur place » (aperçu de carte), caractéristiques, commodités, avancement (viabilisation et
  * documents du bien), partage et contact.
  */
-import { Image } from 'expo-image';
 import { router, useLocalSearchParams, type Href } from 'expo-router';
 import React, { useMemo, useState } from 'react';
 import { Pressable, ScrollView, Share, View, useWindowDimensions } from 'react-native';
@@ -13,6 +12,7 @@ import { CalendarDays, ChevronLeft, ChevronRight, Map as MapIcon, MapPin, Naviga
 import { amenityIcon, figureIcon } from '@/components/ui/icons';
 import { RoundButton } from '@/components/ui/AppHeader';
 import { MapPreview } from '@/components/site/MapPreview';
+import { ProjectGallery } from '@/components/site/ProjectGallery';
 import { usePrefs } from '@/providers/preferences';
 import { Badge, Button, Card, Chip, ErrorState, IconButton, PageSkeleton, SectionHead, Segmented, Txt } from '@/components/ui';
 import { SITE_URL } from '@/config';
@@ -88,7 +88,7 @@ export default function ProjectScreen() {
     <View style={{ flex: 1, backgroundColor: c.bg }}>
       {topBar(<RoundButton icon={Share2} label={t('Partager ce programme')} onPress={share} />)}
       <ScrollView contentContainerStyle={{ paddingBottom: 120 }}>
-        <Image source={projectImage(p)} style={{ height: Math.min(260, width * 0.62), backgroundColor: c.surfaceAlt }} contentFit="cover" transition={250} accessibilityLabel={p.name} />
+        <ProjectGallery photos={p.gallery || []} fallback={projectImage(p)} height={Math.min(300, width * 0.72)} name={p.name} bottomInset={22} />
 
         {/* Feuille posée sur la photo */}
         <View style={{ marginTop: -22, borderTopLeftRadius: radius.xl, borderTopRightRadius: radius.xl, backgroundColor: c.bg, padding: space.lg, paddingTop: 18, gap: space.md }}>

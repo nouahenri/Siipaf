@@ -152,7 +152,7 @@ module.exports = function settingsRoutes(db) {
     // Réglage en liste : « 6, 12, 24 » (au moins une valeur valable) ; les autres sont des entiers bornés
     const listOf = (k, f) => z.string().max(200).refine(t => listValues(t, f).length > 0, `${f.label} : au moins une valeur entre ${f.min} et ${f.max} ${f.unit}.`)
       .transform(t => listValues(t, f).join(', '));
-    const shape = Object.fromEntries(Object.entries(APP_SETTINGS).map(([k, f]) => [k, (f.list ? listOf(k, f) : z.number().int().min(f.min).max(f.max)).optional()]));
+    const shape = Object.fromEntries(Object.entries(APP_SETTINGS).map(([k, f]) => [k, (f.text ? z.string().trim().max(f.max, `${f.label} : ${f.max} caractères au plus.`) : f.list ? listOf(k, f) : z.number().int().min(f.min).max(f.max)).optional()]));
     const values = parse(z.object(shape), req.body);
     // Le délai par défaut fait partie des délais proposés
     const current = await getSettings(db);

@@ -14,7 +14,7 @@ const { issueClientSession, clearClientSession, requireClient } = require('../au
 const push = require('../services/push');
 const { isTest, uploadsDir } = require('../config');
 const { notifyTeam } = require('../lib/mailer');
-const { CLIENT_PASSWORD_MIN } = require('../lib/domain');
+const { CLIENT_PASSWORD_MIN, CLIENT_PAY_CHANNELS } = require('../lib/domain');
 const {
   findAccountByLogin, requestReset, resetPassword, clientSales, clientSaleDetail, clientDocumentFile,
   ownSale, saleContext, siteUpdatesQuery, serializeUpdate, progressIndex,
@@ -24,6 +24,14 @@ const {
 const withLogin = body => ({ ...(body || {}), login: body?.login ?? body?.code });
 
 const newPassword = z.string().min(CLIENT_PASSWORD_MIN, `Le mot de passe doit faire au moins ${CLIENT_PASSWORD_MIN} caractères.`).max(200);
+
+/** Coordonnées d'un moyen de paiement : lien marchand (http…) et numéro de secours ; null s'il n'est pas réglé. */
+const payOf = (settings, key, ch) => {
+  const link = String(settings[ch.link] || '').trim();
+  const number = ch.setting ? String(settings[ch.setting] || '').trim() : '';
+  const url = /^https?:\/\//i.test(link) ? link : null;
+  return url || number ? { key, label: ch.label, link: url, number: number || null } : null;
+};
 
 module.exports = function clientRoutes(db) {
   const r = express.Router();
@@ -121,6 +129,47 @@ module.exports = function clientRoutes(db) {
   r.get('/dossiers', authed, ah(async (req, res) => res.json(await clientSales(db, req.client.lead_id))));
 
   r.get('/dossiers/:id', authed, ah(async (req, res) => res.json(await clientSaleDetail(db, req.client.lead_id, idParam(req)))));
+
+  // ─── Régler depuis l'application (moyens et coordonnées : Paramètres › Général du dashboard) ───
+  r.get('/payer', authed, ah(async (req, res) => {
+    const settings = await require('../services/settings').getSettings(db);
+    // Lien de paiement marchand en priorité (ouvre l'application de l'opérateur), numéro marchand en secours
+    res.json(Object.entries(CLIENT_PAY_CHANNELS).map(([key, ch]) => payOf(settings, key, ch)).filter(Boolean));
+  }));
+  // Paiement déclaré par le client : versement « à confirmer » par la Comptabilité (ne compte qu'après confirmation)
+  r.post('/dossiers/:id/declarations', authed, limiter(10), ah(async (req, res) => {
+    const data = parse(z.object({
+      channel: z.enum(Object.keys(CLIENT_PAY_CHANNELS)),
+      amount_fcfa: z.number().int().positive('Montant invalide.'),
+      reference: z.string().trim().min(3, 'Indiquez la référence de la transaction (reçue par SMS ou dans l’application de paiement).').max(120),
+      schedule_id: z.number().int().positive().nullable().optional(),
+      proof_file_id: z.number().int().positive().nullable().optional(),
+    }), req.body);
+    const sale = await ownSale(db, req.client.lead_id, idParam(req));
+    if (sale.status === 'desiste') throw new HttpError(409, 'Ce dossier est clos.');
+    const settings = await require('../services/settings').getSettings(db);
+    const ch = CLIENT_PAY_CHANNELS[data.channel];
+    if (!payOf(settings, data.channel, ch)) throw new HttpError(400, 'Ce moyen de paiement n’est pas proposé pour le moment.');
+    // Capture du reçu (facultative) : photo envoyée par ce client (POST /api/client/sav/files)
+    if (data.proof_file_id && !(await db('sav_files').where({ id: data.proof_file_id, lead_id: req.client.lead_id }).first('id'))) throw new HttpError(400, 'Capture du reçu introuvable.');
+    const pending = Number((await db('payment_declarations').where({ sale_id: sale.id, status: 'a_confirmer' }).sum({ v: 'amount_fcfa' }).first()).v || 0);
+    const left = (await require('../services/sales').totals(db, sale)).remaining_fcfa - pending;
+    if (data.amount_fcfa > left) throw new HttpError(409, `Le montant dépasse le reste à régler (${Math.max(0, left).toLocaleString('fr-FR')} FCFA, paiements déjà déclarés déduits).`);
+    const [inserted] = await db('payment_declarations').insert({
+      sale_id: sale.id, amount_fcfa: data.amount_fcfa, paid_at: new Date(), method: ch.method, channel: data.channel, reference: data.reference,
+      note: `Déclaré par le client depuis l’application (${ch.label})`, source: 'client', schedule_id: data.schedule_id || null, proof_file_id: data.proof_file_id || null,
+    });
+    const id = typeof inserted === 'object' ? inserted.id : inserted;
+    const info = await db('sales as s').join('lots as l', 'l.id', 's.lot_id').join('projects as p', 'p.id', 'l.project_id').join('leads as c', 'c.id', 's.lead_id')
+      .where('s.id', sale.id).first('c.name as client_name', 'c.client_code', 'c.assigned_to', 'p.name as project_name', 'l.code as lot_code');
+    await require('../services/notifications').inform(db, 'versement.a_confirmer', {
+      direct: [info.assigned_to].filter(Boolean), key: `declaration:${id}`,
+      title: `Versement à confirmer : ${info.client_name} — ${data.amount_fcfa.toLocaleString('fr-FR')} FCFA`,
+      body: `${info.project_name}, lot ${info.lot_code} · déclaré par le client depuis l’application (${ch.label}, réf. ${data.reference})`,
+      link: '/compta/ecritures',
+    }).catch(() => {});
+    res.status(201).json({ id, status: 'a_confirmer' });
+  }));
 
   r.get('/dossiers/:id/chantier', authed, ah(async (req, res) => {
     const sale = await ownSale(db, req.client.lead_id, idParam(req));
