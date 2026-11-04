@@ -109,7 +109,7 @@ Demande du client (03/11) : application mobile en Expo / React Native (TypeScrip
 base** que le site, le dashboard et l'ERP ; tout le contenu du site et tout l'espace client, Sita ou WhatsApp, conversion des
 prospects par les formulaires, présentation de SIIPAF ; design 100 % application mobile (pas de héros, de bannière, de pied de
 page, de newsletter ni de blocs « site web » ; Détente & Loisirs = inspiration, pas copie). Commits `e72ae8c`, `c867619`,
-`5f0bddd`, `63bebd3` (poussés sur `plateforme-admin-espace-client`) ; serveur et dashboard **en ligne depuis la release `5f0bddd`**.
+`5f0bddd`, `63bebd3`, `264b0d0`, `624f409` (poussés sur `plateforme-admin-espace-client`) ; serveur et dashboard **en ligne depuis la release `5f0bddd`**.
 
 ### Socle technique
 - Expo SDK 58, React Native 0.88, React 19.3, TypeScript strict, Expo Router (onglets natifs `expo-router/native-tabs`, variante
@@ -123,8 +123,18 @@ page, de newsletter ni de blocs « site web » ; Détente & Loisirs = inspiratio
 - **Builds en local, sans EAS** (choix du client du 04/11) : `npx expo prebuild` génère `android/` et `ios/` (ignorés par git) ;
   Android compilé sur le PC Windows avec Android Studio (SDK 37, build-tools 36, NDK 27.1, JDK d'Android Studio) ; signature
   Play Store par `plugins/withReleaseSigning.js` (clé lue dans `~/.gradle/gradle.properties`, jamais dans le projet) ; iOS sur
-  un Mac (ou EAS pour iOS seulement). Procédure détaillée dans `SiipafNative/README.md`. **Premier APK d'essai en cours de
-  compilation le 04/11.**
+  un Mac (ou EAS pour iOS seulement). Procédure détaillée dans `SiipafNative/README.md`. Le client lance lui-même les builds dans Android Studio
+  (compilation de Claude arrêtée à sa demande le 04/11) ; il crée la clé d'envoi par *Build › Generate Signed App Bundle /
+  APK › Create new* (Signing Report n'affiche que les empreintes SHA-1 / SHA-256, à reporter dans Firebase si besoin).
+- **Erreur Android Studio du 04/11** : `ninja: error: mkdir(CMakeFiles/worklets.dir/C_/Users/…/react-native-worklets/Common/cpp/…):
+  No such file or directory` en compilant le C++ de `react-native-worklets`. Cause : CMake recopie deux fois le chemin complet
+  du projet, au-delà de la limite Windows de 260 caractères. Correctifs proposés : (a) lecteur virtuel court
+  `subst S: C:UsersNOUAMADesktopSIIPAF_WEBSiipafNative`, ouvrir `S:android` dans Android Studio (à refaire après chaque
+  redémarrage, `subst S: /d` pour l'enlever) ; ou (b) activer les chemins longs de Windows (PowerShell **administrateur**,
+  n'importe quel dossier : `New-ItemProperty -Path "HKLM:SYSTEMCurrentControlSetControlFileSystem" -Name LongPathsEnabled
+  -Value 1 -PropertyType DWORD -Force`, puis redémarrer le PC) et installer un CMake récent (SDK Manager › SDK Tools, 3.31 ou
+  plus ; 3.22.1 gère mal les chemins longs). Dans les deux cas, supprimer avant de relancer les dossiers `.cxx` de
+  `node_modules/react-native-worklets/android/` et `node_modules/react-native-reanimated/android/`. Choix du client : (b), en cours.
 
 ### Serveur (en ligne depuis `5f0bddd`)
 - Jeton de l'espace client de 30 jours pour l'application (en-tête `X-Siipaf-App: mobile`), révoqué au changement ou à la
@@ -166,7 +176,8 @@ page, de newsletter ni de blocs « site web » ; Détente & Loisirs = inspiratio
 - **Paiements** : détail d'échéance en feuille coulissante ; « Réglée par » masqué tant que rien n'est réglé ; bouton
   **Régler** → feuille : moyens avec **logos officiels** (`assets/logo_payment/`, sources et licences dans `SOURCES.md`),
   « Payer dans Wave » (lien marchand) puis numéro à copier, retour guidé (référence prête), capture du reçu facultative,
-  confirmation si l'on ferme sans déclarer.
+  confirmation si l'on ferme sans déclarer. Logos de la liste en 54 px ; bloc « Payer » compact (logo 64 px à gauche, bouton
+  et champ du numéro resserrés à droite, commit `624f409`).
 - **Feuilles modales coulissantes** (composant `Sheet`) : poignée, glisser vers le bas pour fermer (PanResponder : la
   bibliothèque de gestes ne recevait rien dans l'aperçu web), fond assombri, actions en bas.
 - **Menu latéral** : bandeau rouge avec logo sans fond, corps noir ; compte ; Qui sommes-nous, Nos métiers, Nos engagements,
@@ -181,8 +192,9 @@ page, de newsletter ni de blocs « site web » ; Détente & Loisirs = inspiratio
   (déclinaisons du dossier `logo_siipaf/`).
 
 ### En attente (à jour au 04/11)
-1. **APK d'essai Android** : compilation locale en cours ; ensuite clé d'envoi Google Play (`keytool`, à conserver par le client)
-   et `./gradlew bundleRelease` pour le fichier `.aab`.
+1. **APK d'essai Android** (fait par le client dans Android Studio) : lever d'abord l'erreur des chemins trop longs (voir
+   « Socle technique ») ; ensuite clé d'envoi Google Play (Android Studio ou `keytool`, à conserver précieusement), réglages
+   `SIIPAF_UPLOAD_*` dans `~/.gradle/gradle.properties`, puis `./gradlew bundleRelease` pour le fichier `.aab`.
 2. **Assistance vocale de Sita** (validée : Sita parle et écoute, mêmes réglages du dashboard) : pas encore commencée ;
    la permission micro Android est aujourd'hui bloquée dans `app.json` (`RECORD_AUDIO`), à rouvrir.
 3. Saisir les vrais liens et numéros marchands dans admin.siipaf.com › Paramètres › Général.
