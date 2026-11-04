@@ -34,13 +34,41 @@ Compte de démonstration : `server/data/demo-acces-mobile.txt` (base `demo.sqlit
 
 Vérifications : `npm run typecheck` et `npx eslint src`.
 
-## Builds Android et iOS (EAS)
+## Builds Android et iOS (compilation locale, sans EAS)
 
-1. `npx eas-cli@latest login` puis `npx eas-cli@latest init` : crée le projet Expo et écrit `extra.eas.projectId`
-   dans `app.json` (indispensable aux notifications push).
-2. `npx eas-cli@latest build --platform android` (fichier `.aab` pour Google Play, ou profil `preview` pour un `.apk`).
-3. `npx eas-cli@latest build --platform ios` (compte Apple Developer requis).
-4. `npx eas-cli@latest submit` pour envoyer aux stores.
+Projet Expo : `@nouahenris-team/siipaf` (identifiant dans `app.json › extra.eas.projectId`, indispensable aux notifications
+push). Les builds se font sur la machine de l'équipe, pas sur les serveurs d'Expo.
+
+### Android (Windows)
+
+Prérequis : Android Studio (SDK Android 37, build-tools 36, NDK 27.1), dont le JDK sert à la compilation.
+
+1. `npx expo prebuild --platform android` : génère `android/` depuis `app.json` (dossier ignoré par git, à régénérer après
+   chaque changement de `app.json` ou de module natif ; ne pas le modifier à la main).
+2. APK d'essai (signé avec la clé de test, à installer directement sur un téléphone) :
+   ```bash
+   cd android && JAVA_HOME="/c/Program Files/Android/Android Studio/jbr" ANDROID_HOME="$LOCALAPPDATA/Android/Sdk" ./gradlew assembleRelease
+   ```
+   Fichier : `android/app/build/outputs/apk/release/app-release.apk`.
+3. Clé d'envoi Google Play, à créer une seule fois et à **conserver précieusement** (sans elle, plus de mise à jour possible) :
+   ```bash
+   "/c/Program Files/Android/Android Studio/jbr/bin/keytool" -genkeypair -v -keystore siipaf-upload.keystore -alias siipaf-upload -keyalg RSA -keysize 2048 -validity 10000
+   ```
+   Ranger le fichier hors du projet, puis l'indiquer dans `~/.gradle/gradle.properties` (jamais dans le projet) :
+   ```
+   SIIPAF_UPLOAD_STORE_FILE=C:/chemin/vers/siipaf-upload.keystore
+   SIIPAF_UPLOAD_KEY_ALIAS=siipaf-upload
+   SIIPAF_UPLOAD_STORE_PASSWORD=…
+   SIIPAF_UPLOAD_KEY_PASSWORD=…
+   ```
+   Le plugin `plugins/withReleaseSigning.js` l'utilise alors pour la version « release ».
+4. Fichier pour Google Play : `cd android && ./gradlew bundleRelease` → `android/app/build/outputs/bundle/release/app-release.aab`.
+   Le numéro de version se règle dans `app.json` (`version`, `android.versionCode` à augmenter à chaque envoi).
+
+### iOS
+
+Xcode n'existe que sur macOS : `npx expo prebuild --platform ios` puis compilation dans Xcode, sur un Mac, avec un compte
+Apple Developer. Sans Mac, `npx eas-cli@latest build --platform ios` reste possible (compilation chez Expo).
 
 Identifiants : `com.siipaf.com` (iOS et Android), celui des fichiers Firebase `google-services.json` (Android) et `GoogleService-Info.plist` (iOS), branchés dans `app.json` (`googleServicesFile`). Expo Go ne reçoit pas les push sur Android : tester avec un build.
 

@@ -100,6 +100,96 @@
 > **DÉMO LOCALE** : aperçus `erp-demo-2` (port 4003 : `erp.localhost`, `admin.localhost`) et `site-demo-2` (site sur le port 8765, branché sur l'API 4003 grâce à `SIIPAF_API` dans `server/scripts/serve-site.js`) ; les ports 4000 et 4002 peuvent être pris par une autre discussion. « TEST SITE TERRAINS » est publié dans la démo (Bingerville, 500 000 FCFA, 24 mois, viabilisation, documents du bien).
 >
 > **Plus tard** : menu « Actualités » du site (publications Facebook), à cadrer avec le client (voir plus bas).
+>
+> **APPLICATION MOBILE** : journal complet des 03 et 04/11 dans la section « 03–04/11 — Application mobile SIIPAF » ci-dessous.
+
+## 03–04/11 — Application mobile SIIPAF (`SiipafNative/`) : journal complet
+
+Demande du client (03/11) : application mobile en Expo / React Native (TypeScript) dans `SiipafNative/`, **même serveur et même
+base** que le site, le dashboard et l'ERP ; tout le contenu du site et tout l'espace client, Sita ou WhatsApp, conversion des
+prospects par les formulaires, présentation de SIIPAF ; design 100 % application mobile (pas de héros, de bannière, de pied de
+page, de newsletter ni de blocs « site web » ; Détente & Loisirs = inspiration, pas copie). Commits `e72ae8c`, `c867619`,
+`5f0bddd`, `63bebd3` (poussés sur `plateforme-admin-espace-client`) ; serveur et dashboard **en ligne depuis la release `5f0bddd`**.
+
+### Socle technique
+- Expo SDK 58, React Native 0.88, React 19.3, TypeScript strict, Expo Router (onglets natifs `expo-router/native-tabs`, variante
+  web `_layout.web.tsx` pour l'aperçu), React Compiler, TanStack Query, Poppins seule. `npx tsc --noEmit` et `npx eslint src`
+  propres à chaque livraison. Aperçu web : configuration `mobile-web` (port 8081) branchée sur `client-demo` (API 4001, base
+  `server/data/demo.sqlite`). Compte client de démonstration : `server/data/demo-acces-mobile.txt` (ignoré par git).
+- Identifiant de l'application : **`com.siipaf.com`** (iOS et Android, choix du client du 04/11, aligné sur ses fichiers Firebase
+  `google-services.json` et `GoogleService-Info.plist`, branchés par `googleServicesFile`). Version 1.0.0, `versionCode` 1.
+- Projet Expo `@nouahenris-team/siipaf` (compte d'équipe, choix du client), `extra.eas.projectId` = `3aef2b3e-a579-49aa-92f0-644daa535ee6`
+  (indispensable aux notifications push). `expo-doctor` : 20/20.
+- **Builds en local, sans EAS** (choix du client du 04/11) : `npx expo prebuild` génère `android/` et `ios/` (ignorés par git) ;
+  Android compilé sur le PC Windows avec Android Studio (SDK 37, build-tools 36, NDK 27.1, JDK d'Android Studio) ; signature
+  Play Store par `plugins/withReleaseSigning.js` (clé lue dans `~/.gradle/gradle.properties`, jamais dans le projet) ; iOS sur
+  un Mac (ou EAS pour iOS seulement). Procédure détaillée dans `SiipafNative/README.md`. **Premier APK d'essai en cours de
+  compilation le 04/11.**
+
+### Serveur (en ligne depuis `5f0bddd`)
+- Jeton de l'espace client de 30 jours pour l'application (en-tête `X-Siipaf-App: mobile`), révoqué au changement ou à la
+  réinitialisation du mot de passe (`client_accounts.token_version`) ; Face ID / empreinte côté application.
+- Notifications push : du dossier client (messages, paiements, chantier, documents, SAV ; préférences par catégorie) et
+  **annonces pour tous** (table `app_devices` avec ville préférée et langue ; table `app_announcements`). Envoi depuis le
+  dashboard, menu **Ventes › Notifications push** (tous ou une ville, programme ouvert au toucher, aperçu, historique),
+  privilèges `push:read` / `push:send` (éditeur et responsable d'exploitation par défaut).
+- Origine de prospect « mobile » (formulaires, rendez-vous, Sita).
+- `GET /api/public/filtres` : villes, localisations, types de biens, paliers de budget (réglables dans Paramètres › Général).
+- `GET /api/public/projects/:slug/position` : position GPS du dashboard, sinon position approchée de l'adresse (Nominatim,
+  en cache 7 jours, `services/geocode.js`).
+- **Galerie photos des programmes** : `projects.gallery` (20 photos de la médiathèque, fiche projet du dashboard).
+- **« Régler » depuis l'application** : `GET /api/client/payer` et `POST /api/client/dossiers/:id/declarations` ; coordonnées
+  dans Paramètres › Général (par moyen : lien de paiement marchand prioritaire + numéro de secours ; PayPal/Visa : lien) ;
+  déclaration « à confirmer » dans `payment_declarations` (`source` client, `channel`, `schedule_id`, `proof_file_id`),
+  plafonnée au reste à régler (déclarations en attente déduites), visible dans ERP › Comptabilité (« le client (application) »,
+  lien « Voir la capture du reçu ») ; refus de la Comptabilité envoyé au client dans ses messages.
+- 4 migrations : `20261212000000_application_mobile`, `20261213000000_annonces_application`, `20261214000000_galerie_programmes`
+  (retour arrière hors transaction sous SQLite), `20261215000000_paiement_application`. Tests : `test/application-mobile.test.js`
+  (9) ; suite complète 521/521 (test QHSE du contrôle manquant corrigé : il écrivait en dur la date du jour).
+
+### Écrans de l'application
+- **Accueil** : barre fixe (menu, profil), tout le reste défile ; carte noire de marque (logo sans fond, agrément MCLU à droite
+  sur le disque rouge, villes, nombre de programmes) ; « Trouvez votre bien » ; recherche en direct dans la base (programmes,
+  villes, localisations, types de biens) ; Logements / Terrains ; À la une ; Tous les programmes (bouton « Rechercher » avec
+  icône de filtre).
+- **Programmes** : recherche + Tout / Logements / Terrains + menus Ville, Localisation (selon la ville), Budget, Type de bien, tri.
+- **Fiche programme** compacte (spec de l'agent design mobile) : galerie (photo à balayer, 5 vignettes, « +N », plein écran),
+  adresse avec « Localiser », bouton **Carte interactive** (plan de masse publié, comme `plan-interactif.html`), chiffres clés en
+  bande, grille de prix en liste, simulateur (échelonné / Diaspora / comptant), « Sur place » (aperçu de carte OSM),
+  caractéristiques, commodités, avancement (viabilisation / documents). « Localiser » ouvre toujours la **carte
+  OpenStreetMap** de l'application (position approchée signalée), d'où part l'itinéraire Google Maps.
+- **Formulaires** (« Nous écrire », « Rendez-vous ») : tous les champs obligatoires (« * Champs obligatoires ») ; « Mode de
+  financement » retiré des deux (gardé pour « Ce lot m'intéresse ») ; date et heure par sélecteurs natifs ; pays de résidence
+  : **liste de tous les pays du monde avec drapeau**, recherche et pays fréquents (aussi dans Paramètres).
+- **Mon espace** (connexion) : en-tête immersif (photo, dégradé noir et rouge, logo, « Votre espace client », pastilles), mêmes
+  champs ; espace client complet (chantier, paiements, documents, messages, SAV, profil, reçus PDF).
+- **Paiements** : détail d'échéance en feuille coulissante ; « Réglée par » masqué tant que rien n'est réglé ; bouton
+  **Régler** → feuille : moyens avec **logos officiels** (`assets/logo_payment/`, sources et licences dans `SOURCES.md`),
+  « Payer dans Wave » (lien marchand) puis numéro à copier, retour guidé (référence prête), capture du reçu facultative,
+  confirmation si l'on ferme sans déclarer.
+- **Feuilles modales coulissantes** (composant `Sheet`) : poignée, glisser vers le bas pour fermer (PanResponder : la
+  bibliothèque de gestes ne recevait rien dans l'aperçu web), fond assombri, actions en bas.
+- **Menu latéral** : bandeau rouge avec logo sans fond, corps noir ; compte ; Qui sommes-nous, Nos métiers, Nos engagements,
+  Financement, Avis clients, Carrières (écrans avec bouton retour) ; Paramètres ; Partager l'application (liens App Store et
+  Google Play ajoutés dès que `extra.appStoreUrl` / `extra.playStoreUrl` sont remplis) ; WhatsApp et Appeler (ouverts au
+  toucher).
+- **Paramètres** : thème (clair / sombre / système), langue de l'interface (FR / EN / ES, dictionnaires `src/lib/i18n-dict.ts`),
+  grand texte, animations, vibrations, **Recevoir des notifications push** + catégories du dossier + son, sécurité (Face ID,
+  verrouillage, mot de passe), devise, formule du simulateur, ville préférée, pays, données (cache, Sita), à propos.
+- **Écran de démarrage animé** (noir et rouge) : emblème qui tourne avec ondes rouges, logo dévoilé, « PROMOTEUR IMMOBILIER
+  AGRÉÉ » en machine à écrire, trait rouge, titre « MON RÉSEAU IMMOBILIER », disque rouge. Logos sans fond partout
+  (déclinaisons du dossier `logo_siipaf/`).
+
+### En attente (à jour au 04/11)
+1. **APK d'essai Android** : compilation locale en cours ; ensuite clé d'envoi Google Play (`keytool`, à conserver par le client)
+   et `./gradlew bundleRelease` pour le fichier `.aab`.
+2. **Assistance vocale de Sita** (validée : Sita parle et écoute, mêmes réglages du dashboard) : pas encore commencée ;
+   la permission micro Android est aujourd'hui bloquée dans `app.json` (`RECORD_AUDIO`), à rouvrir.
+3. Saisir les vrais liens et numéros marchands dans admin.siipaf.com › Paramètres › Général.
+4. Clé FCM (Firebase, compte de service) à déposer pour les push Android ; politique de confidentialité, captures et textes
+   des fiches stores ; logo en haute définition (les déclinaisons fournies font 601 px de large).
+5. Publier les plans de masse des programmes pour la « Carte interactive » (seul Bingerville en a un dans la démo) et saisir
+   les positions GPS manquantes.
 
 ## 25/10 — Note d'implémentation : module Achats & stocks
 

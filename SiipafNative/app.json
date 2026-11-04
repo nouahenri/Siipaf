@@ -2,6 +2,7 @@
   "expo": {
     "name": "SIIPAF",
     "slug": "siipaf",
+    "owner": "nouahenris-team",
     "version": "1.0.0",
     "orientation": "portrait",
     "icon": "./assets/images/icon.png",
@@ -22,7 +23,8 @@
         "CFBundleDevelopmentRegion": "fr",
         "CFBundleAllowMixedLocalizations": true
       },
-      "googleServicesFile": "./GoogleService-Info.plist"
+      "googleServicesFile": "./GoogleService-Info.plist",
+      "buildNumber": "1"
     },
     "android": {
       "package": "com.siipaf.com",
@@ -33,15 +35,18 @@
         "monochromeImage": "./assets/images/android-icon-monochrome.png"
       },
       "permissions": [
-        "CAMERA",
-        "USE_BIOMETRIC",
-        "POST_NOTIFICATIONS"
+        "android.permission.CAMERA",
+        "android.permission.USE_BIOMETRIC",
+        "android.permission.POST_NOTIFICATIONS",
+        "android.permission.USE_BIOMETRIC",
+        "android.permission.USE_FINGERPRINT"
       ],
       "blockedPermissions": [
         "android.permission.RECORD_AUDIO"
       ],
       "predictiveBackGestureEnabled": false,
-      "googleServicesFile": "./google-services.json"
+      "googleServicesFile": "./google-services.json",
+      "versionCode": 1
     },
     "web": {
       "output": "single",
@@ -97,14 +102,22 @@
         }
       ],
       "@react-native-community/datetimepicker",
-      "expo-localization"
+      "expo-localization",
+      "./plugins/withReleaseSigning"
     ],
     "extra": {
       "apiUrl": "https://client.siipaf.com",
       "siteUrl": "https://siipaf.com",
-      "eas": {},
+      "eas": {
+        "projectId": "3aef2b3e-a579-49aa-92f0-644daa535ee6"
+      },
       "appStoreUrl": "",
-      "playStoreUrl": ""
+      "playStoreUrl": "",
+      "router": {
+        "asyncRoutes": {
+          "web": true
+        }
+      }
     },
     "experiments": {
       "typedRoutes": true,
