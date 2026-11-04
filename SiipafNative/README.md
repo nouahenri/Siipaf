@@ -42,7 +42,7 @@ Vérifications : `npm run typecheck` et `npx eslint src`.
 3. `npx eas-cli@latest build --platform ios` (compte Apple Developer requis).
 4. `npx eas-cli@latest submit` pour envoyer aux stores.
 
-Identifiants : `com.siipaf.app` (iOS et Android). Expo Go ne reçoit pas les push sur Android : tester avec un build.
+Identifiants : `com.siipaf.com` (iOS et Android), celui des fichiers Firebase `google-services.json` (Android) et `GoogleService-Info.plist` (iOS), branchés dans `app.json` (`googleServicesFile`). Expo Go ne reçoit pas les push sur Android : tester avec un build.
 
 À fournir avant publication : logo SIIPAF en haute définition (l'icône actuelle est tirée du logo du site, 121 px),
 captures d'écran, textes de fiche store, politique de confidentialité.

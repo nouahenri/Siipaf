@@ -9,7 +9,7 @@
     "userInterfaceStyle": "automatic",
     "description": "SIIPAF SA, promoteur et aménageur immobilier agréé MCLU : programmes, lotissements, conseillère Sita et espace client.",
     "ios": {
-      "bundleIdentifier": "com.siipaf.app",
+      "bundleIdentifier": "com.siipaf.com",
       "supportsTablet": true,
       "icon": "./assets/images/icon.png",
       "config": {
@@ -17,14 +17,15 @@
       },
       "infoPlist": {
         "NSCameraUsageDescription": "SIIPAF utilise l’appareil photo pour joindre une photo à une demande de service après-vente.",
-        "NSPhotoLibraryUsageDescription": "SIIPAF accède à vos photos pour les joindre à une demande de service après-vente.",
+        "NSPhotoLibraryUsageDescription": "SIIPAF accède à vos photos pour les joindre à une demande de service après-vente ou à la déclaration d’un paiement (capture du reçu).",
         "NSFaceIDUsageDescription": "SIIPAF utilise Face ID pour protéger l’accès à votre espace client.",
         "CFBundleDevelopmentRegion": "fr",
         "CFBundleAllowMixedLocalizations": true
-      }
+      },
+      "googleServicesFile": "./GoogleService-Info.plist"
     },
     "android": {
-      "package": "com.siipaf.app",
+      "package": "com.siipaf.com",
       "adaptiveIcon": {
         "backgroundColor": "#FFFFFF",
         "foregroundImage": "./assets/images/android-icon-foreground.png",
@@ -39,7 +40,8 @@
       "blockedPermissions": [
         "android.permission.RECORD_AUDIO"
       ],
-      "predictiveBackGestureEnabled": false
+      "predictiveBackGestureEnabled": false,
+      "googleServicesFile": "./google-services.json"
     },
     "web": {
       "output": "single",
