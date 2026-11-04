@@ -134,7 +134,11 @@ page, de newsletter ni de blocs « site web » ; Détente & Loisirs = inspiratio
   n'importe quel dossier : `New-ItemProperty -Path "HKLM:SYSTEMCurrentControlSetControlFileSystem" -Name LongPathsEnabled
   -Value 1 -PropertyType DWORD -Force`, puis redémarrer le PC) et installer un CMake récent (SDK Manager › SDK Tools, 3.31 ou
   plus ; 3.22.1 gère mal les chemins longs). Dans les deux cas, supprimer avant de relancer les dossiers `.cxx` de
-  `node_modules/react-native-worklets/android/` et `node_modules/react-native-reanimated/android/`. Choix du client : (b), en cours.
+  `node_modules/react-native-worklets/android/` et `node_modules/react-native-reanimated/android/`. Choix du client : (b). Le 04/11 au soir, l'erreur persistait malgré `LongPathsEnabled = 1` et le redémarrage :
+  Android Gradle gardait **CMake 3.22.1** (son `ninja` ignore les chemins longs) bien que 4.1.2 soit installé. Correctif
+  appliqué par Claude : `cmake.dir=C:/Users/NOUAMA/AppData/Local/Android/Sdk/cmake/4.1.2` dans `android/local.properties`
+  (propre à la machine, hors git ; à remettre après un `prebuild --clean`), caches `.cxx` supprimés. Build relancé par le
+  client dans Android Studio (résultat à confirmer). Procédure complète dans `SiipafNative/README.md`.
 
 ### Serveur (en ligne depuis `5f0bddd`)
 - Jeton de l'espace client de 30 jours pour l'application (en-tête `X-Siipaf-App: mobile`), révoqué au changement ou à la

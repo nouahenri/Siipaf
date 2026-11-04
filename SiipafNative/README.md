@@ -43,6 +43,21 @@ push). Les builds se font sur la machine de l'équipe, pas sur les serveurs d'Ex
 
 Prérequis : Android Studio (SDK Android 37, build-tools 36, NDK 27.1), dont le JDK sert à la compilation.
 
+**Chemins trop longs sous Windows** (erreur `ninja: error: mkdir(CMakeFiles/worklets.dir/C_/Users/…): No such file or
+directory` sur `react-native-worklets`) : le projet est dans un dossier au chemin long et CMake le recopie deux fois.
+1. Activer les chemins longs de Windows (PowerShell administrateur, puis redémarrer le PC) :
+   `New-ItemProperty -Path "HKLM:\SYSTEM\CurrentControlSet\Control\FileSystem" -Name LongPathsEnabled -Value 1 -PropertyType DWORD -Force`.
+2. Installer un CMake récent (Android Studio › SDK Manager › SDK Tools › CMake, 4.1.2 sur le poste actuel) et l'imposer dans
+   `android/local.properties` (fichier propre à la machine, hors git), sinon Android Gradle garde CMake 3.22.1 dont le
+   `ninja` ignore les chemins longs :
+   `cmake.dir=C\:/Users/NOUAMA/AppData/Local/Android/Sdk/cmake/4.1.2` (barres obliques).
+3. Supprimer `node_modules/react-native-worklets/android/.cxx` (et celui de `react-native-reanimated` s'il existe), puis
+   *File › Sync Project with Gradle Files* et relancer le build.
+Après un `npx expo prebuild --clean`, `android/` est recréé : remettre la ligne `cmake.dir`. Si CMake 4 refuse un module
+ancien (« Compatibility with CMake < 3.5 has been removed »), définir la variable d'environnement
+`CMAKE_POLICY_VERSION_MINIMUM=3.5`. En secours : lecteur virtuel court `subst S: C:\Users\NOUAMA\Desktop\SIIPAF_WEB\SiipafNative`
+et ouvrir `S:\android` dans Android Studio.
+
 1. `npx expo prebuild --platform android` : génère `android/` depuis `app.json` (dossier ignoré par git, à régénérer après
    chaque changement de `app.json` ou de module natif ; ne pas le modifier à la main).
 2. APK d'essai (signé avec la clé de test, à installer directement sur un téléphone) :
