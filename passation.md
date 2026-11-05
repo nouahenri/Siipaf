@@ -238,6 +238,9 @@ page, de newsletter ni de blocs « site web » ; Détente & Loisirs = inspiratio
   **sans prebuild**, reporté à la main dans `android/app/src/main/AndroidManifest.xml` (RECORD_AUDIO + `<queries>` des
   services de reconnaissance), identique à ce que générerait un prebuild. Vérifié dans l'aperçu web (lecture et arrêt) ;
   micro et voix à tester sur téléphone (synchro Gradle puis build : deux nouveaux modules natifs). Bulle du site : à faire.
+- Build release du 05/11 en échec (dizaines de tâches FAILED, « Unable to delete directory » dans node_modules/*/android/build) :
+  un démon Gradle resté ouvert depuis la synchro surveillait ces dossiers (file system watching). Remède : `org.gradle.vfs.watch=false`
+  dans android/gradle.properties et dans plugins/withBuildArchs.js (gardé après prebuild). En cas de récidive : `gradlew --stop`.
 
 ### En attente (à jour au 04/11)
 1. **APK d'essai Android** (fait par le client dans Android Studio) : lever d'abord l'erreur des chemins trop longs (voir

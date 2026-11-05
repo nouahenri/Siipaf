@@ -9,12 +9,18 @@ const { withGradleProperties } = require('@expo/config-plugins');
 
 const ARCHS = 'armeabi-v7a,arm64-v8a';
 
+// Sous Windows, la surveillance des dossiers par Gradle garde des poignées ouvertes sur node_modules/*/android/build :
+// un second démon (synchro d'Android Studio puis build) ne peut plus les vider (« Unable to delete directory », 05/11).
+const PROPS = { reactNativeArchitectures: ARCHS, 'org.gradle.vfs.watch': 'false' };
+
 module.exports = function withBuildArchs(config) {
   return withGradleProperties(config, cfg => {
     const props = cfg.modResults;
-    const item = props.find(p => p.type === 'property' && p.key === 'reactNativeArchitectures');
-    if (item) item.value = ARCHS;
-    else props.push({ type: 'property', key: 'reactNativeArchitectures', value: ARCHS });
+    for (const [key, value] of Object.entries(PROPS)) {
+      const item = props.find(p => p.type === 'property' && p.key === key);
+      if (item) item.value = value;
+      else props.push({ type: 'property', key, value });
+    }
     return cfg;
   });
 };
