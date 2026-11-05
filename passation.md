@@ -250,7 +250,7 @@ page, de newsletter ni de blocs « site web » ; Détente & Loisirs = inspiratio
 1. **APK d'essai Android** (fait par le client dans Android Studio) : lever d'abord l'erreur des chemins trop longs (voir
    « Socle technique ») ; ensuite clé d'envoi Google Play (Android Studio ou `keytool`, à conserver précieusement), réglages
    `SIIPAF_UPLOAD_*` dans `~/.gradle/gradle.properties`, puis `./gradlew bundleRelease` pour le fichier `.aab`.
-2. **Assistance vocale de Sita** : faite dans l'application le 05/11 (voir ci-dessus), à tester sur téléphone ; reste la
+2. **Assistance vocale de Sita** : faite dans l'application le 05/11, **validée sur téléphone par le client** ; reste la
    bulle du site (voix du navigateur, même réglage `voice`).
 3. Saisir les vrais liens et numéros marchands dans admin.siipaf.com › Paramètres › Général.
 4. Clé FCM (Firebase, compte de service) à déposer pour les push Android ; politique de confidentialité, captures et textes
