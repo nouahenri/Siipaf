@@ -4,6 +4,7 @@
  * programmes en cartes. Pas de héros, de bannière ni de bloc de fin de page. Données lues dans le dashboard.
  */
 import { Image } from 'expo-image';
+import { LinearGradient } from 'expo-linear-gradient';
 import { router } from 'expo-router';
 import React, { useMemo, useRef, useState } from 'react';
 import { FlatList, Platform, Pressable, RefreshControl, ScrollView, View } from 'react-native';
@@ -20,22 +21,36 @@ import { useT } from '@/providers/preferences';
 import { useSession } from '@/providers/session';
 import { useTheme } from '@/theme';
 
-function KindCard({ icon: Icon, label, sub, onPress }: { icon: LucideIcon; label: string; sub: string; onPress: () => void }) {
-  const { c, fonts, radius, space, shadow } = useTheme();
+/**
+ * Tuile Logements / Terrains (refonte du 05/11) : dégradé propre à chaque tuile (rouge SIIPAF pour les logements, or pour
+ * les terrains), pictogramme en filigrane, texte blanc ; même rendu en clair et en sombre.
+ */
+function KindCard({ icon: Icon, label, sub, colors, onPress }: { icon: LucideIcon; label: string; sub: string; colors: readonly [string, string]; onPress: () => void }) {
+  const { fonts, radius, space, shadow } = useTheme();
+  const glass = 'rgba(255,255,255,0.2)';
   return (
     <Pressable onPress={() => { Haptics.selectionAsync().catch(() => {}); onPress(); }} accessibilityRole="button" accessibilityLabel={`${label}, ${sub}`}
-      style={({ pressed }) => ({ flex: 1, padding: space.md, borderRadius: radius.lg, backgroundColor: c.surface, gap: space.sm, ...shadow(1), transform: [{ scale: pressed ? 0.97 : 1 }] })}>
-      <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' }}>
-        <View style={{ width: 44, height: 44, borderRadius: 14, backgroundColor: c.dangerSoft, alignItems: 'center', justifyContent: 'center' }}><Icon size={22} color={c.primary} /></View>
-        <ChevronRight size={18} color={c.ink3} />
-      </View>
-      <View>
-        <Txt style={{ fontFamily: fonts.bold, fontSize: 16, color: c.ink }}>{label}</Txt>
-        <Txt style={{ fontSize: 13, color: c.ink3 }}>{sub}</Txt>
-      </View>
+      style={({ pressed }) => ({ flex: 1, borderRadius: radius.lg, ...shadow(2), transform: [{ scale: pressed ? 0.97 : 1 }] })}>
+      <LinearGradient colors={colors} start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }}
+        style={{ flex: 1, minHeight: 128, padding: space.md, borderRadius: radius.lg, overflow: 'hidden', justifyContent: 'space-between', gap: space.md }}>
+        {/* Décor : disque clair en haut à droite, grand pictogramme en filigrane en bas à droite */}
+        <View style={{ position: 'absolute', right: -28, top: -28, width: 96, height: 96, borderRadius: 48, backgroundColor: 'rgba(255,255,255,0.12)' }} />
+        <View style={{ position: 'absolute', right: -10, bottom: -12, opacity: 0.16 }}><Icon size={80} color="#fff" strokeWidth={1.5} /></View>
+        <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' }}>
+          <View style={{ width: 44, height: 44, borderRadius: 14, backgroundColor: glass, alignItems: 'center', justifyContent: 'center' }}><Icon size={22} color="#fff" /></View>
+          <View style={{ width: 28, height: 28, borderRadius: 14, backgroundColor: glass, alignItems: 'center', justifyContent: 'center' }}><ChevronRight size={16} color="#fff" /></View>
+        </View>
+        <View>
+          <Txt style={{ fontFamily: fonts.bold, fontSize: 17, color: '#fff' }}>{label}</Txt>
+          <Txt style={{ fontSize: 13, color: 'rgba(255,255,255,0.88)' }}>{sub}</Txt>
+        </View>
+      </LinearGradient>
     </Pressable>
   );
 }
+
+const HOMES_BG = ['#E30613', '#8C040C'] as const;
+const LANDS_BG = ['#D4AF37', '#8A6A12'] as const;
 
 /** Carte de marque (noire, coins arrondis) : logo, agrément, villes et nombre de programmes. */
 function BrandCard({ count, cities }: { count: number; cities: string[] }) {
@@ -99,8 +114,8 @@ export default function Home() {
         </View>
 
         <View style={{ flexDirection: 'row', gap: space.sm, paddingHorizontal: space.lg, marginTop: space.lg }}>
-          <KindCard icon={Building} label={t('Logements')} sub={t('{n} programme(s)', { n: homes })} onPress={() => explore('promotion')} />
-          <KindCard icon={LandPlot} label={t('Terrains')} sub={t('{n} programme(s)', { n: lands })} onPress={() => explore('lotissement')} />
+          <KindCard icon={Building} label={t('Logements')} sub={t('{n} programme(s)', { n: homes })} colors={HOMES_BG} onPress={() => explore('promotion')} />
+          <KindCard icon={LandPlot} label={t('Terrains')} sub={t('{n} programme(s)', { n: lands })} colors={LANDS_BG} onPress={() => explore('lotissement')} />
         </View>
 
         {projects.isLoading ? (

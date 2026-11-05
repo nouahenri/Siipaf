@@ -108,6 +108,7 @@
     "extra": {
       "apiUrl": "https://client.siipaf.com",
       "siteUrl": "https://siipaf.com",
+      "erpUrl": "https://erp.siipaf.com",
       "eas": {
         "projectId": "3aef2b3e-a579-49aa-92f0-644daa535ee6"
       },

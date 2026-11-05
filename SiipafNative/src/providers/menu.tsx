@@ -1,6 +1,6 @@
 /**
  * Menu latéral (spécification de l'expert design mobile du 03/11) : carte du compte, 7 entrées au plus sans sous-titre
- * avec l'entrée active surlignée, puis WhatsApp et Appeler. Fermeture : toucher hors du panneau, glissement vers la
+ * avec l'entrée active surlignée, puis WhatsApp et Appeler, et « Zone Siipaf » (lien vers l'ERP). Fermeture : toucher hors du panneau, glissement vers la
  * gauche, bouton X, retour Android, et avant chaque navigation. Pas d'ouverture depuis le bord (geste retour d'iOS).
  * Chiffres clés et agrément sont dans « Qui sommes-nous », e-mail, bureaux et réseaux dans l'onglet Contact.
  */
@@ -8,17 +8,17 @@ import { Image } from 'expo-image';
 import { router, usePathname, type Href } from 'expo-router';
 import * as Haptics from '@/lib/haptics';
 import { createContext, useCallback, useContext, useEffect, useMemo, useState, type ReactNode } from 'react';
-import { AccessibilityInfo, Animated, Easing, Modal, Pressable, ScrollView, Share, StyleSheet, View, useWindowDimensions } from 'react-native';
+import { AccessibilityInfo, Animated, Easing, Linking, Modal, Pressable, ScrollView, Share, StyleSheet, View, useWindowDimensions } from 'react-native';
 import { GestureDetector, GestureHandlerRootView, usePanGesture } from 'react-native-gesture-handler';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import {
-  Briefcase, Building, ChevronRight, CircleUserRound, HandCoins, HardHat, House, LogOut, MessageCircle, Phone, Settings, Share2, ShieldCheck, Star, X, type LucideIcon,
+  Briefcase, Building, ChevronRight, CircleUserRound, HandCoins, HardHat, House, LayoutGrid, LogOut, MessageCircle, Phone, Settings, Share2, ShieldCheck, Star, X, type LucideIcon,
 } from 'lucide-react-native';
 import { Txt } from '@/components/ui/Text';
 import { LOGO_ON_RED, LOGO_RATIO, useSite } from '@/lib/content';
 import { initials } from '@/lib/format';
 import { call, whatsapp } from '@/lib/links';
-import { APP_STORE_URL, PLAY_STORE_URL, SHARE_URL } from '@/config';
+import { APP_STORE_URL, ERP_URL, PLAY_STORE_URL, SHARE_URL } from '@/config';
 import { getPrefs } from '@/lib/prefs';
 import { useT } from '@/providers/preferences';
 import { useSession } from '@/providers/session';
@@ -162,6 +162,11 @@ function Panel({ onClosed }: { onClosed: () => void }) {
                   <Phone size={18} color={c.onPrimary} /><Txt style={{ fontFamily: fonts.semibold, fontSize: 14.5, color: c.onPrimary }}>{t('Appeler')}</Txt>
                 </Pressable>
               </View>
+              {/* Accès du personnel à l'ERP (demande du client du 05/11), ouvert dans le navigateur du téléphone */}
+              <Pressable onPress={() => { Linking.openURL(ERP_URL).catch(() => {}); close(); }} accessibilityRole="link" accessibilityLabel="Zone Siipaf : ouvrir l’ERP SIIPAF"
+                hitSlop={6} style={({ pressed }) => ({ marginTop: space.md, alignSelf: 'center', flexDirection: 'row', alignItems: 'center', gap: 6, paddingVertical: 6, opacity: pressed ? 0.6 : 1 })}>
+                <LayoutGrid size={14} color={M.ink3} /><Txt style={{ fontFamily: fonts.regular, fontSize: 13, color: M.ink3 }}>Zone Siipaf</Txt>
+              </Pressable>
             </ScrollView>
 
             {connected ? (
