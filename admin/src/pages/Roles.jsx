@@ -79,7 +79,7 @@ export default function Roles() {
       )}
 
       <Card bodyClass="">
-        <div className="table-wrap">
+        <div className="table-wrap perm-wrap">
           <table className="table perm-table">
             <thead>
               <tr>
@@ -102,7 +102,7 @@ export default function Roles() {
             </thead>
             <tbody>
               {d.catalog.map(g => [
-                <tr key={g.group} className="perm-group"><td colSpan={roles.length + 1}>{g.group}</td></tr>,
+                <tr key={g.group} className="perm-group"><td colSpan={roles.length + 1}><span>{g.group}</span></td></tr>,
                 ...permRows(g.items).map(p => (p.heading ? (
                   <tr key={`h:${p.heading}`} className="perm-parent">
                     <td><strong>{p.heading}</strong><div className="small muted">Cochez le tout ou action par action</div></td>
