@@ -38,11 +38,7 @@
         "android.permission.CAMERA",
         "android.permission.USE_BIOMETRIC",
         "android.permission.POST_NOTIFICATIONS",
-        "android.permission.USE_BIOMETRIC",
         "android.permission.USE_FINGERPRINT"
-      ],
-      "blockedPermissions": [
-        "android.permission.RECORD_AUDIO"
       ],
       "predictiveBackGestureEnabled": false,
       "googleServicesFile": "./google-services.json",
@@ -92,7 +88,7 @@
         {
           "photosPermission": "SIIPAF accède à vos photos pour les joindre à une demande de service après-vente.",
           "cameraPermission": "SIIPAF utilise l’appareil photo pour joindre une photo à une demande de service après-vente.",
-          "microphonePermission": false
+          "microphonePermission": "SIIPAF utilise le micro pour que vous puissiez poser vos questions à voix haute à Sita, la conseillère virtuelle."
         }
       ],
       [
@@ -104,7 +100,18 @@
       "@react-native-community/datetimepicker",
       "expo-localization",
       "./plugins/withReleaseSigning",
-      "./plugins/withBuildArchs"
+      "./plugins/withBuildArchs",
+      [
+        "expo-speech-recognition",
+        {
+          "microphonePermission": "SIIPAF utilise le micro pour que vous puissiez poser vos questions à voix haute à Sita, la conseillère virtuelle.",
+          "speechRecognitionPermission": "SIIPAF transcrit vos questions à voix haute pour les envoyer à Sita, la conseillère virtuelle.",
+          "androidSpeechServicePackages": [
+            "com.google.android.googlequicksearchbox",
+            "com.google.android.as"
+          ]
+        }
+      ]
     ],
     "extra": {
       "apiUrl": "https://client.siipaf.com",

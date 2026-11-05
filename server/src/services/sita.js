@@ -87,7 +87,7 @@ async function publicConfig(db) {
     enabled: settings.enabled, name: settings.name, gender: settings.gender, title: t.title,
     photo: settings.photo_media_id ? `/uploads/by-id/${settings.photo_media_id}` : null,
     greeting: S.fill(t.greeting, vars), invitation_default: S.fill(t.invitation_default, vars), invitations,
-    invitation_delay_s: settings.invitation_delay_s, sound: settings.sound, pages: settings.pages, languages: settings.languages,
+    invitation_delay_s: settings.invitation_delay_s, sound: settings.sound, voice: settings.voice, pages: settings.pages, languages: settings.languages,
     whatsapp: await relayNumber(db, settings), hours: S.hoursText(settings.human_hours),
     programmes: projects.map(p => ({ slug: p.slug, name: p.name })),
     notice: `${settings.name} est une assistante virtuelle (IA) de SIIPAF. Un conseiller peut prendre le relais à tout moment.`,

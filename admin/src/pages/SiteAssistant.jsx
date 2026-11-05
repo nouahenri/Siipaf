@@ -113,6 +113,9 @@ export default function SiteAssistant() {
             <Field label="Son à l’apparition" hint="Carillon discret, une fois par visite. Les navigateurs bloquent le son tant que le visiteur n’a ni cliqué ni touché la page : il est alors joué à son premier clic, si l’invitation est encore affichée.">
               <label className="checkbox"><input type="checkbox" checked={form.sound} onChange={e => set({ sound: e.target.checked })} />Jouer un carillon quand l’invitation de {form.name || 'Sita'} apparaît</label>
             </Field>
+            <Field label="Voix (application mobile)" hint={`Le visiteur peut poser sa question au micro ; ${form.name || 'Sita'} lui répond alors à voix haute, avec une voix ${form.gender === 'homme' ? 'masculine' : 'féminine'} quand le téléphone en propose une (sinon sa voix par défaut). Reconnaissance et synthèse vocales du téléphone, sans coût supplémentaire.`}>
+              <label className="checkbox"><input type="checkbox" checked={form.voice} onChange={e => set({ voice: e.target.checked })} />{form.name || 'Sita'} écoute et parle dans l’application</label>
+            </Field>
           </div>
           {!!meta.projects.length && (
             <Field label="Invitation propre à un programme (facultatif)" hint="Laissez vide pour utiliser l’invitation ci-dessus.">

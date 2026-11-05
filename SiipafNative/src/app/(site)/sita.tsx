@@ -2,26 +2,30 @@
  * Sita, conseillère virtuelle de SIIPAF (même assistante que la bulle du site : réglages du dashboard › Assistante du site,
  * conversations dans l'ERP › Service commercial › Conversations de Sita, canal « Application mobile »).
  * Le fil est gardé sur le téléphone ; Sita peut proposer de passer la main à un conseiller sur WhatsApp.
+ * Voix (choix du client du 05/11/2026) : question posée au micro, réponse lue à voix haute ; bouton Écouter / Arrêter sous
+ * chaque réponse. Réglage « Voix » du dashboard, moteurs vocaux du téléphone (src/lib/sita-voice.ts).
  */
 import { useQuery } from '@tanstack/react-query';
 import { Image } from 'expo-image';
-import { useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
+import { useFocusEffect } from 'expo-router';
 import { AccessibilityInfo, FlatList, KeyboardAvoidingView, Linking, Platform, Pressable, TextInput, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { Menu, MessageCircle, RotateCcw, SendHorizontal, Sparkles } from 'lucide-react-native';
+import { Menu, MessageCircle, Mic, RotateCcw, SendHorizontal, Sparkles, Square, Volume2 } from 'lucide-react-native';
 import { RoundButton } from '@/components/ui/AppHeader';
 import { useMenu } from '@/providers/menu';
 import { Button, ChipRow, Chip, Txt } from '@/components/ui';
 import { apiUrl, publicApi } from '@/lib/api';
 import { useSite } from '@/lib/content';
 import { whatsapp } from '@/lib/links';
+import { useDictation, useSitaSpeech } from '@/lib/sita-voice';
 import { KEYS, prefs } from '@/lib/storage';
 import { useT } from '@/providers/preferences';
 import { useTheme } from '@/theme';
 
 type Action = { type: string; url: string; label?: string };
 type Msg = { id: string; role: 'me' | 'bot' | 'err'; text: string; actions?: Action[] };
-type SitaConfig = { enabled: boolean; name?: string; gender?: string; title?: string; photo?: string | null; greeting?: string; whatsapp?: string; hours?: string; notice?: string; consent?: string; programmes?: { slug: string; name: string }[] };
+type SitaConfig = { enabled: boolean; name?: string; gender?: string; title?: string; photo?: string | null; greeting?: string; voice?: boolean; whatsapp?: string; hours?: string; notice?: string; consent?: string; programmes?: { slug: string; name: string }[] };
 
 const SUGGESTIONS = ['Quels programmes proposez-vous ?', 'Je vis à l’étranger : comment acheter ?', 'Combien coûte un terrain ?', 'Je veux visiter un site'];
 const uid = () => `${Date.now().toString(36)}${Math.random().toString(36).slice(2, 10)}`;
@@ -44,6 +48,15 @@ export default function Sita() {
   const [sending, setSending] = useState(false);
   const list = useRef<FlatList<Msg>>(null);
   const name = cfg?.name || 'Sita';
+  const voiceOn = cfg?.voice !== false;
+  const speech = useSitaSpeech(cfg?.gender === 'homme' ? 'homme' : 'femme');
+  const fail = useCallback((msg: string) => setMessages(m => [...m, { id: uid(), role: 'err', text: msg }]), []);
+  const dictation = useDictation({ onPartial: setText, onFinal: said => send(said, true), onError: fail });
+  const canTalk = voiceOn && dictation.available;
+  // Sita se tait et cesse d'écouter quand on quitte l'écran
+  const { stop: stopSpeech } = speech;
+  const { abort: abortDictation } = dictation;
+  useFocusEffect(useCallback(() => () => { stopSpeech(); abortDictation(); }, [stopSpeech, abortDictation]));
   const avatar = cfg?.photo ? { uri: apiUrl(cfg.photo)! } : cfg?.gender === 'homme' ? require('../../../assets/images/site/sita-homme.png') : require('../../../assets/images/site/sita-femme.png');
 
   // Identifiant du visiteur et fil de discussion gardés sur le téléphone
@@ -57,7 +70,8 @@ export default function Sita() {
   }, []);
   useEffect(() => { prefs.set(KEYS.sitaThread, JSON.stringify(messages.filter(m => m.role !== 'err').slice(-60))); }, [messages]);
 
-  const send = async (raw?: string) => {
+  /** spoken : question posée au micro, la réponse est alors lue à voix haute. */
+  const send = async (raw?: string, spoken = false) => {
     const body = (raw ?? text).trim();
     if (!body || sending || !visitor) return;
     setText('');
@@ -66,7 +80,9 @@ export default function Sita() {
     try {
       const r = await publicApi.post<{ reply: string; actions?: Action[] }>('/sita/message', { visitor_id: visitor, message: body, page: { path: '/application' }, lang: 'fr', website: '' });
       AccessibilityInfo.announceForAccessibility(`${name} : ${r.reply}`);
-      setMessages(m => [...m, { id: uid(), role: 'bot', text: r.reply, actions: (r.actions || []).filter(a => a.type === 'whatsapp' && /^https:\/\/wa\.me\//.test(a.url)) }]);
+      const id = uid();
+      if (spoken && voiceOn) speech.speak(id, r.reply);
+      setMessages(m => [...m, { id, role: 'bot', text: r.reply, actions: (r.actions || []).filter(a => a.type === 'whatsapp' && /^https:\/\/wa\.me\//.test(a.url)) }]);
     } catch (e: any) {
       setMessages(m => [...m, { id: uid(), role: 'err', text: e?.status === 429 ? 'Vous écrivez très vite : patientez quelques instants.' : e?.message || 'Je ne peux pas répondre pour le moment. Réessayez dans un instant.' }]);
     }
@@ -74,6 +90,8 @@ export default function Sita() {
   };
 
   const restart = async () => {
+    speech.stop();
+    dictation.abort();
     const id = newVisitorId();
     await prefs.set(KEYS.visitor, id);
     setVisitor(id);
@@ -124,6 +142,17 @@ export default function Sita() {
                     backgroundColor: mine ? c.primary : m.role === 'err' ? c.dangerSoft : c.surface, borderWidth: mine ? 0 : 1, borderColor: c.line }}>
                     <Txt selectable style={{ color: mine ? '#fff' : m.role === 'err' ? c.danger : c.ink, fontSize: 15, lineHeight: 22 }}>{m.id === 'typing' ? `${name} écrit…` : m.text}</Txt>
                   </View>
+                  {voiceOn && m.role === 'bot' && m.id !== 'typing' ? (() => {
+                    const playing = speech.speakingId === m.id;
+                    return (
+                      <Pressable onPress={() => (playing ? speech.stop() : speech.speak(m.id, m.text))} accessibilityRole="button"
+                        accessibilityLabel={playing ? t('Arrêter la lecture') : t('Écouter la réponse')} hitSlop={8}
+                        style={({ pressed }) => ({ flexDirection: 'row', alignItems: 'center', gap: 5, paddingHorizontal: 6, minHeight: 28, opacity: pressed ? 0.6 : 1 })}>
+                        {playing ? <Square size={13} color={c.primary} fill={c.primary} /> : <Volume2 size={15} color={c.ink3} />}
+                        <Txt style={{ fontFamily: fonts.medium, fontSize: 12.5, color: playing ? c.primary : c.ink3 }}>{playing ? t('Arrêter') : t('Écouter')}</Txt>
+                      </Pressable>
+                    );
+                  })() : null}
                   {m.actions?.map((a, i) => (
                     <Button key={i} label={a.label || 'Écrire sur WhatsApp'} icon={MessageCircle} variant="whatsapp" size="sm" onPress={() => Linking.openURL(a.url).catch(() => {})} />
                   ))}
@@ -146,13 +175,24 @@ export default function Sita() {
             </View>
           )}
           <View style={{ flexDirection: 'row', alignItems: 'flex-end', gap: 8, padding: space.md, backgroundColor: c.surface, borderTopWidth: 1, borderTopColor: c.line }}>
-            <TextInput value={text} onChangeText={setText} placeholder={`Écrire à ${name}…`} placeholderTextColor={c.ink3} multiline maxLength={600}
-              style={{ flex: 1, maxHeight: 120, minHeight: 46, backgroundColor: c.surfaceAlt, borderRadius: 23, paddingHorizontal: 16, paddingTop: 12, paddingBottom: 12, fontFamily: fonts.regular, fontSize: 16, color: c.ink }}
+            <TextInput value={text} onChangeText={setText} placeholder={dictation.listening ? t('Je vous écoute…') : `Écrire à ${name}…`} placeholderTextColor={dictation.listening ? c.primary : c.ink3} multiline maxLength={600}
+              editable={!dictation.listening}
+              style={{ flex: 1, maxHeight: 120, minHeight: 46, backgroundColor: c.surfaceAlt, borderRadius: 23, paddingHorizontal: 16, paddingTop: 12, paddingBottom: 12, fontFamily: fonts.regular, fontSize: 16, color: c.ink,
+                borderWidth: 1.5, borderColor: dictation.listening ? c.primary : 'transparent' }}
               accessibilityLabel={t('Votre message')} />
-            <Pressable onPress={() => send()} disabled={!text.trim() || sending} accessibilityRole="button" accessibilityLabel={t('Envoyer')}
-              style={({ pressed }) => ({ width: 46, height: 46, borderRadius: 23, backgroundColor: c.primary, alignItems: 'center', justifyContent: 'center', opacity: !text.trim() || sending ? 0.45 : pressed ? 0.8 : 1 })}>
-              <SendHorizontal size={20} color="#fff" />
-            </Pressable>
+            {/* Micro quand le champ est vide (ou pendant l'écoute, pour l'arrêter), sinon bouton d'envoi */}
+            {canTalk && (dictation.listening || !text.trim()) ? (
+              <Pressable onPress={() => (dictation.listening ? dictation.stop() : dictation.start())} disabled={sending && !dictation.listening} accessibilityRole="button"
+                accessibilityLabel={dictation.listening ? t('Arrêter l’écoute et envoyer') : t('Poser ma question à voix haute')} accessibilityState={{ busy: dictation.listening }}
+                style={({ pressed }) => ({ width: 46, height: 46, borderRadius: 23, backgroundColor: dictation.listening ? c.danger : c.primary, alignItems: 'center', justifyContent: 'center', opacity: sending && !dictation.listening ? 0.45 : pressed ? 0.8 : 1 })}>
+                {dictation.listening ? <Square size={16} color="#fff" fill="#fff" /> : <Mic size={21} color="#fff" />}
+              </Pressable>
+            ) : (
+              <Pressable onPress={() => send()} disabled={!text.trim() || sending} accessibilityRole="button" accessibilityLabel={t('Envoyer')}
+                style={({ pressed }) => ({ width: 46, height: 46, borderRadius: 23, backgroundColor: c.primary, alignItems: 'center', justifyContent: 'center', opacity: !text.trim() || sending ? 0.45 : pressed ? 0.8 : 1 })}>
+                <SendHorizontal size={20} color="#fff" />
+              </Pressable>
+            )}
           </View>
         </>
       )}

@@ -113,6 +113,12 @@ test('configuration publique : désactivée = rien, activée = identité et text
   assert.equal(ok(await request(app).get('/api/public/sita/config')).sound, false, 'carillon coupé depuis le dashboard');
   assert.equal((await settings({ sound: 'oui' })).status, 400);
   ok(await settings({ sound: true }));
+  // Voix de l'application mobile (choix du client du 05/11/2026) : active par défaut, coupée depuis le dashboard
+  assert.equal(cfg.voice, true, 'voix active par défaut');
+  ok(await settings({ voice: false }));
+  assert.equal(ok(await request(app).get('/api/public/sita/config')).voice, false, 'voix coupée depuis le dashboard');
+  assert.equal((await settings({ voice: 'oui' })).status, 400);
+  ok(await settings({ voice: true }));
   assert.equal(cfg.name, 'Sita');
   assert.equal(cfg.greeting, 'Bonjour, ici Sita !');
   assert.equal(cfg.invitations[project.slug], `Une question sur ${project.name} ? Sita connaît ce programme par cœur.`);
