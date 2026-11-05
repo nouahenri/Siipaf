@@ -564,11 +564,38 @@ fieldset { min-width: 0; }
 .perm-table .perm-parent td { background: var(--surface-2); }
 .perm-table .perm-sub td:first-child { padding-left: 32px; }
 /* Grille haute (toute la hauteur libre de l'écran) et colonne Privilège figée : les rôles défilent dessous */
-.table-wrap.perm-wrap { max-height: max(360px, calc(100vh - 210px)); }
+/* Page défilée jusqu'en bas : la grille va de sous la barre du haut (64 px + 16) jusqu'au niveau de « Déconnexion »
+   (20 px du bas de l'écran, marge du menu) ; le bas de page est réduit à ces 20 px sur cette page seulement. */
+.table-wrap.perm-wrap { max-height: max(360px, calc(100vh - 102px)); }
+.content:has(.perm-wrap) { padding-bottom: 20px; }
 .perm-table th:first-child, .perm-table tr:not(.perm-group) > td:first-child { position: sticky; left: 0; z-index: 1; background: var(--surface); box-shadow: inset -1px 0 0 var(--border); width: 300px; min-width: 260px; max-width: 300px; }
 .perm-table thead th:first-child { z-index: 3; background: var(--surface-2); box-shadow: inset -1px 0 0 var(--border), inset 0 -1px 0 var(--border); }
 .perm-table tr.perm-parent > td:first-child, .perm-table tfoot tr:not(.perm-group) > td:first-child, .table-wrap .perm-table tbody tr:hover td:first-child { background: var(--surface-2); }
 .perm-table .perm-group td span { position: sticky; left: 16px; }
+/* Grille imprimée (bouton « Imprimer ») : seule sur la page, A4 paysage, toujours en clair */
+.roles-print { display: none; }
+@page roles-grid { size: A4 landscape; margin: 10mm; }
+@media print {
+  body:has(> .roles-print) > :not(.roles-print) { display: none !important; }
+  body:has(> .roles-print) { background: #fff; }
+  .roles-print { display: block; page: roles-grid; color: #111; font-size: 8.5px; }
+  .roles-print-head { display: flex; justify-content: space-between; align-items: flex-start; gap: 16px; padding-bottom: 8px; margin-bottom: 8px; border-bottom: 2px solid #ccc; }
+  .roles-print-head img { width: 140px; }
+  .roles-print-head > div { text-align: right; font-size: 11px; }
+  .roles-print-head h2 { margin: 0 0 2px; font-size: 16px; }
+  .roles-print-table { width: 100%; border-collapse: collapse; table-layout: fixed; }
+  .roles-print-table + .roles-print-table { break-before: page; }
+  .roles-print-table thead { display: table-header-group; }
+  .roles-print-table th, .roles-print-table td { border: 1px solid #bbb; padding: 2px 4px; text-align: center; vertical-align: middle; }
+  .roles-print-table th { background: #eee; font-size: 8px; font-weight: 600; overflow-wrap: break-word; hyphens: auto; }
+  .roles-print-table th small { display: block; font-weight: 400; text-transform: none; color: #555; }
+  .roles-print-table th:first-child, .roles-print-table td:first-child { width: 30%; text-align: left; }
+  .roles-print-table tr { break-inside: avoid; }
+  .roles-print-table .grp td { background: #ddd; font-weight: 700; text-transform: uppercase; letter-spacing: .05em; }
+  .roles-print-table .head td { background: #f3f3f3; font-weight: 600; }
+  .roles-print-table .sub td:first-child { padding-left: 12px; }
+  .roles-print-table td:not(:first-child) { font-weight: 700; }
+}
 .perm-line-parent { font-weight: 600; padding-top: 10px; }
 .perm-line-sub { padding-left: 18px; }
 .perm-dot { width: 8px; height: 8px; border-radius: 50%; background: var(--border-strong); flex-shrink: 0; }

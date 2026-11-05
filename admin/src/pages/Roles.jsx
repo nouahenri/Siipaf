@@ -1,10 +1,65 @@
 import { useEffect, useMemo, useState } from 'react';
+import { createPortal } from 'react-dom';
 import { Link } from 'react-router-dom';
-import { ShieldCheck, Lock, RotateCcw, Save, Info, Plus, Pencil, Trash2 } from 'lucide-react';
+import { ShieldCheck, Lock, RotateCcw, Save, Info, Plus, Pencil, Trash2, Printer } from 'lucide-react';
 import { api } from '../lib/api';
-import { useResource, useToast, useSaved } from '../lib/app-context';
+import { useAuth, useResource, useToast, useSaved } from '../lib/app-context';
 import { Card, ErrorBox, Skeleton, Badge, Drawer, Field } from '../components/ui';
 import { permRows } from '../lib/permissions';
+
+/**
+ * Version imprimée de la grille (bouton « Imprimer ») : privilèges ENREGISTRÉS (pas les cases modifiées non enregistrées),
+ * A4 paysage, rôles par tranches de 10 colonnes (la colonne des privilèges est répétée sur chaque tranche).
+ * Invisible à l'écran ; à l'impression, elle remplace toute la page (styles.css, « roles-print »).
+ */
+const PRINT_COLS = 10;
+function RolesPrint({ catalog, roles }) {
+  const { user } = useAuth();
+  const has = (r, id) => r.locked || r.permissions.includes(id);
+  const chunks = [];
+  for (let i = 0; i < roles.length; i += PRINT_COLS) chunks.push(roles.slice(i, i + PRINT_COLS));
+  return (
+    <article className="roles-print" aria-hidden="true">
+      <header className="roles-print-head">
+        <img src="/logo-siipaf.png" alt="SIIPAF SA" />
+        <div>
+          <h2>Rôles et privilèges</h2>
+          <div>{roles.length} rôle(s) — privilèges enregistrés</div>
+          <div className="small">Édité le {new Date().toLocaleString('fr-FR', { dateStyle: 'long', timeStyle: 'short' })}{user?.name ? ` par ${user.name}` : ''}</div>
+        </div>
+      </header>
+      {chunks.map((part, k) => (
+        <table key={k} className="roles-print-table">
+          <thead>
+            <tr>
+              <th>Privilège{chunks.length > 1 ? ` (rôles ${k * PRINT_COLS + 1} à ${k * PRINT_COLS + part.length} sur ${roles.length})` : ''}</th>
+              {part.map(r => <th key={r.id}>{r.label}<small>{r.users_total ?? 0} compte(s)</small></th>)}
+            </tr>
+          </thead>
+          <tbody>
+            {catalog.map(g => [
+              <tr key={g.group} className="grp"><td colSpan={part.length + 1}>{g.group}</td></tr>,
+              ...permRows(g.items).map(p => (p.heading ? (
+                <tr key={`h:${p.heading}`} className="head">
+                  <td>{p.heading}</td>
+                  {part.map(r => {
+                    const n = p.ids.filter(id => has(r, id)).length;
+                    return <td key={r.id}>{n === p.ids.length ? '✓' : n ? `${n}/${p.ids.length}` : ''}</td>;
+                  })}
+                </tr>
+              ) : (
+                <tr key={p.id} className={p.parent ? 'sub' : undefined}>
+                  <td>{p.label}</td>
+                  {part.map(r => <td key={r.id}>{has(r, p.id) ? '✓' : ''}</td>)}
+                </tr>
+              ))),
+            ])}
+          </tbody>
+        </table>
+      ))}
+    </article>
+  );
+}
 
 /** Grille des privilèges : une colonne par rôle, une ligne par privilège, regroupés par domaine. */
 export default function Roles() {
@@ -70,10 +125,14 @@ export default function Roles() {
           Cochez ce que chaque rôle peut faire. Les changements s’appliquent dès l’enregistrement, à tous les comptes du rôle.
           Pour une exception sur une seule personne, ouvrez son compte dans <Link to="/utilisateurs" style={{ textDecoration: 'underline' }}>Utilisateurs</Link>.
         </p>
-        {editable
-          ? <button className="btn btn-primary" onClick={() => setRoleForm({})}><Plus />Nouveau rôle</button>
-          : <Badge tone="warn"><Lock size={13} />Lecture seule — réservé au super administrateur</Badge>}
+        <div className="row" style={{ gap: 8 }}>
+          {editable
+            ? <button className="btn btn-primary" onClick={() => setRoleForm({})}><Plus />Nouveau rôle</button>
+            : <Badge tone="warn"><Lock size={13} />Lecture seule — réservé au super administrateur</Badge>}
+          <button className="btn" onClick={() => window.print()} title="Grille enregistrée, en A4 paysage (ou PDF)"><Printer />Imprimer</button>
+        </div>
       </div>
+      {createPortal(<RolesPrint catalog={d.catalog} roles={roles} />, document.body)}
       {d.users_with_overrides > 0 && (
         <div className="alert alert-info"><Info size={15} /> {d.users_with_overrides} privilège(s) individuel(s) sont définis sur des comptes précis, en plus de cette grille.</div>
       )}
