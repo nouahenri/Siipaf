@@ -4,7 +4,7 @@
  * gauche, bouton X, retour Android, et avant chaque navigation. Pas d'ouverture depuis le bord (geste retour d'iOS).
  * Chiffres clés et agrément sont dans « Qui sommes-nous », e-mail, bureaux et réseaux dans l'onglet Contact.
  */
-import { Image } from 'expo-image';
+import { Image, type ImageRef } from 'expo-image';
 import { router, usePathname, type Href } from 'expo-router';
 import * as Haptics from '@/lib/haptics';
 import { createContext, useCallback, useContext, useEffect, useMemo, useState, type ReactNode } from 'react';
@@ -66,7 +66,7 @@ function MenuRow({ icon: Icon, title, active, onPress }: { icon: LucideIcon; tit
   );
 }
 
-function Panel({ onClosed }: { onClosed: () => void }) {
+function Panel({ onClosed, logo }: { onClosed: () => void; logo: ImageRef | null }) {
   const { c, space, radius, fonts } = useTheme();
   const { width } = useWindowDimensions();
   const insets = useSafeAreaInsets();
@@ -119,7 +119,7 @@ function Panel({ onClosed }: { onClosed: () => void }) {
           style={{ position: 'absolute', top: 0, bottom: 0, left: 0, width: panelW, backgroundColor: M.bg, borderTopRightRadius: radius.xl, borderBottomRightRadius: radius.xl, overflow: 'hidden', transform: [{ translateX: x }], opacity: reduce ? backdrop : 1 }}>
           {/* Bandeau rouge sur toute la largeur : logo sans fond (déclinaison pour le rouge) agrandi, et fermeture */}
           <View style={{ backgroundColor: c.red, paddingTop: insets.top + 10, paddingBottom: 10, paddingLeft: space.md, paddingRight: space.sm, flexDirection: 'row', alignItems: 'center', gap: space.sm }}>
-            <Image source={LOGO_ON_RED} style={{ flex: 1, aspectRatio: LOGO_RATIO, maxHeight: 76 }} contentFit="contain" contentPosition="left" accessibilityLabel="SIIPAF, promoteur immobilier agréé" />
+            <Image source={logo ?? LOGO_ON_RED} transition={0} priority="high" style={{ flex: 1, aspectRatio: LOGO_RATIO, maxHeight: 76 }} contentFit="contain" contentPosition="left" accessibilityLabel="SIIPAF, promoteur immobilier agréé" />
             <Pressable onPress={() => close()} accessibilityRole="button" accessibilityLabel="Fermer le menu" hitSlop={4}
               style={({ pressed }) => ({ alignSelf: 'flex-start', width: 40, height: 40, borderRadius: 20, backgroundColor: 'rgba(255,255,255,0.18)', alignItems: 'center', justifyContent: 'center', opacity: pressed ? 0.75 : 1 })}>
               <X size={20} color="#fff" />
@@ -184,6 +184,14 @@ function Panel({ onClosed }: { onClosed: () => void }) {
 
 export function MenuProvider({ children }: { children: ReactNode }) {
   const [visible, setVisible] = useState(false);
+  // Logo décodé en mémoire dès le lancement de l'application (demande du client du 05/11) : le panneau, recréé à chaque
+  // ouverture, l'affiche alors instantanément au lieu de le recharger à chaque fois.
+  const [logo, setLogo] = useState<ImageRef | null>(null);
+  useEffect(() => {
+    let live = true;
+    Image.loadAsync(LOGO_ON_RED).then(ref => { if (live) setLogo(ref); }).catch(() => {});
+    return () => { live = false; };
+  }, []);
   const open = useCallback(() => { Haptics.selectionAsync().catch(() => {}); setVisible(true); }, []);
   const close = useCallback(() => setVisible(false), []);
   const value = useMemo(() => ({ open, close }), [open, close]);
@@ -191,7 +199,7 @@ export function MenuProvider({ children }: { children: ReactNode }) {
     <MenuContext.Provider value={value}>
       {children}
       <Modal visible={visible} transparent animationType="none" onRequestClose={close} statusBarTranslucent navigationBarTranslucent>
-        {visible ? <Panel onClosed={close} /> : null}
+        {visible ? <Panel onClosed={close} logo={logo} /> : null}
       </Modal>
     </MenuContext.Provider>
   );

@@ -222,6 +222,10 @@ page, de newsletter ni de blocs « site web » ; Détente & Loisirs = inspiratio
   build Android Studio.** Deuxième échec (logs CMake de worklets) : le démon Gradle d'Android Studio gardait lui-même les
   dossiers ouverts. Remède : `gradlew --stop`, suppression de `android/build` et `android/.cxx` de worklets, reanimated et
   expo-modules-core, puis synchro : **réussie le 05/11**. Build release à lancer par le client après recréation de sa clé.
+- Tirer-pour-actualiser : l'accueil recharge aussi les filtres du champ de recherche ; la recherche a sa roue rouge sur Android
+  et ne tourne que pendant un geste de l'utilisateur. Logo de la barre latérale décodé au lancement (`Image.loadAsync` dans
+  MenuProvider) : affiché sans délai à l'ouverture. Non testé sur téléphone (geste absent de l'aperçu web).
+- Voix de Sita : vérifié le 05/11, **aucune voix n'existe** (ni site, ni application, ni réglage dashboard) ; voir point 2.
 
 ### En attente (à jour au 04/11)
 1. **APK d'essai Android** (fait par le client dans Android Studio) : lever d'abord l'erreur des chemins trop longs (voir

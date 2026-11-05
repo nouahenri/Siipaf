@@ -27,8 +27,15 @@ export default function Programmes() {
   const params = useLocalSearchParams<{ type?: string; q?: string; ville?: string; lieu?: string; bien?: string }>();
   const { c, space, radius, fonts } = useTheme();
   const { prefs, t } = usePrefs();
-  const { data, error, isLoading, refetch, isRefetching } = useProjects();
+  const { data, error, isLoading, refetch } = useProjects();
   const filters = useFilters();
+  // Roue affichée seulement pour un geste de l'utilisateur, jusqu'à la fin des deux rechargements
+  // (pas lors des rechargements automatiques, au retour dans l'application par exemple)
+  const [refreshing, setRefreshing] = useState(false);
+  const refresh = async () => {
+    setRefreshing(true);
+    try { await Promise.all([refetch(), filters.refetch()]); } finally { setRefreshing(false); }
+  };
   const [kind, setKind] = useState<Kind>('tous');
   const [city, setCity] = useState<number | null>(prefs.preferredCity);
   const [place, setPlace] = useState<number | null>(null);
@@ -114,7 +121,7 @@ export default function Programmes() {
           keyExtractor={p => p.slug}
           renderItem={({ item, index }) => <ResultCard p={item} rank={index} />}
           contentContainerStyle={{ paddingHorizontal: space.lg, paddingBottom: space.xxxl }}
-          refreshControl={<RefreshControl refreshing={isRefetching} onRefresh={() => { refetch(); filters.refetch(); }} tintColor={c.primary} />}
+          refreshControl={<RefreshControl refreshing={refreshing} onRefresh={refresh} tintColor={c.primary} colors={[c.primary]} />}
           ListHeaderComponent={(
             <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: 8, marginBottom: space.sm }}>
               <Txt style={{ fontFamily: fonts.semibold, fontSize: 14, color: c.ink }}>{t('{n} résultat(s)', { n: list.length })}</Txt>

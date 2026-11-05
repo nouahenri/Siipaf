@@ -16,7 +16,7 @@ import { Empty, ErrorState, Skeleton, Txt } from '@/components/ui';
 import { LOGO_ON_DARK, LOGO_RATIO } from '@/lib/content';
 import { isLotissement } from '@/lib/domain';
 import * as Haptics from '@/lib/haptics';
-import { useProjects } from '@/lib/queries';
+import { useFilters, useProjects } from '@/lib/queries';
 import { useT } from '@/providers/preferences';
 import { useSession } from '@/providers/session';
 import { useTheme } from '@/theme';
@@ -91,7 +91,12 @@ export default function Home() {
   const searchY = useRef(0);
   const all = useMemo(() => projects.data || [], [projects.data]);
   const connected = status === 'ready' || status === 'locked';
-  const refresh = async () => { setRefreshing(true); await projects.refetch(); setRefreshing(false); };
+  // Recharge aussi les choix du champ de recherche (villes, localisations, types, budgets) affichés par SearchBox
+  const filters = useFilters();
+  const refresh = async () => {
+    setRefreshing(true);
+    try { await Promise.all([projects.refetch(), filters.refetch()]); } finally { setRefreshing(false); }
+  };
   const explore = (type: 'tous' | 'promotion' | 'lotissement') => router.navigate({ pathname: '/programmes', params: { type } });
   const homes = all.filter(p => !isLotissement(p)).length;
   const cities = [...new Set(all.map(p => p.city).filter(Boolean) as string[])];
