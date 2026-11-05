@@ -209,6 +209,10 @@ page, de newsletter ni de blocs « site web » ; Détente & Loisirs = inspiratio
 - **FAIT le 05/11 (après un build réussi dans Android Studio)** : architectures limitées à arm64-v8a et armeabi-v7a
   (`plugins/withBuildArchs.js`, `reactNativeArchitectures` de gradle.properties), prebuild fait (il a recréé tout android/, caches compris), reprise de
   `cmake.dir` dans local.properties. Ne pas lancer de compilation tant qu'Android Studio compile.
+- **Incident 05/11** : ce prebuild a effacé tout android/, dont l'APK signé (android/app/release/app-release.apk) et la **clé
+  d'envoi .jks que le client avait rangée dans android/**. Aucune sauvegarde (ni copie Windows, ni OneDrive). Pistes : logiciel de
+  récupération (Windows File Recovery, Recuva) lancé par le client ; sinon nouvelle clé HORS du projet (README) et, si un .aab
+  signé a déjà été envoyé sur la Play Console, demande de réinitialisation de la clé d'envoi. Plus jamais de prebuild sans accord.
 
 ### En attente (à jour au 04/11)
 1. **APK d'essai Android** (fait par le client dans Android Studio) : lever d'abord l'erreur des chemins trop longs (voir

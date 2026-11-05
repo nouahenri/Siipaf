@@ -73,7 +73,8 @@ et ouvrir `S:\android` dans Android Studio.
    ```bash
    "/c/Program Files/Android/Android Studio/jbr/bin/keytool" -genkeypair -v -keystore siipaf-upload.keystore -alias siipaf-upload -keyalg RSA -keysize 2048 -validity 10000
    ```
-   Ranger le fichier hors du projet, puis l'indiquer dans `~/.gradle/gradle.properties` (jamais dans le projet) :
+   Ranger le fichier **hors du projet**, jamais dans `android/` : `npx expo prebuild` recrée ce dossier en entier et l'efface
+   (clé perdue le 05/11). Par exemple `C:/Users/NOUAMA/cles-siipaf/`, avec une copie sur clé USB ou OneDrive. Puis l'indiquer dans `~/.gradle/gradle.properties` (jamais dans le projet) :
    ```
    SIIPAF_UPLOAD_STORE_FILE=C:/chemin/vers/siipaf-upload.keystore
    SIIPAF_UPLOAD_KEY_ALIAS=siipaf-upload
