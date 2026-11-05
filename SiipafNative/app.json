@@ -46,7 +46,7 @@
       ],
       "predictiveBackGestureEnabled": false,
       "googleServicesFile": "./google-services.json",
-      "versionCode": 2
+      "versionCode": 1
     },
     "web": {
       "output": "single",

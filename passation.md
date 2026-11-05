@@ -212,9 +212,9 @@ page, de newsletter ni de blocs « site web » ; Détente & Loisirs = inspiratio
 - **Incident 05/11** : ce prebuild a effacé tout android/, dont l'APK signé (android/app/release/app-release.apk) et la **clé
   d'envoi .jks que le client avait rangée dans android/**. Aucune sauvegarde (ni copie Windows, ni OneDrive). Pistes : logiciel de
   récupération (Windows File Recovery, Recuva) lancé par le client ; sinon nouvelle clé HORS du projet (README) et, si un .aab
-  signé a déjà été envoyé sur la Play Console (CONFIRMÉ par le client) : réinitialisation de la clé d'envoi à demander par le
-  client (nouvelle clé dans C:/Users/NOUAMA/cles-siipaf/, certificat .pem envoyé à Google). versionCode passé à 2 (app.json
-  et android/app/build.gradle, sans prebuild). Plus jamais de prebuild sans accord.
+  signé a déjà été envoyé : NON, rien n'a été envoyé sur Google Play (correction du client). Le client recrée la clé lui-même
+  (à ranger dans C:/Users/NOUAMA/cles-siipaf/, hors du projet ; nouvelles empreintes SHA-1 / SHA-256 à reporter dans Firebase).
+  versionCode remis à 1. Prebuild Android refait avec l'accord du client (05/11), local.properties remis. Plus jamais de prebuild sans accord.
 
 ### En attente (à jour au 04/11)
 1. **APK d'essai Android** (fait par le client dans Android Studio) : lever d'abord l'erreur des chemins trop longs (voir
