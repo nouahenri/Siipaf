@@ -204,7 +204,11 @@ page, de newsletter ni de blocs « site web » ; Détente & Loisirs = inspiratio
   (CMake 4.1.2), mais a échoué sur « Unable to delete directory …react-native-reanimated…/obj/arm64-v8a » : fichiers verrouillés
   par Android Studio, ouvert en même temps (indexation des dossiers `.cxx` / `build`). Ne pas compiler en ligne de commande
   pendant qu'Android Studio est ouvert. Démon Gradle de Claude arrêté. Erreur vue par le client dans Android Studio : à
-  recueillir (texte de l'onglet Build).
+  recueillir (texte de l'onglet Build). Les avertissements « builtInKotlin / newDsl / applicationVariants obsolete » sont normaux
+  (réglages posés par Expo pour AGP 9, ne pas y toucher). Premier build long (40 min et plus : C++ compilé pour 4 architectures).
+- **FAIT le 05/11 (après un build réussi dans Android Studio)** : architectures limitées à arm64-v8a et armeabi-v7a
+  (`plugins/withBuildArchs.js`, `reactNativeArchitectures` de gradle.properties), prebuild fait (il a recréé tout android/, caches compris), reprise de
+  `cmake.dir` dans local.properties. Ne pas lancer de compilation tant qu'Android Studio compile.
 
 ### En attente (à jour au 04/11)
 1. **APK d'essai Android** (fait par le client dans Android Studio) : lever d'abord l'erreur des chemins trop longs (voir

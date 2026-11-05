@@ -103,7 +103,8 @@
       ],
       "@react-native-community/datetimepicker",
       "expo-localization",
-      "./plugins/withReleaseSigning"
+      "./plugins/withReleaseSigning",
+      "./plugins/withBuildArchs"
     ],
     "extra": {
       "apiUrl": "https://client.siipaf.com",

@@ -53,7 +53,11 @@ directory` sur `react-native-worklets`) : le projet est dans un dossier au chemi
    `cmake.dir=C\:/Users/NOUAMA/AppData/Local/Android/Sdk/cmake/4.1.2` (barres obliques).
 3. Supprimer `node_modules/react-native-worklets/android/.cxx` (et celui de `react-native-reanimated` s'il existe), puis
    *File › Sync Project with Gradle Files* et relancer le build.
-Après un `npx expo prebuild --clean`, `android/` est recréé : remettre la ligne `cmake.dir`. Si CMake 4 refuse un module
+Après un `npx expo prebuild` (avec ou sans `--clean`, Expo recrée tout `android/`) : remettre la ligne `cmake.dir`.
+
+Architectures compilées : arm64-v8a et armeabi-v7a seulement (vrais téléphones, suffisant pour le Play Store), réglées par
+`plugins/withBuildArchs.js`, ce qui divise environ par deux la durée du build. Pour un émulateur x86_64 ponctuel :
+`./gradlew assembleDebug -PreactNativeArchitectures=x86_64`. Si CMake 4 refuse un module
 ancien (« Compatibility with CMake < 3.5 has been removed »), définir la variable d'environnement
 `CMAKE_POLICY_VERSION_MINIMUM=3.5`. En secours : lecteur virtuel court `subst S: C:\Users\NOUAMA\Desktop\SIIPAF_WEB\SiipafNative`
 et ouvrir `S:\android` dans Android Studio.
