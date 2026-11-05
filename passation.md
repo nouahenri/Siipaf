@@ -241,6 +241,10 @@ page, de newsletter ni de blocs « site web » ; Détente & Loisirs = inspiratio
 - Build release du 05/11 en échec (dizaines de tâches FAILED, « Unable to delete directory » dans node_modules/*/android/build) :
   un démon Gradle resté ouvert depuis la synchro surveillait ces dossiers (file system watching). Remède : `org.gradle.vfs.watch=false`
   dans android/gradle.properties et dans plugins/withBuildArchs.js (gardé après prebuild). En cas de récidive : `gradlew --stop`.
+  **Vraie cause** (trouvée ensuite) : 15 601 dossiers de node_modules et 135 de android/ avaient l'attribut Windows « lecture
+  seule » (posé le 04/11 à 19h54), ce qui empêche Gradle de les supprimer. Attribut retiré ; build release en ligne de
+  commande réussi (37 min). En cas de récidive : PowerShell, retirer ReadOnly des dossiers de node_modules et android.
+  APK d'essai (clé de test, micro inclus) copié hors du projet : C:/Users/NOUAMA/Desktop/SIIPAF-builds/.
 
 ### En attente (à jour au 04/11)
 1. **APK d'essai Android** (fait par le client dans Android Studio) : lever d'abord l'erreur des chemins trop longs (voir
