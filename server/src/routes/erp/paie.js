@@ -21,6 +21,7 @@ module.exports = function paieRoutes(db) {
   r.get('/meta', seeStaff, ah(async (req, res) => {
     res.json({
       contract_types: CONTRACT_TYPES, departments: DEPARTMENTS, marital: MARITAL, pay_methods: PAY_METHODS, id_types: ID_TYPES,
+      directions: require('../../lib/org').DIRECTIONS, department_directions: require('../../lib/org').departmentDirections(),
       settings: req.can('paie:read') ? await paie.getSettings(db) : null, defaults: req.can('paie:read') ? DEFAULT_PAYROLL : null,
       projects: await db('projects').orderBy('name').select('id', 'name'),
       users: await db('users as u').leftJoin('employees as e', 'e.user_id', 'u.id').where('u.active', true).orderBy('u.name').select('u.id', 'u.name', 'u.email', 'u.role', 'e.id as employee_id'),

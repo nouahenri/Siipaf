@@ -5,7 +5,7 @@ import { api } from '@admin/lib/api';
 import { useAuth, useResource, useToast } from '@admin/lib/app-context';
 import { Field, Modal, ErrorBox, Skeleton, Badge } from '@admin/components/ui';
 import { date, fcfa } from '@admin/lib/format';
-import { RH, today, useRhMeta } from '../lib/rh';
+import { RH, today, useRhMeta, directionOf } from '../lib/rh';
 
 /** Postes de RH › Réglages, rôles proposables et motifs de changement. */
 export const usePositions = () => useResource(`${RH}/positions`);
@@ -91,6 +91,7 @@ export function ChangePositionModal({ d, onClose, onSaved }) {
             </select>
           </Field>
           <Field label="Service"><select className="select" value={f.department} onChange={set('department')}>{meta && Object.entries(meta.departments).map(([k, v]) => <option key={k} value={k}>{v}</option>)}</select></Field>
+          <Field label="Direction" hint="Suit le service choisi"><input className="input" disabled value={directionOf(meta, f.department)} /></Field>
           <Field label="Motif"><select className="select" value={f.reason} onChange={set('reason')}>{Object.entries(pos.data.reasons).map(([k, r]) => <option key={k} value={k}>{r.label}</option>)}</select></Field>
           <Field label="Date d’effet" hint={future ? 'Appliqué automatiquement ce jour-là' : 'Appliqué dès l’enregistrement'}><input className="input" type="date" required value={f.effective_date} onChange={set('effective_date')} /></Field>
           <Field label="Catégorie professionnelle"><input className="input" maxLength={40} value={f.category} onChange={set('category')} /></Field>

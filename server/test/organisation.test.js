@@ -26,6 +26,12 @@ test('regroupement de départ : 4 directions, les 9 services et leur module', as
   assert.equal((await commercial.post(O).send({ kind: 'service', label: 'Trésorerie' })).status, 403, 'privilège Directions et services');
 });
 
+test('fiche employé : la méta paie donne la direction de chaque service (champ Direction du formulaire)', async () => {
+  const meta = (await admin.get('/api/admin/erp/paie/meta')).body;
+  assert.equal(meta.directions[meta.department_directions.comptabilite], 'Direction administrative et financière');
+  assert.equal(meta.directions[meta.department_directions.commercial], 'Direction commerciale');
+});
+
 test('ajouter, renommer, rattacher à un module ; le service sert aussitôt dans la fiche employé', async () => {
   const daf = (await expl.get(O)).body.directions.find(d => d.label.startsWith('Direction administrative'));
   let res = await expl.post(O).send({ kind: 'service', label: 'Trésorerie', direction_id: daf.id, module: 'compta' });

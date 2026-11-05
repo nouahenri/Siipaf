@@ -11,7 +11,7 @@ import { useAuth, useResource, useSaved, useToast } from '@admin/lib/app-context
 import { ErrorBox, Modal, Field } from '@admin/components/ui';
 import { date, fcfa } from '@admin/lib/format';
 import { usePaieMeta } from '../lib/paie';
-import { RH } from '../lib/rh';
+import { RH, directionOf } from '../lib/rh';
 import { PositionSelect, usePositions, ChangePositionModal } from './Positions';
 
 const PAY = ['base_salary', 'housing_allowance', 'transport_allowance', 'other_allowance', 'site_hourly_rate', 'accident_rate', 'pay_method', 'bank_account', 'tax_parts', 'expatriate'];
@@ -112,16 +112,20 @@ export default function EmployeeForm({ employee, onClose, onSaved }) {
         <h3 className="erp-h3">Poste et contrat</h3>
         <div className="form-grid">
           {viaChange ? (
-            <Field label="Poste et service" className="full" hint="Nouveau poste ou autre service : date d’effet, motif et historique">
-              <div className="row" style={{ gap: 8 }}>
-                <input className="input" disabled value={`${employee.job_title} · ${meta?.departments[employee.department] || employee.department}`} />
-                {employee.active && <button type="button" className="btn" onClick={() => setChange(true)}><ArrowRightLeft />Changer de poste</button>}
-              </div>
-            </Field>
+            <>
+              <Field label="Poste et service" hint="Nouveau poste ou autre service : date d’effet, motif et historique">
+                <div className="row" style={{ gap: 8 }}>
+                  <input className="input" disabled value={`${employee.job_title} · ${meta?.departments[employee.department] || employee.department}`} />
+                  {employee.active && <button type="button" className="btn" onClick={() => setChange(true)}><ArrowRightLeft />Changer de poste</button>}
+                </div>
+              </Field>
+              <Field label="Direction" hint="Direction du service d’appartenance"><input className="input" disabled value={directionOf(meta, employee.department)} /></Field>
+            </>
           ) : (
             <>
               <Field label="Poste"><PositionSelect value={f.job_title} positions={positions.data?.positions} onPick={p => setF(x => ({ ...x, job_title: p.title, position_id: p.id, department: p.department, category: x.category || p.category || '' }))} /></Field>
               <Field label="Service"><select className="select" value={f.department} onChange={set('department')}>{options(meta?.departments)}</select></Field>
+              <Field label="Direction" hint="Suit le service choisi (RH › Réglages)"><input className="input" disabled value={directionOf(meta, f.department)} /></Field>
             </>
           )}
           <Field label="Contrat"><select className="select" value={f.contract_type} onChange={set('contract_type')}>{options(meta?.contract_types)}</select></Field>

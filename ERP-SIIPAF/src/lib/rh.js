@@ -21,6 +21,8 @@ export const thisMonth = () => new Date().toISOString().slice(0, 7);
 export const days = n => `${Number(n).toLocaleString('fr-FR')} jour${Math.abs(n) >= 2 ? 's' : ''}`;
 export const hours = n => (n == null ? '—' : `${Number(n).toLocaleString('fr-FR', { maximumFractionDigits: 2 })} h`);
 export const hm = iso => (iso ? new Date(iso).toISOString().slice(11, 16) : '—'); // heure d'Abidjan = UTC
+/** Direction d'un service (meta RH ou paie : directions + department_directions), « Sans direction » sinon. */
+export const directionOf = (meta, department) => (meta ? meta.directions?.[meta.department_directions?.[department]] || 'Sans direction' : '');
 export const fullName = e => (e ? `${e.last_name} ${e.first_name}` : '');
 
 // ─── Contrôle du lieu de pointage ─────────────────────────
