@@ -113,6 +113,8 @@ const ROWS: Row[] = [
   ['Non renseigné', 'Not specified', 'Sin indicar'],
   ['Nos bureaux sont fermés le dimanche : choisissez un autre jour.', 'Our offices are closed on Sundays: choose another day.', 'Nuestras oficinas cierran los domingos: elija otro día.'],
   ['Nos engagements', 'Our commitments', 'Nuestros compromisos'],
+  ['Nos logements', 'Our homes', 'Nuestras viviendas'],
+  ['Nos terrains', 'Our plots', 'Nuestros terrenos'],
   ['Nos métiers', 'What we do', 'Nuestras actividades'],
   ['Nos prochains lancements apparaîtront ici.', 'Our upcoming launches will appear here.', 'Nuestros próximos lanzamientos aparecerán aquí.'],
   ['Noter l’application', 'Rate the app', 'Valorar la aplicación'],

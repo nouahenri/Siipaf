@@ -114,8 +114,8 @@ export default function Home() {
         </View>
 
         <View style={{ flexDirection: 'row', gap: space.sm, paddingHorizontal: space.lg, marginTop: space.lg }}>
-          <KindCard icon={Building} label={t('Logements')} sub={t('{n} programme(s)', { n: homes })} colors={HOMES_BG} onPress={() => explore('promotion')} />
-          <KindCard icon={LandPlot} label={t('Terrains')} sub={t('{n} programme(s)', { n: lands })} colors={LANDS_BG} onPress={() => explore('lotissement')} />
+          <KindCard icon={Building} label={t('Nos logements')} sub={t('{n} programme(s)', { n: homes })} colors={HOMES_BG} onPress={() => explore('promotion')} />
+          <KindCard icon={LandPlot} label={t('Nos terrains')} sub={t('{n} programme(s)', { n: lands })} colors={LANDS_BG} onPress={() => explore('lotissement')} />
         </View>
 
         {projects.isLoading ? (

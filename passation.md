@@ -198,7 +198,7 @@ page, de newsletter ni de blocs « site web » ; Détente & Loisirs = inspiratio
 ### 05/11
 - Menu latéral : lien **« Zone Siipaf »** (texte simple, 13 px, icône, sans aspect bouton) sous WhatsApp / Appeler, ouvre
   l'ERP (`ERP_URL` de `src/config.ts`, `app.json › extra.erpUrl` = `https://erp.siipaf.com`) dans le navigateur.
-- Accueil : tuiles **Logements** (dégradé rouge `#E30613 → #8C040C`) et **Terrains** (dégradé or `#D4AF37 → #8A6A12`),
+- Accueil : tuiles **Nos logements** (dégradé rouge `#E30613 → #8C040C`) et **Nos terrains** (dégradé or `#D4AF37 → #8A6A12`),
   texte blanc, pictogramme en filigrane, chevron sur pastille (`KindCard`, `expo-linear-gradient`).
 - Build Android : un `assembleDebug` lancé par Claude en ligne de commande passe désormais le C++ de `react-native-worklets`
   (CMake 4.1.2), mais a échoué sur « Unable to delete directory …react-native-reanimated…/obj/arm64-v8a » : fichiers verrouillés
