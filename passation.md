@@ -257,8 +257,10 @@ page, de newsletter ni de blocs « site web » ; Détente & Loisirs = inspiratio
   page collé au clavier, KeyboardAvoidingView du module partout) : Android plein écran ne réduisait plus la fenêtre.
   **Module natif : nouveau build nécessaire.**
 - Wave : « Payer dans Wave » ajoute `amount=<montant saisi>` au lien pay.wave.com réglé au dashboard (remplace un amount existant).
-- Reconnaissance faciale : en attente du symptôme exact (code : niveau biométrique « faible » + code de secours, déjà le plus
-  permissif ; beaucoup de téléphones Android ne prêtent pas le visage aux applications).
+- Reconnaissance faciale (Android) : le téléphone du client demande l'empreinte (qui fonctionne) au lieu du visage. Limite
+  d'Android : la fenêtre du système choisit la méthode et beaucoup de marques ne prêtent pas le visage aux applications ;
+  l'application accepte déjà empreinte + visage + code (niveau « faible », le plus permissif). Corrigé : libellé honnête
+  (« l'empreinte ou le visage » si le téléphone a les deux) et explication dans le profil. Empreinte gardée (demande du client).
 
 ### En attente (à jour au 04/11)
 1. **APK d'essai Android** (fait par le client dans Android Studio) : lever d'abord l'erreur des chemins trop longs (voir

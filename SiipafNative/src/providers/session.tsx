@@ -43,7 +43,12 @@ async function biometricInfo() {
   try {
     const [hw, enrolled, types] = await Promise.all([LocalAuthentication.hasHardwareAsync(), LocalAuthentication.isEnrolledAsync(), LocalAuthentication.supportedAuthenticationTypesAsync()]);
     const face = types.includes(LocalAuthentication.AuthenticationType.FACIAL_RECOGNITION);
-    return { available: hw && enrolled, label: face ? (Platform.OS === 'ios' ? 'Face ID' : 'la reconnaissance faciale') : (Platform.OS === 'ios' ? 'Touch ID' : 'l’empreinte digitale') };
+    const finger = types.includes(LocalAuthentication.AuthenticationType.FINGERPRINT);
+    if (Platform.OS === 'ios') return { available: hw && enrolled, label: face ? 'Face ID' : 'Touch ID' };
+    // Android : la fenêtre du système choisit elle-même la méthode (empreinte, visage ou code). Beaucoup de téléphones ne
+    // prêtent pas le visage aux applications (constat du client du 06/11 : empreinte demandée, visage enregistré) : le
+    // libellé ne promet donc le visage que si c'est la seule méthode du téléphone.
+    return { available: hw && enrolled, label: face && finger ? 'l’empreinte ou le visage' : face ? 'la reconnaissance faciale' : 'l’empreinte digitale' };
   } catch { return { available: false, label: 'Face ID' }; }
 }
 

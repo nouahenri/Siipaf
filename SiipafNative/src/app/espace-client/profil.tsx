@@ -5,7 +5,7 @@
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { router } from 'expo-router';
 import { useState } from 'react';
-import { View } from 'react-native';
+import { View, Platform } from 'react-native';
 import { Bell, Building, ChevronRight, KeyRound, LogOut, Mail, MessageCircle, Phone, ScanFace } from 'lucide-react-native';
 import { Alert, AppSwitch, Button, Card, Field, Row, Screen, SectionHead, Txt } from '@/components/ui';
 import { PASSWORD_MIN } from '@/config';
@@ -76,7 +76,7 @@ export default function Profil() {
       <SectionHead title="Sécurité" />
       <Card padded={false}>
         {biometric.available ? (
-          <Row icon={ScanFace} iconTone="primary" title={`Déverrouiller avec ${biometric.label}`} sub="Demandé à l’ouverture de l’espace client et après 2 minutes d’absence"
+          <Row icon={ScanFace} iconTone="primary" title={`Déverrouiller avec ${biometric.label}`} sub={Platform.OS === 'android' ? 'Demandé à l’ouverture et après 2 minutes d’absence. Votre téléphone choisit la méthode (empreinte, visage ou code) selon ses réglages.' : 'Demandé à l’ouverture de l’espace client et après 2 minutes d’absence'}
             end={<AppSwitch value={biometric.enabled} onValueChange={async on => { if (!(await biometric.setEnabled(on))) toast('Réglage inchangé', 'error'); }} label={`Déverrouiller avec ${biometric.label}`} />} />
         ) : null}
         <Row icon={KeyRound} title="Mot de passe" sub="Changez-le à tout moment" end={<ChevronRight size={18} color={c.ink3} />} onPress={() => setPw(p => ({ ...p, open: !p.open, error: '' }))} last={!pw.open} />
