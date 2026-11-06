@@ -125,6 +125,8 @@ function LatestUpdate({ saleId }: { saleId: number }) {
   );
 }
 
+// Damier rouge / noir : Paiements rouge, Documents noir, SAV noir bordeaux, Messages rouge profond
+const QUICK_BG = [['#E30613', '#8C040C'], ['#2E2E33', '#0A0A0A'], ['#3A1013', '#0F0A0B'], ['#B3000F', '#5E0008']] as const;
 const QUICK = [
   { to: '/espace-client/paiements', icon: Wallet, title: 'Paiements', sub: 'Échéancier et reçus' },
   { to: '/espace-client/documents', icon: FileText, title: 'Documents', sub: 'Contrats, ACD, actes' },
@@ -159,12 +161,16 @@ export default function ClientHome() {
         )}
         <SectionHead title="Accès rapides" />
         <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: space.sm }}>
-          {QUICK.map(q => (
+          {/* Fonds en dégradé (06/11) : variantes de rouge et de noir en damier, pictogramme en filigrane */}
+          {QUICK.map((q, i) => (
             <Pressable key={q.to} onPress={() => router.push(q.to)} accessibilityRole="button" accessibilityLabel={q.title}
-              style={({ pressed }) => ({ flexBasis: '48%', flexGrow: 1, backgroundColor: c.surface, borderRadius: radius.lg, padding: space.lg, borderWidth: 1, borderColor: c.line, gap: 6, opacity: pressed ? 0.85 : 1 })}>
-              <View style={{ width: 40, height: 40, borderRadius: 20, backgroundColor: c.dangerSoft, alignItems: 'center', justifyContent: 'center' }}><q.icon size={19} color={c.primary} /></View>
-              <Txt variant="bodyStrong" style={{ fontSize: 15 }}>{q.title}</Txt>
-              <Txt variant="tiny">{q.title === 'Paiements' && d ? `${d.percent_paid} % versé` : q.sub}</Txt>
+              style={({ pressed }) => ({ flexBasis: '48%', flexGrow: 1, borderRadius: radius.lg, overflow: 'hidden', transform: [{ scale: pressed ? 0.97 : 1 }] })}>
+              <LinearGradient colors={QUICK_BG[i % QUICK_BG.length]} start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }} style={{ padding: space.lg, gap: 6, minHeight: 124 }}>
+                <View style={{ position: 'absolute', right: -14, bottom: -14, opacity: 0.12 }} pointerEvents="none"><q.icon size={84} color="#FFFFFF" /></View>
+                <View style={{ width: 40, height: 40, borderRadius: 20, backgroundColor: 'rgba(255,255,255,0.18)', alignItems: 'center', justifyContent: 'center' }}><q.icon size={19} color="#FFFFFF" /></View>
+                <Txt style={{ fontFamily: fonts.bold, fontSize: 15, color: '#FFFFFF' }}>{q.title}</Txt>
+                <Txt style={{ fontSize: 12.5, color: 'rgba(255,255,255,0.85)' }}>{q.title === 'Paiements' && d ? `${d.percent_paid} % versé` : q.sub}</Txt>
+              </LinearGradient>
             </Pressable>
           ))}
         </View>
