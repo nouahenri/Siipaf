@@ -22,7 +22,7 @@ function Lock() {
       <Txt center>{client ? `${client.name}, déverrouillez` : 'Déverrouillez'} votre espace avec {biometric.label} ou le code de votre téléphone.</Txt>
       <Button label={`Déverrouiller`} icon={ScanFace} block haptic onPress={() => unlock()} />
       <Button label="Revenir au site" variant="ghost" block onPress={() => router.replace('/')} />
-      <Button label="Se déconnecter" variant="outline" size="sm" onPress={async () => { await logout(); router.replace('/espace'); }} />
+      <Button label="Se déconnecter" variant="outline" block onPress={async () => { await logout(); router.replace('/espace'); }} />
     </View>
   );
 }
