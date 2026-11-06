@@ -41,20 +41,22 @@ export function withAmount(url: string, sum: number) {
 /** Logos officiels (sources et licences : assets/logo_payment/SOURCES.md). */
 const LOGOS: Record<string, number> = {
   wave: require('../../../assets/logo_payment/wave-icon.png'),
-  orange_money: require('../../../assets/logo_payment/orange-money.svg'),
-  mtn_money: require('../../../assets/logo_payment/mtn.svg'),
+  orange_money: require('../../../assets/logo_payment/orange-money.png'),
+  mtn_money: require('../../../assets/logo_payment/mtn-money.png'),
   moov_money: require('../../../assets/logo_payment/moov-money.png'),
   paypal: require('../../../assets/logo_payment/paypal.svg'),
 };
 const VISA = require('../../../assets/logo_payment/visa.svg');
+/** Logos carrés à fond plein (couleur de la marque jusqu'au bord) : affichés tels quels, coins arrondis. */
+const FULL_BLEED = new Set(['wave', 'mtn_money', 'moov_money']);
 
 function Logo({ k, size = 46 }: { k: string; size?: number }) {
   const { c } = useTheme();
-  // Wave : icône carrée pleine ; les autres sur une tuile blanche (logos prévus pour fond clair)
-  return k === 'wave'
-    ? <Image source={LOGOS.wave} style={{ width: size, height: size, borderRadius: 12 }} contentFit="cover" accessibilityIgnoresInvertColors />
+  // Logos à fond plein : tuile pleine ; les autres sur une tuile blanche (logos prévus pour fond clair)
+  return FULL_BLEED.has(k)
+    ? <Image source={LOGOS[k]} style={{ width: size, height: size, borderRadius: 12 }} contentFit="cover" accessibilityIgnoresInvertColors />
     : (
-      <View style={{ width: size, height: size, borderRadius: 12, backgroundColor: '#fff', borderWidth: 1, borderColor: c.line, alignItems: 'center', justifyContent: 'center', padding: k === 'moov_money' || k === 'orange_money' ? 2 : 6 }}>
+      <View style={{ width: size, height: size, borderRadius: 12, backgroundColor: '#fff', borderWidth: 1, borderColor: c.line, alignItems: 'center', justifyContent: 'center', padding: k === 'orange_money' ? 0 : 6, overflow: 'hidden' }}>
         <Image source={LOGOS[k]} style={{ width: '100%', height: '100%' }} contentFit="contain" accessibilityIgnoresInvertColors />
       </View>
     );

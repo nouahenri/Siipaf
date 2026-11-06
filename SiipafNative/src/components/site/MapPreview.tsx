@@ -4,13 +4,23 @@
  */
 import { Image } from 'expo-image';
 import React, { useState } from 'react';
-import { View } from 'react-native';
+import { Platform, View } from 'react-native';
 import { MapPin } from 'lucide-react-native';
+import Constants from 'expo-constants';
 import { Txt } from '@/components/ui';
+import { SITE_URL } from '@/config';
 import { useTheme } from '@/theme';
 
 const TILE = 256;
 const Z = 15;
+/**
+ * Règles d'usage des tuiles OSM : l'application doit s'identifier (User-Agent propre) et indiquer un référent. Sans cela,
+ * Android envoie l'agent par défaut du client HTTP et OSM renvoie la tuile « Access blocked ».
+ */
+const OSM_HEADERS = {
+  'User-Agent': `SIIPAF-mobile/${Constants.expoConfig?.version ?? '1.0.0'} (+${SITE_URL})`,
+  Referer: `${SITE_URL}/`,
+};
 
 /** Position en pixels dans le monde Web Mercator au zoom Z. */
 function worldPx(lat: number, lng: number) {
@@ -29,7 +39,7 @@ export function MapPreview({ lat, lng, height = 132 }: { lat: number; lng: numbe
   return (
     <View onLayout={e => setW(Math.round(e.nativeEvent.layout.width))} style={{ height, overflow: 'hidden', backgroundColor: c.surfaceAlt }} importantForAccessibility="no-hide-descendants">
       {tiles.map(t => (
-        <Image key={`${t.x}-${t.y}`} source={{ uri: `https://tile.openstreetmap.org/${Z}/${t.x}/${t.y}.png` }} cachePolicy="disk" transition={150}
+        <Image key={`${t.x}-${t.y}`} source={{ uri: `https://tile.openstreetmap.org/${Z}/${t.x}/${t.y}.png`, headers: Platform.OS === 'web' ? undefined : OSM_HEADERS, cacheKey: `osm2-${Z}-${t.x}-${t.y}` }} cachePolicy="disk" transition={150}
           style={{ position: 'absolute', left: t.x * TILE - left, top: t.y * TILE - top, width: TILE, height: TILE, opacity: isDark ? 0.75 : 1 }} />
       ))}
       <View style={{ position: 'absolute', left: w / 2 - 17, top: height / 2 - 34 }}>
