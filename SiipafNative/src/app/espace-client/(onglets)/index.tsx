@@ -165,11 +165,11 @@ export default function ClientHome() {
           {QUICK.map((q, i) => (
             <Pressable key={q.to} onPress={() => router.push(q.to)} accessibilityRole="button" accessibilityLabel={q.title}
               style={({ pressed }) => ({ flexBasis: '48%', flexGrow: 1, borderRadius: radius.lg, overflow: 'hidden', transform: [{ scale: pressed ? 0.97 : 1 }] })}>
-              <LinearGradient colors={QUICK_BG[i % QUICK_BG.length]} start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }} style={{ padding: space.lg, gap: 6, minHeight: 124 }}>
-                <View style={{ position: 'absolute', right: -14, bottom: -14, opacity: 0.12 }} pointerEvents="none"><q.icon size={84} color="#FFFFFF" /></View>
-                <View style={{ width: 40, height: 40, borderRadius: 20, backgroundColor: 'rgba(255,255,255,0.18)', alignItems: 'center', justifyContent: 'center' }}><q.icon size={19} color="#FFFFFF" /></View>
-                <Txt style={{ fontFamily: fonts.bold, fontSize: 15, color: '#FFFFFF' }}>{q.title}</Txt>
-                <Txt style={{ fontSize: 12.5, color: 'rgba(255,255,255,0.85)' }}>{q.title === 'Paiements' && d ? `${d.percent_paid} % versé` : q.sub}</Txt>
+              <LinearGradient colors={QUICK_BG[i % QUICK_BG.length]} start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }} style={{ paddingHorizontal: space.md, paddingVertical: 12, gap: 3, minHeight: 88 }}>
+                <View style={{ position: 'absolute', right: -10, bottom: -10, opacity: 0.12 }} pointerEvents="none"><q.icon size={60} color="#FFFFFF" /></View>
+                <View style={{ width: 30, height: 30, borderRadius: 15, backgroundColor: 'rgba(255,255,255,0.18)', alignItems: 'center', justifyContent: 'center', marginBottom: 2 }}><q.icon size={15} color="#FFFFFF" /></View>
+                <Txt style={{ fontFamily: fonts.bold, fontSize: 14, color: '#FFFFFF' }} numberOfLines={1}>{q.title}</Txt>
+                <Txt style={{ fontSize: 12, color: 'rgba(255,255,255,0.85)' }} numberOfLines={1}>{q.title === 'Paiements' && d ? `${d.percent_paid} % versé` : q.sub}</Txt>
               </LinearGradient>
             </Pressable>
           ))}
