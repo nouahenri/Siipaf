@@ -38,7 +38,7 @@ function PropertyCard({ d }: { d: Dossier }) {
           <Txt style={{ fontFamily: fonts.bold, fontSize: 16, color: '#fff' }} numberOfLines={2}>{p.project.name}</Txt>
         </View>
       </View>
-      <View style={{ flexDirection: 'row', alignItems: 'center', gap: space.md, padding: space.md, backgroundColor: c.accentSoft }}>
+      <View style={{ flexDirection: 'row', alignItems: 'center', gap: space.md, padding: space.md, backgroundColor: c.surfaceAlt }}>
         <View style={{ flex: 1, minWidth: 0, gap: 6 }}>
           <Txt style={{ fontFamily: fonts.bold, fontSize: 20, color: c.ink }}>Lot {p.lot_code}{p.ilot ? <Txt style={{ fontSize: 14, color: c.ink2, fontFamily: fonts.medium }}>  ·  Îlot {p.ilot}</Txt> : null}</Txt>
           <View style={{ gap: 4 }}>
