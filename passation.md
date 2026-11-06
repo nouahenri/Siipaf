@@ -258,6 +258,10 @@ page, de newsletter ni de blocs « site web » ; Détente & Loisirs = inspiratio
   seule » (posé le 04/11 à 19h54), ce qui empêche Gradle de les supprimer. Attribut retiré ; build release en ligne de
   commande réussi (37 min). En cas de récidive : PowerShell, retirer ReadOnly des dossiers de node_modules et android.
   APK d'essai (clé de test, micro inclus) copié hors du projet : C:/Users/NOUAMA/Desktop/SIIPAF-builds/.
+  **Récidive le 06/11** (20 384 + 1 010 dossiers, y compris ceux créés par le build du jour ; aussi 850 dans server/ et le
+  Bureau lui-même) : attribut remis par la **synchronisation OneDrive / Google Drive** (les deux tournent sur le PC). Le client
+  a mis les deux en pause → plus aucun dossier en lecture seule, **build réussi dans Android Studio** (06/11). Solution durable
+  à faire par le client : exclure SIIPAF_WEB de la sauvegarde du Bureau, ou déplacer le projet hors du Bureau (C:\dev).
 
 ### 06/11 — retouches de l'application (demandes du client)
 - Menu latéral : 280 px au plus, coins droits, Appeler sous WhatsApp. Accueil : « Rechercher » → « Filtrer ».
