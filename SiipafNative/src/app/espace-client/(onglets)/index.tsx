@@ -38,23 +38,26 @@ function PropertyCard({ d }: { d: Dossier }) {
           <Txt style={{ fontFamily: fonts.bold, fontSize: 16, color: '#fff' }} numberOfLines={2}>{p.project.name}</Txt>
         </View>
       </View>
-      <View style={{ flexDirection: 'row', alignItems: 'center', gap: space.md, padding: space.md }}>
+      <View style={{ flexDirection: 'row', alignItems: 'center', gap: space.md, padding: space.md, backgroundColor: c.accentSoft }}>
         <View style={{ flex: 1, minWidth: 0, gap: 6 }}>
-          <Txt style={{ fontFamily: fonts.bold, fontSize: 20, color: c.ink }}>Lot {p.lot_code}{p.ilot ? <Txt style={{ fontSize: 14, color: c.ink3, fontFamily: fonts.medium }}>  ·  Îlot {p.ilot}</Txt> : null}</Txt>
+          <Txt style={{ fontFamily: fonts.bold, fontSize: 20, color: c.ink }}>Lot {p.lot_code}{p.ilot ? <Txt style={{ fontSize: 14, color: c.ink2, fontFamily: fonts.medium }}>  ·  Îlot {p.ilot}</Txt> : null}</Txt>
           <View style={{ gap: 4 }}>
             {p.type ? <Meta icon={House} text={p.type} /> : null}
             {p.surface_m2 ? <Meta icon={Ruler} text={`${amount(p.surface_m2)} m²`} /> : null}
             {p.project.city ? <Meta icon={MapPin} text={p.project.city} /> : null}
           </View>
         </View>
-        <Ring value={d.progress?.progress_pct ?? 0} label="chantier" size={72} />
+        {/* Médaillon blanc : la piste grise de Ring (c.surfaceAlt) reste visible sur le fond crème */}
+        <View style={{ width: 84, height: 84, borderRadius: 42, backgroundColor: c.surface, alignItems: 'center', justifyContent: 'center', borderWidth: 1, borderColor: c.goldLight }}>
+          <Ring value={d.progress?.progress_pct ?? 0} label="chantier" size={72} />
+        </View>
       </View>
     </Pressable>
   );
 }
 const Meta = ({ icon: Icon, text }: { icon: typeof House; text: string }) => {
   const { c } = useTheme();
-  return <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}><Icon size={14} color={c.ink3} /><Txt style={{ color: c.ink2, fontSize: 13 }} numberOfLines={1}>{text}</Txt></View>;
+  return <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}><Icon size={14} color={c.accent} /><Txt style={{ color: c.ink2, fontSize: 13 }} numberOfLines={1}>{text}</Txt></View>;
 };
 
 function Finance({ d }: { d: Dossier }) {
