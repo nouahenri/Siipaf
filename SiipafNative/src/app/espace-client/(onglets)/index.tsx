@@ -3,6 +3,7 @@
  * retard, messages non lus, dernière publication du chantier, accès rapides (dont SAV et retour à la vitrine).
  */
 import { Image } from 'expo-image';
+import { LinearGradient } from 'expo-linear-gradient';
 import { router, useFocusEffect } from 'expo-router';
 import { useCallback, useState } from 'react';
 import { Pressable, RefreshControl, ScrollView, View } from 'react-native';
@@ -16,30 +17,44 @@ import type { Dossier } from '@/lib/types';
 import { useSession } from '@/providers/session';
 import { useTheme } from '@/theme';
 
+/**
+ * Tuile du bien (refaite le 06/11 pour un affichage plus net) : photo du programme en bandeau avec le statut et le nom du
+ * programme, puis lot, caractéristiques et anneau d'avancement du chantier, chacun avec sa place.
+ */
 function PropertyCard({ d }: { d: Dossier }) {
-  const { c, space, fonts, shadow } = useTheme();
+  const { c, space, fonts, radius, shadow } = useTheme();
   const p = d.property;
   return (
     <Pressable onPress={() => router.navigate('/espace-client/chantier')} accessibilityRole="button" accessibilityLabel={`Votre bien : lot ${p.lot_code}, ${p.project.name}. Voir le chantier`}
-      style={({ pressed }) => ({ flexDirection: 'row', gap: 12, padding: 10, borderRadius: 18, backgroundColor: c.surface, ...shadow(1), transform: [{ scale: pressed ? 0.985 : 1 }] })}>
-      <Image source={projectImage(p.project)} style={{ width: 96, height: 110, borderRadius: 13, backgroundColor: c.surfaceAlt }} contentFit="cover" />
-      <View style={{ flex: 1, minWidth: 0, gap: 3, paddingVertical: 2 }}>
-        <Badge label={d.status === 'solde' ? 'Soldé' : 'En cours'} tone={d.status === 'solde' ? 'ok' : 'gold'} />
-        <Txt style={{ fontFamily: fonts.bold, fontSize: 18, color: c.ink }}>Lot {p.lot_code}{p.ilot ? <Txt style={{ fontSize: 13, color: c.ink3 }}> · Îlot {p.ilot}</Txt> : null}</Txt>
-        <Txt style={{ fontSize: 13, color: c.ink2 }} numberOfLines={1}>{p.project.name}</Txt>
-        <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 10 }}>
-          {p.type ? <Meta icon={House} text={p.type} /> : null}
-          {p.surface_m2 ? <Meta icon={Ruler} text={`${amount(p.surface_m2)} m²`} /> : null}
-          {p.project.city ? <Meta icon={MapPin} text={p.project.city} /> : null}
+      style={({ pressed }) => ({ borderRadius: radius.lg, backgroundColor: c.surface, overflow: 'hidden', borderWidth: 1, borderColor: c.line, ...shadow(1), transform: [{ scale: pressed ? 0.985 : 1 }] })}>
+      <View style={{ height: 140, backgroundColor: c.surfaceAlt }}>
+        <Image source={projectImage(p.project)} style={{ position: 'absolute', top: 0, left: 0, right: 0, bottom: 0 }} contentFit="cover" />
+        <LinearGradient colors={['rgba(0,0,0,0)', 'rgba(0,0,0,0.72)']} style={{ position: 'absolute', left: 0, right: 0, bottom: 0, height: 90 }} />
+        <View style={{ position: 'absolute', top: space.sm, left: space.sm }}>
+          <Badge label={d.status === 'solde' ? 'Soldé' : 'En cours'} tone={d.status === 'solde' ? 'ok' : 'gold'} />
+        </View>
+        <View style={{ position: 'absolute', left: space.md, right: space.md, bottom: space.sm }}>
+          <Txt style={{ fontFamily: fonts.semibold, fontSize: 12, color: 'rgba(255,255,255,0.8)', textTransform: 'uppercase', letterSpacing: 0.6 }}>Votre bien</Txt>
+          <Txt style={{ fontFamily: fonts.bold, fontSize: 16, color: '#fff' }} numberOfLines={2}>{p.project.name}</Txt>
         </View>
       </View>
-      <View style={{ justifyContent: 'center', paddingRight: space.xs }}><Ring value={d.progress?.progress_pct ?? 0} label="chantier" size={66} /></View>
+      <View style={{ flexDirection: 'row', alignItems: 'center', gap: space.md, padding: space.md }}>
+        <View style={{ flex: 1, minWidth: 0, gap: 6 }}>
+          <Txt style={{ fontFamily: fonts.bold, fontSize: 20, color: c.ink }}>Lot {p.lot_code}{p.ilot ? <Txt style={{ fontSize: 14, color: c.ink3, fontFamily: fonts.medium }}>  ·  Îlot {p.ilot}</Txt> : null}</Txt>
+          <View style={{ gap: 4 }}>
+            {p.type ? <Meta icon={House} text={p.type} /> : null}
+            {p.surface_m2 ? <Meta icon={Ruler} text={`${amount(p.surface_m2)} m²`} /> : null}
+            {p.project.city ? <Meta icon={MapPin} text={p.project.city} /> : null}
+          </View>
+        </View>
+        <Ring value={d.progress?.progress_pct ?? 0} label="chantier" size={72} />
+      </View>
     </Pressable>
   );
 }
 const Meta = ({ icon: Icon, text }: { icon: typeof House; text: string }) => {
   const { c } = useTheme();
-  return <View style={{ flexDirection: 'row', alignItems: 'center', gap: 3 }}><Icon size={12} color={c.ink3} /><Txt style={{ color: c.ink3, fontSize: 12 }}>{text}</Txt></View>;
+  return <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}><Icon size={14} color={c.ink3} /><Txt style={{ color: c.ink2, fontSize: 13 }} numberOfLines={1}>{text}</Txt></View>;
 };
 
 function Finance({ d }: { d: Dossier }) {

@@ -25,6 +25,19 @@ import { useTheme } from '@/theme';
 
 type Channel = { key: string; label: string; link: string | null; number: string | null };
 
+/**
+ * Lien marchand Wave (pay.wave.com) : le montant saisi dans « Montant à payer » est passé dans `amount` (demande du client
+ * du 06/11), en remplaçant celui du lien réglé au dashboard s'il y en a un. Les autres liens sont ouverts tels quels.
+ */
+export function withAmount(url: string, sum: number) {
+  if (!/^https:\/\/pay\.wave\.com\//i.test(url) || !(sum > 0)) return url;
+  const [base, hash = ''] = url.split('#');
+  const [path, query = ''] = base.split('?');
+  const params = query.split('&').filter(p => p && !/^amount=/i.test(p));
+  params.push(`amount=${Math.round(sum)}`);
+  return `${path}?${params.join('&')}${hash ? `#${hash}` : ''}`;
+}
+
 /** Logos officiels (sources et licences : assets/logo_payment/SOURCES.md). */
 const LOGOS: Record<string, number> = {
   wave: require('../../../assets/logo_payment/wave-icon.png'),
@@ -96,7 +109,7 @@ export function PaySheet({ dossier, line, onClose }: { dossier: DossierDetail; l
     if (sum <= 0 || sum > max) { setErrors({ amount: sum <= 0 ? 'Indiquez le montant à payer.' : `Au plus ${fcfa(max)}.` }); return; }
     away.current = true;
     setLaunched(true);
-    Linking.openURL(url).catch(() => { away.current = false; toast('Lien de paiement indisponible', 'error'); });
+    Linking.openURL(withAmount(url, sum)).catch(() => { away.current = false; toast('Lien de paiement indisponible', 'error'); });
   };
   const copy = async (text: string) => { await Clipboard.setStringAsync(text); Haptics.selectionAsync().catch(() => {}); setLaunched(true); toast('Numéro copié'); };
 

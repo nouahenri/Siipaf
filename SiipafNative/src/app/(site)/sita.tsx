@@ -9,7 +9,8 @@ import { useQuery } from '@tanstack/react-query';
 import { Image } from 'expo-image';
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { useFocusEffect } from 'expo-router';
-import { AccessibilityInfo, FlatList, KeyboardAvoidingView, Linking, Platform, Pressable, TextInput, View } from 'react-native';
+import { AccessibilityInfo, FlatList, Linking, Pressable, TextInput, View } from 'react-native';
+import { KeyboardAvoidingView } from 'react-native-keyboard-controller';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Menu, MessageCircle, Mic, RotateCcw, SendHorizontal, Sparkles, Square, Volume2 } from 'lucide-react-native';
 import { RoundButton } from '@/components/ui/AppHeader';
@@ -103,7 +104,7 @@ export default function Sita() {
   const data = [greeting, ...messages, ...(sending ? [{ id: 'typing', role: 'bot' as const, text: '…' }] : [])];
 
   return (
-    <KeyboardAvoidingView style={{ flex: 1, backgroundColor: c.bg }} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
+    <KeyboardAvoidingView style={{ flex: 1, backgroundColor: c.bg }} behavior="padding">
       {/* En-tête */}
       <View style={{ paddingTop: insets.top + 8, paddingBottom: space.md, paddingHorizontal: space.lg, backgroundColor: c.surface, flexDirection: 'row', alignItems: 'center', gap: 10, borderBottomLeftRadius: 26, borderBottomRightRadius: 26, zIndex: 2, ...shadow(1) }}>
         <RoundButton icon={Menu} label="Menu : infos SIIPAF" onPress={openMenu} />

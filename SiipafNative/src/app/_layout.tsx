@@ -15,6 +15,7 @@ import { useCallback, useEffect, useState } from 'react';
 import { Platform, Pressable } from 'react-native';
 import { ArrowLeft } from 'lucide-react-native';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
+import { KeyboardProvider } from 'react-native-keyboard-controller';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 import { AnimatedSplash } from '@/components/AnimatedSplash';
 import { SCREENS, syncDevice } from '@/lib/push';
@@ -120,6 +121,8 @@ export default function RootLayout() {
 
   return (
     <GestureHandlerRootView style={{ flex: 1 }}>
+      {/* Clavier (06/11) : Android en plein écran ne réduit plus la fenêtre, le clavier est suivi par ce module */}
+      <KeyboardProvider>
       <SafeAreaProvider>
         <PreferencesProvider>
         <QueryClientProvider client={queryClient}>
@@ -134,6 +137,7 @@ export default function RootLayout() {
         {splash && <AnimatedSplash onDone={endSplash} />}
         </PreferencesProvider>
       </SafeAreaProvider>
+      </KeyboardProvider>
     </GestureHandlerRootView>
   );
 }

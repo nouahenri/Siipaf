@@ -95,7 +95,7 @@ export default function Programmes() {
           ) : null}
         </View>
         <View style={{ marginTop: space.md }}>
-          <Segmented value={kind} onChange={setKind} options={[
+          <Segmented value={kind} onChange={setKind} tones={{ tous: 'dark', promotion: 'red', lotissement: 'gold' }} options={[
             ['tous', t('Tout')],
             ['promotion', `${t('Logements')}${f ? ` · ${f.categories.logement}` : ''}`],
             ['lotissement', `${t('Terrains')}${f ? ` · ${f.categories.lotissement}` : ''}`],

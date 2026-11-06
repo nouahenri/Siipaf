@@ -5,7 +5,8 @@
 import { useQueryClient } from '@tanstack/react-query';
 import { useFocusEffect, useLocalSearchParams } from 'expo-router';
 import { useCallback, useRef, useState } from 'react';
-import { FlatList, KeyboardAvoidingView, Platform, Pressable, TextInput, View } from 'react-native';
+import { FlatList, Pressable, TextInput, View } from 'react-native';
+import { KeyboardAvoidingView } from 'react-native-keyboard-controller';
 import { MessageCircle, SendHorizontal } from 'lucide-react-native';
 import { ClientHeader } from '@/components/client/common';
 import { Alert, Empty, ErrorState, Skeleton, Txt } from '@/components/ui';
@@ -54,7 +55,7 @@ export default function Messages() {
   const rows = (data || []).map((m, i, all) => { const day = dayLabel(m.created_at); return { m, day: i === 0 || dayLabel(all[i - 1].created_at) !== day ? day : null }; });
 
   return (
-    <KeyboardAvoidingView style={{ flex: 1, backgroundColor: c.bg }} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
+    <KeyboardAvoidingView style={{ flex: 1, backgroundColor: c.bg }} behavior="padding">
       <ClientHeader eyebrow="Votre conseiller vous répond ici" title="Messages" />
       {isLoading ? (
         <View style={{ padding: space.lg, gap: space.md }}><Skeleton h={44} w="62%" r={20} /><Skeleton h={60} w="70%" r={20} style={{ alignSelf: 'flex-end' }} /><Skeleton h={44} w="50%" r={20} /></View>

@@ -162,6 +162,7 @@ const ROWS: Row[] = [
   ['Questions, disponibilités…', 'Questions, availability…', 'Preguntas, disponibilidad…'],
   ['Qui sommes-nous', 'About us', 'Quiénes somos'],
   ['Rechercher', 'Search', 'Buscar'],
+  ['Filtrer', 'Filter', 'Filtrar'],
   ['Rechercher un programme', 'Search for a development', 'Buscar un programa'],
   ['Recommandés', 'Recommended', 'Recomendados'],
   ['Rendez-vous', 'Appointment', 'Cita'],

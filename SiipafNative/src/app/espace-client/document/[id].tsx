@@ -6,8 +6,8 @@
 import { Image } from 'expo-image';
 import { router, Stack, useLocalSearchParams } from 'expo-router';
 import { useEffect, useState } from 'react';
-import { View } from 'react-native';
-import { Download, FileClock, FileText, Flag, MessageCircle, Phone } from 'lucide-react-native';
+import { Pressable, View } from 'react-native';
+import { Download, FileClock, FileText, Flag, MessageCircle, Phone, Send, type LucideIcon } from 'lucide-react-native';
 import { openPrivateFile } from '@/components/client/files';
 import { Alert, Badge, Button, Card, Empty, ErrorState, PageSkeleton, Screen, Steps, Txt } from '@/components/ui';
 import { apiUrl, appHeaders, authedSource } from '@/lib/api';
@@ -18,6 +18,18 @@ import { call, whatsapp } from '@/lib/links';
 import { useDossier } from '@/lib/queries';
 import { useSession } from '@/providers/session';
 import { useTheme } from '@/theme';
+
+/** Moyen de contact : pilule compacte (pictogramme et libellé court), largeur partagée avec les deux autres. */
+function ContactTile({ icon: Icon, label, bg, fg, a11y, onPress }: { icon: LucideIcon; label: string; bg: string; fg: string; a11y?: string; onPress: () => void }) {
+  const { radius, fonts } = useTheme();
+  return (
+    <Pressable onPress={onPress} accessibilityRole="button" accessibilityLabel={a11y || label}
+      style={({ pressed }) => ({ flex: 1, height: 44, borderRadius: radius.pill, backgroundColor: bg, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 5, paddingHorizontal: 4, opacity: pressed ? 0.85 : 1, transform: [{ scale: pressed ? 0.97 : 1 }] })}>
+      <Icon size={15} color={fg} />
+      <Txt style={{ fontFamily: fonts.semibold, fontSize: 13, color: fg, flexShrink: 1 }} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.85}>{label}</Txt>
+    </Pressable>
+  );
+}
 
 export default function DocumentScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
@@ -83,12 +95,15 @@ export default function DocumentScreen() {
         </Card>
       )}
 
-      <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: space.sm, marginTop: space.lg }}>
-        <Button label="Appeler" icon={Phone} variant="ghost" size="sm" onPress={() => call(contact.phone)} />
-        <Button label="WhatsApp" icon={MessageCircle} variant="whatsapp" size="sm" onPress={() => whatsapp(contact.whatsapp, `Bonjour SIIPAF, je vous contacte au sujet de ${context}.`)} />
-        <Button label="Écrire à SIIPAF" icon={MessageCircle} variant="ghost" size="sm" onPress={() => router.push({ pathname: '/espace-client/messages', params: { context: `Bonjour, je vous contacte au sujet de ${context}.\n\n`, sale: String(d.id) } })} />
-        <Button label="Signaler un problème" icon={Flag} variant="outline" size="sm" onPress={() => router.push({ pathname: '/espace-client/sav/nouvelle', params: { category: 'administratif', title: `Problème : ${doc.label}`.slice(0, 160), description: `Document « ${doc.label} » — lot ${d.property.lot_code} · ${d.property.project.name}.\n\n`, sale: String(d.id) } })} />
+      {/* Contact au sujet du document (06/11) : les trois moyens sur une même ligne, puis le signalement en pleine largeur */}
+      <Txt variant="bodyStrong" style={{ marginTop: space.lg, marginBottom: space.sm }}>Une question sur ce document ?</Txt>
+      <View style={{ flexDirection: 'row', gap: space.sm }}>
+        <ContactTile icon={Phone} label="Appeler" bg={c.dark} fg={c.onDark} onPress={() => call(contact.phone)} />
+        <ContactTile icon={MessageCircle} label="WhatsApp" bg={c.whatsapp} fg="#FFFFFF" onPress={() => whatsapp(contact.whatsapp, `Bonjour SIIPAF, je vous contacte au sujet de ${context}.`)} />
+        <ContactTile icon={Send} label="Écrire" bg={c.goldLight} fg="#141414" a11y="Écrire à SIIPAF au sujet de ce document"
+          onPress={() => router.push({ pathname: '/espace-client/messages', params: { context: `Bonjour, je vous contacte au sujet de ${context}.\n\n`, sale: String(d.id) } })} />
       </View>
+      <Button label="Signaler un problème" icon={Flag} variant="primary" size="sm" block style={{ marginTop: space.sm }} onPress={() => router.push({ pathname: '/espace-client/sav/nouvelle', params: { category: 'administratif', title: `Problème : ${doc.label}`.slice(0, 160), description: `Document « ${doc.label} » — lot ${d.property.lot_code} · ${d.property.project.name}.\n\n`, sale: String(d.id) } })} />
     </Screen>
   );
 }

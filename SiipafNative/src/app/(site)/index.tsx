@@ -138,7 +138,7 @@ export default function Home() {
                 renderItem={({ item }) => <FeaturedCard p={item} />}
               />
               <View style={{ paddingHorizontal: space.lg }}>
-                <SectionTitle title={t('Tous les programmes')} action={t('Rechercher')} actionIcon={SlidersHorizontal} onAction={() => explore('tous')} />
+                <SectionTitle title={t('Tous les programmes')} action={t('Filtrer')} actionIcon={SlidersHorizontal} onAction={() => explore('tous')} />
                 {all.map((p, i) => <ResultCard key={p.slug} p={p} rank={i} />)}
               </View>
             </>

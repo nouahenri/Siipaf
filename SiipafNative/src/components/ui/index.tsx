@@ -5,9 +5,10 @@
 import * as Haptics from '@/lib/haptics';
 import { type ComponentProps, type ReactNode, useEffect, useRef, useState } from 'react';
 import {
-  ActivityIndicator, Animated, Easing, KeyboardAvoidingView, Modal, PanResponder, Platform, Pressable, RefreshControl, ScrollView, StyleSheet, Switch,
+  ActivityIndicator, Animated, Easing, Modal, PanResponder, Pressable, RefreshControl, ScrollView, StyleSheet, Switch,
   TextInput, View, useWindowDimensions, type PressableProps, type StyleProp, type TextInputProps, type ViewStyle,
 } from 'react-native';
+import { KeyboardAvoidingView, KeyboardAwareScrollView, KeyboardStickyView } from 'react-native-keyboard-controller';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import Svg, { Circle } from 'react-native-svg';
 import { CircleAlert, Eye, EyeOff, Inbox, RefreshCw, X, type LucideIcon } from 'lucide-react-native';
@@ -31,8 +32,11 @@ type ScreenProps = {
 
 export function Screen({ children, refreshing = false, onRefresh, padded = true, contentStyle, scroll = true, footer }: ScreenProps) {
   const { c, space } = useTheme();
+  const insets = useSafeAreaInsets();
+  // Défilement qui amène le champ en cours de saisie au-dessus du clavier (06/11)
   const body = scroll ? (
-    <ScrollView
+    <KeyboardAwareScrollView
+      bottomOffset={footer ? 96 : 32}
       style={{ flex: 1, backgroundColor: c.bg }}
       contentContainerStyle={[padded && { padding: space.lg }, { paddingBottom: space.xxxl }, contentStyle]}
       contentInsetAdjustmentBehavior="automatic"
@@ -40,16 +44,19 @@ export function Screen({ children, refreshing = false, onRefresh, padded = true,
       refreshControl={onRefresh ? <RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={c.primary} colors={[c.primary]} /> : undefined}
     >
       {children}
-    </ScrollView>
+    </KeyboardAwareScrollView>
   ) : <View style={[{ flex: 1, backgroundColor: c.bg }, padded && { padding: space.lg }, contentStyle]}>{children}</View>;
   if (!footer) return body;
   return (
-    <KeyboardAvoidingView style={{ flex: 1, backgroundColor: c.bg }} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
+    // Pied de page collé au-dessus du clavier quand il s'ouvre ; le défilement garde le champ visible au-dessus de lui
+    <View style={{ flex: 1, backgroundColor: c.bg }}>
       {body}
-      <SafeAreaView edges={['bottom']} style={{ backgroundColor: c.surface, borderTopWidth: StyleSheet.hairlineWidth, borderTopColor: c.line }}>
-        <View style={{ padding: space.md, paddingHorizontal: space.lg }}>{footer}</View>
-      </SafeAreaView>
-    </KeyboardAvoidingView>
+      <KeyboardStickyView offset={{ closed: 0, opened: insets.bottom }}>
+        <SafeAreaView edges={['bottom']} style={{ backgroundColor: c.surface, borderTopWidth: StyleSheet.hairlineWidth, borderTopColor: c.line }}>
+          <View style={{ padding: space.md, paddingHorizontal: space.lg }}>{footer}</View>
+        </SafeAreaView>
+      </KeyboardStickyView>
+    </View>
   );
 }
 
@@ -73,7 +80,7 @@ type ButtonProps = Omit<PressableProps, 'children' | 'style'> & {
   label: string;
   icon?: LucideIcon;
   iconRight?: LucideIcon;
-  variant?: 'primary' | 'dark' | 'ghost' | 'outline' | 'light' | 'whatsapp';
+  variant?: 'primary' | 'dark' | 'ghost' | 'gold' | 'outline' | 'light' | 'whatsapp';
   size?: 'md' | 'sm';
   loading?: boolean;
   block?: boolean;
@@ -86,7 +93,9 @@ export function Button({ label, icon: Icon, iconRight: IconRight, variant = 'pri
   const palette = {
     primary: { bg: c.primary, fg: c.onPrimary, border: c.primary },
     dark: { bg: c.dark, fg: c.onDark, border: c.dark },
-    ghost: { bg: c.surfaceAlt, fg: c.ink, border: c.surfaceAlt },
+    // Boutons secondaires en or (demande du client du 06/11 : boutons en noir, or et rouge plutôt que gris)
+    ghost: { bg: c.goldLight, fg: '#141414', border: c.goldLight },
+    gold: { bg: c.goldLight, fg: '#141414', border: c.goldLight },
     outline: { bg: 'transparent', fg: c.ink, border: c.line },
     light: { bg: 'rgba(255,255,255,0.14)', fg: '#FFFFFF', border: 'rgba(255,255,255,0.45)' },
     whatsapp: { bg: c.whatsapp, fg: '#FFFFFF', border: c.whatsapp },
@@ -144,13 +153,14 @@ export function Badge({ label, tone = 'muted', icon: Icon }: { label: string; to
   );
 }
 
+/** Pastille de filtre ou de suggestion : or, rouge quand elle est choisie (demande du client du 06/11). */
 export function Chip({ label, selected, onPress, count }: { label: string; selected?: boolean; onPress?: () => void; count?: number }) {
   const { c, radius, fonts } = useTheme();
   return (
     <Pressable onPress={() => { Haptics.selectionAsync().catch(() => {}); onPress?.(); }} accessibilityRole="button" accessibilityState={{ selected: !!selected }}
-      style={({ pressed }) => ({ flexDirection: 'row', alignItems: 'center', gap: 6, minHeight: 44, paddingHorizontal: 15, borderRadius: radius.pill, borderWidth: 1, borderColor: selected ? c.ink : c.line, backgroundColor: selected ? c.ink : c.surface, opacity: pressed ? 0.8 : 1 })}>
-      <Txt style={{ fontFamily: fonts.medium, fontSize: 14, color: selected ? c.bg : c.ink }}>{label}</Txt>
-      {count != null && <Txt style={{ fontFamily: fonts.semibold, fontSize: 12, color: selected ? c.bg : c.ink3 }}>{count}</Txt>}
+      style={({ pressed }) => ({ flexDirection: 'row', alignItems: 'center', gap: 6, minHeight: 44, paddingHorizontal: 15, borderRadius: radius.pill, borderWidth: 1, borderColor: selected ? c.primary : c.goldLight, backgroundColor: selected ? c.primary : c.accentSoft, opacity: pressed ? 0.8 : 1 })}>
+      <Txt style={{ fontFamily: selected ? fonts.semibold : fonts.medium, fontSize: 14, color: selected ? c.onPrimary : c.accent }}>{label}</Txt>
+      {count != null && <Txt style={{ fontFamily: fonts.semibold, fontSize: 12, color: selected ? c.onPrimary : c.accent }}>{count}</Txt>}
     </Pressable>
   );
 }
@@ -159,17 +169,21 @@ export function ChipRow({ children }: { children: ReactNode }) {
   return <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ gap: 8, paddingVertical: 4 }}>{children}</ScrollView>;
 }
 
-/** Choix exclusif en deux ou trois segments (Échéancier / Versements). */
-export function Segmented<T extends string>({ value, options, onChange }: { value: T; options: [T, string][]; onChange: (v: T) => void }) {
+/**
+ * Choix exclusif en deux ou trois segments (Échéancier / Versements). Segment actif en couleur (06/11) : noir par défaut,
+ * ou la couleur donnée pour chaque choix dans tones (ex. Tout noir, Logements rouge, Terrains or).
+ */
+export function Segmented<T extends string>({ value, options, onChange, tones }: { value: T; options: [T, string][]; onChange: (v: T) => void; tones?: Partial<Record<T, 'dark' | 'red' | 'gold'>> }) {
   const { c, radius, fonts } = useTheme();
+  const colors = { dark: { bg: c.dark, fg: c.onDark }, red: { bg: c.primary, fg: c.onPrimary }, gold: { bg: c.goldLight, fg: '#141414' } };
   return (
     <View style={{ flexDirection: 'row', backgroundColor: c.surfaceAlt, borderRadius: radius.pill, padding: 4 }} accessibilityRole="tablist">
       {options.map(([k, l]) => {
         const on = k === value;
         return (
           <Pressable key={k} onPress={() => { Haptics.selectionAsync().catch(() => {}); onChange(k); }} accessibilityRole="tab" accessibilityState={{ selected: on }}
-            style={{ flex: 1, minHeight: 44, borderRadius: radius.pill, alignItems: 'center', justifyContent: 'center', backgroundColor: on ? c.surface : 'transparent' }}>
-            <Txt style={{ fontFamily: on ? fonts.semibold : fonts.medium, fontSize: 14, color: on ? c.ink : c.ink3 }}>{l}</Txt>
+            style={{ flex: 1, minHeight: 44, borderRadius: radius.pill, alignItems: 'center', justifyContent: 'center', backgroundColor: on ? colors[tones?.[k] ?? 'dark'].bg : 'transparent' }}>
+            <Txt style={{ fontFamily: on ? fonts.semibold : fonts.medium, fontSize: 14, color: on ? colors[tones?.[k] ?? 'dark'].fg : c.ink2 }} numberOfLines={1}>{l}</Txt>
           </Pressable>
         );
       })}
@@ -289,7 +303,7 @@ export function Sheet({ visible, title, onClose, children, footer, beforeClose }
   const backdrop = y.interpolate({ inputRange: [0, height * 0.6], outputRange: [1, 0], extrapolate: 'clamp' });
   return (
     <Modal visible={visible} transparent animationType="none" onRequestClose={close} statusBarTranslucent>
-        <KeyboardAvoidingView style={{ flex: 1, justifyContent: 'flex-end' }} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
+        <KeyboardAvoidingView style={{ flex: 1, justifyContent: 'flex-end' }} behavior="padding">
           <Animated.View style={[StyleSheet.absoluteFill, { backgroundColor: c.overlay, opacity: backdrop }]}>
             <Pressable style={{ flex: 1 }} onPress={close} accessibilityRole="button" accessibilityLabel="Fermer" />
           </Animated.View>

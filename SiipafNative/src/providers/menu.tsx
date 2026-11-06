@@ -74,7 +74,8 @@ function Panel({ onClosed, logo }: { onClosed: () => void; logo: ImageRef | null
   const { contact } = useSite();
   const { status, client, logout } = useSession();
   const t = useT();
-  const panelW = Math.min(320, width * 0.82);
+  // Largeur réduite (demande du client du 06/11) : le contenu de la page reste visible à droite
+  const panelW = Math.min(280, width * 0.74);
   const [x] = useState(() => new Animated.Value(-panelW));
   const [reduce, setReduce] = useState(false);
   const connected = (status === 'ready' || status === 'locked') && !!client;
@@ -116,7 +117,7 @@ function Panel({ onClosed, logo }: { onClosed: () => void; logo: ImageRef | null
       </Animated.View>
       <GestureDetector gesture={pan}>
         <Animated.View accessibilityViewIsModal
-          style={{ position: 'absolute', top: 0, bottom: 0, left: 0, width: panelW, backgroundColor: M.bg, borderTopRightRadius: radius.xl, borderBottomRightRadius: radius.xl, overflow: 'hidden', transform: [{ translateX: x }], opacity: reduce ? backdrop : 1 }}>
+          style={{ position: 'absolute', top: 0, bottom: 0, left: 0, width: panelW, backgroundColor: M.bg, overflow: 'hidden', transform: [{ translateX: x }], opacity: reduce ? backdrop : 1 }}>
           {/* Bandeau rouge sur toute la largeur : logo sans fond (déclinaison pour le rouge) agrandi, et fermeture */}
           <View style={{ backgroundColor: c.red, paddingTop: insets.top + 10, paddingBottom: 10, paddingLeft: space.md, paddingRight: space.sm, flexDirection: 'row', alignItems: 'center', gap: space.sm }}>
             <Image source={logo ?? LOGO_ON_RED} transition={0} priority="high" style={{ flex: 1, aspectRatio: LOGO_RATIO, maxHeight: 76 }} contentFit="contain" contentPosition="left" accessibilityLabel="SIIPAF, promoteur immobilier agréé" />
@@ -151,14 +152,15 @@ function Panel({ onClosed, logo }: { onClosed: () => void; logo: ImageRef | null
               <View style={{ height: StyleSheet.hairlineWidth, backgroundColor: M.line, marginVertical: space.md }} />
               <MenuRow icon={Settings} title={t('Paramètres')} active={pathname === '/parametres'} onPress={() => go('/parametres')} />
               <MenuRow icon={Share2} title={t('Partager l’application')} onPress={() => close(shareApp)} />
-              <View style={{ flexDirection: 'row', gap: space.sm, marginTop: space.md }}>
+              {/* WhatsApp puis Appeler, l'un sous l'autre (demande du client du 06/11) */}
+              <View style={{ gap: space.sm, marginTop: space.md }}>
                 {/* Ouverts tout de suite au toucher (sinon le navigateur bloque l'ouverture), puis le menu se ferme */}
                 <Pressable onPress={() => { whatsapp(contact.whatsapp, 'Bonjour SIIPAF, je vous écris depuis l’application.'); close(); }} accessibilityRole="button" accessibilityLabel="Écrire sur WhatsApp"
-                  style={({ pressed }) => ({ flex: 1, height: 48, borderRadius: radius.pill, backgroundColor: c.whatsapp, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8, opacity: pressed ? 0.85 : 1 })}>
+                  style={({ pressed }) => ({ height: 48, borderRadius: radius.pill, backgroundColor: c.whatsapp, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8, opacity: pressed ? 0.85 : 1 })}>
                   <MessageCircle size={18} color={c.onPrimary} /><Txt style={{ fontFamily: fonts.semibold, fontSize: 14.5, color: c.onPrimary }}>WhatsApp</Txt>
                 </Pressable>
                 <Pressable onPress={() => { call(contact.phone); close(); }} accessibilityRole="button" accessibilityLabel={`Appeler SIIPAF au ${contact.phone}`}
-                  style={({ pressed }) => ({ flex: 1, height: 48, borderRadius: radius.pill, backgroundColor: c.call, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8, opacity: pressed ? 0.85 : 1 })}>
+                  style={({ pressed }) => ({ height: 48, borderRadius: radius.pill, backgroundColor: c.call, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8, opacity: pressed ? 0.85 : 1 })}>
                   <Phone size={18} color={c.onPrimary} /><Txt style={{ fontFamily: fonts.semibold, fontSize: 14.5, color: c.onPrimary }}>{t('Appeler')}</Txt>
                 </Pressable>
               </View>

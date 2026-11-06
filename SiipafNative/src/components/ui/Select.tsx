@@ -61,7 +61,11 @@ export function OptionList<V extends string | number | null>({ options, value, o
   );
 }
 
-/** Pastille de filtre qui ouvre son menu déroulant ; mise en valeur quand un choix est actif. */
+/**
+ * Pastille de filtre qui ouvre son menu déroulant, dans l'esprit des pastilles Chip (06/11) : douce au repos (fond or très clair,
+ * bordure or, texte et chevron or foncé), rouge SIIPAF quand un choix est actif. Pas de noir plein, pour ne pas alourdir
+ * les rangées de filtres. Cible tactile de 44 px, contrastes AA (texte 14 px) en thème clair comme en thème sombre.
+ */
 export function Select<V extends string | number | null>({ label, value, options, onChange, allLabel }: {
   label: string; value: V; options: SelectOption<V>[]; onChange: (v: V) => void; allLabel: string;
 }) {
@@ -73,9 +77,9 @@ export function Select<V extends string | number | null>({ label, value, options
     <>
       <Pressable onPress={() => { Haptics.selectionAsync().catch(() => {}); setOpen(true); }} accessibilityRole="button" accessibilityLabel={`${label} : ${chosen ? chosen.label : allLabel}`}
         style={({ pressed }) => ({ flexDirection: 'row', alignItems: 'center', gap: 6, minHeight: 44, paddingLeft: 14, paddingRight: 10, borderRadius: radius.pill, borderWidth: 1,
-          borderColor: chosen ? c.ink : c.line, backgroundColor: chosen ? c.ink : c.surface, opacity: pressed ? 0.85 : 1 })}>
-        <Txt style={{ fontFamily: fonts.medium, fontSize: 14, color: chosen ? c.bg : c.ink }} numberOfLines={1}>{chosen ? chosen.label : label}</Txt>
-        <ChevronDown size={16} color={chosen ? c.bg : c.ink3} />
+          borderColor: chosen ? c.primary : c.goldLight, backgroundColor: chosen ? c.primary : c.accentSoft, opacity: pressed ? 0.8 : 1 })}>
+        <Txt style={{ fontFamily: chosen ? fonts.semibold : fonts.medium, fontSize: 14, color: chosen ? c.onPrimary : c.accent }} numberOfLines={1}>{chosen ? chosen.label : label}</Txt>
+        <ChevronDown size={16} color={chosen ? c.onPrimary : c.accent} />
       </Pressable>
       <BottomSheet visible={open} title={label} onClose={() => setOpen(false)}>
         <OptionList options={[all, ...options]} value={(chosen ? value : null) as V} onPick={v => { onChange(v); setOpen(false); }} />

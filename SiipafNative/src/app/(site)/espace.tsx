@@ -8,7 +8,8 @@ import { Image } from 'expo-image';
 import { LinearGradient } from 'expo-linear-gradient';
 import { router } from 'expo-router';
 import { useState } from 'react';
-import { KeyboardAvoidingView, Platform, Pressable, ScrollView, View } from 'react-native';
+import { Pressable, ScrollView, View } from 'react-native';
+import { KeyboardAvoidingView } from 'react-native-keyboard-controller';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { ArrowRight, FileText, HardHat, LogOut, Menu, MessageCircle, ScanFace, ShieldCheck, Wallet, type LucideIcon } from 'lucide-react-native';
 import { Alert, Button, Field, Txt } from '@/components/ui';
@@ -58,7 +59,7 @@ export default function Espace() {
   const connected = status === 'ready' || status === 'locked' || status === 'pending';
 
   return (
-    <KeyboardAvoidingView style={{ flex: 1, backgroundColor: c.bg }} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
+    <KeyboardAvoidingView style={{ flex: 1, backgroundColor: c.bg }} behavior="padding">
       <ScrollView keyboardShouldPersistTaps="handled" contentContainerStyle={{ paddingBottom: space.xxxl }} bounces={false}>
         {/* En-tête immersif */}
         <View style={{ height: insets.top + 286, backgroundColor: '#0A0A0A' }}>
