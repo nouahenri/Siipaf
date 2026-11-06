@@ -48,6 +48,43 @@ const SITA_MODELS = {
   ...Object.fromEntries(Object.entries(MODELS).map(([k, m]) => [k, { ...m, provider: 'anthropic', thinking_room: 0 }])),
   ...Object.fromEntries(Object.entries(GEMINI_MODELS).map(([k, m]) => [k, { ...m, provider: 'gemini' }])),
 };
+/**
+ * Voix de Sita (choix du client du 06/11/2026) : synthèse Gemini 3.8 Flash TTS, plus naturelle que celle des téléphones, dans
+ * l'application et la bulle du site ; la voix du téléphone (ou du navigateur) reste le secours. Tarif Google relevé le
+ * 06/11/2026 en appliquant DÉJÀ celui du 01/01/2027 (1 $ / 18 $ le million de jetons ; 25 jetons audio par seconde), comme
+ * pour les modèles de conversation : le plafond mensuel n'est jamais dépassé.
+ * Voix prédéfinies de Google : leur genre n'est pas donné par la documentation (classement d'usage, à vérifier à l'oreille
+ * avec « Écouter un essai » du dashboard).
+ */
+const TTS_MODEL = 'gemini-3.8-flash-tts';
+// Secours si le modèle principal est surchargé (moins cher ; le coût est compté au tarif du principal, par prudence)
+const TTS_MODEL_LITE = 'gemini-3.8-flash-lite-tts';
+const TTS_PRICE = { in: 1.0, out: 18.0 };
+const TTS_VOICES = {
+  Sulafat: { label: 'Sulafat — chaleureuse', gender: 'femme' }, Achernar: { label: 'Achernar — douce', gender: 'femme' },
+  Vindemiatrix: { label: 'Vindemiatrix — bienveillante', gender: 'femme' }, Despina: { label: 'Despina — posée', gender: 'femme' },
+  Aoede: { label: 'Aoede — aérienne', gender: 'femme' }, Kore: { label: 'Kore — assurée', gender: 'femme' },
+  Leda: { label: 'Leda — jeune', gender: 'femme' }, Gacrux: { label: 'Gacrux — mûre', gender: 'femme' },
+  Erinome: { label: 'Erinome — claire', gender: 'femme' }, Autonoe: { label: 'Autonoe — lumineuse', gender: 'femme' },
+  Achird: { label: 'Achird — amical', gender: 'homme' }, Sadaltager: { label: 'Sadaltager — expert', gender: 'homme' },
+  Charon: { label: 'Charon — informatif', gender: 'homme' }, Iapetus: { label: 'Iapetus — clair', gender: 'homme' },
+  Algieba: { label: 'Algieba — velouté', gender: 'homme' }, Schedar: { label: 'Schedar — égal', gender: 'homme' },
+  Umbriel: { label: 'Umbriel — détendu', gender: 'homme' }, Orus: { label: 'Orus — ferme', gender: 'homme' },
+  Puck: { label: 'Puck — enjoué', gender: 'homme' }, Zubenelgenubi: { label: 'Zubenelgenubi — décontracté', gender: 'homme' },
+};
+const DEFAULT_TTS_STYLE_F = 'Conseillère immobilière ivoirienne, chaleureuse et souriante, débit posé, articulation claire.';
+const DEFAULT_TTS_STYLE_M = 'Conseiller immobilier ivoirien, chaleureux et rassurant, débit posé, articulation claire.';
+/** Coût d'une synthèse en millionièmes de dollar. */
+const ttsCostMicroUsd = (tokensIn, tokensOut) => Math.round(Number(tokensIn || 0) * TTS_PRICE.in + Number(tokensOut || 0) * TTS_PRICE.out);
+/** Voix et style effectifs selon le genre de l'assistante. */
+function ttsVoice(s) {
+  const homme = s.gender === 'homme';
+  const name = homme ? s.tts_voice_homme : s.tts_voice_femme;
+  return { name, style: s.tts_style || (homme ? DEFAULT_TTS_STYLE_M : DEFAULT_TTS_STYLE_F) };
+}
+/** Texte envoyé au modèle : consignes de jeu puis transcription (forme d'AI Studio, « ## Transcript »). */
+const ttsPrompt = (style, text) => `## Style : ${style}\n## Transcript:\n${text}`;
+
 const PROVIDER_DEFAULT_MODEL = { anthropic: DEFAULT_MODEL, gemini: 'gemini-3.8-flash' };
 const providerOf = model => (SITA_MODELS[model] || SITA_MODELS[DEFAULT_MODEL]).provider;
 
@@ -73,6 +110,9 @@ const settingsSchema = z.object({
   invitations: z.record(z.string().max(80), text(220)), // texte propre à un programme (par son identifiant d'adresse)
   invitation_delay_s: z.number().int().min(0).max(120),
   voice: z.boolean(), // application mobile : Sita écoute (micro) et lit ses réponses, voix selon le genre (choix du client du 05/11/2026)
+  tts_voice_femme: z.enum(Object.keys(TTS_VOICES).filter(k => TTS_VOICES[k].gender === 'femme')),
+  tts_voice_homme: z.enum(Object.keys(TTS_VOICES).filter(k => TTS_VOICES[k].gender === 'homme')),
+  tts_style: text(300), // vide : style par défaut selon le genre
   sound: z.boolean(), // carillon discret à l'apparition de l'invitation, une fois par visite (choix du client du 01/11/2026)
   tone: z.enum(Object.keys(TONES)),
   tone_notes: text(600),
@@ -91,7 +131,7 @@ const settingsSchema = z.object({
 const DEFAULTS = {
   enabled: false, // à activer par le client une fois les réglages relus
   name: 'Sita', gender: 'femme', title: '', photo_media_id: null, greeting: '',
-  invitation_default: '', invitation_programme: '', invitations: {}, invitation_delay_s: 8, sound: true, voice: true,
+  invitation_default: '', invitation_programme: '', invitations: {}, invitation_delay_s: 8, sound: true, voice: true, tts_voice_femme: 'Sulafat', tts_voice_homme: 'Achird', tts_style: '',
   tone: 'chaleureux', tone_notes: '', languages: ['fr', 'en'], pages: DEFAULT_PAGES,
   whatsapp_relay: '', human_hours: { days: [1, 2, 3, 4, 5], from: '08:00', to: '18:00' },
   model: DEFAULT_MODEL, cap_fcfa: 20000, usd_fcfa: 600, alert_pct: 80, max_output_tokens: 700, emergency_stop: false,
@@ -403,5 +443,6 @@ module.exports = {
   cleanMessage, plain, extractPhone, extractEmail, phoneDigits, visitorProvided, looksEnglish,
   checkReply, COMMITMENT, hoursText, teamPresent, WEEKDAYS,
   systemPrompt, TOOLS, prospectSchema, appointmentSchema, handoverSchema,
+  TTS_MODEL, TTS_MODEL_LITE, TTS_PRICE, TTS_VOICES, DEFAULT_TTS_STYLE_F, DEFAULT_TTS_STYLE_M, ttsCostMicroUsd, ttsVoice, ttsPrompt,
   fcfa, parseWhen, MODELS, PROVIDERS, GEMINI_MODELS, SITA_MODELS, PROVIDER_DEFAULT_MODEL, providerOf,
 };

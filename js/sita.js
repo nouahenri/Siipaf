@@ -133,7 +133,7 @@
     window.addEventListener('resize', placeRoot);
 
     // Conversation déjà commencée dans cet onglet : restaurée, pastille masquée
-    if (state.messages.length) { badge.hidden = true; state.messages.forEach(function (m) { addMessage(m.role, m.text, m.actions, true); }); }
+    if (state.messages.length) { badge.hidden = true; state.messages.forEach(function (m) { addMessage(m.role, m.text, m.actions, true, m.mid); }); }
     if (state.open) openChat(true);
     else scheduleInvite();
   }
@@ -273,7 +273,7 @@
     badge.hidden = true;
     save({ open: true, inviteClosed: true });
     if (!state.messages.length) {
-      addMessage('bot', cfg.greeting, null, false);
+      addMessage('bot', cfg.greeting, null, false, 'accueil');
       state.messages.push({ role: 'bot', text: cfg.greeting });
       save({});
     }
@@ -288,9 +288,10 @@
   }
   function scrollDown() { log.scrollTop = log.scrollHeight; }
 
-  function addMessage(role, text, actions, quiet) {
+  function addMessage(role, text, actions, quiet, mid) {
     var m = el('div', 'sita-msg ' + (role === 'me' ? 'me' : role === 'err' ? 'err' : 'bot'), text);
     log.appendChild(m);
+    if (role === 'bot' && cfg.voice) log.appendChild(listenButton(text, mid));
     if (actions && actions.length) {
       var box = el('div', 'sita-actions');
       actions.forEach(function (a) {
@@ -305,6 +306,49 @@
     }
     if (!quiet) scrollDown();
   }
+  // ─── Voix (06/11/2026) ─────────────────────────────────────────────
+  // « Écouter » sous chaque réponse : voix naturelle de Gemini préparée par le serveur (gardée, décomptée du budget de Sita),
+  // sinon (voix indisponible, budget atteint, ancienne réponse) la voix du navigateur. Une seule lecture à la fois.
+  var player = null, playingBtn = null;
+  function setLabel(btn, label) { btn.lastChild.textContent = label; }
+  function stopVoice() {
+    if (player) { player.pause(); if (player.src.indexOf('blob:') === 0) URL.revokeObjectURL(player.src); player = null; }
+    if (window.speechSynthesis) window.speechSynthesis.cancel();
+    if (playingBtn) { playingBtn.classList.remove('is-playing'); setLabel(playingBtn, 'Écouter'); playingBtn = null; }
+  }
+  function speakWithBrowser(btn, text) {
+    if (!window.speechSynthesis || !window.SpeechSynthesisUtterance) { stopVoice(); return; }
+    var u = new SpeechSynthesisUtterance(String(text).replace(/https?:\/\/\S+/g, '').replace(/\bFCFA\b/g, 'francs CFA'));
+    u.lang = 'fr-FR';
+    u.onend = u.onerror = function () { if (playingBtn === btn) stopVoice(); };
+    window.speechSynthesis.speak(u);
+  }
+  function listenButton(text, mid) {
+    var btn = el('button', 'sita-listen');
+    btn.type = 'button';
+    btn.setAttribute('aria-label', 'Écouter la réponse de ' + cfg.name);
+    btn.innerHTML = '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="M11 5 6 9H2v6h4l5 4V5z"/><path d="M15.5 8.5a5 5 0 0 1 0 7"/></svg><span>Écouter</span>';
+    btn.addEventListener('click', function () {
+      if (playingBtn === btn) { stopVoice(); return; }
+      stopVoice();
+      playingBtn = btn;
+      btn.classList.add('is-playing');
+      if (!cfg.voice_natural || !mid) { setLabel(btn, 'Arrêter'); speakWithBrowser(btn, text); return; }
+      setLabel(btn, 'Préparation…');
+      fetch(API + '/api/public/sita/voix/' + mid + '?v=' + encodeURIComponent(state.visitor), { credentials: 'omit' })
+        .then(function (r) { if (!r.ok) throw new Error('voix'); return r.blob(); })
+        .then(function (blob) {
+          if (playingBtn !== btn) return;
+          player = new Audio(URL.createObjectURL(blob));
+          player.onended = function () { if (playingBtn === btn) stopVoice(); };
+          setLabel(btn, 'Arrêter');
+          return player.play();
+        })
+        .catch(function () { if (playingBtn === btn) { setLabel(btn, 'Arrêter'); speakWithBrowser(btn, text); } });
+    });
+    return btn;
+  }
+
   function showTyping(on) {
     if (on && !typing) {
       typing = el('div', 'sita-typing');
@@ -339,8 +383,8 @@
           addMessage('err', res.status === 429 ? 'Vous écrivez très vite : patientez quelques instants.' : res.d && res.d.error ? res.d.error : 'Je ne peux pas répondre pour le moment. Réessayez dans un instant.');
           return;
         }
-        addMessage('bot', res.d.reply, res.d.actions);
-        state.messages.push({ role: 'bot', text: res.d.reply, actions: res.d.actions || [] });
+        addMessage('bot', res.d.reply, res.d.actions, false, res.d.message_id);
+        state.messages.push({ role: 'bot', text: res.d.reply, actions: res.d.actions || [], mid: res.d.message_id });
         // Coordonnées laissées à Sita : événement Lead du pixel Meta (une seule fois par conversation, sans aucune donnée personnelle)
         if (res.d.lead_saved && !state.leadTracked) { if (window.siipafTrack) window.siipafTrack('Lead', { content_name: 'sita' }); state.leadTracked = true; }
         save({});

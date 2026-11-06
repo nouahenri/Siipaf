@@ -262,6 +262,22 @@ page, de newsletter ni de blocs « site web » ; Détente & Loisirs = inspiratio
   l'application accepte déjà empreinte + visage + code (niveau « faible », le plus permissif). Corrigé : libellé honnête
   (« l'empreinte ou le visage » si le téléphone a les deux) et explication dans le profil. Empreinte gardée (demande du client).
 
+### 06/11 — voix naturelle de Sita (Gemini 3.8 Flash TTS)
+- Choix du client : voix Gemini dans l'application ET la bulle du site, voix du téléphone / navigateur en secours, voix et
+  style réglables au dashboard (Assistante du site : voix selon le genre, style en français, « Écouter un essai »).
+- Serveur : `services/sitaVoice.js`, routes `GET /api/public/sita/voix/:id?v=<visiteur>` (seulement les réponses de Sita de
+  ce visiteur) et `/sita/voix/accueil`, `POST /api/admin/assistant/voix-essai` ; audio gardé dans `server/data/sita-voix/`
+  (réécoute gratuite) ; coût ajouté au message (plafond de Sita), tarif 2027 déjà appliqué (1 $ / 18 $ le million, 25 jetons
+  par seconde : ≈ 5 FCFA par réponse) ; modèle « lite » en secours si le principal est surchargé ; refus 409 → voix de
+  l'appareil. Réglages `tts_voice_femme` (Sulafat), `tts_voice_homme` (Achird), `tts_style`. `message_id` renvoyé par
+  `/sita/message`. Tests `test/sita-voix.test.js` (4). Essai réel réussi sur la démo (clé du `.env` local).
+- Application : `expo-audio` (plugin sans lecture en arrière-plan), `src/lib/sita-voice.ts` (audio mis en cache sur le
+  téléphone), « Préparation de la voix… » ; micro : halo qui suit le volume et « Je vous entends… » quand une voix est
+  détectée (événements volumechange / speechstart). Site : bouton « Écouter » sous chaque réponse (`js/sita.js`, `css/sita.css`),
+  non vérifié à l'écran (Sita désactivée dans la démo).
+- **En production** : la clé `GEMINI_API_KEY` doit être dans le `.env` du serveur ; mise en ligne serveur + dashboard + site
+  nécessaire ; nouveau build de l'application (modules natifs expo-audio, keyboard-controller).
+
 ### En attente (à jour au 04/11)
 1. **APK d'essai Android** (fait par le client dans Android Studio) : lever d'abord l'erreur des chemins trop longs (voir
    « Socle technique ») ; ensuite clé d'envoi Google Play (Android Studio ou `keytool`, à conserver précieusement), réglages

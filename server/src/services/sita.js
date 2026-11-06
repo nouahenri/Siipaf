@@ -68,7 +68,7 @@ async function adminView(db) {
     settings, defaults: S.effectiveTexts({ ...settings, title: '', greeting: '', invitation_default: '', invitation_programme: '' }),
     photo_url: photo ? `/uploads/by-id/${photo.id}` : null, usage: await ai.usage(db, settings),
     meta: {
-      genders: S.GENDERS, tones: S.TONES, languages: S.LANGS, pages: S.PAGES, models: S.SITA_MODELS, providers: S.PROVIDERS,
+      genders: S.GENDERS, tts_voices: S.TTS_VOICES, tts_default_style: { femme: S.DEFAULT_TTS_STYLE_F, homme: S.DEFAULT_TTS_STYLE_M }, tones: S.TONES, languages: S.LANGS, pages: S.PAGES, models: S.SITA_MODELS, providers: S.PROVIDERS,
       projects: (await db('projects').where({ published: true }).whereNull('archived_at').orderBy('sort').select('slug', 'name')),
       relay: await relayNumber(db, settings), hours_text: S.hoursText(settings.human_hours),
     },
@@ -87,7 +87,7 @@ async function publicConfig(db) {
     enabled: settings.enabled, name: settings.name, gender: settings.gender, title: t.title,
     photo: settings.photo_media_id ? `/uploads/by-id/${settings.photo_media_id}` : null,
     greeting: S.fill(t.greeting, vars), invitation_default: S.fill(t.invitation_default, vars), invitations,
-    invitation_delay_s: settings.invitation_delay_s, sound: settings.sound, voice: settings.voice, pages: settings.pages, languages: settings.languages,
+    invitation_delay_s: settings.invitation_delay_s, sound: settings.sound, voice: settings.voice, voice_natural: settings.voice && !!String(process.env.GEMINI_API_KEY || '').trim(), pages: settings.pages, languages: settings.languages,
     whatsapp: await relayNumber(db, settings), hours: S.hoursText(settings.human_hours),
     programmes: projects.map(p => ({ slug: p.slug, name: p.name })),
     notice: `${settings.name} est une assistante virtuelle (IA) de SIIPAF. Un conseiller peut prendre le relais à tout moment.`,
@@ -340,14 +340,14 @@ async function handleMessage(db, input) {
     }
   }
 
-  await addMessage(db, conv.id, {
+  const replyId = await addMessage(db, conv.id, {
     role: 'assistante', content: reply, mode: meta.mode, model: meta.model, prompt_version: meta.mode === 'ia' ? S.PROMPT_VERSION : null, status: meta.status,
     tokens_in: meta.usage.tokens_in || 0, tokens_out: meta.usage.tokens_out || 0, tokens_cache_read: meta.usage.tokens_cache_read || 0, tokens_cache_write: meta.usage.tokens_cache_write || 0,
     cost_micro_usd: meta.cost_micro_usd, tools: JSON.stringify(meta.tools), warnings: JSON.stringify(meta.warnings), error: meta.error,
   });
   await db('sita_conversations').where({ id: conv.id }).update({ mode: meta.mode, cost_micro_usd: Number(conv.cost_micro_usd || 0) + meta.cost_micro_usd, last_message_at: new Date() });
   return {
-    reply, conversation_id: conv.id, actions: ctx.actions, lead_saved: !!conv.lead_id, appointment: ctx.appointment, handed_over: !!conv.handed_over,
+    reply, message_id: replyId, conversation_id: conv.id, actions: ctx.actions, lead_saved: !!conv.lead_id, appointment: ctx.appointment, handed_over: !!conv.handed_over,
     remaining: Math.max(0, S.MAX_VISITOR_MESSAGES - conv.messages_count),
   };
 }

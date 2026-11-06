@@ -120,6 +120,8 @@ const ROWS: Row[] = [
   ['Écouter la réponse', 'Listen to the answer', 'Escuchar la respuesta'],
   ['Arrêter la lecture', 'Stop reading', 'Detener la lectura'],
   ['Je vous écoute…', 'I’m listening…', 'Te escucho…'],
+  ['Je vous entends…', 'I can hear you…', 'Te oigo…'],
+  ['Préparation de la voix…', 'Preparing the voice…', 'Preparando la voz…'],
   ['Arrêter l’écoute et envoyer', 'Stop listening and send', 'Dejar de escuchar y enviar'],
   ['Poser ma question à voix haute', 'Ask my question out loud', 'Hacer mi pregunta en voz alta'],
   ['Nos métiers', 'What we do', 'Nuestras actividades'],

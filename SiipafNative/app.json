@@ -111,6 +111,13 @@
             "com.google.android.as"
           ]
         }
+      ],
+      [
+        "expo-audio",
+        {
+          "microphonePermission": "SIIPAF utilise le micro pour que vous puissiez poser vos questions à voix haute à Sita, la conseillère virtuelle.",
+          "enableBackgroundPlayback": false
+        }
       ]
     ],
     "extra": {

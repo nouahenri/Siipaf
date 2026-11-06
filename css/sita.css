@@ -85,6 +85,11 @@
 .sita-actions { align-self: flex-start; display: flex; flex-direction: column; gap: 6px; max-width: 86%; }
 .sita-action { display: inline-flex; align-items: center; gap: 8px; padding: 9px 14px; border-radius: 22px; background: #25D366; color: #fff; font-weight: 600; font-size: 14px; text-decoration: none; }
 .sita-action:hover { background: #1ebe5a; }
+/* Voix de Sita (06/11/2026) : « Écouter » sous chaque réponse */
+.sita-listen { align-self: flex-start; display: inline-flex; align-items: center; gap: 6px; margin: -2px 0 4px 4px; padding: 4px 10px; border: 0; border-radius: 14px; background: transparent; color: #6b6e79; font-family: inherit; font-size: 12.5px; font-weight: 600; line-height: 1.2; cursor: pointer; }
+.sita-listen:hover { background: rgba(0,0,0,0.05); color: #141414; }
+.sita-listen.is-playing { color: #E30613; }
+.sita-listen:focus-visible { outline: 2px solid #E30613; outline-offset: 2px; }
 .sita-typing { align-self: flex-start; display: flex; gap: 4px; padding: 12px 14px; background: #fff; border: 1px solid #e8e8e8; border-radius: 14px; border-bottom-left-radius: 4px; }
 .sita-typing i { width: 7px; height: 7px; border-radius: 50%; background: #9a9a9a; animation: sitaDot 1.2s infinite ease-in-out; }
 .sita-typing i:nth-child(2) { animation-delay: .15s; }

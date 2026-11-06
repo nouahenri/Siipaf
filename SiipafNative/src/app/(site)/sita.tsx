@@ -25,8 +25,8 @@ import { useT } from '@/providers/preferences';
 import { useTheme } from '@/theme';
 
 type Action = { type: string; url: string; label?: string };
-type Msg = { id: string; role: 'me' | 'bot' | 'err'; text: string; actions?: Action[] };
-type SitaConfig = { enabled: boolean; name?: string; gender?: string; title?: string; photo?: string | null; greeting?: string; voice?: boolean; whatsapp?: string; hours?: string; notice?: string; consent?: string; programmes?: { slug: string; name: string }[] };
+type Msg = { id: string; role: 'me' | 'bot' | 'err'; text: string; actions?: Action[]; mid?: number }; // mid : identifiant de la réponse au serveur (voix de Gemini)
+type SitaConfig = { enabled: boolean; name?: string; gender?: string; title?: string; photo?: string | null; greeting?: string; voice?: boolean; voice_natural?: boolean; whatsapp?: string; hours?: string; notice?: string; consent?: string; programmes?: { slug: string; name: string }[] };
 
 const SUGGESTIONS = ['Quels programmes proposez-vous ?', 'Je vis à l’étranger : comment acheter ?', 'Combien coûte un terrain ?', 'Je veux visiter un site'];
 const uid = () => `${Date.now().toString(36)}${Math.random().toString(36).slice(2, 10)}`;
@@ -50,7 +50,7 @@ export default function Sita() {
   const list = useRef<FlatList<Msg>>(null);
   const name = cfg?.name || 'Sita';
   const voiceOn = cfg?.voice !== false;
-  const speech = useSitaSpeech(cfg?.gender === 'homme' ? 'homme' : 'femme');
+  const speech = useSitaSpeech(cfg?.gender === 'homme' ? 'homme' : 'femme', { enabled: !!cfg?.voice_natural, visitor });
   const fail = useCallback((msg: string) => setMessages(m => [...m, { id: uid(), role: 'err', text: msg }]), []);
   const dictation = useDictation({ onPartial: setText, onFinal: said => send(said, true), onError: fail });
   const canTalk = voiceOn && dictation.available;
@@ -79,11 +79,11 @@ export default function Sita() {
     setSending(true);
     setMessages(m => [...m, { id: uid(), role: 'me', text: body }]);
     try {
-      const r = await publicApi.post<{ reply: string; actions?: Action[] }>('/sita/message', { visitor_id: visitor, message: body, page: { path: '/application' }, lang: 'fr', website: '' });
+      const r = await publicApi.post<{ reply: string; message_id?: number; actions?: Action[] }>('/sita/message', { visitor_id: visitor, message: body, page: { path: '/application' }, lang: 'fr', website: '' });
       AccessibilityInfo.announceForAccessibility(`${name} : ${r.reply}`);
       const id = uid();
-      if (spoken && voiceOn) speech.speak(id, r.reply);
-      setMessages(m => [...m, { id, role: 'bot', text: r.reply, actions: (r.actions || []).filter(a => a.type === 'whatsapp' && /^https:\/\/wa\.me\//.test(a.url)) }]);
+      if (spoken && voiceOn) speech.speak(id, r.reply, r.message_id ? { messageId: r.message_id } : undefined);
+      setMessages(m => [...m, { id, mid: r.message_id, role: 'bot', text: r.reply, actions: (r.actions || []).filter(a => a.type === 'whatsapp' && /^https:\/\/wa\.me\//.test(a.url)) }]);
     } catch (e: any) {
       setMessages(m => [...m, { id: uid(), role: 'err', text: e?.status === 429 ? 'Vous écrivez très vite : patientez quelques instants.' : e?.message || 'Je ne peux pas répondre pour le moment. Réessayez dans un instant.' }]);
     }
@@ -145,12 +145,14 @@ export default function Sita() {
                   </View>
                   {voiceOn && m.role === 'bot' && m.id !== 'typing' ? (() => {
                     const playing = speech.speakingId === m.id;
+                    const preparing = speech.loadingId === m.id;
+                    const source = m.id === 'hello' ? { greeting: true as const } : m.mid ? { messageId: m.mid } : undefined;
                     return (
-                      <Pressable onPress={() => (playing ? speech.stop() : speech.speak(m.id, m.text))} accessibilityRole="button"
+                      <Pressable onPress={() => (playing ? speech.stop() : speech.speak(m.id, m.text, source))} accessibilityRole="button"
                         accessibilityLabel={playing ? t('Arrêter la lecture') : t('Écouter la réponse')} hitSlop={8}
                         style={({ pressed }) => ({ flexDirection: 'row', alignItems: 'center', gap: 5, paddingHorizontal: 6, minHeight: 28, opacity: pressed ? 0.6 : 1 })}>
                         {playing ? <Square size={13} color={c.primary} fill={c.primary} /> : <Volume2 size={15} color={c.ink3} />}
-                        <Txt style={{ fontFamily: fonts.medium, fontSize: 12.5, color: playing ? c.primary : c.ink3 }}>{playing ? t('Arrêter') : t('Écouter')}</Txt>
+                        <Txt style={{ fontFamily: fonts.medium, fontSize: 12.5, color: playing ? c.primary : c.ink3 }}>{preparing ? t('Préparation de la voix…') : playing ? t('Arrêter') : t('Écouter')}</Txt>
                       </Pressable>
                     );
                   })() : null}
@@ -176,18 +178,25 @@ export default function Sita() {
             </View>
           )}
           <View style={{ flexDirection: 'row', alignItems: 'flex-end', gap: 8, padding: space.md, backgroundColor: c.surface, borderTopWidth: 1, borderTopColor: c.line }}>
-            <TextInput value={text} onChangeText={setText} placeholder={dictation.listening ? t('Je vous écoute…') : `Écrire à ${name}…`} placeholderTextColor={dictation.listening ? c.primary : c.ink3} multiline maxLength={600}
+            <TextInput value={text} onChangeText={setText} placeholder={dictation.listening ? (dictation.hearing ? t('Je vous entends…') : t('Je vous écoute…')) : `Écrire à ${name}…`} placeholderTextColor={dictation.listening ? c.primary : c.ink3} multiline maxLength={600}
               editable={!dictation.listening}
               style={{ flex: 1, maxHeight: 120, minHeight: 46, backgroundColor: c.surfaceAlt, borderRadius: 23, paddingHorizontal: 16, paddingTop: 12, paddingBottom: 12, fontFamily: fonts.regular, fontSize: 16, color: c.ink,
                 borderWidth: 1.5, borderColor: dictation.listening ? c.primary : 'transparent' }}
               accessibilityLabel={t('Votre message')} />
             {/* Micro quand le champ est vide (ou pendant l'écoute, pour l'arrêter), sinon bouton d'envoi */}
             {canTalk && (dictation.listening || !text.trim()) ? (
+              <View style={{ width: 46, height: 46, alignItems: 'center', justifyContent: 'center' }}>
+              {/* Voix détectée (06/11) : halo qui suit le volume du micro tant que la personne parle */}
+              {dictation.listening ? (
+                <View pointerEvents="none" style={{ position: 'absolute', width: 46 + Math.round(dictation.level * 30), height: 46 + Math.round(dictation.level * 30), borderRadius: 40,
+                  backgroundColor: c.danger, opacity: dictation.hearing ? 0.18 + dictation.level * 0.25 : 0.1 }} />
+              ) : null}
               <Pressable onPress={() => (dictation.listening ? dictation.stop() : dictation.start())} disabled={sending && !dictation.listening} accessibilityRole="button"
                 accessibilityLabel={dictation.listening ? t('Arrêter l’écoute et envoyer') : t('Poser ma question à voix haute')} accessibilityState={{ busy: dictation.listening }}
                 style={({ pressed }) => ({ width: 46, height: 46, borderRadius: 23, backgroundColor: dictation.listening ? c.danger : c.primary, alignItems: 'center', justifyContent: 'center', opacity: sending && !dictation.listening ? 0.45 : pressed ? 0.8 : 1 })}>
                 {dictation.listening ? <Square size={16} color="#fff" fill="#fff" /> : <Mic size={21} color="#fff" />}
               </Pressable>
+              </View>
             ) : (
               <Pressable onPress={() => send()} disabled={!text.trim() || sending} accessibilityRole="button" accessibilityLabel={t('Envoyer')}
                 style={({ pressed }) => ({ width: 46, height: 46, borderRadius: 23, backgroundColor: c.primary, alignItems: 'center', justifyContent: 'center', opacity: !text.trim() || sending ? 0.45 : pressed ? 0.8 : 1 })}>

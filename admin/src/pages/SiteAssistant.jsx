@@ -14,6 +14,50 @@ const toggle = (list, v) => (list.includes(v) ? list.filter(x => x !== v) : [...
  * activation et horaires, budget de l’IA. Le dashboard est l’outil de saisie ; le suivi des conversations est dans l’ERP
  * (Service commercial › Conversations de Sita). Les clés de l’IA (Claude, Gemini) restent dans server/.env : seule leur présence est affichée.
  */
+/**
+ * Voix de Gemini (06/11/2026) : voix prédéfinie selon le genre de l'assistante, style décrit en français, essai à écouter
+ * (synthèse réelle, non enregistrée ; l'essai n'est pas décompté du budget).
+ */
+function VoiceSettings({ form, set, meta }) {
+  const homme = form.gender === 'homme';
+  const key = homme ? 'tts_voice_homme' : 'tts_voice_femme';
+  const voices = Object.entries(meta.tts_voices || {}).filter(([, v]) => v.gender === (homme ? 'homme' : 'femme'));
+  const [state, setState] = useState({ busy: false, url: null, error: null });
+  useEffect(() => () => { if (state.url) URL.revokeObjectURL(state.url); }, [state.url]);
+  const listen = async () => {
+    setState(s => ({ ...s, busy: true, error: null }));
+    try {
+      const res = await fetch('/api/admin/assistant/voix-essai', {
+        method: 'POST', credentials: 'same-origin', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ gender: homme ? 'homme' : 'femme', voice: form[key], style: form.tts_style || undefined }),
+      });
+      if (!res.ok) throw new Error((await res.json().catch(() => ({}))).error || 'Essai impossible pour le moment.');
+      const url = URL.createObjectURL(await res.blob());
+      setState({ busy: false, url, error: null });
+      new Audio(url).play().catch(() => {});
+    } catch (e) { setState({ busy: false, url: null, error: e.message }); }
+  };
+  return (
+    <div className="form-grid">
+      <Field label={`Voix ${homme ? 'masculine' : 'féminine'}`} hint="Voix proposées par Google pour le genre choisi plus haut.">
+        <select className="select" value={form[key]} onChange={e => set({ [key]: e.target.value })}>
+          {voices.map(([k, v]) => <option key={k} value={k}>{v.label}</option>)}
+        </select>
+      </Field>
+      <Field label="Style de la voix" hint="Décrit en français : ton, accent, débit. Vide : style par défaut.">
+        <textarea className="textarea" rows={2} maxLength={300} value={form.tts_style} onChange={e => set({ tts_style: e.target.value })} placeholder={meta.tts_default_style?.[homme ? 'homme' : 'femme']} />
+      </Field>
+      <Field label="Essai">
+        <div className="row" style={{ gap: 10, flexWrap: 'wrap' }}>
+          <button type="button" className="btn btn-sm" onClick={listen} disabled={state.busy}>{state.busy ? 'Synthèse…' : 'Écouter un essai'}</button>
+          {state.url && <audio controls src={state.url} style={{ height: 32 }} />}
+        </div>
+        {state.error && <div className="small" style={{ color: 'var(--danger, #c0392b)', marginTop: 4 }}>{state.error}</div>}
+      </Field>
+    </div>
+  );
+}
+
 export default function SiteAssistant() {
   const res = useResource('/admin/assistant');
   const saved = useSaved();
@@ -113,10 +157,11 @@ export default function SiteAssistant() {
             <Field label="Son à l’apparition" hint="Carillon discret, une fois par visite. Les navigateurs bloquent le son tant que le visiteur n’a ni cliqué ni touché la page : il est alors joué à son premier clic, si l’invitation est encore affichée.">
               <label className="checkbox"><input type="checkbox" checked={form.sound} onChange={e => set({ sound: e.target.checked })} />Jouer un carillon quand l’invitation de {form.name || 'Sita'} apparaît</label>
             </Field>
-            <Field label="Voix (application mobile)" hint={`Le visiteur peut poser sa question au micro ; ${form.name || 'Sita'} lui répond alors à voix haute, avec une voix ${form.gender === 'homme' ? 'masculine' : 'féminine'} quand le téléphone en propose une (sinon sa voix par défaut). Reconnaissance et synthèse vocales du téléphone, sans coût supplémentaire.`}>
-              <label className="checkbox"><input type="checkbox" checked={form.voice} onChange={e => set({ voice: e.target.checked })} />{form.name || 'Sita'} écoute et parle dans l’application</label>
+            <Field label="Voix (application et site)" hint={`Dans l’application, le visiteur peut poser sa question au micro ; ${form.name || 'Sita'} lui répond à voix haute. Sur le site, un bouton « Écouter » lit chaque réponse. Voix naturelle de Google (Gemini), décomptée dans le budget ci-dessous ; sans clé Gemini ou budget atteint, la voix du téléphone ou du navigateur prend le relais.`}>
+              <label className="checkbox"><input type="checkbox" checked={form.voice} onChange={e => set({ voice: e.target.checked })} />{form.name || 'Sita'} écoute et parle</label>
             </Field>
           </div>
+          {form.voice && <VoiceSettings form={form} set={set} meta={meta} />}
           {!!meta.projects.length && (
             <Field label="Invitation propre à un programme (facultatif)" hint="Laissez vide pour utiliser l’invitation ci-dessus.">
               <div className="stack" style={{ gap: 6 }}>
