@@ -132,7 +132,7 @@ export default function Programmes() {
                     <RotateCcw size={15} color={c.primary} /><Txt style={{ fontFamily: fonts.semibold, fontSize: 13.5, color: c.primary }}>{t('Réinitialiser')}</Txt>
                   </Pressable>
                 ) : null}
-                <Select label={t('Trier')} allLabel={t('Recommandés')} value={sort === 'defaut' ? null as unknown as Sort : sort} options={sorts.slice(1)} onChange={v => setSort((v as Sort) || 'defaut')} />
+                <Select neutral label={t('Trier')} allLabel={t('Recommandés')} value={sort === 'defaut' ? null as unknown as Sort : sort} options={sorts.slice(1)} onChange={v => setSort((v as Sort) || 'defaut')} />
               </View>
             </View>
           )}

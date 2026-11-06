@@ -65,21 +65,24 @@ export function OptionList<V extends string | number | null>({ options, value, o
  * Pastille de filtre qui ouvre son menu déroulant, dans l'esprit des pastilles Chip (06/11) : douce au repos (fond or très clair,
  * bordure or, texte et chevron or foncé), rouge SIIPAF quand un choix est actif. Pas de noir plein, pour ne pas alourdir
  * les rangées de filtres. Cible tactile de 44 px, contrastes AA (texte 14 px) en thème clair comme en thème sombre.
+ * neutral : pastille grise (bouton « Trier », demande du client du 06/11), qui n'est pas un filtre.
  */
-export function Select<V extends string | number | null>({ label, value, options, onChange, allLabel }: {
-  label: string; value: V; options: SelectOption<V>[]; onChange: (v: V) => void; allLabel: string;
+export function Select<V extends string | number | null>({ label, value, options, onChange, allLabel, neutral }: {
+  label: string; value: V; options: SelectOption<V>[]; onChange: (v: V) => void; allLabel: string; neutral?: boolean;
 }) {
   const { c, radius, fonts } = useTheme();
   const [open, setOpen] = useState(false);
   const chosen = options.find(o => o.value === value && value !== null);
   const all: SelectOption<V> = { value: null as V, label: allLabel };
+  const tone = neutral ? { bg: c.surfaceAlt, border: c.line, fg: c.ink, icon: c.ink2 }
+    : chosen ? { bg: c.primary, border: c.primary, fg: c.onPrimary, icon: c.onPrimary } : { bg: c.accentSoft, border: c.goldLight, fg: c.accent, icon: c.accent };
   return (
     <>
       <Pressable onPress={() => { Haptics.selectionAsync().catch(() => {}); setOpen(true); }} accessibilityRole="button" accessibilityLabel={`${label} : ${chosen ? chosen.label : allLabel}`}
         style={({ pressed }) => ({ flexDirection: 'row', alignItems: 'center', gap: 6, minHeight: 44, paddingLeft: 14, paddingRight: 10, borderRadius: radius.pill, borderWidth: 1,
-          borderColor: chosen ? c.primary : c.goldLight, backgroundColor: chosen ? c.primary : c.accentSoft, opacity: pressed ? 0.8 : 1 })}>
-        <Txt style={{ fontFamily: chosen ? fonts.semibold : fonts.medium, fontSize: 14, color: chosen ? c.onPrimary : c.accent }} numberOfLines={1}>{chosen ? chosen.label : label}</Txt>
-        <ChevronDown size={16} color={chosen ? c.onPrimary : c.accent} />
+          borderColor: tone.border, backgroundColor: tone.bg, opacity: pressed ? 0.8 : 1 })}>
+        <Txt style={{ fontFamily: chosen ? fonts.semibold : fonts.medium, fontSize: 14, color: tone.fg }} numberOfLines={1}>{chosen ? chosen.label : label}</Txt>
+        <ChevronDown size={16} color={tone.icon} />
       </Pressable>
       <BottomSheet visible={open} title={label} onClose={() => setOpen(false)}>
         <OptionList options={[all, ...options]} value={(chosen ? value : null) as V} onPick={v => { onChange(v); setOpen(false); }} />
