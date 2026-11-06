@@ -13,7 +13,7 @@ import { FeaturedCard, ResultCard, SectionTitle } from '@/components/site/Blocks
 import { SearchBox } from '@/components/site/SearchBox';
 import { AppHeader, RoundButton } from '@/components/ui/AppHeader';
 import { Empty, ErrorState, Skeleton, Txt } from '@/components/ui';
-import { LOGO_ON_DARK, LOGO_RATIO } from '@/lib/content';
+import { LOGO_ON_DARK, LOGO_ON_RED, LOGO_RATIO } from '@/lib/content';
 import { isLotissement } from '@/lib/domain';
 import * as Haptics from '@/lib/haptics';
 import { useFilters, useProjects } from '@/lib/queries';
@@ -53,19 +53,20 @@ const HOMES_BG = ['#E30613', '#8C040C'] as const;
 const LANDS_BG = ['#D4AF37', '#8A6A12'] as const;
 
 /** Carte de marque (noire, coins arrondis) : logo, agrément, villes et nombre de programmes. */
+/** Tuile de marque : fond noir, ROUGE en mode sombre (demande du client du 06/11, avec le logo pour fond rouge). */
 function BrandCard({ count, cities }: { count: number; cities: string[] }) {
-  const { c, fonts, space } = useTheme();
+  const { c, fonts, space, isDark } = useTheme();
   const t = useT();
   return (
-    <View style={{ minHeight: 140, borderRadius: 30, backgroundColor: '#0A0A0A', padding: space.lg, overflow: 'hidden', justifyContent: 'space-between' }}
+    <View style={{ minHeight: 145, borderRadius: 22, backgroundColor: isDark ? c.red : '#0A0A0A', padding: space.lg, overflow: 'hidden', justifyContent: 'space-between' }}
       accessible accessibilityLabel={`SIIPAF SA, ${t('Promoteur agréé MCLU')}${cities.length ? `, ${cities.join(', ')}` : ''}`}>
       {/* Décor : formes aux couleurs SIIPAF */}
-      <View style={{ position: 'absolute', right: -34, top: -30, width: 150, height: 150, borderRadius: 75, backgroundColor: c.red, opacity: 0.9 }} />
+      <View style={{ position: 'absolute', right: -34, top: -30, width: 150, height: 150, borderRadius: 75, backgroundColor: isDark ? '#0A0A0A' : c.red, opacity: isDark ? 0.35 : 0.9 }} />
       <View style={{ position: 'absolute', right: 54, bottom: -46, width: 104, height: 104, borderRadius: 52, borderWidth: 18, borderColor: c.goldLight, opacity: 0.85 }} />
       <View style={{ position: 'absolute', right: 18, top: 62, width: 46, height: 46, borderRadius: 14, backgroundColor: '#fff', opacity: 0.12, transform: [{ rotate: '18deg' }] }} />
       {/* Logo et agrément sur la même ligne, centrés verticalement (agrément sur le disque rouge) */}
       <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: 6 }}>
-        <Image source={LOGO_ON_DARK} style={{ width: 156, height: 156 / LOGO_RATIO }} contentFit="contain" accessibilityElementsHidden />
+        <Image source={isDark ? LOGO_ON_RED : LOGO_ON_DARK} style={{ width: 156, height: 156 / LOGO_RATIO }} contentFit="contain" accessibilityElementsHidden />
         <View style={{ flexShrink: 1, flexDirection: 'row', alignItems: 'center', gap: 4, backgroundColor: 'rgba(0,0,0,0.35)', borderRadius: 999, paddingHorizontal: 8, paddingVertical: 4 }}>
           <BadgeCheck size={13} color="#6EE7A8" />
           <Txt style={{ flexShrink: 1, fontFamily: fonts.semibold, fontSize: 11, color: '#fff' }} numberOfLines={2}>{t('Promoteur agréé MCLU')}</Txt>
