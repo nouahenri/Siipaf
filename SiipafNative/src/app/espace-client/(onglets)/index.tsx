@@ -167,7 +167,7 @@ export default function ClientHome() {
               style={({ pressed }) => ({ flexBasis: '48%', flexGrow: 1, borderRadius: radius.lg, overflow: 'hidden', transform: [{ scale: pressed ? 0.97 : 1 }] })}>
               <LinearGradient colors={QUICK_BG[i % QUICK_BG.length]} start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }} style={{ paddingHorizontal: space.md, paddingVertical: 12, gap: 3, minHeight: 88 }}>
                 <View style={{ position: 'absolute', right: -10, bottom: -10, opacity: 0.12 }} pointerEvents="none"><q.icon size={60} color="#FFFFFF" /></View>
-                <View style={{ width: 30, height: 30, borderRadius: 15, backgroundColor: 'rgba(255,255,255,0.18)', alignItems: 'center', justifyContent: 'center', marginBottom: 2 }}><q.icon size={15} color="#FFFFFF" /></View>
+                <View style={{ width: 38, height: 38, borderRadius: 19, backgroundColor: 'rgba(255,255,255,0.18)', alignItems: 'center', justifyContent: 'center', marginBottom: 2 }}><q.icon size={21} color="#FFFFFF" /></View>
                 <Txt style={{ fontFamily: fonts.bold, fontSize: 14, color: '#FFFFFF' }} numberOfLines={1}>{q.title}</Txt>
                 <Txt style={{ fontSize: 12, color: 'rgba(255,255,255,0.85)' }} numberOfLines={1}>{q.title === 'Paiements' && d ? `${d.percent_paid} % versé` : q.sub}</Txt>
               </LinearGradient>
