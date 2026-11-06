@@ -248,15 +248,15 @@ page, de newsletter ni de blocs « site web » ; Détente & Loisirs = inspiratio
 
 ### 06/11 — retouches de l'application (demandes du client)
 - Menu latéral : 280 px au plus, coins droits, Appeler sous WhatsApp. Accueil : « Rechercher » → « Filtrer ».
-- Couleurs des boutons (noir, or, rouge) dans les composants communs : bouton secondaire () en or, segment actif
-  noir (ou couleur par choix : Rechercher = Tout noir, Logements rouge, Terrains or), pastilles  et filtres 
+- Couleurs des boutons (noir, or, rouge) dans les composants communs : bouton secondaire (`ghost`) en or, segment actif
+  noir (ou couleur par choix : Rechercher = Tout noir, Logements rouge, Terrains or), pastilles `Chip` et filtres `Select`
   en or doux, rouge quand choisis (le noir des filtres jugé agressif, adouci par un agent ECC).
 - Espace client : tuile du bien refaite (photo en bandeau, statut, programme ; lot, caractéristiques, anneau). Document :
   Appeler (noir), WhatsApp (vert), Écrire (or) en pilules sur une ligne, « Signaler un problème » rouge dessous.
-- Clavier :  (KeyboardProvider à la racine,  en KeyboardAwareScrollView, pied de
+- Clavier : `react-native-keyboard-controller` (KeyboardProvider à la racine, `Screen` en KeyboardAwareScrollView, pied de
   page collé au clavier, KeyboardAvoidingView du module partout) : Android plein écran ne réduisait plus la fenêtre.
   **Module natif : nouveau build nécessaire.**
-- Wave : « Payer dans Wave » ajoute  au lien pay.wave.com réglé au dashboard (remplace un amount existant).
+- Wave : « Payer dans Wave » ajoute `amount=<montant saisi>` au lien pay.wave.com réglé au dashboard (remplace un amount existant).
 - Reconnaissance faciale : en attente du symptôme exact (code : niveau biométrique « faible » + code de secours, déjà le plus
   permissif ; beaucoup de téléphones Android ne prêtent pas le visage aux applications).
 
