@@ -16,6 +16,7 @@ import { Alert as RNAlert, AppState, Linking, Platform, Pressable, View } from '
 import { ArrowLeft, Camera, Check, ChevronRight, CircleCheck, Copy, ExternalLink, ShieldCheck, Undo2, Wallet, X } from 'lucide-react-native';
 import { Alert, Button, Callout, Empty, Field, Sheet, Txt } from '@/components/ui';
 import { apiUrl, clientApi } from '@/lib/api';
+import { appendFile } from '@/lib/upload';
 import { amount, fcfa } from '@/lib/format';
 import * as Haptics from '@/lib/haptics';
 import type { DossierDetail, Installment } from '@/lib/types';
@@ -122,8 +123,7 @@ export function PaySheet({ dossier, line, onClose }: { dossier: DossierDetail; l
     const a = r.assets[0];
     const form = new FormData();
     const type = a.mimeType || 'image/jpeg';
-    if (Platform.OS === 'web' && a.file) form.append('files', a.file);
-    else form.append('files', { uri: a.uri, name: a.fileName || `recu-${Date.now()}.${type.split('/')[1] || 'jpg'}`, type } as unknown as Blob);
+    appendFile(form, 'files', { uri: a.uri, name: a.fileName || `recu-${Date.now()}.${type.split('/')[1] || 'jpg'}`, type, file: a.file });
     setUploading(true);
     try {
       const [f] = await clientApi.post<{ id: number }[]>('/sav/files', form);

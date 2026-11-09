@@ -212,6 +212,8 @@ const ROWS: Row[] = [
   ['Tous les programmes', 'All developments', 'Todos los programas'],
   ['Tous les types', 'All types', 'Todos los tipos'],
   ['Tout', 'All', 'Todo'],
+  ['Toutes', 'All', 'Todas'],
+  ['Tous', 'All', 'Todos'],
   ['Toutes les localisations', 'All locations', 'Todas las ubicaciones'],
   ['Toutes les villes', 'All cities', 'Todas las ciudades'],
   ['Trier', 'Sort', 'Ordenar'],

@@ -1,14 +1,16 @@
 /**
  * Recherche des programmes : champ de recherche, Logements / Terrains, menus déroulants tirés de la base (ville,
  * localisation rattachée à la ville, budget par paliers réglés dans le dashboard, type de bien), tri, cartes de résultat.
+ * Présentation du 09/11 : filtres en carte de champs (icône, libellé, valeur, chevron ; chacun ouvre son menu), qui
+ * défile avec la liste ; résultats en lignes, image à gauche et textes à droite.
  * La recherche lancée depuis l'accueil arrive par les paramètres (type, q) ; la ville préférée de Paramètres est
  * présélectionnée.
  */
 import { useLocalSearchParams } from 'expo-router';
 import { useMemo, useState } from 'react';
-import { FlatList, Pressable, RefreshControl, ScrollView, TextInput, View } from 'react-native';
-import { Building, RotateCcw, Search, X } from 'lucide-react-native';
-import { ResultCard, minPrice } from '@/components/site/Blocks';
+import { FlatList, Pressable, RefreshControl, StyleSheet, TextInput, View } from 'react-native';
+import { Building, Building2, House, MapPin, RotateCcw, Search, Wallet, X } from 'lucide-react-native';
+import { ResultRow, minPrice } from '@/components/site/Blocks';
 import { AppHeader } from '@/components/ui/AppHeader';
 import { Select, type SelectOption } from '@/components/ui/Select';
 import { Empty, ErrorState, Segmented, Skeleton, Txt } from '@/components/ui';
@@ -25,7 +27,7 @@ const prices = (p: Project) => (p.offers || []).map(o => Number(o.price_fcfa)).f
 
 export default function Programmes() {
   const params = useLocalSearchParams<{ type?: string; q?: string; ville?: string; lieu?: string; bien?: string }>();
-  const { c, space, radius, fonts } = useTheme();
+  const { c, space, radius, fonts, shadow } = useTheme();
   const { prefs, t } = usePrefs();
   const { data, error, isLoading, refetch } = useProjects();
   const filters = useFilters();
@@ -94,35 +96,34 @@ export default function Programmes() {
             </Pressable>
           ) : null}
         </View>
-        <View style={{ marginTop: space.md }}>
-          <Segmented value={kind} onChange={setKind} tones={{ tous: 'dark', promotion: 'red', lotissement: 'gold' }} options={[
-            ['tous', t('Tout')],
-            ['promotion', `${t('Logements')}${f ? ` · ${f.categories.logement}` : ''}`],
-            ['lotissement', `${t('Terrains')}${f ? ` · ${f.categories.lotissement}` : ''}`],
-          ]} />
-        </View>
       </AppHeader>
 
-      {/* Menus déroulants */}
-      <View>
-        <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ gap: 8, paddingHorizontal: space.lg, paddingTop: space.md, paddingBottom: space.sm }}>
-          <Select label={t('Ville')} allLabel={t('Toutes les villes')} value={city} options={villes} onChange={v => { setCity(v); setPlace(null); }} />
-          <Select label={t('Localisation')} allLabel={t('Toutes les localisations')} value={place} options={places} onChange={setPlace} />
-          <Select label={t('Budget')} allLabel={t('Tous les budgets')} value={budget} options={budgets} onChange={setBudget} />
-          <Select label={t('Type de bien')} allLabel={t('Tous les types')} value={propType} options={types} onChange={setPropType} />
-        </ScrollView>
-      </View>
-
-      {isLoading ? (
-        <View style={{ padding: space.lg, gap: space.md }}>{[0, 1].map(i => <Skeleton key={i} h={300} r={22} />)}</View>
-      ) : error && !data ? <ErrorState error={error} onRetry={refetch} /> : (
+      {error && !data && !isLoading ? <ErrorState error={error} onRetry={refetch} /> : (
         <FlatList
-          data={list}
+          data={isLoading ? [] : list}
           keyExtractor={p => p.slug}
-          renderItem={({ item, index }) => <ResultCard p={item} rank={index} />}
-          contentContainerStyle={{ paddingHorizontal: space.lg, paddingBottom: space.xxxl }}
+          renderItem={({ item, index }) => <ResultRow p={item} rank={index} />}
+          contentContainerStyle={{ paddingHorizontal: space.lg, paddingTop: space.md, paddingBottom: space.xxxl }}
+          keyboardShouldPersistTaps="handled"
           refreshControl={<RefreshControl refreshing={refreshing} onRefresh={refresh} tintColor={c.primary} colors={[c.primary]} />}
-          ListHeaderComponent={(
+          ListHeaderComponent={(<>
+            {/* Carte de filtres : catégorie, puis les quatre menus en champs (deux par ligne) ; chacun ouvre son menu */}
+            <View style={{ backgroundColor: c.surface, borderRadius: radius.xl, borderWidth: StyleSheet.hairlineWidth, borderColor: c.line, padding: space.md, marginBottom: space.lg, ...shadow(1) }}>
+              <Segmented value={kind} onChange={setKind} tones={{ tous: 'dark', promotion: 'red', lotissement: 'gold' }} options={[
+                ['tous', t('Tout')],
+                ['promotion', `${t('Logements')}${f ? ` · ${f.categories.logement}` : ''}`],
+                ['lotissement', `${t('Terrains')}${f ? ` · ${f.categories.lotissement}` : ''}`],
+              ]} />
+              <View style={{ flexDirection: 'row', gap: space.lg, marginTop: space.sm }}>
+                <Select field={{ icon: Building2, empty: t('Toutes') }} label={t('Ville')} allLabel={t('Toutes les villes')} value={city} options={villes} onChange={v => { setCity(v); setPlace(null); }} />
+                <Select field={{ icon: MapPin, empty: t('Toutes') }} label={t('Localisation')} allLabel={t('Toutes les localisations')} value={place} options={places} onChange={setPlace} />
+              </View>
+              <View style={{ flexDirection: 'row', gap: space.lg, marginTop: 4 }}>
+                <Select field={{ icon: Wallet, empty: t('Tous') }} label={t('Budget')} allLabel={t('Tous les budgets')} value={budget} options={budgets} onChange={setBudget} />
+                <Select field={{ icon: House, empty: t('Tous') }} label={t('Type de bien')} allLabel={t('Tous les types')} value={propType} options={types} onChange={setPropType} />
+              </View>
+            </View>
+            {isLoading ? null : (
             <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: 8, marginBottom: space.sm }}>
               <Txt style={{ fontFamily: fonts.semibold, fontSize: 14, color: c.ink }}>{t('{n} résultat(s)', { n: list.length })}</Txt>
               <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
@@ -135,8 +136,11 @@ export default function Programmes() {
                 <Select neutral label={t('Trier')} allLabel={t('Recommandés')} value={sort === 'defaut' ? null as unknown as Sort : sort} options={sorts.slice(1)} onChange={v => setSort((v as Sort) || 'defaut')} />
               </View>
             </View>
-          )}
-          ListEmptyComponent={<Empty icon={Building} title={t('Aucun programme pour cette recherche')} text={t('Élargissez vos filtres, ou demandez à un conseiller les prochains lancements.')} />}
+            )}
+          </>)}
+          ListEmptyComponent={isLoading
+            ? <View style={{ gap: space.md }}>{[0, 1, 2].map(i => <Skeleton key={i} h={148} r={22} />)}</View>
+            : <Empty icon={Building} title={t('Aucun programme pour cette recherche')} text={t('Élargissez vos filtres, ou demandez à un conseiller les prochains lancements.')} />}
         />
       )}
     </View>

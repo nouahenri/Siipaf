@@ -80,6 +80,62 @@ function ResultCardBase({ p, rank = 0 }: { p: Project; rank?: number }) {
 }
 export const ResultCard = memo(ResultCardBase);
 
+/* ─── Ligne de résultat de la recherche (09/11) : image à gauche, textes à droite ─── */
+function ResultRowBase({ p, rank = 0 }: { p: Project; rank?: number }) {
+  const { c, fonts, radius, space, shadow } = useTheme();
+  const { prefs, t } = usePrefs();
+  const from = minPrice(p);
+  const free = available(p);
+  const lot = isLotissement(p);
+  const place = [p.location?.split(/[—,–]/)[0]?.trim(), p.city].filter((x, i, a) => x && a.indexOf(x) === i).join(' · ');
+  const content = (
+    <Pressable onPress={() => router.push(`/projet/${p.slug}`)} accessibilityRole="button"
+      accessibilityLabel={[p.name, projectKind(p), place, free ? t('{n} disponible(s)', { n: free }) : null, from ? t('dès {prix}', { prix: money(from, prefs.currency) }) : t('Prix sur demande')].filter(Boolean).join(', ')}
+      style={({ pressed }) => ({ flexDirection: 'row', gap: 12, padding: 8, borderRadius: radius.xl, backgroundColor: c.surface, marginBottom: space.md, ...shadow(1), transform: [{ scale: pressed ? 0.985 : 1 }] })}>
+      <View>
+        <Image source={projectImage(p)} style={{ width: 118, height: 132, borderRadius: radius.lg, backgroundColor: c.surfaceAlt }} contentFit="cover" transition={prefs.reduceMotion ? 0 : 200} recyclingKey={`row-${p.slug}`} />
+        <View style={{ position: 'absolute', top: 8, left: 8, backgroundColor: lot ? c.goldLight : 'rgba(255,255,255,0.94)', borderRadius: 999, paddingHorizontal: 9, paddingVertical: 3 }}>
+          <Txt style={{ fontFamily: fonts.semibold, fontSize: 11.5, color: '#141414' }}>{lot ? t('Terrain') : t('Logement')}</Txt>
+        </View>
+      </View>
+      <View style={{ flex: 1, minWidth: 0, paddingVertical: 4, paddingRight: 4, justifyContent: 'space-between' }}>
+        <View style={{ gap: 3 }}>
+          {p.property_types.length ? (
+            <Txt style={{ fontFamily: fonts.semibold, fontSize: 11, letterSpacing: 0.8, textTransform: 'uppercase', color: c.accent }} numberOfLines={1}>
+              {p.property_types.slice(0, 3).join(' · ')}
+            </Txt>
+          ) : null}
+          <Txt style={{ fontFamily: fonts.bold, fontSize: 16, lineHeight: 21, color: c.ink }} numberOfLines={2}>{p.name}</Txt>
+          {place ? (
+            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4 }}>
+              <MapPin size={13} color={c.ink3} /><Txt style={{ flex: 1, fontSize: 12.5, color: c.ink3 }} numberOfLines={1}>{place}</Txt>
+            </View>
+          ) : null}
+        </View>
+        <View style={{ gap: 6, marginTop: 6 }}>
+          {free > 0 ? (
+            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 5 }}>
+              <View style={{ width: 7, height: 7, borderRadius: 4, backgroundColor: c.available }} />
+              <Txt style={{ fontFamily: fonts.medium, fontSize: 12, color: c.ink2 }}>{t('{n} disponible(s)', { n: free })}</Txt>
+            </View>
+          ) : null}
+          <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
+            <View style={{ flex: 1, minWidth: 0 }}>
+              {from ? <>
+                <Txt style={{ fontSize: 11.5, color: c.ink3 }}>{t('À partir de')}</Txt>
+                <Txt style={{ fontFamily: fonts.bold, fontSize: 15.5, color: c.primary }} numberOfLines={1} adjustsFontSizeToFit>{money(from, prefs.currency)}</Txt>
+              </> : <Txt style={{ fontFamily: fonts.semibold, fontSize: 13.5, color: c.ink2 }}>{t('Prix sur demande')}</Txt>}
+            </View>
+            <View style={{ width: 30, height: 30, borderRadius: 15, backgroundColor: c.surfaceAlt, alignItems: 'center', justifyContent: 'center' }}><ChevronRight size={17} color={c.ink} /></View>
+          </View>
+        </View>
+      </View>
+    </Pressable>
+  );
+  return prefs.reduceMotion ? content : <Animated.View entering={FadeInDown.duration(260).delay(Math.min(rank, 6) * 40)}>{content}</Animated.View>;
+}
+export const ResultRow = memo(ResultRowBase);
+
 /* ─── Carte « À la une » (carrousel de l'accueil) ─── */
 export function FeaturedCard({ p }: { p: Project }) {
   const { c, fonts, radius, space } = useTheme();

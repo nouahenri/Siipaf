@@ -4,10 +4,11 @@
  */
 import * as DocumentPicker from 'expo-document-picker';
 import { useState } from 'react';
-import { Platform, View } from 'react-native';
+import { View } from 'react-native';
 import { Briefcase, CalendarDays, FileUp, MapPin, Paperclip, Send } from 'lucide-react-native';
 import { Alert, Badge, Button, Card, Empty, ErrorState, Field, Screen, Sheet, Skeleton, Title, Txt, plain } from '@/components/ui';
 import { publicApi } from '@/lib/api';
+import { appendFile } from '@/lib/upload';
 import { useSite } from '@/lib/content';
 import { shortDate } from '@/lib/format';
 import { useJobs } from '@/lib/queries';
@@ -73,8 +74,7 @@ function ApplySheet({ job, onClose }: { job: Job | 'spontanee' | null; onClose: 
     form.append('job_id', job && job !== 'spontanee' ? String(job.id) : '');
     form.append('name', f.name.trim()); form.append('email', f.email.trim()); form.append('phone', f.phone.trim());
     if (f.message.trim()) form.append('message', f.message.trim());
-    if (Platform.OS === 'web' && cv.file) form.append('cv', cv.file);
-    else form.append('cv', { uri: cv.uri, name: cv.name, type: cv.mimeType || 'application/pdf' } as unknown as Blob);
+    appendFile(form, 'cv', { uri: cv.uri, name: cv.name, type: cv.mimeType || 'application/pdf', file: cv.file });
     try {
       await publicApi.post('/candidatures', form);
       toast('Candidature envoyée : merci !');
