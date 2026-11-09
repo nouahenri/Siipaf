@@ -11,16 +11,26 @@ const roleStem = s => roleName(s).split(' ').map(w => (w.length > 4 ? w.replace(
 
 /**
  * Doublons d'un nom de rôle en cours de saisie, parmi les rôles existants (sauf `exceptId`, le rôle modifié) :
- * `same` = rôle de même nom (le serveur le refuse), `close` = rôles au nom proche (au plus 3), à vérifier avant d'en créer un autre.
+ * `same` = rôle de même nom (le serveur le refuse), `close` = rôles au nom proche (au plus 3), à vérifier avant d'en créer un autre,
+ * `matches` = autres rôles existants dont un mot commence par chaque mot saisi d'au moins 3 lettres (« juri » → « … / Juridique »),
+ * proposés pendant la frappe (au plus 5, `more` = combien d'autres).
  */
 export function roleDuplicates(label, roles, exceptId = null) {
   const name = roleName(label);
-  if (name.length < 2) return { same: null, close: [] };
+  const none = { same: null, close: [], matches: [], more: 0 };
+  if (name.length < 2) return none;
   const others = (roles || []).filter(r => r.id !== exceptId);
   const same = others.find(r => roleName(r.label) === name) || null;
   const stem = roleStem(label);
   const close = same ? [] : others.filter(r => roleStem(r.label) === stem).slice(0, 3);
-  return { same, close };
+  const typed = name.split(' ').filter(w => w.length >= 3);
+  const shown = new Set([same, ...close].filter(Boolean).map(r => r.id));
+  const all = !typed.length ? [] : others.filter(r => {
+    if (shown.has(r.id)) return false;
+    const words = roleName(r.label).split(' ');
+    return typed.every(t => words.some(w => w.startsWith(t)));
+  });
+  return { same, close, matches: all.slice(0, 5), more: Math.max(0, all.length - 5) };
 }
 
 export function permRows(items) {
