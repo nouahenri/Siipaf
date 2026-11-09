@@ -82,6 +82,24 @@ module.exports = function permissionRoutes(db) {
     });
   }));
 
+  // Comptes ayant ce rôle (clic sur « N compte(s) » dans la grille, dashboard et modules de l'ERP)
+  r.get('/permissions/roles/:role/users', canRead, ah(async (req, res) => {
+    const role = await roles.getRole(db, req.params.role);
+    if (!role) throw new HttpError(404, 'Rôle introuvable.');
+    const users = await db('users').where({ role: role.id })
+      .select('id', 'name', 'email', 'phone', 'active', 'last_login_at')
+      .orderBy([{ column: 'active', order: 'desc' }, { column: 'name' }]);
+    const overrides = await db('user_permissions').whereIn('user_id', users.map(u => u.id)).select('user_id').count({ n: '*' }).groupBy('user_id');
+    res.json({
+      role: { id: role.id, label: role.label, description: role.description },
+      users: users.map(u => ({
+        ...u, active: !!u.active,
+        last_login_at: u.last_login_at ? new Date(u.last_login_at).toISOString() : null,
+        overrides: Number(overrides.find(o => o.user_id === u.id)?.n || 0),
+      })),
+    });
+  }));
+
   // Nouveau rôle : libellé, description facultative et droits cochés dans le catalogue
   r.post('/permissions/roles', rolesWriter, ah(async (req, res) => {
     const data = parse(z.object({ ...roleFields, permissions: permissionList.default([]) }), req.body);

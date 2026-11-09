@@ -6,6 +6,7 @@ import { api } from '../lib/api';
 import { useAuth, useResource, useToast, useSaved } from '../lib/app-context';
 import { Card, ErrorBox, Skeleton, Badge, Drawer, Field } from '../components/ui';
 import { permRows } from '../lib/permissions';
+import RoleUsersDrawer from '../components/RoleUsers';
 
 /**
  * Version imprimée de la grille (bouton « Imprimer ») : privilèges ENREGISTRÉS (pas les cases modifiées non enregistrées),
@@ -69,6 +70,7 @@ export default function Roles() {
   const [draft, setDraft] = useState({}); // rôle → Set de privilèges
   const [saving, setSaving] = useState(null);
   const [roleForm, setRoleForm] = useState(null); // {} = nouveau rôle, sinon le rôle à renommer
+  const [roleUsers, setRoleUsers] = useState(null); // rôle dont on affiche les comptes
 
   useEffect(() => {
     if (data.data) setDraft(Object.fromEntries(data.data.roles.map(r => [r.id, new Set(r.permissions)])));
@@ -147,11 +149,13 @@ export default function Roles() {
                   <th key={r.id} className="perm-col" title={r.description || undefined}>
                     <div>{r.label}</div>
                     <small className="muted" style={{ textTransform: 'none', letterSpacing: 0, fontWeight: 400 }}>
-                      {r.users} compte(s){!r.system && ' · créé ici'}
+                      <button type="button" className="role-count" onClick={() => setRoleUsers(r)} title="Voir les comptes de ce rôle">
+                        {r.users} compte(s){r.users_total > r.users ? ` (+${r.users_total - r.users} désactivé(s))` : ''}
+                      </button>{!r.system && ' · créé ici'}
                     </small>
                     {editable && !r.locked && (
                       <div className="row" style={{ gap: 2, justifyContent: 'center', marginTop: 4 }}>
-                        <button className="btn btn-sm btn-ghost btn-icon" onClick={() => setRoleForm(r)} title="Renommer" aria-label={`Renommer « ${r.label} »`}><Pencil /></button>
+                        <button className="btn btn-sm btn-ghost btn-icon" onClick={() => setRoleForm(r)} title="Modifier (nom, description, privilèges)" aria-label={`Modifier « ${r.label} »`}><Pencil /></button>
                         <button className="btn btn-sm btn-ghost btn-icon btn-danger" onClick={() => remove(r)} title="Supprimer" aria-label={`Supprimer « ${r.label} »`}><Trash2 /></button>
                       </div>
                     )}
@@ -222,6 +226,7 @@ export default function Roles() {
         <RoleDrawer role={roleForm} catalog={d.catalog} roles={roles} onClose={() => setRoleForm(null)}
           onSaved={() => { setRoleForm(null); data.reload(); }} />
       )}
+      {roleUsers && <RoleUsersDrawer role={roleUsers} internal userHref={u => `/utilisateurs?compte=${u.id}`} onClose={() => setRoleUsers(null)} />}
     </div>
   );
 }
@@ -232,11 +237,14 @@ function RoleDrawer({ role, catalog, roles, onClose, onSaved }) {
   const saved = useSaved();
   const isNew = !role.id;
   const [form, setForm] = useState({ label: role.label || '', description: role.description || '' });
-  const [perms, setPerms] = useState(() => new Set());
+  // Rôle existant : on part de ses privilèges enregistrés (modifiables ici comme dans la grille)
+  const [perms, setPerms] = useState(() => new Set(role.permissions || []));
   const [error, setError] = useState(null);
   const [busy, setBusy] = useState(false);
 
   const toggle = id => setPerms(s => { const n = new Set(s); n.has(id) ? n.delete(id) : n.add(id); return n; });
+  const original = new Set(role.permissions || []);
+  const permsChanged = !isNew && (perms.size !== original.size || [...perms].some(p => !original.has(p)));
   // Partir des droits d'un rôle existant, puis ajuster
   const copyFrom = id => {
     const src = roles.find(r => r.id === id);
@@ -249,28 +257,34 @@ function RoleDrawer({ role, catalog, roles, onClose, onSaved }) {
     try {
       const body = { label: form.label, description: form.description || null };
       if (isNew) await api.post('/admin/permissions/roles', { ...body, permissions: [...perms] });
-      else await api.patch(`/admin/permissions/roles/${role.id}`, body);
-      saved(isNew ? `Rôle « ${form.label.trim()} » créé` : 'Rôle renommé');
+      else {
+        if (form.label.trim() !== role.label || (form.description || null) !== (role.description || null)) await api.patch(`/admin/permissions/roles/${role.id}`, body);
+        if (permsChanged) await api.put(`/admin/permissions/roles/${role.id}`, { permissions: [...perms] });
+      }
+      saved(isNew ? `Rôle « ${form.label.trim()} » créé` : `Rôle « ${form.label.trim()} » enregistré`);
       onSaved();
     } catch (e) { setError(e); } finally { setBusy(false); }
   };
 
   return (
-    <Drawer title={isNew ? 'Nouveau rôle' : `Renommer « ${role.label} »`} onClose={onClose}
+    <Drawer title={isNew ? 'Nouveau rôle' : `Modifier le rôle « ${role.label} »`} onClose={onClose}
       footer={<><button className="btn" onClick={onClose}>Annuler</button><button className="btn btn-primary" disabled={busy || form.label.trim().length < 2} onClick={save}>{isNew ? 'Créer le rôle' : 'Enregistrer'}</button></>}>
       <ErrorBox error={error} />
       <div className="form-grid">
-        <Field label="Nom du rôle" className="full" hint={isNew ? 'Ex. : Assistant commercial, Juriste, Secrétariat…' : 'Les comptes de ce rôle et leurs droits ne changent pas.'}>
+        <Field label="Nom du rôle" className="full" hint={isNew ? 'Ex. : Assistant commercial, Juriste, Secrétariat…' : `Changer le nom ne change rien aux comptes. Les privilèges cochés ci-dessous s’appliquent à ses ${role.users ?? 0} compte(s) actif(s) dès l’enregistrement.`}>
           <input className="input" value={form.label} maxLength={120} autoFocus onChange={e => setForm(f => ({ ...f, label: e.target.value }))} />
         </Field>
         <Field label="Description (facultatif)" className="full">
           <input className="input" value={form.description} maxLength={255} onChange={e => setForm(f => ({ ...f, description: e.target.value }))} />
         </Field>
       </div>
-      {isNew && (
+      {(
         <div className="stack" style={{ gap: 14, marginTop: 20 }}>
           <div className="row-between">
             <strong>Ce que ce rôle peut faire</strong>
+            {!isNew && role.system && (
+              <button type="button" className="btn btn-sm btn-ghost" onClick={() => setPerms(new Set(role.defaults || []))} title="Cocher le réglage par défaut (enregistré seulement avec « Enregistrer »)"><RotateCcw />Par défaut</button>
+            )}
             <select className="select" style={{ width: 'auto', height: 32 }} value="" onChange={e => copyFrom(e.target.value)} aria-label="Partir des droits d’un rôle existant">
               <option value="">Partir des droits de…</option>
               {roles.map(r => <option key={r.id} value={r.id}>{r.label}</option>)}
@@ -290,7 +304,7 @@ function RoleDrawer({ role, catalog, roles, onClose, onSaved }) {
               )))}
             </div>
           ))}
-          <p className="small muted">{perms.size} privilège(s) coché(s). Vous pourrez les modifier ensuite dans la grille.</p>
+          <p className="small muted">{perms.size} privilège(s) coché(s).{isNew ? ' Vous pourrez les modifier ensuite dans la grille.' : permsChanged ? ' Modifications non enregistrées.' : ''}</p>
         </div>
       )}
     </Drawer>

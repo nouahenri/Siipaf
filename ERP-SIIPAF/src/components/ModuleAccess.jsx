@@ -9,6 +9,7 @@ import { api } from '@admin/lib/api';
 import { useResource, useToast } from '@admin/lib/app-context';
 import { permRows } from '@admin/lib/permissions';
 import { Card, Skeleton, ErrorBox, Badge } from '@admin/components/ui';
+import RoleUsersDrawer from '@admin/components/RoleUsers';
 import { withReturn } from '@admin/lib/navigation';
 import { dashboardUrl } from '../lib/links';
 
@@ -31,6 +32,7 @@ export default function ModuleAccess({ module, label }) {
   const toast = useToast();
   const cat = useResource('/admin/permissions');
   const [busy, setBusy] = useState(null);
+  const [roleUsers, setRoleUsers] = useState(null); // rôle dont on affiche les comptes
   const groups = useMemo(() => (cat.data ? MODULE_GROUPS[module].map(g => cat.data.catalog.find(c => c.group === g)).filter(Boolean) : []), [cat.data, module]);
   if (cat.error) return <ErrorBox error={cat.error} />;
   if (!cat.data) return <Skeleton h={300} />;
@@ -53,7 +55,7 @@ export default function ModuleAccess({ module, label }) {
       {groups.map(g => (
         <Card key={g.group} title={g.group.replace(/^ERP · /, '')} bodyClass="">
           <div className="table-wrap"><table className="table perm-table">
-            <thead><tr><th>Action</th>{roles.map(r => <th key={r.id} className="center perm-col" title={r.description || undefined}>{r.label}<div className="muted" style={{ fontWeight: 400 }}>{r.users} compte(s)</div></th>)}</tr></thead>
+            <thead><tr><th>Action</th>{roles.map(r => <th key={r.id} className="center perm-col" title={r.description || undefined}>{r.label}<div><button type="button" className="role-count" onClick={() => setRoleUsers(r)} title="Voir les comptes de ce rôle">{r.users} compte(s)</button></div></th>)}</tr></thead>
             <tbody>{permRows(g.items).map(i => (i.heading ? (
               <tr key={`h:${i.heading}`} className="perm-parent"><td colSpan={roles.length + 1}><b className="small">{i.heading}</b></td></tr>
             ) : (
@@ -73,6 +75,7 @@ export default function ModuleAccess({ module, label }) {
           </table></div>
         </Card>
       ))}
+      {roleUsers && <RoleUsersDrawer role={roleUsers} userHref={u => withReturn(dashboardUrl(`utilisateurs?compte=${u.id}`))} onClose={() => setRoleUsers(null)} />}
       <p className="small muted row" style={{ gap: 8 }}>
         {!canEdit && <Badge>Lecture seule</Badge>}<Info className="ico" />Le serveur vérifie chaque action : un bouton masqué ne suffit pas, une action non autorisée est refusée.
       </p>

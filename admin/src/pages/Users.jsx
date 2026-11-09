@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react';
+import { useSearchParams } from 'react-router-dom';
 import { Plus, UserCog } from 'lucide-react';
 import { api } from '../lib/api';
 import { useAuth, useResource, useToast, useSaved } from '../lib/app-context';
@@ -19,6 +20,16 @@ export default function UsersPage() {
   const roles = useResource('/admin/users/roles');
   const roleLabel = id => roles.data?.find(r => r.id === id)?.label || id;
   const [edit, setEdit] = useState(null);
+  // Arrivée depuis « Rôles & privilèges » (liste des comptes d'un rôle) : ?compte=ID ouvre la fiche du compte
+  const [params, setParams] = useSearchParams();
+  const wanted = Number(params.get('compte')) || null;
+  useEffect(() => {
+    if (!wanted || !users.data) return;
+    const u = users.data.find(x => x.id === wanted);
+    if (u && can(USER_ACTIONS)) setEdit(u);
+    params.delete('compte');
+    setParams(params, { replace: true });
+  }, [wanted, users.data]);
 
   return (
     <div className="stack">

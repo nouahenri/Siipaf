@@ -21,6 +21,16 @@ test('le catalogue liste les rôles avec leurs droits actuels et par défaut', a
   assert.equal(res.body.roles.find(r => r.id === 'super_admin').locked, true);
 });
 
+test('comptes d’un rôle : liste au clic sur « N compte(s) », réservée à « Voir les utilisateurs »', async () => {
+  const res = await admin.get('/api/admin/permissions/roles/commercial/users');
+  assert.equal(res.status, 200);
+  assert.equal(res.body.role.id, 'commercial');
+  assert.ok(res.body.users.some(u => u.id === commercialId && u.active === true && 'overrides' in u));
+  assert.ok(res.body.users.every(u => !('password_hash' in u)), 'jamais le mot de passe');
+  assert.equal((await admin.get('/api/admin/permissions/roles/inconnu/users')).status, 404);
+  assert.equal((await commercial.get('/api/admin/permissions/roles/commercial/users')).status, 403);
+});
+
 test("retirer un droit à un rôle s'applique tout de suite, et se rétablit par défaut", async () => {
   assert.equal((await commercial.get('/api/admin/leads')).status, 200);
   const current = (await admin.get('/api/admin/permissions')).body.roles.find(r => r.id === 'commercial').permissions;
