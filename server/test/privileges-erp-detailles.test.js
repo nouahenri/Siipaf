@@ -468,6 +468,9 @@ test('pointages : un compte qui pointe sans rh:read ne voit et ne corrige que se
   assert.equal((await a.post(`${ERP}/rh/attendance/sheet`).send(sheet(mine.id, e3))).status, 201);
   const refused = await a.post(`${ERP}/rh/attendance/sheet`).send(sheet(theirs.id, e3));
   assert.equal(refused.status, 403, JSON.stringify(refused.body));
+  // Feuille rechargée par l'écran : la sienne avec ses présences, rien de celle de B
+  assert.deepEqual((await a.get(`${ERP}/rh/attendance/sheet?date=${today}&worksite_id=${mine.id}`)).body.rows.map(r => r.employee_id).sort(), [e1, e3].sort());
+  assert.equal((await a.get(`${ERP}/rh/attendance/sheet?date=${today}&worksite_id=${theirs.id}`)).body.rows.length, 0);
   // Liste : seulement les pointages de son chantier
   const list = (await a.get(`${ERP}/rh/attendance`)).body;
   assert.deepEqual([...new Set(list.map(x => x.employee_id))].sort(), [e1, e3].sort());

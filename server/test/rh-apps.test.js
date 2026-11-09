@@ -70,6 +70,18 @@ test('pointage : en ligne, borne avec code, feuille de chantier, correction moti
   }
   res = await rhAgent.post(`${R}/attendance/sheet`).send({ date: '2026-03-02', rows: rows('02') });
   assert.equal(res.body.created, 2, 'la feuille du jour remplace la précédente');
+  // L'écran recharge la feuille enregistrée (jour + lieu) au lieu de repartir de zéro
+  res = await rhAgent.get(`${R}/attendance/sheet?date=2026-03-02`);
+  assert.equal(res.status, 200, JSON.stringify(res.body));
+  assert.deepEqual(res.body.rows.map(r => [r.employee_id, r.periods]), [[koffi.id, [['07:00', '12:00'], ['13:00', '18:00']]]]);
+  assert.equal(res.body.hours, 10);
+  assert.equal((await rhAgent.get(`${R}/attendance/sheet?date=2026-03-09`)).body.rows.length, 0, 'jour sans feuille : nouvelle feuille');
+  assert.equal((await rhAgent.get(`${R}/attendance/sheet?date=mars`)).status, 400);
+  assert.equal((await awaAgent.get(`${R}/attendance/sheet?date=2026-03-02`)).status, 403, 'réservée à « Feuilles de présence »');
+  // Décocher quelqu'un (plages vides) retire sa présence de la feuille, puis on la rétablit
+  await rhAgent.post(`${R}/attendance/sheet`).send({ date: '2026-03-02', rows: [{ employee_id: koffi.id, periods: [] }] });
+  assert.equal((await rhAgent.get(`${R}/attendance/sheet?date=2026-03-02`)).body.rows.length, 0);
+  await rhAgent.post(`${R}/attendance/sheet`).send({ date: '2026-03-02', rows: rows('02') });
   res = await rhAgent.post(`${R}/attendance`).send({ employee_id: koffi.id, check_in: '2026-03-08T08:00:00Z', check_out: '2026-03-08T10:00:00Z', note: '' });
   assert.equal(res.status, 400, 'motif obligatoire');
   res = await rhAgent.post(`${R}/attendance`).send({ employee_id: koffi.id, check_in: '2026-03-08T08:00:00Z', check_out: '2026-03-08T10:00:00Z', note: 'Coulage de dalle le dimanche' });

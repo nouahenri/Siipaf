@@ -305,6 +305,27 @@ async function saveSheet(db, { date, project_id = null, worksite_id = null, plac
   });
 }
 
+/**
+ * Feuille déjà enregistrée pour une journée et un lieu (ou chantier) : plages « feuille » par employé, dans le périmètre du compte.
+ * L'écran la recharge pour la modifier au lieu de repartir d'une feuille vide.
+ */
+async function getSheet(db, { date, project_id = null, worksite_id = null, place_id = null }, scope = null) {
+  const from = new Date(`${date}T00:00:00Z`), to = new Date(from.getTime() + 24 * HOUR);
+  const site = await placeOf(db, { project_id, worksite_id, place_id });
+  const q = query(db).where('a.source', 'feuille').where('a.check_in', '>=', from).where('a.check_in', '<', to).orderBy('a.check_in');
+  for (const k of ['project_id', 'worksite_id', 'place_id']) { if (site[k]) q.where(`a.${k}`, site[k]); else q.whereNull(`a.${k}`); }
+  applyScope(q, scope);
+  const byEmployee = new Map();
+  for (const a of (await q).map(serialize)) {
+    const r = byEmployee.get(a.employee_id) || { employee_id: a.employee_id, employee_name: a.employee_name, department: a.department, periods: [], note: a.note || null, hours: 0 };
+    r.periods.push([a.check_in.slice(11, 16), a.check_out ? a.check_out.slice(11, 16) : null]);
+    r.hours = Math.round((r.hours + (a.hours || 0)) * 100) / 100;
+    byEmployee.set(a.employee_id, r);
+  }
+  const rows = [...byEmployee.values()];
+  return { date, rows, hours: Math.round(rows.reduce((t, r) => t + r.hours, 0) * 100) / 100 };
+}
+
 /** Correction ou saisie manuelle (motif obligatoire) : arrivée avant départ, pas de chevauchement. */
 async function upsertManual(db, { id = null, employee_id, check_in, check_out, project_id = null, worksite_id = null, place_id = null, note }, userId) {
   const a = toDate(check_in), b = check_out ? toDate(check_out) : null;
@@ -432,4 +453,4 @@ async function inScope(db, scope, { worksite_id = null, project_id = null }, emp
   return Number((await db('employees').whereIn('id', ids).where({ manager_id: scope.me.id }).count({ n: '*' }).first()).n) === ids.length;
 }
 
-module.exports = { GEO_STATUSES, refPosition, zones, pendingZones, setZone, decideZone, checkPosition, scopeOf, applyScope, scopedEmployeeIds, inScope, serialize, query, openOf, toggle, kiosk, resetKioskLocks, setPin, saveSheet, upsertManual, overtimeReport, approveOvertime, today, monthAttendances, lastDay };
+module.exports = { GEO_STATUSES, refPosition, zones, pendingZones, setZone, decideZone, checkPosition, scopeOf, applyScope, scopedEmployeeIds, inScope, serialize, query, openOf, toggle, kiosk, resetKioskLocks, setPin, saveSheet, getSheet, upsertManual, overtimeReport, approveOvertime, today, monthAttendances, lastDay };

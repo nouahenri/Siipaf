@@ -102,6 +102,12 @@ module.exports = function presencesRoutes(db) {
     const own = await db('employees').whereIn('id', [].concat(employeeIds)).where({ user_id: req.user.id }).first('id');
     if (own) throw new HttpError(403, 'Vos propres pointages se font à la borne ou dans Mon espace ; une correction passe par un collègue habilité.');
   };
+  // Feuille déjà enregistrée (jour + lieu ou chantier) : rechargée par l'écran pour être complétée ou corrigée
+  r.get('/attendance/sheet', sheets, ah(async (req, res) => {
+    const id = v => (/^\d+$/.test(v || '') ? Number(v) : null);
+    const date = parse(day, req.query.date);
+    res.json(await presences.getSheet(db, { date, project_id: id(req.query.project_id), worksite_id: id(req.query.worksite_id), place_id: id(req.query.place_id) }, await presences.scopeOf(db, req)));
+  }));
   r.post('/attendance/sheet', sheets, ah(async (req, res) => {
     const data = parse(z.object({
       date: day, project_id: projectId, worksite_id: projectId, place_id: projectId,

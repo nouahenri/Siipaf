@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { Link, useSearchParams } from 'react-router-dom';
 import { UserCheck, Clock3, Palmtree, Save, Pencil, Trash2, Plus, Tablet, CheckCheck, Timer } from 'lucide-react';
 import { api, qs } from '@admin/lib/api';
@@ -52,6 +52,8 @@ function Today() {
   );
 }
 
+const DEFAULT_AM = ['07:30', '12:00'], DEFAULT_PM = ['13:00', '16:30'];
+
 /** Feuille de présence du conducteur de travaux : une journée, un chantier, une ou deux plages par ouvrier. */
 function Sheet() {
   const { meta } = useRhMeta();
@@ -62,24 +64,50 @@ function Sheet() {
   const [dept, setDept] = useState('chantier');
   const [rows, setRows] = useState({});
   const [busy, setBusy] = useState(false);
+  // Feuille déjà enregistrée pour ce jour et ce lieu : rechargée pour être complétée ou corrigée, jamais refaite de zéro
+  const sheet = useResource(`${RH}/attendance/sheet${qs({ date: day, ...site })}`);
+  const recorded = sheet.data?.rows || [];
+  useEffect(() => {
+    if (!sheet.data) return;
+    setRows(Object.fromEntries(sheet.data.rows.map(r => [r.employee_id, {
+      present: true, am: r.periods[0], pm: r.periods[1] || DEFAULT_PM, pmOn: !!r.periods[1], extra: r.periods.slice(2), note: r.note || undefined,
+    }])));
+  }, [sheet.data]);
   const people = (meta?.employees || []).filter(e => !dept || e.department === dept);
-  const row = id => rows[id] || { present: false, am: ['07:30', '12:00'], pm: ['13:00', '16:30'], pmOn: true };
+  const hidden = recorded.filter(r => !people.some(e => e.id === r.employee_id)).length; // enregistrés mais hors du service affiché
+  const row = id => rows[id] || { present: false, am: DEFAULT_AM, pm: DEFAULT_PM, pmOn: true };
   const set = (id, patch) => setRows(r => ({ ...r, [id]: { ...row(id), ...patch } }));
-  const total = id => { const r = row(id); const h = ([a, b]) => { const [h1, m1] = a.split(':').map(Number), [h2, m2] = b.split(':').map(Number); return Math.max(0, h2 * 60 + m2 - h1 * 60 - m1) / 60; }; return h(r.am) + (r.pmOn ? h(r.pm) : 0); };
+  const total = id => { const r = row(id); const h = ([a, b]) => { const [h1, m1] = a.split(':').map(Number), [h2, m2] = b.split(':').map(Number); return Math.max(0, h2 * 60 + m2 - h1 * 60 - m1) / 60; }; return h(r.am) + (r.pmOn ? h(r.pm) : 0) + (r.extra || []).reduce((t, p) => t + h(p), 0); };
   const save = async () => {
-    const list = people.filter(e => row(e.id).present).map(e => ({ employee_id: e.id, periods: [row(e.id).am, ...(row(e.id).pmOn ? [row(e.id).pm] : [])] }));
-    if (!list.length) return toast('Cochez les présents.', 'err');
+    const list = people.filter(e => row(e.id).present).map(e => { const r = row(e.id); return { employee_id: e.id, periods: [r.am, ...(r.pmOn ? [r.pm] : []), ...(r.extra || [])], ...(r.note ? { note: r.note } : {}) }; });
+    // Décochés alors qu'ils figuraient sur la feuille : leur présence est retirée
+    const removed = recorded.filter(r => people.some(e => e.id === r.employee_id) && !row(r.employee_id).present).map(r => ({ employee_id: r.employee_id, periods: [] }));
+    if (!list.length && !removed.length) return toast('Cochez les présents.', 'err');
+    if (!list.length && !window.confirm('Retirer toutes les présences de cette feuille ?')) return;
     setBusy(true);
-    try { const r = await api.post(`${RH}/attendance/sheet`, { date: day, ...site, rows: list }); saved(`${r.created} plage(s) enregistrée(s) pour ${list.length} personne(s)`); } catch (e) { toast(e.message, 'err'); } finally { setBusy(false); }
+    try {
+      await api.post(`${RH}/attendance/sheet`, { date: day, ...site, rows: [...list, ...removed] });
+      saved(`Feuille enregistrée : ${list.length} présent(s)${removed.length ? `, ${removed.length} retiré(s)` : ''}`);
+      sheet.reload();
+    } catch (e) { toast(e.message, 'err'); } finally { setBusy(false); }
   };
   return (
-    <Card title="Feuille de présence" actions={<button className="btn btn-primary btn-sm" disabled={busy} onClick={save}><Save />Enregistrer la feuille</button>} bodyClass="">
+    <Card title="Feuille de présence" actions={<button className="btn btn-primary btn-sm" disabled={busy || !sheet.data} onClick={save}><Save />Enregistrer la feuille</button>} bodyClass="">
       <div className="card-body row" style={{ gap: 10, borderBottom: '1px solid var(--border)' }}>
-        <input className="input" type="date" style={{ width: 'auto' }} max={today()} value={day} onChange={e => setDay(e.target.value)} aria-label="Jour" />
+        <input className="input" type="date" style={{ width: 'auto' }} max={today()} value={day} onChange={e => e.target.value && setDay(e.target.value)} aria-label="Jour" />
         <div style={{ maxWidth: 280 }}><PlacePicker value={site} onChange={setSite} empty="Siège social" ariaLabel="Lieu ou chantier" /></div>
         <select className="select" style={{ width: 'auto' }} value={dept} onChange={e => setDept(e.target.value)} aria-label="Service"><option value="">Tous les services</option>{meta && Object.entries(meta.departments).map(([k, v]) => <option key={k} value={k}>{v}</option>)}</select>
-        <button className="btn btn-sm" onClick={() => setRows(Object.fromEntries(people.map(e => [e.id, { ...row(e.id), present: true }])))}><CheckCheck />Tous présents</button>
-        <span className="small muted">Enregistrer à nouveau remplace la feuille du jour pour ce lieu ou ce chantier.</span>
+        <button className="btn btn-sm" onClick={() => setRows(r => ({ ...r, ...Object.fromEntries(people.map(e => [e.id, { ...row(e.id), present: true }])) }))}><CheckCheck />Tous présents</button>
+      </div>
+      <div className="card-body small" style={{ borderBottom: '1px solid var(--border)' }} aria-live="polite">
+        {sheet.error ? <ErrorBox error={sheet.error} />
+          : !sheet.data ? <span className="muted">Recherche d’une feuille déjà enregistrée…</span>
+          : recorded.length ? (
+            <span className="row" style={{ gap: 8 }}>
+              <Badge tone="brand">Feuille déjà enregistrée</Badge>
+              <span>{recorded.length} personne(s), {hours(sheet.data.hours)}. Vous la modifiez : complétez-la, corrigez les heures ou décochez une personne pour retirer sa présence.{hidden ? ` ${hidden} personne(s) d’un autre service n’apparaissent pas ici (choisissez « Tous les services ») et restent inchangées.` : ''}</span>
+            </span>
+          ) : <span className="muted">Nouvelle feuille : aucune présence enregistrée pour ce jour et ce lieu.</span>}
       </div>
       {!people.length ? <div className="card-body"><Empty>Aucun employé dans ce service.</Empty></div> : (
         <div className="table-wrap"><table className="table">
