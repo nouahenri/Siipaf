@@ -3,7 +3,17 @@
 > Document de reprise pour continuer le travail dans une nouvelle discussion.
 > **Dernière mise à jour : 9 novembre 2026.**
 >
-> **EN PRODUCTION : release `21722d1` (09/11, ~17 h 20 heure serveur)**, accord du client (« Oui, mets en ligne »).
+> **EN PRODUCTION : release `1c6e13f` (09/11, ~18 h 08 heure serveur)**, accord du client (« Oui, mets en ligne »).
+> Contient 33f74a6 (dashboard : panneau des notifications entier sur mobile, `position: fixed` sous 640 px comme l'ERP),
+> 78dad65 et 1c6e13f (rôles : sous « Nom du rôle », dashboard et ERP › Nouveau rôle, pendant la frappe : même nom =
+> encadré rouge + création bloquée ; nom proche (féminin, pluriel, mots inversés) = jaune ; dès 3 lettres, rôles dont un mot
+> commence par chaque mot saisi = liste neutre, clic = ouvre le rôle dans le dashboard ; règle `roleDuplicates` dans
+> `admin/src/lib/permissions.js`, composant `RoleNameCheck` ; serveur `labelTaken` sans accents ni ponctuation, 409 nommant
+> le rôle). Suite 528/528. `deploy/livraison-1c6e13f.zip` (6 068 560 o, tar Windows ; API sha256 `a7ebad30…`),
+> `DEPLOY_OK 1c6e13f`, sauvegardes `~/sauvegardes/deploiement-1c6e13f-20261109-180805/`. Vérifié : admin / ERP / client /
+> santé en 200, bundles admin `index-J7FfXo6O.js` et ERP `index-qopvnYkQ.js` identiques aux builds, CSS du panneau en ligne.
+>
+> **Production précédente : release `21722d1` (09/11, ~17 h 20 heure serveur)**, accord du client (« Oui, mets en ligne »).
 > RH › Présences › Feuille de chantier : l'écran recharge la feuille déjà enregistrée pour le jour + lieu (route
 > `GET /rh/attendance/sheet`, privilège « Feuilles de présence », périmètre du compte), bandeau « Feuille déjà enregistrée » /
 > « Nouvelle feuille », décocher une personne retire sa présence (envoyée avec des plages vides). NB : réenregistrer ne
