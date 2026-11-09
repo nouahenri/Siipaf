@@ -3,7 +3,21 @@
 > Document de reprise pour continuer le travail dans une nouvelle discussion.
 > **Dernière mise à jour : 9 novembre 2026.**
 >
-> **EN PRODUCTION : release `a40196a` (09/11, ~14 h 47 heure serveur)**, demande du client (« commit et mets en ligne »).
+> **EN PRODUCTION : release `21722d1` (09/11, ~17 h 20 heure serveur)**, accord du client (« Oui, mets en ligne »).
+> RH › Présences › Feuille de chantier : l'écran recharge la feuille déjà enregistrée pour le jour + lieu (route
+> `GET /rh/attendance/sheet`, privilège « Feuilles de présence », périmètre du compte), bandeau « Feuille déjà enregistrée » /
+> « Nouvelle feuille », décocher une personne retire sa présence (envoyée avec des plages vides). NB : réenregistrer ne
+> remplaçait QUE les lignes cochées (pas d'effacement des autres). Suite 527/527. Serveur + ERP, aucune migration.
+> `deploy/livraison-21722d1.zip` (6 066 220 o ; API sha256 `788dd2e7…`, 343 fichiers), `DEPLOY_OK 21722d1`, sauvegardes
+> `~/sauvegardes/deploiement-21722d1-20261109-171940/`. Vérifié : admin / ERP / client / santé en 200, route 401 sans
+> session, bundle ERP `index-Dyf7ArEN.js` identique au build. **Incident évité de justesse** : le premier zip était fait avec
+> le `tar.exe` de Git Bash (tar GNU → fichier tar nommé .zip) ; `unzip` a extrait l'archive API qu'il contenait directement
+> dans `~/siipaf-api` (sans .env ni node_modules, pas de redémarrage) ; corrigé quelques minutes après par la vraie livraison.
+> Conséquence : `code-avant.tgz` de cette sauvegarde contient déjà le code 21722d1 ; le vrai code précédent = `~/siipaf-api-a40196a.zip`.
+> **Toujours utiliser `/c/Windows/System32/tar.exe -a -cf`** et contrôler par `unzip -l` (2 fichiers) avant l'envoi.
+> Démo : des pointages du 21/10 restent ouverts (sans départ) et bloquent les feuilles suivantes (409 chevauchement).
+>
+> **Production précédente : release `a40196a` (09/11, ~14 h 47 heure serveur)**, demande du client (« commit et mets en ligne »).
 > Rôles & privilèges : clic sur « N compte(s) » sous un rôle (dashboard et onglet Rôles et privilèges de chaque module ERP)
 > = panneau des comptes du rôle (`admin/src/components/RoleUsers.jsx`, route `GET /admin/permissions/roles/:role/users`),
 > clic sur un compte = sa fiche dans Utilisateurs (`?compte=ID`, retour vers l'origine) ; « Renommer » devient « Modifier le
