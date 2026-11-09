@@ -62,7 +62,7 @@ export default function NouvelleDemande() {
     setBusy(true); setError(null);
     try {
       const t = await clientApi.post<SavTicket>('/sav', {
-        sale_id: f.sale_id, category: f.category, title: f.title.trim(), location: f.location.trim() || undefined,
+        sale_id: saleId, category: f.category, title: f.title.trim(), location: f.location.trim() || undefined,
         description: f.description.trim() || undefined, media_ids: photos.map(p => p.id),
       });
       qc.invalidateQueries({ queryKey: ['client', 'sav'] });
@@ -80,8 +80,11 @@ export default function NouvelleDemande() {
   const chosenLabel = categories[f.category];
   const showSummary = !picking && !!f.category && !!chosenLabel;
   const titleOk = f.title.trim().length >= 3;
-  const canSend = !!f.category && titleOk && !!f.sale_id;
-  const missing = !f.category ? 'Choisissez le type de problème pour continuer.' : !titleOk ? 'Décrivez le problème en quelques mots pour continuer.' : null;
+  // Dossier concerné : choix du client, sinon celui de la session (la liste peut arriver après l'ouverture de l'écran)
+  const saleId = f.sale_id || selected?.id || dossiers[0]?.id || 0;
+  const canSend = !!f.category && titleOk && !!saleId;
+  const missing = !f.category ? 'Choisissez le type de problème pour continuer.' : !titleOk ? 'Décrivez le problème en quelques mots pour continuer.'
+    : !saleId ? 'Aucun dossier d’acquisition n’est encore rattaché à votre compte : contactez SIIPAF.' : null;
 
   const pick = (k: string) => {
     Haptics.selectionAsync().catch(() => {});
@@ -98,8 +101,9 @@ export default function NouvelleDemande() {
           borderRadius: radius.md, borderWidth: 1.5, borderColor: on ? c.primary : c.line, backgroundColor: on ? c.dangerSoft : c.surface,
           opacity: pressed ? 0.8 : 1, transform: [{ scale: pressed ? 0.98 : 1 }],
         })}>
-        <View style={{ width: 36, height: 36, borderRadius: 10, backgroundColor: on ? c.primary : c.accentSoft, alignItems: 'center', justifyContent: 'center' }}>
-          <CategoryIcon k={k} size={18} color={on ? c.onPrimary : c.accent} />
+        {/* Icône neutre (gris) : l'or et le crème sont réservés aux pastilles d'étape, le rouge au choix (09/11) */}
+        <View style={{ width: 36, height: 36, borderRadius: 10, backgroundColor: on ? c.primary : c.surfaceAlt, alignItems: 'center', justifyContent: 'center' }}>
+          <CategoryIcon k={k} size={18} color={on ? c.onPrimary : c.ink2} />
         </View>
         <Txt style={{ flex: 1, fontFamily: on ? fonts.semibold : fonts.medium, fontSize: 13.5, lineHeight: 18, color: c.ink }}>{categories[k]}</Txt>
       </Pressable>
@@ -151,7 +155,7 @@ export default function NouvelleDemande() {
       <View accessibilityRole="radiogroup" accessibilityLabel="Type de problème" style={{ gap: space.lg }}>
         {groups.map(g => (
           <View key={g.title} style={{ gap: space.sm }}>
-            <Txt style={{ fontFamily: fonts.semibold, fontSize: 13, color: c.ink2 }}>{g.title}</Txt>
+            <Txt style={{ fontFamily: fonts.semibold, fontSize: 11.5, letterSpacing: 0.8, textTransform: 'uppercase', color: c.ink3 }}>{g.title}</Txt>
             {pairs(g.keys)}
           </View>
         ))}
@@ -173,7 +177,7 @@ export default function NouvelleDemande() {
         {dossiers.length > 1 && (
           <View style={{ marginBottom: space.lg }}>
             <Txt variant="label" style={{ marginBottom: 6 }}>Bien concerné</Txt>
-            <ChipRow>{dossiers.map(d => <Chip key={d.id} label={`Lot ${d.property.lot_code} · ${d.property.project.name}`} selected={f.sale_id === d.id} onPress={() => setF(x => ({ ...x, sale_id: d.id }))} />)}</ChipRow>
+            <ChipRow>{dossiers.map(d => <Chip key={d.id} label={`Lot ${d.property.lot_code} · ${d.property.project.name}`} selected={saleId === d.id} onPress={() => setF(x => ({ ...x, sale_id: d.id }))} />)}</ChipRow>
           </View>
         )}
         {typeBlock}
@@ -193,19 +197,24 @@ export default function NouvelleDemande() {
   );
 }
 
-/** Étape numérotée : pastille (numéro, coche dorée une fois remplie), titre, aide courte, puis son contenu. */
+/**
+ * Étape numérotée : en-tête en bandeau (fond gris, filet rouge à gauche), pastille pleine (numéro blanc sur rouge, coche
+ * blanche sur vert une fois remplie), titre, aide courte, puis son contenu. Le bandeau se détache nettement des tuiles
+ * de choix, qui restent blanches à icône grise (demande du client du 09/11).
+ */
 function Step({ n, title, sub, done, last, children }: { n: number; title: string; sub: string; done: boolean; last?: boolean; children: ReactNode }) {
-  const { c, space, fonts } = useTheme();
+  const { c, space, fonts, radius } = useTheme();
   return (
-    <View style={[{ paddingBottom: space.xl }, !last && { marginBottom: space.xl, borderBottomWidth: StyleSheet.hairlineWidth, borderBottomColor: c.line }]}>
-      <View style={{ flexDirection: 'row', alignItems: 'flex-start', gap: space.md, marginBottom: space.lg }}>
+    <View style={[{ paddingBottom: space.xl }, !last && { marginBottom: space.lg, borderBottomWidth: StyleSheet.hairlineWidth, borderBottomColor: c.line }]}>
+      <View style={{ flexDirection: 'row', alignItems: 'center', gap: space.md, marginBottom: space.lg, paddingVertical: 12, paddingHorizontal: space.md,
+        backgroundColor: c.surfaceAlt, borderRadius: radius.md, borderLeftWidth: 4, borderLeftColor: done ? c.ok : c.primary }}>
         <View accessibilityLabel={done ? `Étape ${n}, remplie` : `Étape ${n}`}
-          style={{ width: 30, height: 30, borderRadius: 15, alignItems: 'center', justifyContent: 'center', backgroundColor: done ? c.goldLight : c.accentSoft, borderWidth: 1, borderColor: c.goldLight }}>
-          {done ? <Check size={16} color="#141414" strokeWidth={2.75} /> : <Txt style={{ fontFamily: fonts.bold, fontSize: 14, color: c.accent }}>{n}</Txt>}
+          style={{ width: 32, height: 32, borderRadius: 16, alignItems: 'center', justifyContent: 'center', backgroundColor: done ? c.ok : c.primary }}>
+          {done ? <Check size={17} color="#fff" strokeWidth={3} /> : <Txt style={{ fontFamily: fonts.bold, fontSize: 15, color: c.onPrimary }}>{n}</Txt>}
         </View>
-        <View style={{ flex: 1, paddingTop: 2 }}>
-          <Txt variant="h3" accessibilityRole="header">{title}</Txt>
-          <Txt variant="small" style={{ marginTop: 2 }}>{sub}</Txt>
+        <View style={{ flex: 1 }}>
+          <Txt style={{ fontFamily: fonts.bold, fontSize: 17, color: c.ink }} accessibilityRole="header">{title}</Txt>
+          <Txt style={{ fontSize: 12.5, lineHeight: 17, color: c.ink2, marginTop: 1 }}>{sub}</Txt>
         </View>
       </View>
       {children}
