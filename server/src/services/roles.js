@@ -16,16 +16,20 @@ async function requireRole(db, id) {
   return role;
 }
 
-/** Libellé déjà pris par un autre rôle (sans tenir compte des majuscules ni des espaces) ? */
+/** Libellé comparable : sans majuscules, accents, ponctuation ni espaces en trop (même règle que admin/src/lib/permissions.js). */
+const roleName = s => String(s || '').normalize('NFD').replace(/[̀-ͯ]/g, '').toLowerCase().replace(/[^a-z0-9]+/g, ' ').trim();
+
+/** Libellé déjà pris par un autre rôle ? Renvoie ce rôle (« Secrétariat » = « secretariat » = « Secrétariat. »). */
 async function labelTaken(db, label, exceptId = null) {
-  const wanted = label.trim().toLowerCase();
+  const wanted = roleName(label);
   const roles = await db('roles').select('id', 'label');
-  return roles.some(r => r.id !== exceptId && r.label.trim().toLowerCase() === wanted);
+  return roles.find(r => r.id !== exceptId && roleName(r.label) === wanted) || null;
 }
 
 /** Crée un rôle personnalisé avec ses droits ; sa clé est tirée du libellé. */
 async function createRole(db, { label, description = null, permissions = [] }) {
-  if (await labelTaken(db, label)) throw new HttpError(409, `Un rôle « ${label} » existe déjà.`);
+  const taken = await labelTaken(db, label);
+  if (taken) throw new HttpError(409, `Le rôle « ${taken.label} » existe déjà : choisissez un autre nom ou modifiez ce rôle.`);
   const base = roleKey(label);
   let id = base;
   for (let i = 2; await getRole(db, id); i++) id = `${base}_${i}`;
@@ -38,7 +42,8 @@ async function createRole(db, { label, description = null, permissions = [] }) {
 async function updateRole(db, id, { label, description }) {
   const role = await requireRole(db, id);
   if (role.id === 'super_admin') throw new HttpError(400, 'Le rôle super administrateur ne peut pas être modifié.');
-  if (label !== undefined && (await labelTaken(db, label, role.id))) throw new HttpError(409, `Un rôle « ${label} » existe déjà.`);
+  const taken = label !== undefined && (await labelTaken(db, label, role.id));
+  if (taken) throw new HttpError(409, `Le rôle « ${taken.label} » existe déjà : choisissez un autre nom.`);
   const patch = { updated_at: new Date() };
   if (label !== undefined) patch.label = label;
   if (description !== undefined) patch.description = description;

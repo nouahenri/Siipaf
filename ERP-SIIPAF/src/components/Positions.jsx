@@ -5,6 +5,8 @@ import { api } from '@admin/lib/api';
 import { useAuth, useResource, useToast } from '@admin/lib/app-context';
 import { Field, Modal, ErrorBox, Skeleton, Badge } from '@admin/components/ui';
 import { date, fcfa } from '@admin/lib/format';
+import { roleDuplicates } from '@admin/lib/permissions';
+import RoleNameCheck from '@admin/components/RoleNameCheck';
 import { RH, today, useRhMeta, directionOf } from '../lib/rh';
 
 /** Postes de RH › Réglages, rôles proposables et motifs de changement. */
@@ -172,6 +174,7 @@ export function NewRoleModal({ onClose, onCreated }) {
   const d = perms.data;
   const mine = d?.my_permissions || [];
   const allowed = p => mine.includes('*') || mine.includes(p);
+  const dup = roleDuplicates(f.label, d?.roles); // nom déjà pris (bloquant) ou proche d'un rôle existant
   const toggle = p => setF(x => ({ ...x, permissions: x.permissions.includes(p) ? x.permissions.filter(y => y !== p) : [...x.permissions, p] }));
   const copy = id => {
     const role = d.roles.find(r => r.id === id);
@@ -187,14 +190,14 @@ export function NewRoleModal({ onClose, onCreated }) {
   };
   return (
     <Modal title="Nouveau rôle et ses privilèges" onClose={onClose}
-      footer={<><button className="btn btn-ghost" onClick={onClose}>Annuler</button><button className="btn btn-primary" form="new-role" disabled={busy || !d?.can_create}><Check />Créer le rôle</button></>}>
+      footer={<><button className="btn btn-ghost" onClick={onClose}>Annuler</button><button className="btn btn-primary" form="new-role" disabled={busy || !d?.can_create || !!dup.same}><Check />Créer le rôle</button></>}>
       {perms.error ? <ErrorBox error={perms.error} /> : !d ? <Skeleton h={240} /> : !d.can_create ? (
         <p className="small">Créer un rôle demande le droit « Créer de nouveaux rôles » (ou le super administrateur).</p>
       ) : (
         <form id="new-role" className="stack" style={{ gap: 12 }} onSubmit={save}>
           <ErrorBox error={error} />
           <div className="form-grid">
-            <Field label="Nom du rôle"><input className="input" required minLength={2} maxLength={120} value={f.label} onChange={e => setF(x => ({ ...x, label: e.target.value }))} placeholder="Directeur des ressources humaines, secrétaire…" autoFocus /></Field>
+            <Field label="Nom du rôle"><input className="input" required minLength={2} maxLength={120} value={f.label} onChange={e => setF(x => ({ ...x, label: e.target.value }))} placeholder="Directeur des ressources humaines, secrétaire…" autoFocus aria-invalid={!!dup.same} /><RoleNameCheck dup={dup} /></Field>
             <Field label="Partir des privilèges de" hint="Coche d’office ses privilèges, à ajuster ensuite">
               <select className="select" value={f.from} onChange={e => copy(e.target.value)}><option value="">— Aucun —</option>{d.roles.filter(r => !r.locked).map(r => <option key={r.id} value={r.id}>{r.label}</option>)}</select>
             </Field>

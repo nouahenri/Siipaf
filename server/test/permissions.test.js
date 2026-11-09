@@ -75,6 +75,18 @@ test('seul le super administrateur modifie les privilèges et crée des super ad
   assert.equal(ok.status, 201, JSON.stringify(ok.body));
 });
 
+test('nom de rôle déjà pris : refusé sans tenir compte des majuscules, accents, ponctuation ni espaces', async () => {
+  const com = (await admin.get('/api/admin/permissions')).body.roles.find(r => r.id === 'commercial');
+  let res = await admin.post('/api/admin/permissions/roles').send({ label: `  ${com.label.toUpperCase()}. ` });
+  assert.equal(res.status, 409);
+  assert.match(res.body.error, new RegExp(`« ${com.label} » existe déjà`));
+  assert.equal((await admin.post('/api/admin/permissions/roles').send({ label: 'Secrétariat de direction' })).status, 201);
+  assert.equal((await admin.post('/api/admin/permissions/roles').send({ label: 'secretariat  de-direction' })).status, 409);
+  // Renommer un rôle avec le nom d'un autre : refusé ; garder le sien (autre écriture) : accepté
+  assert.equal((await admin.patch('/api/admin/permissions/roles/secretariat_de_direction').send({ label: com.label })).status, 409);
+  assert.equal((await admin.patch('/api/admin/permissions/roles/secretariat_de_direction').send({ label: 'Secretariat de direction' })).status, 200);
+});
+
 test('un privilège inconnu est refusé', async () => {
   const res = await admin.put('/api/admin/permissions/roles/commercial').send({ permissions: ['tout:faire'] });
   assert.equal(res.status, 400);

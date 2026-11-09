@@ -61,8 +61,11 @@ test('créer un rôle avec ses droits, puis lui attribuer un compte qui obtient 
 test('un libellé déjà pris est refusé et une clé en double reçoit un suffixe', async () => {
   assert.equal((await admin.post('/api/admin/permissions/roles').send({ label: '  commercial ' })).status, 409);
   const a = await admin.post('/api/admin/permissions/roles').send({ label: 'Juriste' });
-  const b = await admin.post('/api/admin/permissions/roles').send({ label: 'Juriste !' });
   assert.equal(a.body.id, 'juriste');
+  assert.equal((await admin.post('/api/admin/permissions/roles').send({ label: 'Juriste !' })).status, 409, 'même nom à la ponctuation près');
+  // Clé déjà prise par un rôle renommé : le nouveau rôle reçoit un suffixe
+  await admin.patch('/api/admin/permissions/roles/juriste').send({ label: 'Juriste conseil' });
+  const b = await admin.post('/api/admin/permissions/roles').send({ label: 'Juriste' });
   assert.equal(b.body.id, 'juriste_2');
   assert.equal((await admin.post('/api/admin/permissions/roles').send({ label: 'X', permissions: [] })).status, 400, 'libellé trop court');
   assert.equal((await admin.post('/api/admin/permissions/roles').send({ label: 'Pirate', permissions: ['tout:faire'] })).status, 400);

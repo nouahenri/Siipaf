@@ -5,8 +5,9 @@ import { ShieldCheck, Lock, RotateCcw, Save, Info, Plus, Pencil, Trash2, Printer
 import { api } from '../lib/api';
 import { useAuth, useResource, useToast, useSaved } from '../lib/app-context';
 import { Card, ErrorBox, Skeleton, Badge, Drawer, Field } from '../components/ui';
-import { permRows } from '../lib/permissions';
+import { permRows, roleDuplicates } from '../lib/permissions';
 import RoleUsersDrawer from '../components/RoleUsers';
+import RoleNameCheck from '../components/RoleNameCheck';
 
 /**
  * Version imprimée de la grille (bouton « Imprimer ») : privilèges ENREGISTRÉS (pas les cases modifiées non enregistrées),
@@ -223,7 +224,8 @@ export default function Roles() {
         </div>
       </Card>
       {roleForm && (
-        <RoleDrawer role={roleForm} catalog={d.catalog} roles={roles} onClose={() => setRoleForm(null)}
+        <RoleDrawer key={roleForm.id || 'nouveau'} role={roleForm} catalog={d.catalog} roles={roles} onClose={() => setRoleForm(null)}
+          onOpenRole={r => setRoleForm(r)}
           onSaved={() => { setRoleForm(null); data.reload(); }} />
       )}
       {roleUsers && <RoleUsersDrawer role={roleUsers} internal userHref={u => `/utilisateurs?compte=${u.id}`} onClose={() => setRoleUsers(null)} />}
@@ -232,7 +234,7 @@ export default function Roles() {
 }
 
 /** Création d'un rôle (libellé, description, droits cochés) ou renommage d'un rôle existant. */
-function RoleDrawer({ role, catalog, roles, onClose, onSaved }) {
+function RoleDrawer({ role, catalog, roles, onClose, onSaved, onOpenRole }) {
   const toast = useToast();
   const saved = useSaved();
   const isNew = !role.id;
@@ -243,6 +245,8 @@ function RoleDrawer({ role, catalog, roles, onClose, onSaved }) {
   const [busy, setBusy] = useState(false);
 
   const toggle = id => setPerms(s => { const n = new Set(s); n.has(id) ? n.delete(id) : n.add(id); return n; });
+  // Nom déjà pris (bloquant) ou proche d'un rôle existant (avertissement), pendant la saisie
+  const dup = useMemo(() => roleDuplicates(form.label, roles, role.id || null), [form.label, roles, role.id]);
   const original = new Set(role.permissions || []);
   const permsChanged = !isNew && (perms.size !== original.size || [...perms].some(p => !original.has(p)));
   // Partir des droits d'un rôle existant, puis ajuster
@@ -268,12 +272,13 @@ function RoleDrawer({ role, catalog, roles, onClose, onSaved }) {
 
   return (
     <Drawer title={isNew ? 'Nouveau rôle' : `Modifier le rôle « ${role.label} »`} onClose={onClose}
-      footer={<><button className="btn" onClick={onClose}>Annuler</button><button className="btn btn-primary" disabled={busy || form.label.trim().length < 2} onClick={save}>{isNew ? 'Créer le rôle' : 'Enregistrer'}</button></>}>
+      footer={<><button className="btn" onClick={onClose}>Annuler</button><button className="btn btn-primary" disabled={busy || form.label.trim().length < 2 || !!dup.same} onClick={save}>{isNew ? 'Créer le rôle' : 'Enregistrer'}</button></>}>
       <ErrorBox error={error} />
       <div className="form-grid">
         <Field label="Nom du rôle" className="full" hint={isNew ? 'Ex. : Assistant commercial, Juriste, Secrétariat…' : `Changer le nom ne change rien aux comptes. Les privilèges cochés ci-dessous s’appliquent à ses ${role.users ?? 0} compte(s) actif(s) dès l’enregistrement.`}>
-          <input className="input" value={form.label} maxLength={120} autoFocus onChange={e => setForm(f => ({ ...f, label: e.target.value }))} />
+          <input className="input" value={form.label} maxLength={120} autoFocus aria-invalid={!!dup.same} onChange={e => setForm(f => ({ ...f, label: e.target.value }))} />
         </Field>
+        <RoleNameCheck dup={dup} onOpen={isNew ? onOpenRole : null} />
         <Field label="Description (facultatif)" className="full">
           <input className="input" value={form.description} maxLength={255} onChange={e => setForm(f => ({ ...f, description: e.target.value }))} />
         </Field>
