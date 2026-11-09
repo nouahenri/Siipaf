@@ -1,9 +1,22 @@
 # Passation — Plateforme SIIPAF
 
 > Document de reprise pour continuer le travail dans une nouvelle discussion.
-> **Dernière mise à jour : 6 novembre 2026.**
+> **Dernière mise à jour : 9 novembre 2026.**
 >
-> **EN PRODUCTION : release `5560f93` (06/11, ~14 h 40 heure serveur)**, demande du client (« Oui, mets en ligne »). Voix
+> **EN PRODUCTION : release `a40196a` (09/11, ~14 h 47 heure serveur)**, demande du client (« commit et mets en ligne »).
+> Rôles & privilèges : clic sur « N compte(s) » sous un rôle (dashboard et onglet Rôles et privilèges de chaque module ERP)
+> = panneau des comptes du rôle (`admin/src/components/RoleUsers.jsx`, route `GET /admin/permissions/roles/:role/users`),
+> clic sur un compte = sa fiche dans Utilisateurs (`?compte=ID`, retour vers l'origine) ; « Renommer » devient « Modifier le
+> rôle » (nom, description ET privilèges, bouton Par défaut). Suite 527/527. Serveur + dashboard + ERP, aucune migration,
+> site inchangé. `deploy/livraison-a40196a.zip` (6 065 261 o ; API sha256 `4f05b772…`, 343 fichiers) déposé par l'API
+> Fileman `upload_files` (champ ajouté à la page d'envoi) ; terminal : `DEPLOY_OK a40196a`, sauvegardes
+> `~/sauvegardes/deploiement-a40196a-20261109-144736/`. Vérifié : 3 sites en 200, route 401 sans session, nouveaux bundles.
+> Git n'a plus d'identité globale sur ce PC : commits faits avec `-c user.name=nouahenri -c user.email=nouahenri@gmail.com`.
+> Question du client (réponse donnée) : un employé sans compte pointe à la **borne** (tablette ouverte par un compte ayant
+> « Borne de pointage », matricule + code PIN défini par le RH avec « Code de pointage ») ou est porté sur une **feuille de
+> présence** du chantier / lieu par un compte ayant « Feuilles de présence ».
+>
+> **Production précédente : release `5560f93` (06/11, ~14 h 40 heure serveur)**, demande du client (« Oui, mets en ligne »). Voix
 > naturelle de Sita (Gemini 3.8 Flash TTS, section « 06/11 — voix naturelle de Sita ») : serveur, dashboard (réglage Voix,
 > essai) et site (`js/sita.js`, `css/sita.css`, bouton « Écouter »). Suite 526/526. Copie `../siipaf-deploy` sur `5560f93`,
 > dashboard recompilé ; `deploy/livraison-5560f93.zip` (6 269 188 o, sha256 `69049672…` ; API `92e544a2…` 343 fichiers ;
