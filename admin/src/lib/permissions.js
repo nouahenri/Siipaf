@@ -33,13 +33,30 @@ export function roleDuplicates(label, roles, exceptId = null) {
   return { same, close, matches: all.slice(0, 5), more: Math.max(0, all.length - 5) };
 }
 
-export function permRows(items) {
+// `all` : toutes les actions du groupe (grille filtrée par la recherche) — la ligne d'intitulé coche toujours le privilège entier.
+export function permRows(items, all = items) {
   const rows = [];
   let last = null;
   for (const p of items) {
-    if (p.parent && p.parent !== last) rows.push({ heading: p.parent, ids: items.filter(i => i.parent === p.parent).map(i => i.id) });
+    if (p.parent && p.parent !== last) rows.push({ heading: p.parent, ids: all.filter(i => i.parent === p.parent).map(i => i.id) });
     last = p.parent || null;
     rows.push(p);
   }
   return rows;
+}
+
+/**
+ * Recherche dans le catalogue des privilèges (grille « Rôles & privilèges », fiche d'un rôle) : chaque mot saisi doit se
+ * retrouver au début d’un mot, sans tenir compte des accents ni des majuscules, dans le groupe, l'intitulé, le libellé, la précision ou le code.
+ * Un groupe dont le nom suffit est gardé en entier ; sinon on ne garde que ses privilèges trouvés (`all` = le groupe complet).
+ */
+export function filterCatalog(catalog, q) {
+  const words = roleName(q).split(' ').filter(Boolean);
+  if (!words.length) return catalog;
+  const hit = (...parts) => { const n = roleName(parts.filter(Boolean).join(' ')).split(' '); return words.every(w => n.some(x => x.startsWith(w))); };
+  return catalog.map(g => {
+    if (hit(g.group)) return g;
+    const items = g.items.filter(p => hit(g.group, p.parent, p.label, p.hint, p.id));
+    return items.length ? { ...g, items, all: g.items } : null;
+  }).filter(Boolean);
 }

@@ -1,11 +1,11 @@
 import { useEffect, useMemo, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { Link } from 'react-router-dom';
-import { ShieldCheck, Lock, RotateCcw, Save, Info, Plus, Pencil, Trash2, Printer } from 'lucide-react';
+import { ShieldCheck, Lock, RotateCcw, Save, Info, Plus, Pencil, Trash2, Printer, Search, X } from 'lucide-react';
 import { api } from '../lib/api';
 import { useAuth, useResource, useToast, useSaved } from '../lib/app-context';
 import { Card, ErrorBox, Skeleton, Badge, Drawer, Field } from '../components/ui';
-import { permRows, roleDuplicates } from '../lib/permissions';
+import { permRows, roleDuplicates, filterCatalog } from '../lib/permissions';
 import RoleUsersDrawer from '../components/RoleUsers';
 import RoleNameCheck from '../components/RoleNameCheck';
 
@@ -63,6 +63,19 @@ function RolesPrint({ catalog, roles }) {
   );
 }
 
+/** Barre de recherche d'un groupe et/ou d'un privilège (Échap ou la croix vident le champ). */
+function PermSearch({ q, setQ, style }) {
+  return (
+    <div className="search" style={style}>
+      <Search aria-hidden="true" />
+      <input className="input" value={q} onChange={e => setQ(e.target.value)} onKeyDown={e => { if (e.key === 'Escape') setQ(''); }}
+        placeholder="Rechercher un groupe ou un privilège (ex. : lots, catalogue, paie…)" aria-label="Rechercher un groupe ou un privilège" style={{ paddingRight: 34 }} />
+      {q && <button type="button" className="btn btn-sm btn-ghost btn-icon" onClick={() => setQ('')} aria-label="Effacer la recherche" title="Effacer"
+        style={{ position: 'absolute', right: 3, top: '50%', transform: 'translateY(-50%)' }}><X /></button>}
+    </div>
+  );
+}
+
 /** Grille des privilèges : une colonne par rôle, une ligne par privilège, regroupés par domaine. */
 export default function Roles() {
   const toast = useToast();
@@ -72,6 +85,7 @@ export default function Roles() {
   const [saving, setSaving] = useState(null);
   const [roleForm, setRoleForm] = useState(null); // {} = nouveau rôle, sinon le rôle à renommer
   const [roleUsers, setRoleUsers] = useState(null); // rôle dont on affiche les comptes
+  const [q, setQ] = useState(''); // recherche d'un groupe ou d'un privilège
 
   useEffect(() => {
     if (data.data) setDraft(Object.fromEntries(data.data.roles.map(r => [r.id, new Set(r.permissions)])));
@@ -118,6 +132,9 @@ export default function Roles() {
     try { await api.del(`/admin/permissions/roles/${role.id}`); toast(`Rôle « ${role.label} » supprimé`); data.reload(); } catch (e) { toast(e.message, 'err'); }
   };
 
+  const shown = useMemo(() => filterCatalog(d?.catalog || [], q), [d, q]);
+  const shownCount = shown.reduce((n, g) => n + g.items.length, 0);
+
   if (data.loading && !d) return <Skeleton h={400} />;
   if (data.error) return <ErrorBox error={data.error} />;
 
@@ -139,6 +156,11 @@ export default function Roles() {
       {d.users_with_overrides > 0 && (
         <div className="alert alert-info"><Info size={15} /> {d.users_with_overrides} privilège(s) individuel(s) sont définis sur des comptes précis, en plus de cette grille.</div>
       )}
+
+      <div className="row" style={{ gap: 10, flexWrap: 'wrap' }}>
+        <PermSearch q={q} setQ={setQ} style={{ flex: '1 1 320px', maxWidth: 520 }} />
+        {q.trim() && <span className="small muted" aria-live="polite">{shownCount} privilège(s) dans {shown.length} groupe(s)</span>}
+      </div>
 
       <Card bodyClass="">
         <div className="table-wrap perm-wrap">
@@ -165,9 +187,12 @@ export default function Roles() {
               </tr>
             </thead>
             <tbody>
-              {d.catalog.map(g => [
+              {!shown.length && (
+                <tr><td colSpan={roles.length + 1} className="muted" style={{ padding: 24 }}>Aucun groupe ni privilège ne correspond à « {q.trim()} ».</td></tr>
+              )}
+              {shown.map(g => [
                 <tr key={g.group} className="perm-group"><td colSpan={roles.length + 1}><span>{g.group}</span></td></tr>,
-                ...permRows(g.items).map(p => (p.heading ? (
+                ...permRows(g.items, g.all).map(p => (p.heading ? (
                   <tr key={`h:${p.heading}`} className="perm-parent">
                     <td><strong>{p.heading}</strong><div className="small muted">Cochez le tout ou action par action</div></td>
                     {roles.map(r => {
@@ -243,6 +268,8 @@ function RoleDrawer({ role, catalog, roles, onClose, onSaved, onOpenRole }) {
   const [perms, setPerms] = useState(() => new Set(role.permissions || []));
   const [error, setError] = useState(null);
   const [busy, setBusy] = useState(false);
+  const [q, setQ] = useState('');
+  const shown = useMemo(() => filterCatalog(catalog, q), [catalog, q]);
 
   const toggle = id => setPerms(s => { const n = new Set(s); n.has(id) ? n.delete(id) : n.add(id); return n; });
   // Nom déjà pris (bloquant) ou proche d'un rôle existant (avertissement), pendant la saisie
@@ -295,7 +322,9 @@ function RoleDrawer({ role, catalog, roles, onClose, onSaved, onOpenRole }) {
               {roles.map(r => <option key={r.id} value={r.id}>{r.label}</option>)}
             </select>
           </div>
-          {catalog.map(g => (
+          <PermSearch q={q} setQ={setQ} />
+          {!shown.length && <p className="small muted">Aucun groupe ni privilège ne correspond à « {q.trim()} ».</p>}
+          {shown.map(g => (
             <div key={g.group}>
               <div className="perm-group-title">{g.group}</div>
               {permRows(g.items).map(p => (p.heading ? <div key={`h:${p.heading}`} className="perm-line perm-line-parent">{p.heading}</div> : (
