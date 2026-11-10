@@ -16,6 +16,10 @@
   --gold: #a87b12;
   --gold-soft: #fbf4e2;
   --focus: #2b6cb0;
+  /* Lignes parentes de la grille des privilèges (bandeau foncé) */
+  --perm-parent-bg: #262a32;
+  --perm-parent-ink: #ffffff;
+  --perm-parent-ink-2: rgba(255, 255, 255, .7);
 
   /* Statuts des lots — palette validée daltonisme (dataviz) ; « bloqué » reste neutre */
   --st-disponible: #2e9e5b;
@@ -591,6 +595,10 @@ fieldset { min-width: 0; }
 .perm-table thead th:first-child { z-index: 3; background: var(--surface-2); box-shadow: inset -1px 0 0 var(--border), inset 0 -1px 0 var(--border); }
 .perm-table tr.perm-parent > td:first-child, .perm-table tfoot tr:not(.perm-group) > td:first-child, .table-wrap .perm-table tbody tr:hover td:first-child { background: var(--surface-2); }
 .perm-table .perm-group td span { position: sticky; left: 16px; }
+/* Ligne parente : bandeau foncé (anthracite en clair, bordeaux en sombre), y compris au survol et dans la colonne figée */
+.table-wrap .perm-table tbody tr.perm-parent > td,
+.table-wrap .perm-table tbody tr.perm-parent:hover > td { background: var(--perm-parent-bg); color: var(--perm-parent-ink); border-bottom-color: var(--perm-parent-bg); }
+.perm-table tr.perm-parent .muted { color: var(--perm-parent-ink-2); }
 /* Grille imprimée (bouton « Imprimer ») : seule sur la page, A4 paysage, toujours en clair */
 .roles-print { display: none; }
 @page roles-grid { size: A4 landscape; margin: 10mm; }
@@ -615,7 +623,7 @@ fieldset { min-width: 0; }
   .roles-print-table .sub td:first-child { padding-left: 12px; }
   .roles-print-table td:not(:first-child) { font-weight: 700; }
 }
-.perm-line-parent { font-weight: 600; padding-top: 10px; }
+.perm-line-parent { font-weight: 600; margin-top: 8px; padding: 7px 10px; border-radius: 6px; border-bottom: none; background: var(--perm-parent-bg); color: var(--perm-parent-ink); }
 .perm-line-sub { padding-left: 18px; }
 .perm-dot { width: 8px; height: 8px; border-radius: 50%; background: var(--border-strong); flex-shrink: 0; }
 .perm-dot.on { background: var(--ok); }
@@ -643,6 +651,9 @@ fieldset { min-width: 0; }
   --gold: #d6a63a;
   --gold-soft: rgba(214, 166, 58, .14);
   --focus: #5b9be0;
+  --perm-parent-bg: #5a1820;
+  --perm-parent-ink: #ffffff;
+  --perm-parent-ink-2: rgba(255, 255, 255, .72);
   --ok: #4cc27f;
   --warn: #e0a43a;
   --danger: #f0616a;
