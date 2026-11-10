@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from 'react';
 import { Link, useSearchParams } from 'react-router-dom';
-import { UserCheck, Clock3, Palmtree, Save, Pencil, Trash2, Plus, Tablet, CheckCheck, Timer, LogOut } from 'lucide-react';
+import { UserCheck, Clock3, Palmtree, Save, Pencil, Trash2, Plus, Tablet, CheckCheck, Timer, LogOut, X, RotateCcw } from 'lucide-react';
 import { api, qs } from '@admin/lib/api';
 import { useAuth, useResource, useToast, useSaved } from '@admin/lib/app-context';
 import { Card, Empty, Skeleton, ErrorBox, Modal, Field, Badge } from '@admin/components/ui';
@@ -251,7 +251,15 @@ function ManualForm({ record, onClose, onSaved }) {
         <div className="full"><ErrorBox error={error} /></div>
         {!record.id && <Field label="Employé" className="full"><select className="select" required value={f.employee_id} onChange={set('employee_id')}><option value="">— Choisir —</option>{meta?.employees.map(e => <option key={e.id} value={e.id}>{e.last_name} {e.first_name}</option>)}</select></Field>}
         <Field label="Arrivée"><input className="input" type="datetime-local" required value={f.check_in} onChange={set('check_in')} /></Field>
-        <Field label="Départ" hint={forgotten ? 'Heure de départ réelle (auprès de l’employé ou de son responsable)' : undefined}><input className="input" type="datetime-local" required={forgotten} min={f.check_in} value={f.check_out} onChange={set('check_out')} autoFocus={forgotten} /></Field>
+        <Field label="Départ" hint={forgotten ? 'Heure de départ réelle (auprès de l’employé ou de son responsable)' : record.id && !f.check_out ? 'Sans départ : le pointage est « en cours », l’employé pointera son départ normalement' : undefined}><input className="input" type="datetime-local" required={forgotten} min={f.check_in} value={f.check_out} onChange={set('check_out')} autoFocus={forgotten} /></Field>
+        {/* Départ pointé par erreur (deux pointages successifs) : on le retire, le pointage redevient « en cours » */}
+        {record.id && record.check_out && (
+          <div className="full row" style={{ gap: 8, marginTop: -6 }}>
+            {f.check_out
+              ? <button type="button" className="btn btn-sm" onClick={() => setF(x => ({ ...x, check_out: '', note: x.note || 'Départ pointé par erreur' }))}><X />Retirer le départ</button>
+              : <button type="button" className="btn btn-sm btn-ghost" onClick={() => setF(x => ({ ...x, check_out: local(record.check_out), note: x.note === 'Départ pointé par erreur' ? '' : x.note }))}><RotateCcw />Remettre le départ de {hm(record.check_out)}</button>}
+          </div>
+        )}
         <Field label="Lieu ou chantier" className="full"><PlacePicker value={f.site} onChange={v => setF(x => ({ ...x, site: v }))} empty="Siège social" /></Field>
         <Field label="Motif de la correction" className="full" hint="Tracé avec votre nom : oubli de pointage, panne de la borne…"><input className="input" required minLength={3} value={f.note} onChange={set('note')} /></Field>
       </form>

@@ -336,6 +336,10 @@ details > summary { list-style-position: inside; }
 .kiosk-result.in { background: #e7f5ec; color: var(--ok); }
 .kiosk-result.out { background: var(--surface-2); color: var(--ink); }
 .kiosk-result.err { background: var(--brand-soft); color: var(--danger); }
+/* Deuxième pointage peu après l'arrivée : confirmation du départ (rien n'est enregistré sans réponse) */
+.kiosk-result.confirm { background: var(--gold-soft); color: var(--warn); }
+.kiosk-result.confirm strong { color: var(--ink); }
+.kiosk-choice { min-height: 52px; padding: 0 20px; font-size: 16px; }
 .kiosk-result span { color: var(--ink-2); }
 
 /* Performance */

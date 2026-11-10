@@ -48,7 +48,8 @@ test('le lendemain : l’arrivée est acceptée, la veille passe en « départ o
   assert.deepEqual(list.map(a => a.id), [old], 'filtre « Départs oubliés »');
   assert.ok((await admin.get(`${R}/attendance/today`)).body.forgotten.some(a => a.id === old));
   // Départ du jour : ferme le pointage du jour, pas celui de la veille
-  const out = await awaAgent.post(`${R}/me/attendance`).send({});
+  // Départ peu après l'arrivée : confirmé (sinon l'employé est d'abord averti)
+  const out = await awaAgent.post(`${R}/me/attendance`).send({ confirm: true });
   assert.equal(out.body.action, 'depart');
   assert.equal(out.body.attendance.id, res.body.attendance.id);
 });

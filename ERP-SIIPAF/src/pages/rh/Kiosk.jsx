@@ -25,20 +25,23 @@ export default function Kiosk() {
   useEffect(() => { try { localStorage.setItem('siipaf-borne-lieu', JSON.stringify(site)); } catch { /* stockage indisponible */ } }, [site]);
 
   const reset = () => { setMatricule('EMP-'); setPin(''); setStep('matricule'); setResult(null); };
-  const later = () => { clearTimeout(timer.current); timer.current = setTimeout(reset, 5000); };
+  // Retour à l'accueil : 5 s après un résultat ; 20 s pour répondre à une confirmation (sans réponse, rien n'est enregistré)
+  const later = (ms = 5000) => { clearTimeout(timer.current); timer.current = setTimeout(reset, ms); };
   const key = k => {
     if (result) reset();
     if (step === 'matricule') setMatricule(m => (k === '⌫' ? (m.length > 4 ? m.slice(0, -1) : m) : m.length < 12 ? m + k : m));
     else setPin(p => (k === '⌫' ? p.slice(0, -1) : p.length < 6 ? p + k : p));
   };
-  const submit = async () => {
+  const submit = async (confirm = false) => {
     if (step === 'matricule') { if (matricule.length > 4) setStep('pin'); return; }
     setBusy(true);
+    let wait = 5000;
     try {
       // Position de la tablette : elle doit se trouver au lieu choisi pour la borne
-      const r = await api.post(`${RH}/attendance/kiosk`, { matricule, pin, ...site, ...(meta?.settings.geolocation ? await devicePosition() : {}) });
+      const r = await api.post(`${RH}/attendance/kiosk`, { matricule, pin, ...site, ...(meta?.settings.geolocation ? await devicePosition() : {}), ...(confirm ? { confirm: true } : {}) });
+      if (r.action === 'confirmer_depart') wait = 20000; // arrivée déjà pointée il y a peu : l'employé confirme son départ
       setResult({ ok: true, ...r, warning: geoWarning(r.attendance, r.action) });
-    } catch (e) { setResult({ ok: false, message: e.message }); } finally { setBusy(false); later(); }
+    } catch (e) { setResult({ ok: false, message: e.message }); } finally { setBusy(false); later(wait); }
   };
   const digits = ['1', '2', '3', '4', '5', '6', '7', '8', '9', '⌫', '0', 'OK'];
   return (
@@ -48,7 +51,17 @@ export default function Kiosk() {
         <div style={{ maxWidth: 300 }}><PlacePicker value={site} onChange={setSite} empty="Siège social" ariaLabel="Lieu de la borne" /></div>
       </div>
       <div className="kiosk-clock" aria-live="polite">{now.toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' })}<small>{now.toLocaleDateString('fr-FR', { weekday: 'long', day: 'numeric', month: 'long' })}</small></div>
-      {result ? (
+      {result?.action === 'confirmer_depart' ? (
+        <div className="kiosk-result confirm" role="alertdialog" aria-labelledby="kiosk-confirm-title">
+          <CircleAlert />
+          <b id="kiosk-confirm-title">{result.employee.name}, vous avez déjà pointé votre arrivée</b>
+          <span>À {hm(result.attendance.check_in)}{result.minutes > 0 ? `, il y a ${result.minutes} min` : ', il y a moins d’une minute'}. Ce pointage enregistrera votre <strong>départ</strong>.</span>
+          <div className="row" style={{ gap: 10, justifyContent: 'center', flexWrap: 'wrap' }}>
+            <button className="btn kiosk-choice" disabled={busy} onClick={reset}>Non, j’étais arrivé(e)</button>
+            <button className="btn btn-primary kiosk-choice" disabled={busy} onClick={() => submit(true)}><LogOut />Oui, pointer mon départ</button>
+          </div>
+        </div>
+      ) : result ? (
         <div className={`kiosk-result ${result.ok ? (result.action === 'arrivee' ? 'in' : 'out') : 'err'}`} role="status">
           {result.ok ? (result.action === 'arrivee' ? <LogIn /> : <LogOut />) : <CircleAlert />}
           {result.ok ? <><b>{result.action === 'arrivee' ? 'Bonjour' : 'Au revoir'} {result.employee.name}</b><span>{result.action === 'arrivee' ? `Arrivée pointée à ${hm(result.attendance.check_in)}` : `Départ pointé à ${hm(result.attendance.check_out)} · ${result.attendance.hours} h aujourd’hui`}</span>{result.warning && <span className="small">{result.warning}</span>}{result.forgotten && <span className="small">Votre départ du {date(result.forgotten.check_in)} n’a pas été pointé : le service RH est prévenu et le saisira.</span>}</> :<><b>Pointage refusé</b><span>{result.message}</span></>}

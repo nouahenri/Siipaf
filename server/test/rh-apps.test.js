@@ -44,7 +44,7 @@ test('heures supplémentaires : 41e à 46e heure à +15 %, au-delà +50 %, diman
 test('pointage : en ligne, borne avec code, feuille de chantier, correction motivée ; heures sup reprises dans la paie', async () => {
   let res = await awaAgent.post(`${R}/me/attendance`).send({});
   assert.equal(res.body.action, 'arrivee');
-  res = await awaAgent.post(`${R}/me/attendance`).send({});
+  res = await awaAgent.post(`${R}/me/attendance`).send({ confirm: true });
   assert.equal(res.body.action, 'depart');
   assert.equal((await editeur.post(`${R}/me/attendance`).send({})).status, 404, 'compte sans fiche');
 

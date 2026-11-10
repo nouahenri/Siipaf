@@ -56,7 +56,7 @@ test('pointage en ligne et borne : position comparée au lieu, hors zone signal�
   assert.equal(res.body.action, 'arrivee');
   assert.equal(res.body.attendance.geo_status, 'sur_place');
   assert.equal(res.body.attendance.accuracy_m, 6);
-  res = await awaAgent.post(`${R}/me/attendance`).send({ ...north(1800), accuracy: 15 });
+  res = await awaAgent.post(`${R}/me/attendance`).send({ ...north(1800), accuracy: 15, confirm: true });
   assert.equal(res.body.action, 'depart', 'départ hors zone enregistré');
   assert.equal(res.body.attendance.out_geo_status, 'hors_zone');
   assert.equal(res.body.attendance.out_distance_m, 1800);
@@ -68,7 +68,7 @@ test('pointage en ligne et borne : position comparée au lieu, hors zone signal�
   res = await koffiAgent.post(`${R}/attendance/kiosk`).send({ matricule: awa.matricule, pin: '4821' });
   assert.equal(res.status, 200, JSON.stringify(res.body));
   assert.equal(res.body.attendance.geo_status, 'sans_position');
-  await koffiAgent.post(`${R}/attendance/kiosk`).send({ matricule: awa.matricule, pin: '4821', ...north(5), accuracy: 5 });
+  await koffiAgent.post(`${R}/attendance/kiosk`).send({ matricule: awa.matricule, pin: '4821', ...north(5), accuracy: 5, confirm: true });
 
   // Liste : filtre des pointages à vérifier
   const all = (await comptable.get(`${R}/attendance`)).body;
@@ -83,7 +83,7 @@ test('pointage en ligne et borne : position comparée au lieu, hors zone signal�
   res = await awaAgent.post(`${R}/me/attendance`).send({ ...north(3000) });
   assert.equal(res.body.attendance.geo_status, null);
   assert.equal(res.body.attendance.latitude, null, 'position non enregistrée');
-  await awaAgent.post(`${R}/me/attendance`).send({});
+  await awaAgent.post(`${R}/me/attendance`).send({ confirm: true });
   await admin.put(`${R}/settings`).send({ geolocation: true });
 });
 

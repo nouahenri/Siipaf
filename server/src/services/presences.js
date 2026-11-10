@@ -270,7 +270,7 @@ async function openOf(db, employeeId) {
  * la position de l'appareil (téléphone ou tablette de la borne) est comparée au lieu choisi, à l'arrivée comme au départ : le
  * pointage est toujours enregistré, et signalé s'il est hors zone, imprécis ou sans position.
  */
-async function toggle(db, e, { project_id = null, worksite_id = null, place_id = null, latitude = null, longitude = null, accuracy = null, source = 'web', userId = null, at = new Date() }) {
+async function toggle(db, e, { project_id = null, worksite_id = null, place_id = null, latitude = null, longitude = null, accuracy = null, source = 'web', userId = null, at = new Date(), confirm = false }) {
   if (!e.active || (e.end_date && e.end_date < at.toISOString().slice(0, 10))) throw new HttpError(400, 'Employé sorti des effectifs.');
   const s = await rh.getSettings(db);
   const pos = latitude != null && longitude != null ? { latitude, longitude, accuracy } : null;
@@ -286,6 +286,10 @@ async function toggle(db, e, { project_id = null, worksite_id = null, place_id =
     await markForgotten(db, open, s, at);
     forgotten = serialize(await query(db).where('a.id', open.id).first());
     open = null;
+  }
+  // Deuxième pointage peu après l'arrivée : rien n'est enregistré sans confirmation (l'employé croit souvent pointer son arrivée)
+  if (open && !confirm && s.double_pointage_minutes > 0 && at - toDate(open.check_in) < s.double_pointage_minutes * 60000) {
+    return { action: 'confirmer_depart', attendance: open, minutes: Math.max(0, Math.floor((at - toDate(open.check_in)) / 60000)) };
   }
   if (open) {
     const g = await control(open);
@@ -321,7 +325,7 @@ const dummyCheck = async pin => { dummyHash ||= hashPassword('code-factice-borne
 const resetKioskLocks = () => kioskFails.clear();
 
 /** Borne de pointage : matricule + code personnel, sur une tablette ouverte par un compte autorisé. */
-async function kiosk(db, { matricule, pin, project_id, worksite_id, place_id, latitude = null, longitude = null, accuracy = null }, userId, now = Date.now()) {
+async function kiosk(db, { matricule, pin, project_id, worksite_id, place_id, latitude = null, longitude = null, accuracy = null, confirm = false }, userId, now = Date.now()) {
   const key = String(matricule).trim().toUpperCase();
   const fails = recentFails(key, now);
   if (fails.length >= KIOSK_MAX_FAILS) {
@@ -336,7 +340,7 @@ async function kiosk(db, { matricule, pin, project_id, worksite_id, place_id, la
     throw new HttpError(401, 'Matricule ou code incorrect.');
   }
   kioskFails.delete(key);
-  const r = await toggle(db, e, { project_id, worksite_id, place_id, latitude, longitude, accuracy, source: 'borne', userId }); // position de la tablette
+  const r = await toggle(db, e, { project_id, worksite_id, place_id, latitude, longitude, accuracy, source: 'borne', userId, confirm }); // position de la tablette
   return { ...r, employee: { id: e.id, name: `${e.last_name} ${e.first_name}`, matricule: e.matricule } };
 }
 
@@ -406,8 +410,15 @@ async function upsertManual(db, { id = null, employee_id, check_in, check_out, p
   if (b && b <= a) throw new HttpError(400, 'Le départ précède l’arrivée.');
   if (b && b - a > 24 * HOUR) throw new HttpError(400, 'Un pointage ne dépasse pas 24 heures.');
   const others = (await db('hr_attendances').where({ employee_id })).filter(x => x.id !== id);
-  if (others.some(x => toDate(x.check_in) < (b || new Date(8.64e15)) && endOf(x) > a)) throw new HttpError(409, 'Ce pointage chevauche un autre pointage.');
+  const clash = others.find(x => toDate(x.check_in) < (b || new Date(8.64e15)) && endOf(x) > a);
+  if (clash) {
+    // Départ retiré (pointages successifs par erreur) alors qu'un pointage plus récent existe : il faut d'abord supprimer celui-ci
+    if (!b && toDate(clash.check_in) > a) throw new HttpError(409, `Sans départ, ce pointage resterait ouvert alors qu’un pointage plus récent existe (arrivée le ${dayFr(isoTime(clash.check_in))} à ${isoTime(clash.check_in).slice(11, 16)}) : supprimez d’abord ce pointage en double.`);
+    throw new HttpError(409, 'Ce pointage chevauche un autre pointage.');
+  }
   const row = { employee_id, check_in: a, check_out: b, ...(await placeOf(db, { project_id, worksite_id, place_id })), note, source: 'manuel', created_by: userId, updated_at: new Date() };
+  // Départ retiré (pointé par erreur) : le pointage redevient « en cours », sans la position relevée au départ
+  if (!b) Object.assign(row, { out_latitude: null, out_longitude: null, out_accuracy_m: null, out_distance_m: null, out_geo_status: null });
   if (id) {
     // Pointage contrôlé dont on change le lieu : les positions enregistrées sont comparées au nouveau lieu
     const cur = await db('hr_attendances').where({ id }).first();

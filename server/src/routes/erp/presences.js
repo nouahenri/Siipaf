@@ -47,7 +47,8 @@ module.exports = function presencesRoutes(db) {
   }));
   r.post('/me/attendance', requirePermission('self:pointage'), ah(async (req, res) => {
     const e = await me(req);
-    const data = parse(z.object({ project_id: projectId, worksite_id: projectId, place_id: projectId, ...position }), req.body);
+    // confirm : départ confirmé après l'avertissement « vous avez déjà pointé votre arrivée »
+    const data = parse(z.object({ project_id: projectId, worksite_id: projectId, place_id: projectId, ...position, confirm: z.boolean().optional() }), req.body);
     res.json(await presences.toggle(db, e, { ...data, source: 'web', userId: req.user.id })); // position ignorée sans la géolocalisation des réglages
   }));
   r.put('/me/pin', requirePermission('self:pointage'), ah(async (req, res) => {
@@ -64,7 +65,7 @@ module.exports = function presencesRoutes(db) {
     keyGenerator: req => `${req.user?.id}|${req.ip}`, message: { error: 'Trop d’essais sur la borne, patientez quelques minutes.' },
   });
   r.post('/attendance/kiosk', kiosk, kioskLimiter, ah(async (req, res) => {
-    const data = parse(z.object({ matricule: z.string().trim().min(3).max(20), pin: z.string().min(4).max(6), project_id: projectId, worksite_id: projectId, place_id: projectId, ...position }), req.body);
+    const data = parse(z.object({ matricule: z.string().trim().min(3).max(20), pin: z.string().min(4).max(6), project_id: projectId, worksite_id: projectId, place_id: projectId, ...position, confirm: z.boolean().optional() }), req.body);
     res.json(await presences.kiosk(db, data, req.user.id));
   }));
   r.put('/employees/:id/pin', requirePermission('rh:pin'), ah(async (req, res) => {

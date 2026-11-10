@@ -131,7 +131,14 @@ function Clock({ att, meta }) {
   const toggle = async () => {
     setBusy(true);
     try {
-      const r = await api.post(`${RH}/me/attendance`, { ...site, ...(meta?.settings.geolocation ? await devicePosition() : {}) });
+      const body = { ...site, ...(meta?.settings.geolocation ? await devicePosition() : {}) };
+      let r = await api.post(`${RH}/me/attendance`, body);
+      // Arrivée pointée il y a peu : ce pointage est un départ, l'employé le confirme (sinon rien n'est enregistré)
+      if (r.action === 'confirmer_depart') {
+        const since = r.minutes > 0 ? `il y a ${r.minutes} min` : 'il y a moins d’une minute';
+        if (!window.confirm(`Vous avez déjà pointé votre arrivée à ${hm(r.attendance.check_in)} (${since}).\n\nCe pointage enregistrera votre DÉPART. Confirmer ?`)) { toast('Rien n’a été enregistré : votre arrivée reste pointée.'); return; }
+        r = await api.post(`${RH}/me/attendance`, { ...body, confirm: true });
+      }
       const done = r.action === 'arrivee' ? `Arrivée pointée à ${hm(r.attendance.check_in)}` : `Départ pointé à ${hm(r.attendance.check_out)} · ${hours(r.attendance.hours)}`;
       const warning = [geoWarning(r.attendance, r.action), r.forgotten && `Votre départ du ${date(r.forgotten.check_in)} n’a pas été pointé : le service RH est prévenu et le saisira.`].filter(Boolean).join(' ');
       if (warning) toast(`${done}. ${warning}`, 'err'); else toast(done);
