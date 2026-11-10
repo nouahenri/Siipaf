@@ -133,7 +133,7 @@ function Clock({ att, meta }) {
     try {
       const r = await api.post(`${RH}/me/attendance`, { ...site, ...(meta?.settings.geolocation ? await devicePosition() : {}) });
       const done = r.action === 'arrivee' ? `Arrivée pointée à ${hm(r.attendance.check_in)}` : `Départ pointé à ${hm(r.attendance.check_out)} · ${hours(r.attendance.hours)}`;
-      const warning = geoWarning(r.attendance, r.action);
+      const warning = [geoWarning(r.attendance, r.action), r.forgotten && `Votre départ du ${date(r.forgotten.check_in)} n’a pas été pointé : le service RH est prévenu et le saisira.`].filter(Boolean).join(' ');
       if (warning) toast(`${done}. ${warning}`, 'err'); else toast(done);
       att.reload();
     } catch (e) { toast(e.message, 'err'); } finally { setBusy(false); }
@@ -143,6 +143,12 @@ function Clock({ att, meta }) {
       {!att.data ? <Skeleton h={90} /> : (
         <div className="stack" style={{ gap: 12 }}>
           <p className="muted small">{open ? <>Arrivé(e) à <b>{hm(open.check_in)}</b>{` · ${placeLabel(open)}`}</> : 'Vous n’avez pas pointé votre arrivée.'} · ce mois-ci : <b>{hours(att.data.hours)}</b></p>
+          {/* Départs oubliés : saisis par le service RH ou le responsable (personne ne corrige ses propres pointages) */}
+          {att.data.forgotten?.length > 0 && (
+            <div className="small" role="status" style={{ padding: '8px 10px', borderRadius: 8, background: 'var(--gold-soft)', color: 'var(--ink-2)' }}>
+              <b>Départ non pointé</b> : {att.data.forgotten.map(a => `${date(a.check_in)} (arrivée à ${hm(a.check_in)})`).join(', ')}. Le service RH ou votre responsable saisira l’heure de départ ; d’ici là, ces heures ne comptent pas.
+            </div>
+          )}
           {!open && (
             <PlacePicker value={site} onChange={setSite} empty="Siège social" ariaLabel="Lieu de travail" />
           )}

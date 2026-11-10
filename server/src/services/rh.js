@@ -408,7 +408,7 @@ async function dashboard(db, at = today()) {
 
   const dayStart = new Date(`${at}T00:00:00Z`);
   const [present, expenses, jobs, applicants, trainings] = await Promise.all([
-    db('hr_attendances').whereNull('check_out').where('check_in', '>=', dayStart).countDistinct({ n: 'employee_id' }).first(),
+    db('hr_attendances').whereNull('check_out').whereNull('forgotten_at').where('check_in', '>=', dayStart).countDistinct({ n: 'employee_id' }).first(),
     db('hr_expenses').where({ status: 'soumise' }).count({ n: '*' }).first(),
     db('hr_jobs').where({ status: 'ouvert' }).count({ n: '*' }).first(),
     db('hr_applicants').where({ stage: 'nouveau' }).whereNull('refuse_reason').count({ n: '*' }).first(),

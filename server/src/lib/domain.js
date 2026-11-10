@@ -1809,6 +1809,8 @@ const INFO_EVENTS = {
   'conge.refusee': { module: 'rh', label: 'Congé refusé (l’employé est prévenu)', audiences: [] },
   'conge.annulee': { module: 'rh', label: 'Congé annulé (l’employé est prévenu)', audiences: [] },
   'pointage.hors_zone': { module: 'rh', label: 'Pointage hors de la zone du lieu ou du chantier choisi', audiences: [], priority: 'action', recipient_hint: 'Le service RH, le responsable direct de l’employé et le conducteur du chantier sont prévenus (réglable dans RH › Réglages).' },
+  'pointage.depart_oublie': { module: 'rh', label: 'Départ non pointé (arrivée restée sans départ au-delà du délai réglé)', audiences: [], priority: 'action', recipient_hint: 'Le service RH, le responsable direct de l’employé et le conducteur du chantier sont prévenus (réglable dans RH › Réglages).' },
+  'pointage.departs_a_corriger': { module: 'rh', label: 'Rappel quotidien des départs oubliés encore à corriger', audiences: [], priority: 'action', recipient_hint: 'Le service RH est prévenu chaque jour tant qu’il en reste.' },
   'pointage.position_a_valider': { module: 'rh', label: 'Modification d’une position de pointage à valider', audiences: [], priority: 'action', recipient_hint: 'Le super administrateur est prévenu.' },
   'pointage.position_decidee': { module: 'rh', label: 'Position de pointage validée ou refusée (le demandeur est prévenu)', audiences: [] },
   'frais.soumise': { module: 'rh', label: 'Note de frais soumise, à approuver', audiences: [], priority: 'action', recipient_hint: 'Le responsable direct, sinon les comptes qui approuvent les frais.' },

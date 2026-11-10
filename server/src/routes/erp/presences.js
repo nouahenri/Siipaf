@@ -41,7 +41,9 @@ module.exports = function presencesRoutes(db) {
     const e = await me(req);
     const month = /^\d{4}-\d{2}$/.test(req.query.month || '') ? req.query.month : new Date().toISOString().slice(0, 7);
     const rows = (await presences.monthAttendances(db, e.id, month)).filter(a => a.check_in.startsWith(month)).sort((a, b) => b.check_in.localeCompare(a.check_in));
-    res.json({ open: await presences.openOf(db, e.id), month, rows, has_pin: !!e.attendance_pin_hash, hours: Math.round(rows.reduce((t, a) => t + (a.hours || 0), 0) * 100) / 100 });
+    // Ses départs oubliés encore à corriger (quel que soit le mois) : affichés dans Mon espace
+    const forgotten = (await presences.query(db).where('a.employee_id', e.id).whereNull('a.check_out').whereNotNull('a.forgotten_at').orderBy('a.check_in', 'desc')).map(presences.serialize);
+    res.json({ open: await presences.openOf(db, e.id), forgotten, month, rows, has_pin: !!e.attendance_pin_hash, hours: Math.round(rows.reduce((t, a) => t + (a.hours || 0), 0) * 100) / 100 });
   }));
   r.post('/me/attendance', requirePermission('self:pointage'), ah(async (req, res) => {
     const e = await me(req);
@@ -80,7 +82,9 @@ module.exports = function presencesRoutes(db) {
     } else presences.applyScope(q, await presences.scopeOf(db, req)); // chantiers conduits et équipe, sans « Voir le personnel »
     const from = req.query.from && /^\d{4}-\d{2}-\d{2}$/.test(req.query.from) ? new Date(`${req.query.from}T00:00:00Z`) : new Date(Date.now() - 7 * 86400000);
     const to = req.query.to && /^\d{4}-\d{2}-\d{2}$/.test(req.query.to) ? new Date(new Date(`${req.query.to}T00:00:00Z`).getTime() + 86400000) : new Date(Date.now() + 86400000);
-    q.where('a.check_in', '>=', from).where('a.check_in', '<', to);
+    // Départs oubliés à corriger : tous, quel que soit leur jour ; sinon la période choisie
+    if (req.query.controle === 'oubli') q.whereNull('a.check_out').whereNotNull('a.forgotten_at');
+    else q.where('a.check_in', '>=', from).where('a.check_in', '<', to);
     if (req.query.employee_id) q.where('a.employee_id', Number(req.query.employee_id));
     if (req.query.project_id) q.where('a.project_id', Number(req.query.project_id));
     if (req.query.worksite_id) q.where('a.worksite_id', Number(req.query.worksite_id));

@@ -105,6 +105,8 @@ export default function RhSettings() {
                 {meta && Object.entries(meta.departments).map(([k, v]) => <label key={k} className="checkbox small"><input type="checkbox" disabled={!write} checked={(cur.overtime_exempt_departments || []).includes(k)} onChange={e => set('overtime_exempt_departments', e.target.checked ? [...(cur.overtime_exempt_departments || []), k] : cur.overtime_exempt_departments.filter(x => x !== k))} />{v}</label>)}
               </div>
             </Field>
+            {N({ k: "forgotten_departure_hours", label: "Départ oublié après (heures sans départ)", hint: "De 8 à 48 h. Au-delà, l’arrivée passe en « départ oublié » : le pointage suivant de l’employé est une arrivée, ses heures ne comptent pas avant la saisie du départ" })}
+            <label className="checkbox small full"><input type="checkbox" disabled={!write} checked={cur.forgotten_departure_notify} onChange={e => set('forgotten_departure_notify', e.target.checked)} />Prévenir le service RH, le responsable direct et le conducteur du chantier d’un départ oublié (rappel quotidien au service RH tant qu’il n’est pas saisi)</label>
             <label className="checkbox small full"><input type="checkbox" disabled={!write} checked={cur.geolocation} onChange={e => set('geolocation', e.target.checked)} />Enregistrer la position lors du pointage en ligne et à la borne, et la comparer au lieu choisi (si l’appareil l’autorise)</label>
             {cur.geolocation && <>
               {N({ k: "geofence_radius", label: "Rayon par défaut autour du lieu (mètres)", hint: "Au-delà : « hors zone » ; précision du téléphone prise en compte. Rayon propre à un lieu : section Positions de pointage" })}

@@ -23,8 +23,75 @@ const serialize = a => {
   return {
     ...a, check_in: isoTime(a.check_in), check_out: isoTime(a.check_out), latitude: num(a.latitude), longitude: num(a.longitude), out_latitude: num(a.out_latitude), out_longitude: num(a.out_longitude),
     hours: outAt ? Math.round(((outAt - inAt) / HOUR) * 100) / 100 : null, employee_name: a.last_name ? `${a.last_name} ${a.first_name}` : undefined,
+    forgotten_at: isoTime(a.forgotten_at),
   };
 };
+
+// ─── Départ oublié (demande du client du 10/11) ───────────────
+// Arrivée sans départ au-delà du délai des réglages RH : « départ oublié ». Elle n'est plus « en cours » (le pointage suivant
+// de l'employé est une arrivée), ses heures ne comptent pas tant que le départ n'est pas saisi (correction motivée), et elle
+// ne fait pas obstacle aux pointages suivants. Le service RH, le responsable direct et le conducteur du chantier sont prévenus.
+
+/** Fin d'un pointage pour les contrôles de chevauchement : départ, sinon instant de l'arrivée (départ oublié), sinon jamais. */
+const endOf = x => toDate(x.check_out) || (x.forgotten_at ? toDate(x.check_in) : new Date(8.64e15));
+const dayFr = iso => iso.slice(0, 10).split('-').reverse().join('/');
+
+/** Classe un pointage (lu par `query`) en départ oublié et prévient (une seule fois par pointage). */
+async function markForgotten(db, a, s, now = new Date()) {
+  if (!(await db('hr_attendances').where({ id: a.id }).whereNull('check_out').whereNull('forgotten_at').update({ forgotten_at: now, updated_at: now }))) return false;
+  if (!s.forgotten_departure_notify) return true;
+  const { inform, usersWith, employeeUser } = require('./notifications');
+  const e = await db('employees').where({ id: a.employee_id }).first('id', 'user_id', 'manager_id', 'last_name', 'first_name');
+  const direct = [...(await usersWith(db, 'rh:read'))];
+  const manager = await employeeUser(db, e?.manager_id);
+  if (manager) direct.push(manager);
+  if (a.worksite_id) {
+    const w = await db('worksites').where({ id: a.worksite_id }).first('manager_id');
+    if (w?.manager_id) direct.push(w.manager_id);
+  }
+  const when = `${dayFr(isoTime(a.check_in))} à ${isoTime(a.check_in).slice(11, 16)}`;
+  await inform(db, 'pointage.depart_oublie', {
+    direct, except: e?.user_id || null, link: `/rh/presences?onglet=pointages&controle=oubli`, key: `pointage:${a.id}:oubli`,
+    title: `Départ non pointé : ${e ? `${e.last_name} ${e.first_name}` : 'employé'}`,
+    body: `Arrivée du ${when} (${siteLabel(a)}) sans départ : saisissez l’heure de départ réelle (Pointages › Corriger). Ses heures ne comptent pas d’ici là.`,
+  });
+  if (e?.user_id) {
+    await inform(db, 'pointage.depart_oublie', {
+      direct: [e.user_id], circuit: false, link: '/rh/mon-espace', key: `pointage:${a.id}:oubli:employe`,
+      title: 'Votre départ n’a pas été pointé',
+      body: `Arrivée du ${when} sans départ : le service RH ou votre responsable saisira l’heure de départ. Vous pouvez pointer normalement.`,
+    });
+  }
+  return true;
+}
+
+/** Arrivées restées ouvertes au-delà du délai (même si l'employé ne revient pas pointer pendant plusieurs jours). */
+async function flagForgotten(db, now = new Date()) {
+  const s = await rh.getSettings(db);
+  const limit = new Date(now.getTime() - s.forgotten_departure_hours * HOUR);
+  const late = (await query(db).whereNull('a.check_out').whereNull('a.forgotten_at').where('a.check_in', '<', limit)).map(serialize);
+  let n = 0;
+  for (const a of late) if (await markForgotten(db, a, s, now)) n++;
+  return n;
+}
+
+/**
+ * Tâche horaire : classe les départs oubliés, puis rappelle au service RH, une fois par jour, ceux qui restent à corriger
+ * (cas de l'employé qui ne revient pas pointer pendant plusieurs jours).
+ */
+async function forgottenTick(db, now = new Date()) {
+  await flagForgotten(db, now);
+  const s = await rh.getSettings(db);
+  if (!s.forgotten_departure_notify) return;
+  const pending = await db('hr_attendances').whereNull('check_out').whereNotNull('forgotten_at').where('forgotten_at', '<', new Date(now.getTime() - 24 * HOUR)).count({ n: '*' }).first();
+  const n = Number(pending?.n || 0);
+  if (!n) return;
+  const { inform, usersWith } = require('./notifications');
+  await inform(db, 'pointage.departs_a_corriger', {
+    direct: await usersWith(db, 'rh:read'), circuit: false, link: '/rh/presences?onglet=pointages&controle=oubli', key: `pointage:oublis:${now.toISOString().slice(0, 10)}`,
+    title: `${n} départ(s) oublié(s) à corriger`, body: 'Depuis plus d’un jour : leurs heures ne comptent pas dans les heures supplémentaires ni dans la paie tant que le départ n’est pas saisi.',
+  });
+}
 
 // ─── Contrôle du lieu de pointage (demande du client du 02/11) ─────────────
 
@@ -194,7 +261,7 @@ const query = db => db('hr_attendances as a').join('employees as e', 'e.id', 'a.
 /** Pointage en cours (arrivée sans départ) d'un employé. */
 async function openOf(db, employeeId) {
   // Avec les noms du lieu ou du chantier (Mon espace : « Arrivé(e) à 08:00 · Siège social »)
-  const a = await query(db).where('a.employee_id', employeeId).whereNull('a.check_out').orderBy('a.check_in', 'desc').first();
+  const a = await query(db).where('a.employee_id', employeeId).whereNull('a.check_out').whereNull('a.forgotten_at').orderBy('a.check_in', 'desc').first();
   return a ? serialize(a) : null;
 }
 
@@ -212,9 +279,15 @@ async function toggle(db, e, { project_id = null, worksite_id = null, place_id =
     const r = geoCheck(pos, await refPosition(db, site, s));
     return { lat: pos?.latitude ?? null, lng: pos?.longitude ?? null, accuracy_m: pos && accuracy != null ? Math.round(accuracy) : null, ...r };
   };
-  const open = await openOf(db, e.id);
+  let open = await openOf(db, e.id);
+  let forgotten = null;
+  // Arrivée d'avant le délai des réglages (départ oublié) : classée, les responsables prévenus, et ce pointage est une arrivée
+  if (open && at - toDate(open.check_in) > s.forgotten_departure_hours * HOUR) {
+    await markForgotten(db, open, s, at);
+    forgotten = serialize(await query(db).where('a.id', open.id).first());
+    open = null;
+  }
   if (open) {
-    if (at - toDate(open.check_in) > 16 * HOUR) throw new HttpError(409, 'Pointage d’arrivée de plus de 16 heures : demandez une correction au service RH ou au conducteur de travaux.');
     const g = await control(open);
     await db('hr_attendances').where({ id: open.id }).update({
       check_out: at, out_latitude: g.lat, out_longitude: g.lng, out_accuracy_m: g.accuracy_m, out_distance_m: g.distance_m, out_geo_status: g.geo_status, updated_at: new Date(),
@@ -230,7 +303,7 @@ async function toggle(db, e, { project_id = null, worksite_id = null, place_id =
   });
   const a = serialize(await query(db).where('a.id', insertedId(id)).first());
   await notifyOutOfZone(db, a, e, 'arrivee', s);
-  return { action: 'arrivee', attendance: a };
+  return { action: 'arrivee', attendance: a, ...(forgotten ? { forgotten } : {}) };
 }
 
 // Verrou de la borne (audit du 30/10) : 5 échecs en 15 minutes bloquent le matricule, même avec le bon code, jusqu'à la fin de
@@ -295,7 +368,7 @@ async function saveSheet(db, { date, project_id = null, worksite_id = null, plac
       for (const [start, end] of r.periods || []) {
         const a = at(date, start), b = at(date, end);
         if (b <= a) throw new HttpError(400, `${e.last_name} ${e.first_name} : l’heure de fin précède l’heure de début.`);
-        const clash = (await trx('hr_attendances').where({ employee_id: e.id })).find(x => toDate(x.check_in) < b && (toDate(x.check_out) || new Date(8.64e15)) > a);
+        const clash = (await trx('hr_attendances').where({ employee_id: e.id })).find(x => toDate(x.check_in) < b && endOf(x) > a);
         if (clash) throw new HttpError(409, `${e.last_name} ${e.first_name} a déjà un pointage sur cette plage.`);
         await trx('hr_attendances').insert({ employee_id: e.id, check_in: a, check_out: b, source: 'feuille', ...site, note: r.note || null, created_by: userId });
         created++;
@@ -333,7 +406,7 @@ async function upsertManual(db, { id = null, employee_id, check_in, check_out, p
   if (b && b <= a) throw new HttpError(400, 'Le départ précède l’arrivée.');
   if (b && b - a > 24 * HOUR) throw new HttpError(400, 'Un pointage ne dépasse pas 24 heures.');
   const others = (await db('hr_attendances').where({ employee_id })).filter(x => x.id !== id);
-  if (others.some(x => toDate(x.check_in) < (b || new Date(8.64e15)) && (toDate(x.check_out) || new Date(8.64e15)) > a)) throw new HttpError(409, 'Ce pointage chevauche un autre pointage.');
+  if (others.some(x => toDate(x.check_in) < (b || new Date(8.64e15)) && endOf(x) > a)) throw new HttpError(409, 'Ce pointage chevauche un autre pointage.');
   const row = { employee_id, check_in: a, check_out: b, ...(await placeOf(db, { project_id, worksite_id, place_id })), note, source: 'manuel', created_by: userId, updated_at: new Date() };
   if (id) {
     // Pointage contrôlé dont on change le lieu : les positions enregistrées sont comparées au nouveau lieu
@@ -346,6 +419,8 @@ async function upsertManual(db, { id = null, employee_id, check_in, check_out, p
       if (cur.out_geo_status) { const g = geoCheck(at(cur.out_latitude, cur.out_longitude, cur.out_accuracy_m), ref); Object.assign(row, { out_geo_status: g.geo_status, out_distance_m: g.distance_m }); }
     }
     await db('hr_attendances').where({ id }).update(row);
+    // Départ oublié corrigé : les alertes sont traitées pour tous (la date « oublié » reste, pour l'historique)
+    if (b && cur?.forgotten_at) await require('./notifications').resolve(db, `pointage:${id}:oubli`);
   }
   else id = insertedId((await db('hr_attendances').insert(row))[0]);
   return serialize(await query(db).where('a.id', id).first());
@@ -376,7 +451,8 @@ async function overtimeReport(db, period, { withPay, employeeIds = null }) {
     rows.push({
       employee_id: e.id, matricule: e.matricule, name: `${e.last_name} ${e.first_name}`, department: e.department,
       days: new Set(att.filter(a => a.check_in.startsWith(period)).map(a => a.check_in.slice(0, 10))).size,
-      open: att.filter(a => !a.check_out).length, ...r, exempt,
+      open: att.filter(a => !a.check_out && !a.forgotten_at && a.check_in.startsWith(period)).length,
+      forgotten: att.filter(a => !a.check_out && a.forgotten_at && a.check_in.startsWith(period)).length, ...r, exempt, // heures non comptées
       hourly: withPay ? r.hourly : undefined, amount: withPay ? r.amount : undefined, lines: r.lines.map(l => ({ ...l, amount: withPay ? l.amount : undefined })),
       approved: done ? { amount: withPay ? Number(done.amount) : undefined, at: isoTime(done.approved_at) } : null,
     });
@@ -406,10 +482,12 @@ async function today(db, now = new Date(), scope = null) {
   const day = now.toISOString().slice(0, 10);
   const from = new Date(`${day}T00:00:00Z`);
   const rows = (await query(db).where('a.check_in', '>=', from).modify(q => applyScope(q, scope))).map(serialize);
+  // Départs oubliés encore à corriger, quel que soit leur jour (l'employé a pu ne pas revenir pointer pendant plusieurs jours)
+  const forgotten = (await query(db).whereNull('a.check_out').whereNotNull('a.forgotten_at').orderBy('a.check_in').modify(q => applyScope(q, scope))).map(serialize);
   const team = scope ? await scopedEmployeeIds(db, scope) : null;
   const leaves = (await rh.leaveQuery(db).where('l.status', 'approuvee')).map(rh.serializeLeave).filter(l => l.start_date <= day && l.end_date >= day && (!team || team.includes(l.employee_id)));
   return {
-    present: rows.filter(a => !a.check_out), done: rows.filter(a => a.check_out),
+    present: rows.filter(a => !a.check_out && !a.forgotten_at), done: rows.filter(a => a.check_out), forgotten,
     on_leave: leaves.map(l => ({ employee_id: l.employee_id, employee_name: l.employee_name, label: LEAVE_TYPES[l.type]?.label })),
   };
 }
@@ -453,4 +531,4 @@ async function inScope(db, scope, { worksite_id = null, project_id = null }, emp
   return Number((await db('employees').whereIn('id', ids).where({ manager_id: scope.me.id }).count({ n: '*' }).first()).n) === ids.length;
 }
 
-module.exports = { GEO_STATUSES, refPosition, zones, pendingZones, setZone, decideZone, checkPosition, scopeOf, applyScope, scopedEmployeeIds, inScope, serialize, query, openOf, toggle, kiosk, resetKioskLocks, setPin, saveSheet, getSheet, upsertManual, overtimeReport, approveOvertime, today, monthAttendances, lastDay };
+module.exports = { GEO_STATUSES, refPosition, zones, pendingZones, setZone, decideZone, checkPosition, scopeOf, applyScope, scopedEmployeeIds, inScope, serialize, query, openOf, toggle, kiosk, resetKioskLocks, setPin, saveSheet, getSheet, upsertManual, markForgotten, flagForgotten, forgottenTick, overtimeReport, approveOvertime, today, monthAttendances, lastDay };

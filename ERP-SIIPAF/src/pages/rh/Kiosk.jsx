@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { ArrowLeft, Delete, LogIn, LogOut, CircleAlert } from 'lucide-react';
 import { api } from '@admin/lib/api';
+import { date } from '@admin/lib/format';
 import { hm, RH, useRhMeta, devicePosition, geoWarning } from '../../lib/rh';
 import PlacePicker, { NO_PLACE } from '../../components/PlacePicker';
 
@@ -50,7 +51,7 @@ export default function Kiosk() {
       {result ? (
         <div className={`kiosk-result ${result.ok ? (result.action === 'arrivee' ? 'in' : 'out') : 'err'}`} role="status">
           {result.ok ? (result.action === 'arrivee' ? <LogIn /> : <LogOut />) : <CircleAlert />}
-          {result.ok ? <><b>{result.action === 'arrivee' ? 'Bonjour' : 'Au revoir'} {result.employee.name}</b><span>{result.action === 'arrivee' ? `Arrivée pointée à ${hm(result.attendance.check_in)}` : `Départ pointé à ${hm(result.attendance.check_out)} · ${result.attendance.hours} h aujourd’hui`}</span>{result.warning && <span className="small">{result.warning}</span>}</> : <><b>Pointage refusé</b><span>{result.message}</span></>}
+          {result.ok ? <><b>{result.action === 'arrivee' ? 'Bonjour' : 'Au revoir'} {result.employee.name}</b><span>{result.action === 'arrivee' ? `Arrivée pointée à ${hm(result.attendance.check_in)}` : `Départ pointé à ${hm(result.attendance.check_out)} · ${result.attendance.hours} h aujourd’hui`}</span>{result.warning && <span className="small">{result.warning}</span>}{result.forgotten && <span className="small">Votre départ du {date(result.forgotten.check_in)} n’a pas été pointé : le service RH est prévenu et le saisira.</span>}</> :<><b>Pointage refusé</b><span>{result.message}</span></>}
           <button className="btn" onClick={reset}>Suivant</button>
         </div>
       ) : (

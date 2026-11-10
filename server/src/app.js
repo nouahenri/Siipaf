@@ -228,6 +228,8 @@ function createApp(db) {
     setInterval(() => require('./services/compta').tick(db).catch(e => console.error('[compta]', e.message)), 60 * 60 * 1000).unref();
     // RH : fin de période d'essai et de CDD (30 puis 7 jours avant) → responsable direct, RH et Juridique
     setInterval(() => require('./services/rh').contractsTick(db).catch(e => console.error('[contrats de travail]', e.message)), 60 * 60 * 1000).unref();
+    // Présences : arrivées sans départ au-delà du délai réglé → « départ oublié » (prévenus une fois), rappel quotidien au RH
+    setInterval(() => require('./services/presences').forgottenTick(db).catch(e => console.error('[présences]', e.message)), 60 * 60 * 1000).unref();
     // Changements de poste planifiés : appliqués à leur date d'effet
     const positions = require('./services/positions');
     setInterval(() => positions.tick(db).catch(e => console.error('[postes]', e.message)), 60 * 60 * 1000).unref();

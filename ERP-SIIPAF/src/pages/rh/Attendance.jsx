@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from 'react';
 import { Link, useSearchParams } from 'react-router-dom';
-import { UserCheck, Clock3, Palmtree, Save, Pencil, Trash2, Plus, Tablet, CheckCheck, Timer } from 'lucide-react';
+import { UserCheck, Clock3, Palmtree, Save, Pencil, Trash2, Plus, Tablet, CheckCheck, Timer, LogOut } from 'lucide-react';
 import { api, qs } from '@admin/lib/api';
 import { useAuth, useResource, useToast, useSaved } from '@admin/lib/app-context';
 import { Card, Empty, Skeleton, ErrorBox, Modal, Field, Badge } from '@admin/components/ui';
@@ -33,11 +33,30 @@ export default function Attendance() {
 
 function Today() {
   const { meta } = useRhMeta();
+  const { can } = useAuth();
   const t = useResource(`${RH}/attendance/today`);
+  const [edit, setEdit] = useState(null);
   if (t.error) return <ErrorBox error={t.error} />;
   if (!t.data) return <Skeleton h={200} />;
   const List = ({ rows, render, empty }) => (!rows.length ? <div className="card-body"><Empty>{empty}</Empty></div> : <ul className="list">{rows.map(render)}</ul>);
+  const forgotten = t.data.forgotten || [];
   return (
+    <div className="stack">
+    {forgotten.length > 0 && (
+      <Card title={<span className="row" style={{ gap: 8 }}><LogOut className="ico" style={{ color: 'var(--warn)' }} />Départs oubliés à corriger ({forgotten.length})</span>}
+        actions={<Link className="btn btn-sm" to="/rh/presences?onglet=pointages&controle=oubli">Tout voir</Link>} bodyClass="">
+        <p className="card-body small muted" style={{ margin: 0, borderBottom: '1px solid var(--border)' }}>
+          Arrivées restées sans départ au-delà de {meta?.settings?.forgotten_departure_hours ?? 16} h. L’employé peut pointer normalement ; ses heures ne comptent pas tant que l’heure de départ n’est pas saisie.
+        </p>
+        <ul className="list">{forgotten.map(a => (
+          <li key={a.id} className="list-row">
+            <span><b>{a.employee_name}</b><div className="small muted">Arrivée le {date(a.check_in)} à {hm(a.check_in)} · {placeLabel(a)} · {ago(a.check_in)}</div></span>
+            {can('presence:correct') && <button className="btn btn-sm" onClick={() => setEdit(a)}><Pencil />Saisir le départ</button>}
+          </li>
+        ))}</ul>
+      </Card>
+    )}
+    {edit && <ManualForm record={edit} onClose={() => setEdit(null)} onSaved={() => { setEdit(null); t.reload(); }} />}
     <div className="grid grid-3" style={{ alignItems: 'start' }}>
       <Card title={<span className="row" style={{ gap: 8 }}><UserCheck className="ico" />Présents ({t.data.present.length})</span>} bodyClass="">
         <List rows={t.data.present} empty="Personne n’a pointé pour l’instant." render={a => <li key={a.id} className="list-row"><span><b>{a.employee_name}</b><div className="small muted">{placeLabel(a)} · {meta?.attendance_sources[a.source] || a.source}</div>{a.geo_status && a.geo_status !== 'sur_place' && <GeoBadge moment="Arrivée" status={a.geo_status} distance={a.distance_m} accuracy={a.accuracy_m} />}</span><span className="tabular small">depuis {hm(a.check_in)}</span></li>} />
@@ -49,8 +68,15 @@ function Today() {
         <List rows={t.data.on_leave} empty="Aucune absence approuvée aujourd’hui." render={l => <li key={l.employee_id} className="list-row"><b>{l.employee_name}</b><Badge tone="warn">{l.label}</Badge></li>} />
       </Card>
     </div>
+    </div>
   );
 }
+
+/** « il y a 3 jours » : ancienneté d'un départ oublié. */
+const ago = iso => { const d = Math.floor((Date.now() - new Date(iso)) / 86400000); return d < 1 ? 'aujourd’hui' : d === 1 ? 'hier' : `il y a ${d} jours`; };
+
+/** Pointage sans départ : « départ oublié » (à corriger) ou « en cours ». */
+const NoDeparture = ({ a }) => (a.forgotten_at ? <Badge tone="danger">départ oublié</Badge> : <Badge tone="warn">en cours</Badge>);
 
 const DEFAULT_AM = ['07:30', '12:00'], DEFAULT_PM = ['13:00', '16:30'];
 
@@ -161,11 +187,15 @@ function Records() {
     <div className="stack">
       <div className="row-between">
         <div className="row">
-          <input className="input" type="date" style={{ width: 'auto' }} value={from} onChange={e => setFrom(e.target.value)} aria-label="Du" />
-          <input className="input" type="date" style={{ width: 'auto' }} value={to} onChange={e => setTo(e.target.value)} aria-label="Au" />
+          {/* Départs oubliés : tous ceux à corriger, quel que soit leur jour (les dates n'ont pas d'effet : masquées) */}
+          {control !== 'oubli' && <>
+            <input className="input" type="date" style={{ width: 'auto' }} value={from} onChange={e => setFrom(e.target.value)} aria-label="Du" />
+            <input className="input" type="date" style={{ width: 'auto' }} value={to} onChange={e => setTo(e.target.value)} aria-label="Au" />
+          </>}
           {meta?.employees.length > 0 && <select className="select" style={{ width: 'auto' }} value={employee} onChange={e => setEmployee(e.target.value)} aria-label="Employé"><option value="">Tout le personnel</option>{meta.employees.map(e => <option key={e.id} value={e.id}>{e.last_name} {e.first_name}</option>)}</select>}
-          <select className="select" style={{ width: 'auto' }} value={control} onChange={e => setControl(e.target.value)} aria-label="Contrôle du lieu">
+          <select className="select" style={{ width: 'auto' }} value={control} onChange={e => setControl(e.target.value)} aria-label="Contrôle des pointages">
             <option value="">Tous les pointages</option>
+            <option value="oubli">Départs oubliés à corriger (toutes dates)</option>
             <option value="alerte">À vérifier (hors zone, imprécis, sans position)</option>
             <option value="hors_zone">Hors zone seulement</option>
           </select>
@@ -174,13 +204,13 @@ function Records() {
       </div>
       <Card bodyClass="">
         <ErrorBox error={list.error} />
-        {!list.data ? <div className="card-body"><Skeleton h={200} /></div> : !list.data.length ? <div className="card-body"><Empty>Aucun pointage sur la période.</Empty></div> : (
+        {!list.data ? <div className="card-body"><Skeleton h={200} /></div> : !list.data.length ? <div className="card-body"><Empty>{control === 'oubli' ? 'Aucun départ oublié à corriger.' : 'Aucun pointage sur la période.'}</Empty></div> : (
           <div className="table-wrap"><table className="table">
             <thead><tr><th>Employé</th><th>Jour</th><th>Arrivée</th><th>Départ</th><th className="right">Durée</th><th>Lieu</th><th>Source</th><th /></tr></thead>
             <tbody>{list.data.map(a => (
               <tr key={a.id}>
                 <td><b>{a.employee_name}</b></td><td className="small nowrap">{date(a.check_in)}</td><td className="tabular">{hm(a.check_in)}</td>
-                <td className="tabular">{a.check_out ? hm(a.check_out) : <Badge tone="warn">en cours</Badge>}</td><td className="right tabular">{hours(a.hours)}</td>
+                <td className="tabular">{a.check_out ? <>{hm(a.check_out)}{a.forgotten_at && <div className="small muted nowrap">départ oublié, corrigé</div>}</> : <NoDeparture a={a} />}</td><td className="right tabular">{hours(a.hours)}</td>
                 <td className="small">
                   {placeLabel(a)}
                   {(a.geo_status || a.out_geo_status) ? (
@@ -191,7 +221,7 @@ function Records() {
                   ) : a.latitude != null && <a className="link" style={{ marginLeft: 6 }} href={`https://www.openstreetmap.org/?mlat=${a.latitude}&mlon=${a.longitude}#map=17/${a.latitude}/${a.longitude}`} target="_blank" rel="noreferrer">carte</a>}
                 </td>
                 <td className="small muted">{meta?.attendance_sources[a.source]}{a.note ? ` · ${a.note}` : ''}{a.created_by_name && a.source !== 'web' ? ` · ${a.created_by_name}` : ''}</td>
-                <td className="right nowrap">{editable && <><button className="btn btn-ghost btn-icon btn-sm" onClick={() => setEdit(a)} aria-label="Corriger"><Pencil /></button><button className="btn btn-ghost btn-icon btn-sm" onClick={() => del(a)} aria-label="Supprimer"><Trash2 /></button></>}</td>
+                <td className="right nowrap">{editable && <><button className="btn btn-ghost btn-icon btn-sm" onClick={() => setEdit(a)} aria-label={a.forgotten_at && !a.check_out ? 'Saisir le départ' : 'Corriger'} title={a.forgotten_at && !a.check_out ? 'Saisir le départ' : 'Corriger'}><Pencil /></button><button className="btn btn-ghost btn-icon btn-sm" onClick={() => del(a)} aria-label="Supprimer"><Trash2 /></button></>}</td>
               </tr>
             ))}</tbody>
           </table></div>
@@ -206,7 +236,8 @@ const local = iso => (iso ? iso.slice(0, 16) : '');
 function ManualForm({ record, onClose, onSaved }) {
   const saved = useSaved();
   const { meta } = useRhMeta();
-  const [f, setF] = useState({ employee_id: record.employee_id || '', check_in: local(record.check_in) || `${today()}T07:30`, check_out: local(record.check_out), site: { project_id: record.project_id || null, worksite_id: record.worksite_id || null, place_id: record.place_id || null }, note: '' });
+  const forgotten = !!record.forgotten_at && !record.check_out; // départ oublié : saisir l'heure de départ réelle
+  const [f, setF] = useState({ employee_id: record.employee_id || '', check_in: local(record.check_in) || `${today()}T07:30`, check_out: local(record.check_out), site: { project_id: record.project_id || null, worksite_id: record.worksite_id || null, place_id: record.place_id || null }, note: forgotten ? 'Départ oublié' : '' });
   const [error, setError] = useState(null);
   const set = k => e => setF(x => ({ ...x, [k]: e.target.value }));
   const save = async e => {
@@ -215,12 +246,12 @@ function ManualForm({ record, onClose, onSaved }) {
     try { await (record.id ? api.patch(`${RH}/attendance/${record.id}`, body) : api.post(`${RH}/attendance`, body)); saved("Pointage enregistré"); onSaved(); } catch (err) { setError(err); }
   };
   return (
-    <Modal title={record.id ? `Corriger — ${record.employee_name}` : 'Saisie manuelle d’un pointage'} onClose={onClose} footer={<><button className="btn btn-ghost" onClick={onClose}>Annuler</button><button className="btn btn-primary" form="manual">Enregistrer</button></>}>
+    <Modal title={forgotten ? `Saisir le départ — ${record.employee_name}` : record.id ? `Corriger — ${record.employee_name}` : 'Saisie manuelle d’un pointage'} onClose={onClose} footer={<><button className="btn btn-ghost" onClick={onClose}>Annuler</button><button className="btn btn-primary" form="manual">Enregistrer</button></>}>
       <form id="manual" className="form-grid" onSubmit={save}>
         <div className="full"><ErrorBox error={error} /></div>
         {!record.id && <Field label="Employé" className="full"><select className="select" required value={f.employee_id} onChange={set('employee_id')}><option value="">— Choisir —</option>{meta?.employees.map(e => <option key={e.id} value={e.id}>{e.last_name} {e.first_name}</option>)}</select></Field>}
         <Field label="Arrivée"><input className="input" type="datetime-local" required value={f.check_in} onChange={set('check_in')} /></Field>
-        <Field label="Départ"><input className="input" type="datetime-local" value={f.check_out} onChange={set('check_out')} /></Field>
+        <Field label="Départ" hint={forgotten ? 'Heure de départ réelle (auprès de l’employé ou de son responsable)' : undefined}><input className="input" type="datetime-local" required={forgotten} min={f.check_in} value={f.check_out} onChange={set('check_out')} autoFocus={forgotten} /></Field>
         <Field label="Lieu ou chantier" className="full"><PlacePicker value={f.site} onChange={v => setF(x => ({ ...x, site: v }))} empty="Siège social" /></Field>
         <Field label="Motif de la correction" className="full" hint="Tracé avec votre nom : oubli de pointage, panne de la borne…"><input className="input" required minLength={3} value={f.note} onChange={set('note')} /></Field>
       </form>
@@ -239,7 +270,8 @@ function Overtime() {
   const keys = useMemo(() => [...new Set(rows.flatMap(r => r.lines.map(l => l.key)))], [rows]);
   const labels = Object.fromEntries(rows.flatMap(r => r.lines.map(l => [l.key, l.label])));
   const approve = async () => {
-    if (!window.confirm(`Arrêter les heures supplémentaires de ${period} ? Elles passeront dans les bulletins de la paie du mois (en brouillon).`)) return;
+    const missing = rows.reduce((n, r) => n + (r.forgotten || 0), 0);
+    if (!window.confirm(`${missing ? `Attention : ${missing} départ(s) oublié(s) ne sont pas corrigés, leurs heures ne seront pas comptées.\n\n` : ''}Arrêter les heures supplémentaires de ${period} ? Elles passeront dans les bulletins de la paie du mois (en brouillon).`)) return;
     setBusy(true);
     try { const r = await api.post(`${RH}/overtime/approve`, { period }); toast(`${r.approved} employé(s) : heures arrêtées${r.payroll_run_id ? ' et reprises dans la paie' : ' (elles seront reprises à la préparation de la paie)'}`); rep.reload(); } catch (e) { toast(e.message, 'err'); } finally { setBusy(false); }
   };
@@ -257,7 +289,11 @@ function Overtime() {
           <thead><tr><th>Employé</th><th className="right">Jours</th><th className="right">Travaillées</th><th className="right">Normales</th>{keys.map(k => <th key={k} className="right" title={labels[k]}>{labels[k].replace(/^Heures supplémentaires /, 'HS ').replace(/ \(.+/, '')}<div className="small muted">{labels[k].match(/\((.+)\)/)?.[1]}</div></th>)}{pay && <th className="right">Montant</th>}<th>Paie</th></tr></thead>
           <tbody>{rows.map(r => (
             <tr key={r.employee_id}>
-              <td><b>{r.name}</b>{r.open > 0 && <div className="small" style={{ color: 'var(--warn)' }}>{r.open} pointage(s) sans départ</div>}</td>
+              <td>
+                <b>{r.name}</b>
+                {r.forgotten > 0 && <div className="small"><Link to="/rh/presences?onglet=pointages&controle=oubli" style={{ color: 'var(--danger)' }}>{r.forgotten} départ(s) oublié(s) : heures non comptées</Link></div>}
+                {r.open > 0 && <div className="small" style={{ color: 'var(--warn)' }}>{r.open} pointage(s) en cours</div>}
+              </td>
               <td className="right tabular">{r.days}</td><td className="right tabular">{hours(r.worked)}</td><td className="right tabular">{hours(r.normal)}</td>
               {keys.map(k => <td key={k} className="right tabular">{hours(r.lines.find(l => l.key === k)?.hours || 0)}</td>)}
               {pay && <td className="right tabular"><b>{fcfa(r.amount)}</b></td>}

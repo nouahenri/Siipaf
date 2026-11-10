@@ -29,6 +29,9 @@ const DEFAULT_RH = {
   // Contrôle du lieu de pointage : rayon par défaut autour du lieu ou du chantier (choix du client du 02/11 : 20 m, précision
   // du téléphone prise en compte) ; alerte au service RH et au conducteur quand un pointage est hors zone
   geofence_radius: 20, geofence_notify: true,
+  // Départ oublié (demande du client du 10/11) : arrivée sans départ au-delà de ce délai → « départ oublié », le pointage suivant
+  // de l'employé redevient une arrivée ; service RH, responsable direct et conducteur du chantier prévenus
+  forgotten_departure_hours: 16, forgotten_departure_notify: true,
   // Pause déjeuner retirée d'un pointage continu de plus de 6 h (placée à 12 h si le pointage couvre midi)
   break_minutes: 60, break_after_hours: 6,
   overtime_exempt_departments: ['direction'], // cadres au forfait : heures suivies, pas d'heures supplémentaires payées
