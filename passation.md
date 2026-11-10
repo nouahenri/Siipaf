@@ -1,9 +1,25 @@
 # Passation — Plateforme SIIPAF
 
 > Document de reprise pour continuer le travail dans une nouvelle discussion.
-> **Dernière mise à jour : 9 novembre 2026.**
+> **Dernière mise à jour : 10 novembre 2026.**
 >
-> **EN PRODUCTION : release `1c6e13f` (09/11, ~18 h 08 heure serveur)**, accord du client (« Oui, mets en ligne »).
+> **EN PRODUCTION : release `4689fd3` (10/11, ~09 h 11 heure serveur)**, accord du client (« Oui, mets en ligne »).
+> RH › Présences, **départ oublié** (demande du client du 10/11 : le lendemain ET sur plusieurs jours) : arrivée sans départ
+> au-delà de `forgotten_departure_hours` (RH › Réglages, 16 h, 8–48) → `hr_attendances.forgotten_at` (migration
+> `20261216000000_depart_oublie`, batch 24 en prod). Classée au pointage suivant (borne / Mon espace : c'est une ARRIVÉE, plus le
+> refus « plus de 16 heures ») ou par `presences.forgottenTick` (setInterval horaire dans app.js : 1re passe ~1 h après le
+> redémarrage). Alertes `pointage.depart_oublie` (RH rh:read, responsable direct, conducteur du chantier ; l'employé a son
+> message) une fois par pointage, rappel quotidien `pointage.departs_a_corriger` au RH ; case « Prévenir… » dans les réglages.
+> Ne compte pas dans les heures, ne bloque plus feuilles / saisies (`endOf` dans presences.js) ; saisie du départ = alertes
+> traitées (`resolve`), `forgotten_at` gardé (« départ oublié, corrigé »). ERP : carte « Départs oubliés à corriger »
+> (Aujourd'hui, « Saisir le départ »), filtre `controle=oubli` (toutes dates) et badge dans Pointages, avertissement Heures sup
+> et avant l'arrêt en paie, message borne / Mon espace. Suite 532/532. `deploy/livraison-4689fd3.zip` (6 072 174 o ; API
+> sha256 `5ec7184e…`), `DEPLOY_OK 4689fd3`, sauvegardes `~/sauvegardes/deploiement-4689fd3-20261110-091107/`. Vérifié :
+> admin / ERP / client / santé 200, route 401 sans session, bundle ERP `index-BCWsf4be.js` = build. Les commits mobiles
+> 0961fc9 / d9cbf0c (autre discussion, SiipafNative) sont dans la branche mais hors livraison serveur. Démo : base migrée,
+> KONAN corrigé (21/10 16:30), BAMBA laissé « départ oublié » pour essai du client.
+>
+> **Production précédente : release `1c6e13f` (09/11, ~18 h 08 heure serveur)**, accord du client (« Oui, mets en ligne »).
 > Contient 33f74a6 (dashboard : panneau des notifications entier sur mobile, `position: fixed` sous 640 px comme l'ERP),
 > 78dad65 et 1c6e13f (rôles : sous « Nom du rôle », dashboard et ERP › Nouveau rôle, pendant la frappe : même nom =
 > encadré rouge + création bloquée ; nom proche (féminin, pluriel, mots inversés) = jaune ; dès 3 lettres, rôles dont un mot
