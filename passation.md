@@ -3,7 +3,18 @@
 > Document de reprise pour continuer le travail dans une nouvelle discussion.
 > **Dernière mise à jour : 10 novembre 2026.**
 >
-> **EN PRODUCTION : release `7f1fa23` (10/11, ~13 h 08 heure serveur)**, demande du client (« mets en ligne »). Dashboard seul :
+> **EN PRODUCTION : release `b002c12` (10/11, ~18 h 39 heure serveur)**, accord du client (« Oui, en ligne »). Dashboard seul :
+> Rôles & privilèges, **barre de recherche d'un groupe ou d'un privilège** au-dessus de la grille et dans la fiche du rôle
+> (`filterCatalog` dans `admin/src/lib/permissions.js` : chaque mot saisi doit commencer un mot du groupe, de l'intitulé, du
+> libellé, de la précision ou du code, sans accents ; groupe trouvé par son nom = groupe entier ; la ligne d'intitulé coche
+> toujours le privilège complet via `permRows(items, all)`). ERP non recompilé (il importe `permissions.js` mais n'utilise pas la
+> recherche ; comportement inchangé). Serveur inchangé, suite non relancée. `deploy/livraison-b002c12.zip` (6 074 103 o ; API
+> sha256 `309a66be…`, 344 fichiers) déposé par l'API Fileman `upload_files` depuis Claude in Chrome (taille et empreinte
+> identiques), `DEPLOY_OK b002c12`, npm « up to date », 0 faille, aucune migration, sauvegardes
+> `~/sauvegardes/deploiement-b002c12-20261110-183905/`. Vérifié : 4 adresses + santé en 200, admin sert `index-GKGxCb6e.js`
+> (md5 = build, contient la recherche). Écran non revu connecté en production. Branche non poussée.
+>
+> **Production précédente : release `7f1fa23` (10/11, ~13 h 08 heure serveur)**, demande du client (« mets en ligne »). Dashboard seul :
 > Rôles & privilèges, séparateurs de groupe en bandeau rouge foncé (`--perm-group-bg` #a50c17 / sombre #7e1520) et lignes
 > parentes en anthracite (`--perm-parent-bg` #262a32 / sombre #323844), texte blanc, gardés au survol ; mêmes bandeaux dans la
 > fenêtre du rôle et les privilèges d'un compte (Utilisateurs). Impression inchangée (claire). L'onglet « Rôles et privilèges »
