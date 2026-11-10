@@ -3,7 +3,18 @@
 > Document de reprise pour continuer le travail dans une nouvelle discussion.
 > **Dernière mise à jour : 10 novembre 2026.**
 >
-> **EN PRODUCTION : release `4689fd3` (10/11, ~09 h 11 heure serveur)**, accord du client (« Oui, mets en ligne »).
+> **EN PRODUCTION : release `4a033e2` (10/11, ~09 h 55 heure serveur)**, demande du client (« tu mettras ensuite en ligne »).
+> RH › Présences, **pointages successifs** (un employé avait pointé arrivée puis départ à quelques minutes) : 2e pointage moins
+> de `double_pointage_minutes` (RH › Réglages, 30, 0 = jamais) après l'arrivée → rien n'est enregistré, réponse
+> `{ action: 'confirmer_depart', attendance, minutes }` ; borne : écran « vous avez déjà pointé votre arrivée… ce pointage
+> enregistrera votre départ » (Oui / Non, accueil après 20 s), Mon espace : `window.confirm` ; le départ part avec `confirm: true`.
+> Correction : « Retirer le départ » (motif « Départ pointé par erreur »), le pointage redevient en cours, positions du départ
+> effacées ; 409 explicite si un pointage plus récent existe. Tests qui pointent arrivée + départ coup sur coup : `confirm: true`.
+> Suite 535/535. `deploy/livraison-4a033e2.zip` (6 073 496 o ; API sha256 `682b5b2a…`), `DEPLOY_OK 4a033e2`, sauvegardes
+> `~/sauvegardes/deploiement-4a033e2-20261110-095521/`, aucune migration. Vérifié : 4 adresses en 200, bundle ERP
+> `index-DAWSSK4Y.js` = build. Démo : code de borne 2468 posé sur DIABATÉ Awa (EMP-0002) pour l'essai, pointage de test supprimé.
+>
+> **Production précédente : release `4689fd3` (10/11, ~09 h 11 heure serveur)**, accord du client (« Oui, mets en ligne »).
 > RH › Présences, **départ oublié** (demande du client du 10/11 : le lendemain ET sur plusieurs jours) : arrivée sans départ
 > au-delà de `forgotten_departure_hours` (RH › Réglages, 16 h, 8–48) → `hr_attendances.forgotten_at` (migration
 > `20261216000000_depart_oublie`, batch 24 en prod). Classée au pointage suivant (borne / Mon espace : c'est une ARRIVÉE, plus le
