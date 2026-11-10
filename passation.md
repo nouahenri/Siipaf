@@ -3,7 +3,16 @@
 > Document de reprise pour continuer le travail dans une nouvelle discussion.
 > **Dernière mise à jour : 10 novembre 2026.**
 >
-> **EN PRODUCTION : release `4a033e2` (10/11, ~09 h 55 heure serveur)**, demande du client (« tu mettras ensuite en ligne »).
+> **EN PRODUCTION : release `7f1fa23` (10/11, ~13 h 08 heure serveur)**, demande du client (« mets en ligne »). Dashboard seul :
+> Rôles & privilèges, séparateurs de groupe en bandeau rouge foncé (`--perm-group-bg` #a50c17 / sombre #7e1520) et lignes
+> parentes en anthracite (`--perm-parent-bg` #262a32 / sombre #323844), texte blanc, gardés au survol ; mêmes bandeaux dans la
+> fenêtre du rôle et les privilèges d'un compte (Utilisateurs). Impression inchangée (claire). L'onglet « Rôles et privilèges »
+> de l'ERP (`ModuleAccess.jsx`) n'a pas ce style. Serveur inchangé, suite non relancée (CSS seul). `deploy/livraison-7f1fa23.zip`
+> (6 073 682 o ; API sha256 `b5a7402b…`, 344 fichiers) déposé par l'API Fileman `upload_files` (taille et empreinte identiques),
+> `DEPLOY_OK 7f1fa23`, sauvegardes `~/sauvegardes/deploiement-7f1fa23-20261110-130814/`. Vérifié : 4 adresses en 200, admin sert
+> `index-BnsPi7Yg.js` / `index-BjG2PCDK.css` (= build) avec les nouvelles couleurs.
+>
+> **Production précédente : release `4a033e2` (10/11, ~09 h 55 heure serveur)**, demande du client (« tu mettras ensuite en ligne »).
 > RH › Présences, **pointages successifs** (un employé avait pointé arrivée puis départ à quelques minutes) : 2e pointage moins
 > de `double_pointage_minutes` (RH › Réglages, 30, 0 = jamais) après l'arrivée → rien n'est enregistré, réponse
 > `{ action: 'confirmer_depart', attendance, minutes }` ; borne : écran « vous avez déjà pointé votre arrivée… ce pointage
