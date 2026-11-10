@@ -20,6 +20,7 @@
   --perm-parent-bg: #262a32;
   --perm-parent-ink: #ffffff;
   --perm-parent-ink-2: rgba(255, 255, 255, .7);
+  --perm-group-bg: #a50c17;   /* séparateurs de groupe (Lots, Dossiers d'acquisition…) : rouge SIIPAF foncé */
 
   /* Statuts des lots — palette validée daltonisme (dataviz) ; « bloqué » reste neutre */
   --st-disponible: #2e9e5b;
@@ -580,7 +581,7 @@ fieldset { min-width: 0; }
 .perm-check.diff { border-color: var(--gold); background: var(--gold-soft); }
 .perm-check input { width: 18px; height: 18px; accent-color: var(--brand); cursor: pointer; }
 .perm-check input:disabled { cursor: not-allowed; }
-.perm-group-title { font-size: 11px; font-weight: 600; letter-spacing: .06em; text-transform: uppercase; color: var(--ink-3); margin-bottom: 6px; }
+.perm-group-title { font-size: 11px; font-weight: 600; letter-spacing: .06em; text-transform: uppercase; color: #fff; background: var(--perm-group-bg); padding: 6px 10px; border-radius: 6px; margin-bottom: 6px; }
 .perm-line { display: flex; align-items: center; gap: 10px; padding: 5px 0; border-bottom: 1px solid var(--border); font-size: 13px; }
 .perm-line:last-child { border-bottom: none; }
 /* Actions détaillées d'un privilège : intitulé puis actions en retrait */
@@ -599,6 +600,9 @@ fieldset { min-width: 0; }
 .table-wrap .perm-table tbody tr.perm-parent > td,
 .table-wrap .perm-table tbody tr.perm-parent:hover > td { background: var(--perm-parent-bg); color: var(--perm-parent-ink); border-bottom-color: var(--perm-parent-bg); }
 .perm-table tr.perm-parent .muted { color: var(--perm-parent-ink-2); }
+/* Séparateur de groupe : bandeau rouge foncé, texte blanc, au-dessus des lignes parentes anthracite */
+.table-wrap .perm-table tbody tr.perm-group > td,
+.table-wrap .perm-table tbody tr.perm-group:hover > td { background: var(--perm-group-bg); color: #fff; border-bottom-color: var(--perm-group-bg); }
 /* Grille imprimée (bouton « Imprimer ») : seule sur la page, A4 paysage, toujours en clair */
 .roles-print { display: none; }
 @page roles-grid { size: A4 landscape; margin: 10mm; }
@@ -651,9 +655,10 @@ fieldset { min-width: 0; }
   --gold: #d6a63a;
   --gold-soft: rgba(214, 166, 58, .14);
   --focus: #5b9be0;
-  --perm-parent-bg: #5a1820;
+  --perm-parent-bg: #323844;
   --perm-parent-ink: #ffffff;
   --perm-parent-ink-2: rgba(255, 255, 255, .72);
+  --perm-group-bg: #7e1520;
   --ok: #4cc27f;
   --warn: #e0a43a;
   --danger: #f0616a;
