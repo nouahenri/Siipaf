@@ -1,9 +1,25 @@
 # Passation — Plateforme SIIPAF
 
 > Document de reprise pour continuer le travail dans une nouvelle discussion.
-> **Dernière mise à jour : 10 novembre 2026.**
+> **Dernière mise à jour : 12 novembre 2026.**
 >
-> **EN PRODUCTION : release `b002c12` (10/11, ~18 h 39 heure serveur)**, accord du client (« Oui, en ligne »). Dashboard seul :
+> **SITE PUBLIC EN PRODUCTION : release `0831900` (12/11, ~07 h 28 heure serveur)**, demande du client (« pour la mise en ligne »).
+> Site seul (serveur, base, dashboard, ERP, espace client = `b002c12`). **Page Politique de confidentialité** à
+> `siipaf.com/privacy/` (`privacy/index.html` avec `<base href="/">` : ancres écrites `privacy/#section`) : responsable,
+> données par formulaire, bases légales, destinataires (hébergeur, IA de Sita Anthropic / Google, Meta, hachage des
+> audiences), transferts, durées, stockage du navigateur, sécurité, droits (loi 2013-450, ARTCI). Réglage du pixel Meta
+> sur la page (`js/privacy.js`) ; `meta-pixel.js` expose `siipafPixelConsent` / `siipafPixelInfo`, respecte TOUJOURS un
+> refus et « Ne pas suivre » (même sans demande d'accord), bannière avec « En savoir plus ». Lien « Politique de
+> confidentialité » sous le copyright des 8 pages (hors zone éditable du dashboard). `deploy/package-site.cjs` livre
+> `privacy/index.html` ; `serve-site.js` redirige `/privacy` → `/privacy/`. `deploy/livraison-0831900.zip` (216 663 o,
+> sha256 `cbdf6c12…`) déposé par l'API Fileman (taille et empreinte identiques), `update-0831900.sh` (site seul,
+> restauration auto), `DEPLOY_OK 0831900`, sauvegarde `~/sauvegardes/deploiement-0831900-20261112-072839/`. Vérifié :
+> `/privacy` → `/privacy/` 200, `site-release.json` = 0831900, lien présent sur l'accueil. **À faire** : faire valider le
+> texte (durées de conservation, prestataires) par le juriste ; renseigner `SiipafNative/app.json › extra.privacyUrl` =
+> `https://siipaf.com/privacy/` (stores) au prochain build mobile ; adresse à donner à Meta (docs/acces-meta.md).
+> Branche non poussée.
+>
+> **Production précédente (serveur) : release `b002c12` (10/11, ~18 h 39 heure serveur)**, accord du client (« Oui, en ligne »). Dashboard seul :
 > Rôles & privilèges, **barre de recherche d'un groupe ou d'un privilège** au-dessus de la grille et dans la fiche du rôle
 > (`filterCatalog` dans `admin/src/lib/permissions.js` : chaque mot saisi doit commencer un mot du groupe, de l'intitulé, du
 > libellé, de la précision ou du code, sans accents ; groupe trouvé par son nom = groupe entier ; la ligne d'intitulé coche
