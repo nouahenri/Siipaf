@@ -1914,7 +1914,12 @@ const MODULE_SETTINGS = {
 // navigateur, donc libres de droits et sans fichier à télécharger
 const NOTIF_SOUNDS = {
   carillon: 'Carillon (deux notes)', clochette: 'Clochette', cristal: 'Cristal (trois notes montantes)', goutte: 'Goutte d’eau',
-  marimba: 'Marimba', double_bip: 'Double bip', aucun: 'Aucun son',
+  marimba: 'Marimba', double_bip: 'Double bip',
+  // Alertes fortes (12/11)
+  alarme: 'Alarme (bips aigus répétés)', pin_pon: 'Pin-pon (deux tons d’urgence)', sirene: 'Sirène', sonnerie: 'Sonnerie de téléphone',
+  urgence: 'Urgence (chirps montants)', klaxon: 'Klaxon', gong: 'Gong',
+  siipaf_robot: '« SIIIPAAAF » voix robot', siipaf_megaphone: '« SIIIPAAAF » mégaphone',
+  aucun: 'Aucun son',
 };
 
 // Situations de travaux des sous-traitants (lot 4)

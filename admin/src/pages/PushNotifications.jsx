@@ -1,14 +1,15 @@
 /**
  * Notifications push (Ventes) : annonce envoyée aux téléphones où l'application SIIPAF est installée avec « Recevoir des
  * notifications push » activé dans ses Paramètres (visiteurs et clients). Cible : tous, ou la ville préférée choisie dans
- * l'application ; le toucher ouvre le programme choisi (sinon l'accueil). Historique des envois.
+ * l'application ; le toucher ouvre le programme choisi (sinon l'accueil). Historique des envois : « Réutiliser » recopie
+ * une ligne dans le formulaire (à ajuster puis envoyer : nouvelle ligne), « Supprimer » la retire de l'historique.
  * Les notifications du dossier d'un client (messages, paiements, chantier, documents, SAV) partent seules depuis l'ERP.
  */
-import { useState } from 'react';
-import { BellRing, Send, Smartphone } from 'lucide-react';
+import { useRef, useState } from 'react';
+import { BellRing, CopyPlus, Send, Smartphone, Trash2 } from 'lucide-react';
 import { api } from '../lib/api';
 import { useAuth, useResource, useToast } from '../lib/app-context';
-import { Card, Field, Badge, Empty, ErrorBox, Skeleton, Modal } from '../components/ui';
+import { Card, Field, Badge, Empty, ErrorBox, Skeleton, Modal, Pagination } from '../components/ui';
 import { dateTime } from '../lib/format';
 
 const TITLE_MAX = 80;
@@ -22,12 +23,42 @@ export default function PushNotifications() {
   const [form, setForm] = useState(EMPTY);
   const [confirm, setConfirm] = useState(false);
   const [busy, setBusy] = useState(false);
+  const [removing, setRemoving] = useState(null);
+  const [page, setPage] = useState(1);
+  const [pageSize, setPageSize] = useState(10);
+  const formRef = useRef(null);
+  const titleRef = useRef(null);
   const set = k => e => setForm(f => ({ ...f, [k]: e.target.value }));
+
+  // Réutiliser : la ligne remplit le formulaire ; une cible ou un programme qui n'existe plus revient à « tous » / « accueil »
+  const reuse = r => {
+    const cityOk = r.city_id && data?.cities.some(c => c.id === r.city_id);
+    const projectOk = r.project_id && data?.projects.some(p => p.id === r.project_id);
+    setForm({ title: r.title || '', body: r.body || '', city_id: cityOk ? String(r.city_id) : '', project_id: projectOk ? String(r.project_id) : '' });
+    formRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    setTimeout(() => titleRef.current?.focus({ preventScroll: true }), 350);
+    toast((r.city_id && !cityOk) || (r.project_id && !projectOk)
+      ? 'Notification recopiée : la ville ou le programme d’origine n’est plus disponible, vérifiez la cible'
+      : 'Notification recopiée dans le formulaire : ajustez-la puis envoyez');
+  };
+
+  const remove = async () => {
+    setBusy(true);
+    try {
+      await api.del(`/admin/push/${removing.id}`);
+      toast('Notification retirée de l’historique');
+      setRemoving(null); res.reload();
+    } catch (err) { toast(err.message, 'err'); } finally { setBusy(false); }
+  };
 
   const data = res.data;
   const city = data?.cities.find(c => String(c.id) === form.city_id);
   const recipients = form.city_id ? city?.devices || 0 : data?.devices || 0;
   const project = data?.projects.find(p => String(p.id) === form.project_id);
+  const allRows = data?.rows || [];
+  const pages = Math.max(1, Math.ceil(allRows.length / pageSize));
+  const current = Math.min(page, pages); // après une suppression sur la dernière page
+  const shown = allRows.slice((current - 1) * pageSize, current * pageSize);
   const valid = form.title.trim().length >= 3 && form.body.trim().length >= 5 && recipients > 0;
 
   const send = async () => {
@@ -49,17 +80,17 @@ export default function PushNotifications() {
         <div className="card kpi"><span className="kpi-label"><Smartphone aria-hidden="true" />Téléphones inscrits</span><span className="kpi-value">{data ? data.devices.toLocaleString('fr-FR') : <Skeleton h={30} w={60} />}</span>
           <span className="kpi-foot small muted">Application installée, notifications activées</span></div>
         <div className="card kpi"><span className="kpi-label"><BellRing aria-hidden="true" />Annonces envoyées</span><span className="kpi-value">{data ? data.rows.length.toLocaleString('fr-FR') : <Skeleton h={30} w={60} />}</span>
-          <span className="kpi-foot small muted">50 dernières affichées ci-dessous</span></div>
+          <span className="kpi-foot small muted">Historique complet ci-dessous</span></div>
         <div className="card kpi"><span className="kpi-label"><Smartphone aria-hidden="true" />Avec une ville préférée</span><span className="kpi-value">{data ? data.cities.reduce((n, c) => n + c.devices, 0).toLocaleString('fr-FR') : <Skeleton h={30} w={60} />}</span>
           <span className="kpi-foot small muted">Choisie dans Paramètres de l’application</span></div>
       </div>
 
       {can('push:send') && (
-        <Card title="Nouvelle notification">
+        <div ref={formRef} style={{ scrollMarginTop: 80 }}><Card title="Nouvelle notification">
           <div className="grid" style={{ gridTemplateColumns: 'minmax(0, 1.4fr) minmax(260px, 1fr)', gap: 24, alignItems: 'start' }}>
             <div className="form-grid">
               <Field label="Titre" hint={`${form.title.length}/${TITLE_MAX} : court, il s’affiche en gras`} className="full">
-                <input className="input" value={form.title} maxLength={TITLE_MAX} onChange={set('title')} placeholder="Ex. Nouveau programme à Bingerville" />
+                <input ref={titleRef} className="input" value={form.title} maxLength={TITLE_MAX} onChange={set('title')} placeholder="Ex. Nouveau programme à Bingerville" />
               </Field>
               <Field label="Texte" hint={`${form.body.length}/${BODY_MAX} : le téléphone coupe au-delà de deux ou trois lignes`} className="full">
                 <textarea className="textarea" rows={3} value={form.body} maxLength={BODY_MAX} onChange={set('body')} placeholder="Ex. Lots viabilisés disponibles dès 5 000 000 FCFA. Touchez pour découvrir le programme." />
@@ -95,7 +126,7 @@ export default function PushNotifications() {
               <p style={{ color: 'rgba(255,255,255,0.7)', fontSize: 12, textAlign: 'center', marginTop: 14 }}>Au toucher : {project ? project.name : 'accueil de l’application'}</p>
             </div>
           </div>
-        </Card>
+        </Card></div>
       )}
 
       <Card title="Historique des envois" bodyClass="">
@@ -103,18 +134,25 @@ export default function PushNotifications() {
           : !data?.rows.length ? <Empty icon={BellRing}>Aucune notification envoyée pour l’instant.</Empty>
           : (
             <div className="table-wrap"><table className="table">
-              <thead><tr><th>Notification</th><th>Cible</th><th>Au toucher</th><th>Envois</th><th>Date</th></tr></thead>
-              <tbody>{data.rows.map(r => (
+              <thead><tr><th>Notification</th><th>Cible</th><th>Au toucher</th><th>Envois</th><th>Date</th>{can('push:send') && <th><span className="sr-only">Actions</span></th>}</tr></thead>
+              <tbody>{shown.map(r => (
                 <tr key={r.id}>
                   <td><strong>{r.title}</strong><div className="small muted">{r.body}</div></td>
                   <td>{r.city_label ? <Badge>{r.city_label}</Badge> : <span className="small">Tous</span>}</td>
                   <td className="small">{r.project_name || 'Accueil'}</td>
                   <td><Badge tone={r.sent >= r.recipients ? 'ok' : r.sent ? 'warn' : ''}>{r.sent} / {r.recipients}</Badge></td>
                   <td className="small muted">{dateTime(r.created_at)}{r.author ? <div>{r.author}</div> : null}</td>
+                  {can('push:send') && (
+                    <td style={{ whiteSpace: 'nowrap', textAlign: 'right' }}>
+                      <button className="btn btn-sm btn-ghost btn-icon" onClick={() => reuse(r)} aria-label={`Réutiliser « ${r.title} »`} title="Réutiliser : recopier dans le formulaire"><CopyPlus /></button>
+                      <button className="btn btn-sm btn-ghost btn-icon btn-danger" onClick={() => setRemoving(r)} aria-label={`Supprimer « ${r.title} »`} title="Supprimer de l’historique"><Trash2 /></button>
+                    </td>
+                  )}
                 </tr>
               ))}</tbody>
             </table></div>
           )}
+        {allRows.length > 0 && <Pagination total={allRows.length} page={current} pageSize={pageSize} onPage={setPage} onPageSize={n => { setPageSize(n); setPage(1); }} label="notifications" />}
       </Card>
 
       {confirm && (
@@ -123,6 +161,15 @@ export default function PushNotifications() {
             <button className="btn btn-primary" disabled={busy} onClick={send}><Send />{busy ? 'Envoi…' : 'Envoyer maintenant'}</button></>
         )}>
           <p>« <strong>{form.title.trim()}</strong> » part tout de suite vers <strong>{recipients} téléphone{recipients > 1 ? 's' : ''}</strong>{city ? ` (ville préférée : ${city.label})` : ''}. Un envoi ne peut pas être annulé.</p>
+        </Modal>
+      )}
+
+      {removing && (
+        <Modal title="Supprimer de l’historique ?" onClose={() => setRemoving(null)} footer={(
+          <><button className="btn btn-ghost" onClick={() => setRemoving(null)}>Annuler</button>
+            <button className="btn btn-danger" disabled={busy} onClick={remove}><Trash2 />{busy ? 'Suppression…' : 'Supprimer'}</button></>
+        )}>
+          <p>« <strong>{removing.title}</strong> » ({dateTime(removing.created_at)}) sera retirée de l’historique. Les téléphones qui l’ont reçue la gardent : une notification envoyée ne peut pas être rappelée.</p>
         </Modal>
       )}
     </div>

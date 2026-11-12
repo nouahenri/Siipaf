@@ -184,6 +184,11 @@ test('notifications pour tous : inscription du téléphone sans compte, annonce 
   if (vide) assert.equal((await admin.post('/api/admin/push').send({ title: 'Annonce', body: 'Texte annonce', city_id: vide.id })).status, 409);
   assert.equal(await db('app_announcements').count({ n: '*' }).first().then(r => Number(r.n)), 1);
 
+  // Supprimer : la ligne disparaît de l'historique
+  assert.equal((await admin.delete(`/api/admin/push/${res.body.id}`)).status, 200);
+  assert.equal((await admin.delete(`/api/admin/push/${res.body.id}`)).status, 404);
+  assert.equal((await admin.get('/api/admin/push')).body.rows.length, 0);
+
   // Désactivation dans l'application
   assert.equal((await request(app).post('/api/public/devices/remove').send({ token: autre })).status, 200);
   assert.equal((await admin.get('/api/admin/push')).body.devices, 1);

@@ -429,7 +429,10 @@ page, de newsletter ni de blocs « site web » ; Détente & Loisirs = inspiratio
 2. **Assistance vocale de Sita** : faite dans l'application le 05/11, **validée sur téléphone par le client** ; reste la
    bulle du site (voix du navigateur, même réglage `voice`).
 3. Saisir les vrais liens et numéros marchands dans admin.siipaf.com › Paramètres › Général.
-4. Clé FCM (Firebase, compte de service) à déposer pour les push Android ; politique de confidentialité, captures et textes
+4. ~~Clé FCM~~ **fait le 12/11** : clé de compte de service FCM V1 (`firebase-adminsdk-fbsvc`, id `dfa1f0c7…`) déposée
+   chez Expo par `eas credentials -p android` pour `com.siipaf.com` (sans keystore : builds locaux). Fichier rangé dans
+   `Desktop/SIIPAF/Clés Siipaf/` ; son contenu est passé dans une discussion, à renouveler par prudence après validation des
+   push. Reste : politique de confidentialité, captures et textes
    des fiches stores ; logo en haute définition (les déclinaisons fournies font 601 px de large).
 5. Publier les plans de masse des programmes pour la « Carte interactive » (seul Bingerville en a un dans la démo) et saisir
    les positions GPS manquantes.

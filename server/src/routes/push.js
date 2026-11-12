@@ -1,7 +1,8 @@
 /**
  * Notifications push (dashboard › Ventes › Notifications push) : téléphones où l'application SIIPAF est installée avec
  * « Recevoir des notifications push » activé (connectés ou non), répartis par ville préférée ; envoi d'une annonce à tous
- * ou à une ville, avec le programme ouvert au toucher ; historique des envois.
+ * ou à une ville, avec le programme ouvert au toucher ; historique des envois (supprimer une ligne ; « Réutiliser » se fait
+ * dans l'admin en recopiant la ligne dans le formulaire, puis par un nouvel envoi).
  * Les notifications du dossier client (messages, paiements, chantier…) partent seules depuis l'ERP (services/push.js).
  */
 const express = require('express');
@@ -21,7 +22,7 @@ module.exports = function pushRoutes(db) {
       db('ref_items').where({ kind: 'ville' }).orderBy(['sort', 'label']).select('id', 'label'),
       db('projects').where({ published: true }).whereNull('archived_at').orderBy('name').select('id', 'name', 'city_id'),
       db('app_announcements as a').leftJoin('projects as p', 'p.id', 'a.project_id').leftJoin('ref_items as v', 'v.id', 'a.city_id').leftJoin('users as u', 'u.id', 'a.created_by')
-        .orderBy('a.id', 'desc').limit(50).select('a.*', 'p.name as project_name', 'v.label as city_label', 'u.name as author'),
+        .orderBy('a.id', 'desc').limit(2000).select('a.*', 'p.name as project_name', 'v.label as city_label', 'u.name as author'),
     ]);
     const counts = new Map(byCity.map(r => [r.city_id, Number(r.n)]));
     res.json({
@@ -35,6 +36,12 @@ module.exports = function pushRoutes(db) {
     const { id, recipients } = await push.announce(db, data, req.user.id);
     if (!recipients) throw new HttpError(409, data.city_id ? 'Aucun téléphone inscrit pour cette ville : rien n’a été envoyé.' : 'Aucun téléphone inscrit aux notifications : rien n’a été envoyé.');
     res.status(201).json({ id, recipients });
+  }));
+  // Supprimer : retire la ligne de l'historique (ce qui est déjà arrivé sur les téléphones y reste)
+  r.delete('/push/:id', send, ah(async (req, res) => {
+    const n = await db('app_announcements').where({ id: Number(req.params.id) || 0 }).del();
+    if (!n) throw new HttpError(404, 'Notification introuvable.');
+    res.json({ ok: true });
   }));
 
   return r;
