@@ -3,7 +3,22 @@
 > Document de reprise pour continuer le travail dans une nouvelle discussion.
 > **Dernière mise à jour : 12 novembre 2026.**
 >
-> **SITE PUBLIC EN PRODUCTION : release `7819364` (12/11, ~07 h 38 heure serveur)**, accord du client (« Oui, mets en ligne »).
+> **SITE PUBLIC EN PRODUCTION : release `c553f24` (12/11, ~08 h 15 heure serveur)**, accord du client (« Oui, mets en ligne »).
+> **Page Conditions générales d'utilisation** `siipaf.com/cgu` (`cgu/index.html`, même modèle que privacy, `<base href="/">`,
+> ancres `cgu/#…`) : objet (vente seulement par contrat), éditeur, accès, espace client (compte ouvert par SIIPAF, mot de
+> passe provisoire), infos non contractuelles, demandes et pré-réservations (7 jours en règle générale), paiements
+> (déclarations vérifiées), Sita (IA, n'engage pas), contenus, propriété intellectuelle, responsabilité, renvoi à la
+> confidentialité, droit ivoirien / Abidjan. Lien « Conditions d'utilisation » (`href="cgu"`, demande du client : adresse
+> siipaf.com/cgu) sous « Politique de confidentialité » dans `footer-legal-list` des 10 pages. `PAGES` de
+> `deploy/package-site.cjs` + `cgu/index.html`. `livraison-c553f24.zip` (221 790 o, sha256 `dff9375d…`), `DEPLOY_OK c553f24`,
+> sauvegarde `~/sauvegardes/deploiement-c553f24-20261112-0815…/`. Vérifié : `/cgu` → `/cgu/` 200, release c553f24, liens
+> en place. **À faire** : RCCM / capital à ajouter dans « Éditeur » si le client les donne ; relecture juriste.
+> **Play Console (12/11)** : « Sécurité des données » rempli et enregistré, NON envoyé pour examen (choix du client) ;
+> déclarations Classification (nouveau questionnaire, conditions IARC à accepter), Identifiant publicitaire (pas d'AD_ID
+> dans le manifeste), Applis de santé, Statut professionnel (CGU = https://siipaf.com/cgu) : en attente des corrections
+> du client.
+>
+> **Livraison précédente du site : release `7819364` (12/11, ~07 h 38 heure serveur)**, accord du client (« Oui, mets en ligne »).
 > Suite de 0831900 à la demande du client : section 7 « Cookies » réécrite (tableau des 3 éléments stockés avec durée,
 > pixel Meta = accord par la bannière, services de tiers, « changer d'avis » = effacer les données du site dans le
 > navigateur) ; **boutons Accepter / Refuser retirés** de la page (`js/privacy.js` supprimé, aussi sur le serveur ;
