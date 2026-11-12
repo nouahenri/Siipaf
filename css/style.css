@@ -2204,6 +2204,10 @@ button {
   font-size: 0.8rem;
 }
 
+.footer-bottom .footer-legal { margin-top: 6px; }
+.footer-legal a { color: rgba(255, 255, 255, 0.55); text-decoration: none; transition: color 0.2s; }
+.footer-legal a:hover, .footer-legal a:focus-visible { color: var(--white); text-decoration: underline; }
+
 /* ─── WHATSAPP FLOAT ─────────────────────────────────────── */
 .whatsapp-float {
   position: fixed;

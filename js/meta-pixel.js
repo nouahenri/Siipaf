@@ -54,12 +54,18 @@
 
   function banner() {
     var box = document.createElement('div');
+    box.id = 'siipafPixelBanner';
     box.setAttribute('role', 'dialog');
     box.setAttribute('aria-label', 'Mesure d’audience');
     box.style.cssText = 'position:fixed;left:12px;bottom:12px;z-index:2147483000;max-width:320px;padding:12px 14px;background:#fff;color:#222;border:1px solid #ddd;border-radius:10px;box-shadow:0 4px 18px rgba(0,0,0,.15);font:13px/1.4 system-ui,sans-serif';
     var p = document.createElement('p');
     p.style.cssText = 'margin:0 0 8px';
-    p.textContent = 'SIIPAF mesure l’efficacité de ses publicités avec le pixel Meta. Acceptez-vous ce suivi ? Le site fonctionne de la même façon si vous refusez.';
+    p.textContent = 'SIIPAF mesure l’efficacité de ses publicités avec le pixel Meta. Acceptez-vous ce suivi ? Le site fonctionne de la même façon si vous refusez. ';
+    var more = document.createElement('a');
+    more.href = '/privacy/';
+    more.textContent = 'En savoir plus';
+    more.style.cssText = 'color:#b3262d;text-decoration:underline';
+    p.appendChild(more);
     var row = document.createElement('div');
     row.style.cssText = 'display:flex;gap:8px';
     function btn(label, primary, fn) {
@@ -75,16 +81,34 @@
     document.body.appendChild(box);
   }
 
+  /* Choix modifiable depuis la page Confidentialité (privacy/) : 'oui' charge le pixel aussitôt (ou rend l'accord à Meta),
+     'non' retire l'accord auprès de Meta s'il était chargé ; plus rien n'est chargé aux pages suivantes. */
+  window.siipafPixelConsent = function (v) {
+    if (v !== 'oui' && v !== 'non') return choice();
+    remember(v);
+    var box = document.getElementById('siipafPixelBanner');
+    if (box) box.remove();
+    if (v === 'oui') { if (loaded && window.fbq) window.fbq('consent', 'grant'); else if (!doNotTrack()) load(); }
+    else { queue = []; if (loaded && window.fbq) window.fbq('consent', 'revoke'); }
+    return v;
+  };
+  /** État lu par la page Confidentialité ; l'événement « siipaf:pixel » est émis une fois la configuration connue. */
+  var known = false;
+  window.siipafPixelInfo = function () {
+    return { known: known, active: !!cfg, consent_required: !!(cfg && cfg.consent_required), choice: choice(), do_not_track: doNotTrack() };
+  };
+  function announce() { known = true; try { document.dispatchEvent(new CustomEvent('siipaf:pixel')); } catch (e) { /* navigateur ancien */ } }
+
   function start() {
-    if (!cfg.consent_required) { load(); return; }
+    // Un refus (bannière ou page Confidentialité) et « Ne pas suivre » valent toujours, même sans demande d'accord
     var c = choice();
     if (doNotTrack() || c === 'non') { queue = []; return; }
-    if (c === 'oui') { load(); return; }
+    if (!cfg.consent_required || c === 'oui') { load(); return; }
     if (document.body) banner(); else document.addEventListener('DOMContentLoaded', banner);
   }
 
   fetch(API + '/api/public/meta/config', { credentials: 'omit' })
     .then(function (r) { return r.ok ? r.json() : { pixel: null }; })
-    .then(function (c) { if (c && c.pixel && c.pixel.id && /^\d{5,30}$/.test(String(c.pixel.id))) { cfg = c.pixel; start(); } })
-    .catch(function () { /* hors ligne ou serveur indisponible : aucun pixel, le site n'est pas affecté */ });
+    .then(function (c) { if (c && c.pixel && c.pixel.id && /^\d{5,30}$/.test(String(c.pixel.id))) { cfg = c.pixel; start(); } announce(); })
+    .catch(function () { announce(); /* hors ligne ou serveur indisponible : aucun pixel, le site n'est pas affecté */ });
 })();

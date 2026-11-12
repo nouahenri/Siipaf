@@ -7,6 +7,7 @@ const root=process.argv[2]||process.cwd();
 const api=process.env.SIIPAF_API;
 const types={'.html':'text/html; charset=utf-8','.css':'text/css','.js':'application/javascript','.jpg':'image/jpeg','.png':'image/png','.webp':'image/webp','.svg':'image/svg+xml'};
 http.createServer((q,r)=>{let p=decodeURIComponent(q.url.split('?')[0]);if(p.endsWith('/'))p+='index.html';const f=path.join(root,p);
+if(!path.extname(p)&&fs.existsSync(path.join(f,'index.html'))){r.writeHead(301,{Location:p+'/'});return r.end()}
 fs.readFile(f,(e,d)=>{if(e){r.writeHead(404);return r.end('404')}
 if(api&&f.endsWith('.html'))d=d.toString('utf8').replace('<head>','<head><script>window.SIIPAF_API='+JSON.stringify(api)+'</script>');
 r.writeHead(200,{'Content-Type':types[path.extname(f)]||'application/octet-stream'});r.end(d)})}).listen(Number(process.env.PORT)||8765);
