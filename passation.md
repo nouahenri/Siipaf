@@ -15,8 +15,9 @@
 > sauvegardes `~/sauvegardes/deploiement-06c1b22-20261112-210126/`, npm à jour, 0 faille, aucune migration, `{"ok":true}`,
 > `DEPLOY_OK 06c1b22`. Vérifié : 4 adresses + santé en 200, `DELETE /api/admin/push/1` → 401 sans session, bundles admin
 > (`index-CvXpZOWi.js`) et ERP (`index-C1Fb-axR.js`) identiques au build (md5) et contenant les nouveaux sons. Suite
-> 534/535 : **seul échec `site-texts.test.js`** (catalogue des textes du site pas régénéré après l'ajout des liens
-> Confidentialité/CGU au pied de page ; à corriger par `node scripts/site-texts.js` + relivraison du site). Branche non poussée.
+> 534/535 : seul échec `site-texts.test.js`, **corrigé ensuite par `b56fc5a`** : le scanner ignore `.footer-legal-list`
+> (liens légaux volontairement hors de l'édition du dashboard ; régénérer aurait rendu Confidentialité/CGU modifiables et
+> masquables). Pages et catalogue inchangés, aucune livraison nécessaire (outil de dev et tests seulement). Branche non poussée.
 > Compte de test local de l'aperçu admin-demo : `server/data/demo-acces-admin.txt` (ignoré par git).
 >
 > **SITE PUBLIC EN PRODUCTION : release `c553f24` (12/11, ~08 h 15 heure serveur)**, accord du client (« Oui, mets en ligne »).
