@@ -3,7 +3,19 @@
 > Document de reprise pour continuer le travail dans une nouvelle discussion.
 > **Dernière mise à jour : 12 novembre 2026.**
 >
-> **SITE PUBLIC EN PRODUCTION : release `0831900` (12/11, ~07 h 28 heure serveur)**, demande du client (« pour la mise en ligne »).
+> **SITE PUBLIC EN PRODUCTION : release `7819364` (12/11, ~07 h 38 heure serveur)**, accord du client (« Oui, mets en ligne »).
+> Suite de 0831900 à la demande du client : section 7 « Cookies » réécrite (tableau des 3 éléments stockés avec durée,
+> pixel Meta = accord par la bannière, services de tiers, « changer d'avis » = effacer les données du site dans le
+> navigateur) ; **boutons Accepter / Refuser retirés** de la page (`js/privacy.js` supprimé, aussi sur le serveur ;
+> `siipafPixelConsent` / `siipafPixelInfo` retirés de `meta-pixel.js`, qui garde : refus et « Ne pas suivre » toujours
+> respectés, « En savoir plus » dans la bannière) ; lien **sous « Carrières » dans la colonne Navigation** des 9 pages,
+> dans une `<ul class="footer-legal-list">` à part (la liste Navigation est éditable : le dashboard l'écraserait), plus
+> rien sous le copyright. `livraison-7819364.zip` (215 745 o, sha256 `4f104421…`), `DEPLOY_OK 7819364`, sauvegarde
+> `~/sauvegardes/deploiement-7819364-20261112-0738…/`. Vérifié : release 7819364, `js/privacy.js` 404, lien en place,
+> section affichée. La phrase « rien n'est chargé tant que vous n'avez pas accepté » suppose la demande d'accord
+> activée dans ERP › Marketing › Réglages › Connecteurs Meta (pixel inactif en production aujourd'hui).
+>
+> **Livraison précédente du site : release `0831900` (12/11, ~07 h 28 heure serveur)**, demande du client (« pour la mise en ligne »).
 > Site seul (serveur, base, dashboard, ERP, espace client = `b002c12`). **Page Politique de confidentialité** à
 > `siipaf.com/privacy/` (`privacy/index.html` avec `<base href="/">` : ancres écrites `privacy/#section`) : responsable,
 > données par formulaire, bases légales, destinataires (hébergeur, IA de Sita Anthropic / Google, Meta, hachage des
