@@ -1,6 +1,6 @@
 {
   "expo": {
-    "name": "SIIPAF",
+    "name": "Siipaf Mobile",
     "slug": "siipaf",
     "owner": "nouahenris-team",
     "version": "1.0.0",
@@ -47,7 +47,7 @@
     "web": {
       "output": "single",
       "favicon": "./assets/images/favicon.png",
-      "name": "SIIPAF",
+      "name": "Siipaf Mobile",
       "themeColor": "#E30613"
     },
     "plugins": [
