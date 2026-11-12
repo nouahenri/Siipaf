@@ -3,6 +3,22 @@
 > Document de reprise pour continuer le travail dans une nouvelle discussion.
 > **Dernière mise à jour : 12 novembre 2026.**
 >
+> **API / DASHBOARD / ERP EN PRODUCTION : release `06c1b22` (12/11, ~21 h 01 heure serveur)**, demande du client (« mets en
+> ligne quand les tests sont verts »). Push : clé FCM V1 déposée chez Expo (`eas credentials`, sans keystore) — les annonces
+> arrivent (2/2 à 20 h 43 et 20 h 59 ; un envoi 0/4 à 21 h 00 non expliqué : à surveiller, possibles jetons d'une ancienne
+> version de l'app ou d'Expo Go qui font rejeter tout le lot par Expo). Ventes › Notifications push : **Réutiliser** (recopie
+> dans le formulaire, nouvel envoi) et **Supprimer** (`DELETE /admin/push/:id`, `push:send`), historique **paginé** (10 par
+> page) et complet. Cloche admin/ERP : sons **Alarme, Pin-pon, Sirène, Sonnerie, Urgence, Klaxon, Gong, « SIIIPAAAF » voix
+> robot (70 %) et mégaphone (77 %)** (`NOTIF_SOUNDS` + `admin/src/lib/sounds.js`), sons classiques portés au volume maximal.
+> `deploy/livraison-06c1b22.zip` (6 077 380 o, sha256 `7aa633ea…`) = `siipaf-api-06c1b22.zip` (sha256 `b1acc37c…`, 344
+> fichiers) + `update-06c1b22.sh`, déposé par l'API Fileman (taille et empreinte identiques). Terminal : empreinte OK,
+> sauvegardes `~/sauvegardes/deploiement-06c1b22-20261112-210126/`, npm à jour, 0 faille, aucune migration, `{"ok":true}`,
+> `DEPLOY_OK 06c1b22`. Vérifié : 4 adresses + santé en 200, `DELETE /api/admin/push/1` → 401 sans session, bundles admin
+> (`index-CvXpZOWi.js`) et ERP (`index-C1Fb-axR.js`) identiques au build (md5) et contenant les nouveaux sons. Suite
+> 534/535 : **seul échec `site-texts.test.js`** (catalogue des textes du site pas régénéré après l'ajout des liens
+> Confidentialité/CGU au pied de page ; à corriger par `node scripts/site-texts.js` + relivraison du site). Branche non poussée.
+> Compte de test local de l'aperçu admin-demo : `server/data/demo-acces-admin.txt` (ignoré par git).
+>
 > **SITE PUBLIC EN PRODUCTION : release `c553f24` (12/11, ~08 h 15 heure serveur)**, accord du client (« Oui, mets en ligne »).
 > **Page Conditions générales d'utilisation** `siipaf.com/cgu` (`cgu/index.html`, même modèle que privacy, `<base href="/">`,
 > ancres `cgu/#…`) : objet (vente seulement par contrat), éditeur, accès, espace client (compte ouvert par SIIPAF, mot de
