@@ -2178,6 +2178,9 @@ button {
   padding-left: 8px;
 }
 
+/* Lien « Politique de confidentialité » sous la liste Navigation (liste à part : non éditable) */
+.footer-col .footer-legal-list { margin-top: 10px; }
+
 .footer-contact li {
   display: flex;
   align-items: flex-start;
@@ -2204,9 +2207,6 @@ button {
   font-size: 0.8rem;
 }
 
-.footer-bottom .footer-legal { margin-top: 6px; }
-.footer-legal a { color: rgba(255, 255, 255, 0.55); text-decoration: none; transition: color 0.2s; }
-.footer-legal a:hover, .footer-legal a:focus-visible { color: var(--white); text-decoration: underline; }
 
 /* ─── WHATSAPP FLOAT ─────────────────────────────────────── */
 .whatsapp-float {
