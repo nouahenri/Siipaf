@@ -36,9 +36,10 @@ const MANAGED = [
   ['.ticker-wrap', 'Bandeau défilant', 'ticker'],
   ['.stats-bar', 'Chiffres clés', 'stats'],
 ];
-// Contenus construits par le site à partir des données du dashboard ou de l'ERP, ou formulaires : jamais éditables ici
+// Contenus construits par le site à partir des données du dashboard ou de l'ERP, ou formulaires : jamais éditables ici.
+// `.footer-legal-list` (Confidentialité, CGU) : liens obligatoires, volontairement hors de l'édition du dashboard.
 const SKIP_INSIDE = 'form, .breadcrumb, .counters-grid, .stats-grid, .projects-preview-grid, .temoignages-grid, .proj-main, .sidebar-nav, '
-  + '.footer-contact, .footer-social, .lots-grid, .lot-detail, .plan-app, .jobs-list, .nav-cta, .hamburger, .contact-map, svg, iframe, select, script';
+  + '.footer-contact, .footer-social, .footer-legal-list, .lots-grid, .lot-detail, .plan-app, .jobs-list, .nav-cta, .hamburger, .contact-map, svg, iframe, select, script';
 // Explication affichée dans le dashboard sous la section qui contient ces blocs
 const NOTES = [
   ['.counters-grid', 'Les chiffres de ce bandeau sont ceux de l’onglet « Chiffres clés ».'],
