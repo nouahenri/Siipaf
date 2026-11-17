@@ -3,16 +3,30 @@
 > Document de reprise pour continuer le travail dans une nouvelle discussion.
 > **Dernière mise à jour : 17 novembre 2026.**
 >
-> **EN LOCAL, NON LIVRÉ (17/11) : import Sage de l'ERP comptabilité**, trouvé pendant la visite guidée demandée par le client.
-> `06cf9a0` : « Reprendre les intitulés de Sage » renommait aussi les comptes du plan SYSCOHADA livré (`system` absent du
-> `select` de `sageImport.js`) ; seuls les comptes ajoutés au plan sont renommés désormais, test ajouté dans
-> `import-sage.test.js`, suite complète 536/536. `e3f8d86` : import du plan, liste « Comptes à créer » (numéro, intitulé,
-> compte parent) affichée dès la simulation, et après l'import « N créé(s) » / « N intitulé(s) repris » au lieu de « à
-> créer ». À livrer avec la prochaine mise en ligne de l'ERP (build `ERP-SIIPAF` + serveur, aucune migration). Base démo :
-> 3 écritures Sage en brouillon (FA-1201, VIR-0457, FA-1202) et comptes d'essai 6221, 2441, 2451, 6241, 6242, 6251, 6281,
-> 6282, 6324, 6331 gardés à la demande du client. Vidéos de démonstration et fichiers CSV d'exemple dans `tmp/` (non suivi).
+> **API / DASHBOARD / ERP EN PRODUCTION : release `45d0c26` (17/11, ~13 h 16 heure serveur)**, demande du client (« mise en
+> ligne »). ERP › Comptabilité : **import Sage** — `06cf9a0` « Reprendre les intitulés de Sage » épargne les comptes du plan
+> SYSCOHADA livré (`system` manquait au `select` de `sageImport.js`), `e3f8d86` liste « Comptes à créer » (numéro, intitulé,
+> compte parent) dès la simulation, puis « N créé(s) » / « N intitulé(s) repris » ; **facture du fournisseur jointe aux
+> factures d'achat** (`45d0c26`, demande du 17/11) : champ « Facture du fournisseur (document ou image) » dans le formulaire,
+> « Joindre la facture » / « Retirer » et aperçu de l'image dans la fiche, trombone dans la liste. PDF, JPEG, PNG, WebP, HEIC,
+> 15 Mo ; un fichier par facture, `uploads/private/achats`, `PUT/GET/DELETE /admin/erp/compta/purchases/:id/document`
+> (`achats:write` pour déposer, `compta:read` pour lire) ; remplacée ou retirée en brouillon seulement, une facture validée
+> peut encore recevoir la sienne si elle n'en a pas. Migration `20261217000000_facture_achat_piece` (4 colonnes
+> `document_*` sur `purchase_invoices`). Suite **537/537**. `deploy/livraison-45d0c26.zip` (6 080 289 o, sha256 `9182cfd3…`)
+> = `siipaf-api-45d0c26.zip` (sha256 `33c80cb6…`, 345 fichiers) + `update-45d0c26.sh`, déposé par l'API Fileman
+> `upload_files` (taille identique). Terminal : empreinte OK, sauvegardes `~/sauvegardes/deploiement-45d0c26-20261117-131551/`,
+> npm à jour, 0 faille, 1 migration (Batch 25), `{"ok":true}`, `DEPLOY_OK 45d0c26`. Vérifié : 4 adresses + santé en 200,
+> bundle ERP `index-Cm_uQiJu.js` en ligne avec « Joindre la facture », `GET …/purchases/1/document` → 401 sans session.
+> Branche non poussée. **Versements déclarés** (question du 17/11) : circuit déjà en place, rien changé à la demande du client
+> (un essai « tout passe par la Comptabilité » a été annulé avant commit). Un versement saisi par un compte ayant
+> `payments:write` (administrateur, comptable) est enregistré aussitôt ; seul un compte `payments:record` (commercial) ou le
+> client dans l'application déclare un versement, visible en Compta (Écritures et tableau de bord) dans « Versements
+> déclarés … à confirmer » (Vérifier et confirmer avec ajustement / Refuser). Base démo : 3 écritures Sage en brouillon et
+> comptes d'essai 6221, 2441, 2451, 6241, 6242, 6251, 6281, 6282, 6324, 6331 gardés à la demande du client ; données d'essai
+> du 17/11 encore présentes : déclaration de 100 000 FCFA « TEST-DECLARATION » (lot A6, à confirmer) et facture d'achat
+> ACH-2026-0034 (brouillon, image jointe). Vidéos et CSV d'exemple dans `tmp/` (non suivi).
 >
-> **API / DASHBOARD / ERP EN PRODUCTION : release `06c1b22` (12/11, ~21 h 01 heure serveur)**, demande du client (« mets en
+> **Production précédente de l'API : release `06c1b22` (12/11, ~21 h 01 heure serveur)**, demande du client (« mets en
 > ligne quand les tests sont verts »). Push : clé FCM V1 déposée chez Expo (`eas credentials`, sans keystore) — les annonces
 > arrivent (2/2 à 20 h 43 et 20 h 59 ; un envoi 0/4 à 21 h 00 non expliqué : à surveiller, possibles jetons d'une ancienne
 > version de l'app ou d'Expo Go qui font rejeter tout le lot par Expo). Ventes › Notifications push : **Réutiliser** (recopie
