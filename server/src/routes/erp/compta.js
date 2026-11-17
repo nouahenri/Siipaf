@@ -7,6 +7,27 @@ const { JOURNAL_KINDS, REVENUE_MODES, accountClass, partnerKindOf, splitVat } = 
 const ct = require('../../services/compta');
 const lieux = require('../../services/lieux');
 const { progressIndex, clientsProgress } = require('../../services/clients');
+const fs = require('fs');
+const path = require('path');
+const crypto = require('crypto');
+const multer = require('multer');
+const { uploadsDir } = require('../../config');
+
+// Facture du fournisseur jointe à la facture d'achat (PDF ou image), privée : hors de la partie publique de /uploads
+const purchaseFilesDir = path.join(uploadsDir, 'private', 'achats');
+const PURCHASE_FILE_MIME = { 'application/pdf': '.pdf', 'image/jpeg': '.jpg', 'image/png': '.png', 'image/webp': '.webp', 'image/heic': '.heic' };
+function purchaseFileUpload() {
+  fs.mkdirSync(purchaseFilesDir, { recursive: true });
+  return multer({
+    storage: multer.diskStorage({
+      destination: purchaseFilesDir,
+      filename: (req, file, cb) => cb(null, `${Date.now()}-${crypto.randomBytes(8).toString('hex')}${PURCHASE_FILE_MIME[file.mimetype]}`),
+    }),
+    limits: { fileSize: 15 * 1024 * 1024, files: 1 },
+    fileFilter: (req, file, cb) => cb(PURCHASE_FILE_MIME[file.mimetype] ? null : new HttpError(400, 'Facture : envoyez un PDF ou une image (JPEG, PNG, WebP, HEIC), 15 Mo au plus.'), !!PURCHASE_FILE_MIME[file.mimetype]),
+  }).single('file');
+}
+const removePurchaseFile = filename => (filename ? fs.promises.unlink(path.join(purchaseFilesDir, path.basename(filename))).catch(() => {}) : null);
 
 const day = z.string().regex(/^\d{4}-\d{2}-\d{2}$/, 'Date attendue au format AAAA-MM-JJ');
 const optText = max => z.string().trim().max(max).optional().nullable().transform(v => v || null);
@@ -273,8 +294,10 @@ module.exports = function comptaRoutes(db) {
     const [{ paid }] = await db('purchase_payments').where({ invoice_id: inv.id }).sum({ paid: 'amount' });
     const p = Number(paid) || 0;
     const due = inv.due_date ? isoDay(inv.due_date) : null;
+    const { document_filename, document_name, document_mime, document_size, ...rest } = inv;
     return {
-      ...inv, date: isoDay(inv.date), due_date: due, amount_ht: Number(inv.amount_ht), vat_amount: Number(inv.vat_amount), amount_ttc: Number(inv.amount_ttc), vat_rate: Number(inv.vat_rate),
+      ...rest, date: isoDay(inv.date),
+      document: document_filename ? { name: document_name, mime: document_mime, size: document_size, url: `/api/admin/erp/compta/purchases/${inv.id}/document`, image: /^image\/(jpeg|png|webp)$/.test(document_mime || '') } : null, // HEIC : lien seulement (non affiché par les navigateurs) due_date: due, amount_ht: Number(inv.amount_ht), vat_amount: Number(inv.vat_amount), amount_ttc: Number(inv.amount_ttc), vat_rate: Number(inv.vat_rate),
       paid_fcfa: p, remaining_fcfa: Number(inv.amount_ttc) - p,
       payment_status: inv.status !== 'validee' ? null : p >= Number(inv.amount_ttc) ? 'payee' : p > 0 ? 'partielle' : due && due < isoDay(new Date()) ? 'en_retard' : 'a_payer',
     };
@@ -373,7 +396,40 @@ module.exports = function comptaRoutes(db) {
     if (!inv) throw new HttpError(404, 'Facture introuvable.');
     if (inv.status !== 'brouillon') throw new HttpError(409, 'Une facture validée ne se supprime pas.');
     await db('purchase_invoices').where({ id: inv.id }).del();
+    await removePurchaseFile(inv.document_filename);
     res.json({ ok: true });
+  }));
+
+  // Facture du fournisseur jointe (un fichier) : déposée ou remplacée tant que la facture est en brouillon ; une facture
+  // validée peut encore recevoir la sienne si elle n'en a pas, mais ne la perd plus (pièce justificative de l'écriture).
+  r.put('/purchases/:id/document', requirePermission('achats:write'), purchaseFileUpload(), ah(async (req, res) => {
+    const drop = () => removePurchaseFile(req.file?.filename);
+    const inv = await db('purchase_invoices').where({ id: idParam(req) }).first();
+    if (!inv) { await drop(); throw new HttpError(404, 'Facture introuvable.'); }
+    if (!req.file) throw new HttpError(400, 'Aucun fichier reçu.');
+    if (inv.status !== 'brouillon' && inv.document_filename) { await drop(); throw new HttpError(409, 'Facture validée : sa pièce jointe ne se remplace plus.'); }
+    await db('purchase_invoices').where({ id: inv.id }).update({
+      document_filename: req.file.filename, document_name: req.file.originalname.slice(0, 255), document_mime: req.file.mimetype, document_size: req.file.size, updated_at: new Date(),
+    });
+    await removePurchaseFile(inv.document_filename);
+    res.json(await purchaseRow(await db('purchase_invoices').where({ id: inv.id }).first()));
+  }));
+
+  r.get('/purchases/:id/document', read, ah(async (req, res) => {
+    const inv = await db('purchase_invoices').where({ id: idParam(req) }).first('document_filename', 'document_name', 'document_mime');
+    if (!inv?.document_filename) throw new HttpError(404, 'Aucune facture jointe.');
+    res.set('Cache-Control', 'private, no-store');
+    res.set('Content-Disposition', `inline; filename*=UTF-8''${encodeURIComponent(inv.document_name || 'facture')}`);
+    res.type(inv.document_mime).sendFile(path.join(purchaseFilesDir, path.basename(inv.document_filename)), err => err && !res.headersSent && res.sendStatus(404));
+  }));
+
+  r.delete('/purchases/:id/document', requirePermission('achats:write'), ah(async (req, res) => {
+    const inv = await db('purchase_invoices').where({ id: idParam(req) }).first();
+    if (!inv) throw new HttpError(404, 'Facture introuvable.');
+    if (inv.status !== 'brouillon') throw new HttpError(409, 'Facture validée : sa pièce jointe se garde.');
+    await db('purchase_invoices').where({ id: inv.id }).update({ document_filename: null, document_name: null, document_mime: null, document_size: null, updated_at: new Date() });
+    await removePurchaseFile(inv.document_filename);
+    res.json(await purchaseRow(await db('purchase_invoices').where({ id: inv.id }).first()));
   }));
 
   r.post('/purchases/:id/validate', requirePermission('achats:validate'), ah(async (req, res) => {

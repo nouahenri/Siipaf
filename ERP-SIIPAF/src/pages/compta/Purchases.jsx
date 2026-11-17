@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { useSearchParams } from 'react-router-dom';
-import { Plus, Truck, FileText, CheckCheck, Wallet, Pencil, Trash2 } from 'lucide-react';
+import { Plus, Truck, FileText, CheckCheck, Wallet, Pencil, Trash2, Paperclip } from 'lucide-react';
 import { api } from '@admin/lib/api';
 import { useAuth, useResource, useToast, useSaved } from '@admin/lib/app-context';
 import { Card, Empty, Skeleton, ErrorBox, Drawer, Modal, Field, Badge } from '@admin/components/ui';
@@ -59,7 +59,7 @@ function Invoices() {
                 const st = i.status === 'brouillon' ? { label: 'Brouillon', tone: '' } : PAYMENT_STATUS[i.payment_status];
                 return (
                   <tr key={i.id} className="clickable" onClick={() => setOpenId(i.id)}>
-                    <td className="small tabular nowrap">{i.number}{i.supplier_ref && <div className="muted">{i.supplier_ref}</div>}</td>
+                    <td className="small tabular nowrap">{i.number}{i.document && <Paperclip size={13} style={{ marginLeft: 4, verticalAlign: '-2px' }} aria-label="Facture jointe" />}{i.supplier_ref && <div className="muted">{i.supplier_ref}</div>}</td>
                     <td className="small"><b>{i.supplier_name}</b></td>
                     <td className="small" style={{ minWidth: 200 }}>{i.label}<div className="muted">{placeLabel(i)} · {i.expense_account}</div></td>
                     <td className="small nowrap">{date(i.date)}{i.due_date && <div className="muted">éch. {date(i.due_date)}</div>}</td>
@@ -101,7 +101,21 @@ function InvoiceDrawer({ id, onClose, onChange }) {
             <dt>Date · échéance</dt><dd>{date(d.date)}{d.due_date ? ` · ${date(d.due_date)}` : ''}</dd>
             <dt>Montants</dt><dd className="tabular">HT {fcfa(d.amount_ht)} · TVA {d.vat_rate} % {fcfa(d.vat_amount)} · <b>TTC {fcfa(d.amount_ttc)}</b></dd>
             {d.status === 'validee' && <><dt>Réglé</dt><dd className="tabular">{fcfa(d.paid_fcfa)} · reste <b>{fcfa(d.remaining_fcfa)}</b></dd></>}
+            <dt>Facture jointe</dt>
+            <dd>
+              {d.document ? (
+                <span className="row" style={{ gap: 8, flexWrap: 'wrap' }}>
+                  <a href={d.document.url} target="_blank" rel="noreferrer"><Paperclip size={14} style={{ verticalAlign: '-2px' }} /> {d.document.name}</a>
+                  {d.status === 'brouillon' && can('achats:write') && <button className="btn btn-sm btn-ghost btn-danger" onClick={() => window.confirm('Retirer la facture jointe ?') && act(() => api.del(`/admin/erp/compta/purchases/${d.id}/document`), 'Pièce jointe retirée')}>Retirer</button>}
+                </span>
+              ) : can('achats:write') ? (
+                <label className="btn btn-sm"><Paperclip />Joindre la facture
+                  <input type="file" hidden accept="application/pdf,image/jpeg,image/png,image/webp,image/heic,.heic" onChange={e => { const file = e.target.files?.[0]; e.target.value = ''; if (file) { const fd = new FormData(); fd.append('file', file); act(() => api.put(`/admin/erp/compta/purchases/${d.id}/document`, fd), 'Facture jointe'); } }} />
+                </label>
+              ) : <span className="muted">Aucune</span>}
+            </dd>
           </dl>
+          {d.document?.image && <a href={d.document.url} target="_blank" rel="noreferrer"><img src={d.document.url} alt={`Facture ${d.supplier_ref || d.number}`} style={{ maxWidth: '100%', maxHeight: 260, objectFit: 'contain', borderRadius: 8, border: '1px solid var(--line, #e5e5e5)' }} /></a>}
           {d.status === 'brouillon' && (can('achats:write') || can('achats:validate')) && (
             <div className="row" style={{ gap: 8 }}>
               {can('achats:validate') && <button className="btn btn-primary" onClick={() => act(() => api.post(`/admin/erp/compta/purchases/${d.id}/validate`), 'Facture validée : écriture d’achat créée')}><CheckCheck />Valider la facture</button>}
@@ -154,6 +168,8 @@ function InvoiceForm({ invoice, onClose, onSaved }) {
     amount_ttc: invoice?.amount_ttc || '', vat_rate: invoice?.vat_rate ?? meta?.settings.vat_purchases_rate ?? 18,
   }));
   const [error, setError] = useState(null);
+  const [file, setFile] = useState(null);
+  const [busy, setBusy] = useState(false);
   const set = k => e => setF(x => ({ ...x, [k]: e.target.value }));
   const pickSupplier = id => {
     const s = suppliers.data?.find(x => x.id === Number(id));
@@ -165,10 +181,20 @@ function InvoiceForm({ invoice, onClose, onSaved }) {
     e.preventDefault(); setError(null);
     const { place, ...rest } = f;
     const body = { ...rest, ...place, worksite_category: place.worksite_id ? f.worksite_category : null, supplier_id: Number(f.supplier_id), amount_ttc: Number(f.amount_ttc), vat_rate: Number(f.vat_rate), due_date: f.due_date || null, supplier_ref: f.supplier_ref || null };
-    try { saved("Facture d’achat enregistrée"); onSaved(invoice ? await api.patch(`/admin/erp/compta/purchases/${invoice.id}`, body) : await api.post('/admin/erp/compta/purchases', body)); } catch (err) { setError(err); }
+    setBusy(true);
+    try {
+      let row = invoice ? await api.patch(`/admin/erp/compta/purchases/${invoice.id}`, body) : await api.post('/admin/erp/compta/purchases', body);
+      // La facture du fournisseur part une fois la facture d'achat enregistrée ; un échec n'annule pas l'enregistrement
+      if (file) {
+        try { const fd = new FormData(); fd.append('file', file); row = await api.put(`/admin/erp/compta/purchases/${row.id}/document`, fd); } catch (err) {
+          saved(`Facture d’achat enregistrée, mais la pièce jointe n’a pas pu être envoyée : ${err.message}`); onSaved(row); return;
+        }
+      }
+      saved(file ? 'Facture d’achat enregistrée avec sa pièce jointe' : 'Facture d’achat enregistrée'); onSaved(row);
+    } catch (err) { setError(err); } finally { setBusy(false); }
   };
   return (
-    <Modal title={invoice ? `Modifier ${invoice.number}` : 'Nouvelle facture d’achat'} onClose={onClose} footer={<><button className="btn btn-ghost" onClick={onClose}>Annuler</button><button className="btn btn-primary" form="inv-form">Enregistrer</button></>}>
+    <Modal title={invoice ? `Modifier ${invoice.number}` : 'Nouvelle facture d’achat'} onClose={onClose} footer={<><button className="btn btn-ghost" onClick={onClose}>Annuler</button><button className="btn btn-primary" form="inv-form" disabled={busy}>Enregistrer</button></>}>
       <form id="inv-form" className="form-grid" onSubmit={save}>
         <div className="full"><ErrorBox error={error} /></div>
         <Field label="Fournisseur">
@@ -191,6 +217,10 @@ function InvoiceForm({ invoice, onClose, onSaved }) {
           <select className="select" value={f.vat_rate} onChange={set('vat_rate')}>
             {[0, 9, 18].map(r => <option key={r} value={r}>{r} %</option>)}
           </select>
+        </Field>
+        <Field label="Facture du fournisseur (document ou image)" className="full"
+          hint={invoice?.document && !file ? `Jointe : ${invoice.document.name}. Choisir un fichier la remplace.` : 'PDF, JPEG, PNG, WebP ou HEIC, 15 Mo au plus ; photo prise au téléphone acceptée'}>
+          <input className="input" style={{ height: 'auto', padding: '8px 10px' }} type="file" accept="application/pdf,image/jpeg,image/png,image/webp,image/heic,.heic" onChange={e => setFile(e.target.files?.[0] || null)} />
         </Field>
       </form>
     </Modal>

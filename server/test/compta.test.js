@@ -233,3 +233,24 @@ test('verrouillage et clôture : plus aucune écriture dans la période', async 
   assert.equal(sum(res.body.lines, 'debit'), sum(res.body.lines, 'credit'));
   assert.ok(byAccount(res.body.lines, '131').length, 'bénéfice reporté en 131');
 });
+
+test('achats : facture du fournisseur jointe (PDF ou image), privée, gardée une fois la facture validée', async () => {
+  const sup = (await comptable.post(`${C}/suppliers`).send({ name: 'Quincaillerie du Plateau', kind: 'fournisseur', expense_account: '621100' })).body;
+  const inv = (await comptable.post(`${C}/purchases`).send({ supplier_id: sup.id, date: `${year}-06-02`, label: 'Outillage', expense_account: '621100', amount_ttc: 59000, vat_rate: 18 })).body;
+  assert.equal(inv.document, null);
+  const PDF = Buffer.from('%PDF-1.4\n1 0 obj<<>>endobj\ntrailer<<>>\n%%EOF');
+  assert.equal((await comptable.put(`${C}/purchases/${inv.id}/document`).attach('file', Buffer.from('MZ'), { filename: 'x.exe', contentType: 'application/x-msdownload' })).status, 400, 'PDF ou image seulement');
+  let res = await comptable.put(`${C}/purchases/${inv.id}/document`).attach('file', PDF, { filename: 'Facture F-778.pdf', contentType: 'application/pdf' });
+  assert.equal(res.status, 200, JSON.stringify(res.body));
+  assert.equal(res.body.document.name, 'Facture F-778.pdf');
+  assert.equal(res.body.document_filename, undefined, 'nom de stockage non exposé');
+  const file = await comptable.get(res.body.document.url);
+  assert.equal(file.status, 200);
+  assert.match(file.headers['content-type'], /pdf/);
+  assert.equal((await commercial.get(res.body.document.url)).status, 403, 'réservée à ceux qui lisent la comptabilité');
+  // Une fois validée, la pièce se garde
+  await db('purchase_invoices').where({ id: inv.id }).update({ status: 'validee' }); // période verrouillée par le test précédent
+  assert.equal((await comptable.delete(`${C}/purchases/${inv.id}/document`)).status, 409);
+  assert.equal((await comptable.put(`${C}/purchases/${inv.id}/document`).attach('file', PDF, { filename: 'autre.pdf', contentType: 'application/pdf' })).status, 409);
+  assert.equal((await comptable.get(`${C}/purchases`)).body.find(x => x.id === inv.id).document.name, 'Facture F-778.pdf');
+});
