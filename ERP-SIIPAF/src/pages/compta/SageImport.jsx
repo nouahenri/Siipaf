@@ -164,7 +164,7 @@ function Result({ kind, result }) {
       <h3 className="erp-h3">{done ? 'Import terminé' : 'Simulation'} {result.errors.length ? <Badge tone="danger">{result.errors.length} erreur(s) : rien ne sera enregistré</Badge> : <Badge tone="ok">{done ? 'enregistré' : 'prêt à importer'}</Badge>}</h3>
       <div className="row small" style={{ gap: 14, flexWrap: 'wrap' }}>
         {kind === 'ecritures' && <><span><b>{s.ready}</b> pièce(s) à importer</span><span><b>{s.duplicates}</b> déjà importée(s)</span><span>Total <b>{amt(s.debit, { zero: '0' })}</b></span>{s.journals_to_create > 0 && <span><b>{s.journals_to_create}</b> journal(aux) à créer</span>}{done && <span><b>{s.created}</b> créée(s){s.validated ? ', validées' : ', en brouillon'}</span>}</>}
-        {kind === 'plan' && <><span><b>{s.known}</b> compte(s) déjà au plan</span><span><b>{s.to_create}</b> à créer</span>{s.relabeled > 0 && <span><b>{s.relabeled}</b> intitulé(s) repris</span>}</>}
+        {kind === 'plan' && <><span><b>{s.known}</b> compte(s) déjà au plan</span><span><b>{done ? s.created : s.to_create}</b> {done ? 'créé(s)' : 'à créer'}</span>{s.relabeled > 0 && <span><b>{s.relabeled}</b> intitulé(s) {done ? 'repris' : 'à reprendre'}</span>}</>}
         {kind === 'balance' && <><span>Exercice <b>{s.fiscal_year}</b></span><span><b>{s.lines}</b> compte(s)</span><span>Débits <b>{amt(s.debit, { zero: '0' })}</b> · crédits <b>{amt(s.credit, { zero: '0' })}</b></span></>}
         {s.accounts_to_create > 0 && <span><b>{s.accounts_to_create}</b> compte(s) {done ? 'créé(s)' : 'à créer'}</span>}
       </div>
@@ -174,6 +174,13 @@ function Result({ kind, result }) {
         <div className="table-wrap"><table className="table table-compact">
           <thead><tr><th>Journal</th><th>Date</th><th>Pièce</th><th>Libellé</th><th className="right">Lignes</th><th className="right">Montant</th></tr></thead>
           <tbody>{result.preview.map(e => <tr key={`${e.journal}${e.date}${e.piece}`}><td>{e.journal}</td><td className="nowrap">{date(e.date)}</td><td>{e.piece}</td><td className="small">{e.label}</td><td className="right">{e.lines}</td><td className="right tabular">{amt(e.amount)}</td></tr>)}</tbody>
+        </table></div>
+      )}
+      {kind === 'plan' && result.preview.length > 0 && (
+        <div className="table-wrap"><table className="table table-compact">
+          <caption className="small muted" style={{ textAlign: 'left', captionSide: 'top', paddingBottom: 6 }}>Comptes {done ? 'créés' : 'à créer'}{s.to_create > result.preview.length ? ` (${result.preview.length} premiers sur ${s.to_create})` : ''}</caption>
+          <thead><tr><th>Numéro</th><th>Intitulé</th><th>Sous le compte</th></tr></thead>
+          <tbody>{result.preview.map(a => <tr key={a.code}><td className="tabular"><b>{a.code}</b></td><td className="small">{a.label}</td><td className="tabular small">{a.parent}</td></tr>)}</tbody>
         </table></div>
       )}
     </div>
