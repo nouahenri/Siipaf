@@ -1,7 +1,16 @@
 # Passation — Plateforme SIIPAF
 
 > Document de reprise pour continuer le travail dans une nouvelle discussion.
-> **Dernière mise à jour : 12 novembre 2026.**
+> **Dernière mise à jour : 17 novembre 2026.**
+>
+> **EN LOCAL, NON LIVRÉ (17/11) : import Sage de l'ERP comptabilité**, trouvé pendant la visite guidée demandée par le client.
+> `06cf9a0` : « Reprendre les intitulés de Sage » renommait aussi les comptes du plan SYSCOHADA livré (`system` absent du
+> `select` de `sageImport.js`) ; seuls les comptes ajoutés au plan sont renommés désormais, test ajouté dans
+> `import-sage.test.js`, suite complète 536/536. `e3f8d86` : import du plan, liste « Comptes à créer » (numéro, intitulé,
+> compte parent) affichée dès la simulation, et après l'import « N créé(s) » / « N intitulé(s) repris » au lieu de « à
+> créer ». À livrer avec la prochaine mise en ligne de l'ERP (build `ERP-SIIPAF` + serveur, aucune migration). Base démo :
+> 3 écritures Sage en brouillon (FA-1201, VIR-0457, FA-1202) et comptes d'essai 6221, 2441, 2451, 6241, 6242, 6251, 6281,
+> 6282, 6324, 6331 gardés à la demande du client. Vidéos de démonstration et fichiers CSV d'exemple dans `tmp/` (non suivi).
 >
 > **API / DASHBOARD / ERP EN PRODUCTION : release `06c1b22` (12/11, ~21 h 01 heure serveur)**, demande du client (« mets en
 > ligne quand les tests sont verts »). Push : clé FCM V1 déposée chez Expo (`eas credentials`, sans keystore) — les annonces
