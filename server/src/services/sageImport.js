@@ -63,7 +63,7 @@ function parseAmount(v, decimal = ',') {
 }
 
 async function loadAccounts(db) {
-  const rows = await db('acc_accounts').select('id', 'code', 'label', 'class', 'partner_kind', 'active');
+  const rows = await db('acc_accounts').select('id', 'code', 'label', 'class', 'partner_kind', 'active', 'system');
   const byCode = new Map(rows.map(a => [a.code, a]));
   const byNorm = new Map();
   for (const a of rows) if (!byNorm.has(normalize(a.code))) byNorm.set(normalize(a.code), a);

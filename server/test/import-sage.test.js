@@ -50,6 +50,17 @@ test('plan comptable : comptes sur 8 chiffres rapprochés, comptes nouveaux cré
   assert.deepEqual(ok(await comptable.get(`${C}/import/sage`)).saved.plan.mapping, { account: 'Compte', label: 'Intitulé' });
 });
 
+test('plan comptable : « Reprendre les intitulés de Sage » épargne les comptes du plan SYSCOHADA livré', async () => {
+  const before = (await db('acc_accounts').where({ code: '411' }).first()).label;
+  const rows = rowsOf([['41100000', 'CLIENTS ORDINAIRES'], ['40110001', 'Béton Plus SARL']]);
+  const body = { kind: 'plan', rows, mapping: { account: 0, label: 1 }, headers: ['Compte', 'Intitulé'], options: { update_labels: true } };
+  const sim = ok(await comptable.post(`${C}/import/sage`).send(body));
+  assert.equal(sim.summary.relabeled, 1, 'seul le compte ajouté au plan est renommé');
+  ok(await comptable.post(`${C}/import/sage`).send({ ...body, dry_run: false }));
+  assert.equal((await db('acc_accounts').where({ code: '411' }).first()).label, before);
+  assert.equal((await db('acc_accounts').where({ code: '40110001' }).first()).label, 'Béton Plus SARL');
+});
+
 test('écritures : regroupées par pièce, contrôlées, réimport sans doublon, validation au choix', async () => {
   const d = `1503${year}`;
   const lines = [
