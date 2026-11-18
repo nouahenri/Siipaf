@@ -24,13 +24,16 @@ export default function Caisse() {
   const meta = useResource(`${K}/meta`);
   const today = meta.data?.today || new Date().toISOString().slice(0, 10);
   const d = params.get('date') || today;
-  const book = useResource(`${K}/day?date=${d}`);
+  // Opérations annulées (écriture validée + contrepassation validée) : masquées, affichables sans être comptées
+  const showCancelled = params.get('annulees') === '1';
+  const book = useResource(`${K}/day?date=${d}${showCancelled ? '&annulees=1' : ''}`);
   const days = useResource(`${K}/days?to=${today}`);
   const [adding, setAdding] = useState(null); // 'entree' | 'sortie'
   const [closing, setClosing] = useState(false);
   const [error, setError] = useState(null);
   const saved = useSaved();
-  const go = v => setParams(v && v !== today ? { date: v } : {});
+  const go = v => setParams({ ...(v && v !== today ? { date: v } : {}), ...(showCancelled ? { annulees: '1' } : {}) });
+  const toggleCancelled = on => setParams({ ...(d !== today ? { date: d } : {}), ...(on ? { annulees: '1' } : {}) });
   const reload = () => { book.reload(); days.reload(); meta.reload(); };
   const write = can('caisse:write');
 
@@ -50,6 +53,7 @@ export default function Caisse() {
           <button className="btn btn-sm btn-ghost" disabled={d >= today} onClick={() => go(shift(d, 1))} aria-label="Jour suivant"><ChevronRight /></button>
           {d !== today && <button className="btn btn-sm" onClick={() => go(today)}>Aujourd’hui</button>}
           <span className="small muted" style={{ textTransform: 'capitalize' }}>{longDate(d)}</span>
+          <label className="checkbox small" title="Écriture validée et sa contrepassation validée : elles s’annulent et ne comptent pas dans la caisse ; elles restent dans les journaux"><input type="checkbox" checked={showCancelled} onChange={e => toggleCancelled(e.target.checked)} />Afficher les opérations annulées</label>
         </div>
         <div className="row" style={{ gap: 6, flexWrap: 'wrap' }}>
           {write && !closed && <button className="btn btn-sm" onClick={() => setAdding('entree')}><ArrowDownLeft />Entrée</button>}
@@ -79,6 +83,7 @@ export default function Caisse() {
               {b.closing.changed && <span className="small" style={{ color: 'var(--warn, #b7791f)' }}><AlertTriangle size={13} style={{ verticalAlign: '-2px' }} /> Une opération a été passée en caisse à cette date après l’arrêté : le solde de la journée a changé.</span>}
             </div>
           )}
+          {showCancelled && b.cancelled_count > 0 && <p className="small muted">Les opérations marquées « Annulée » (écriture validée et sa contrepassation validée) sont affichées pour information : elles ne comptent ni dans les totaux ni dans le solde.</p>}
           {b.pending_sync > 0 && <p className="small muted"><AlertTriangle size={13} style={{ verticalAlign: '-2px' }} /> {b.pending_sync} versement(s) client en espèces compté(s) dans la caisse, dont l’écriture reste à créer (« Synchroniser » dans Écritures).</p>}
 
           <Card title={`Brouillard — ${b.journal.code} ${b.journal.label}`} bodyClass="">
@@ -88,8 +93,8 @@ export default function Caisse() {
                 <tbody>
                   <tr className="muted"><td /><td colSpan={4}><i>Solde de la veille</i></td><td className="right tabular">{amt(b.opening, { zero: '0' })}</td><td /></tr>
                   {b.rows.map(r => (
-                    <tr key={r.key}>
-                      <td className="small tabular nowrap">{r.number || (r.status === 'a_synchroniser' ? <Badge tone="warn">À synchroniser</Badge> : <Badge tone="warn">Brouillon</Badge>)}{r.ref && <div className="muted">{r.ref}</div>}</td>
+                    <tr key={r.key} style={r.cancelled ? { opacity: 0.55 } : undefined}>
+                      <td className="small tabular nowrap">{r.cancelled && <><Badge>Annulée</Badge><br /></>}{r.number || (r.status === 'a_synchroniser' ? <Badge tone="warn">À synchroniser</Badge> : <Badge tone="warn">Brouillon</Badge>)}{r.ref && <div className="muted">{r.ref}</div>}</td>
                       <td className="small">{r.label}{r.created_by && r.movement_id && <div className="muted">saisi par {r.created_by}</div>}</td>
                       <td className="small">{r.origin}{r.journal_code && r.journal_code !== b.journal.code && <div className="muted">journal {r.journal_code}</div>}</td>
                       <td className="right tabular">{amt(r.receipt)}</td>
@@ -97,10 +102,10 @@ export default function Caisse() {
                       <td className="right tabular">{amt(r.balance, { zero: '0' })}</td>
                       <td className="nowrap right">
                         {r.document && <a href={r.document.url} target="_blank" rel="noreferrer" title={r.document.name} className="btn btn-sm btn-ghost"><Paperclip /></a>}
-                        {r.movement_id && write && !closed && !r.document && (
+                        {r.movement_id && write && !closed && !r.document && !r.cancelled && (
                           <label className="btn btn-sm btn-ghost" title="Joindre le justificatif"><Paperclip /><input type="file" hidden accept="application/pdf,image/jpeg,image/png,image/webp,image/heic,.heic" onChange={e => { const f = e.target.files?.[0]; e.target.value = ''; if (f) { const fd = new FormData(); fd.append('file', f); act(() => api.put(`${K}/movements/${r.movement_id}/document`, fd), 'Justificatif joint'); } }} /></label>
                         )}
-                        {r.movement_id && write && !closed && <button className="btn btn-sm btn-ghost btn-danger" title="Annuler la saisie" onClick={() => window.confirm('Annuler cette saisie de caisse ? Son écriture est retirée (ou contrepassée si elle est validée).') && act(() => api.del(`${K}/movements/${r.movement_id}`), 'Saisie annulée')}><Trash2 /></button>}
+                        {r.movement_id && write && !closed && !r.cancelled && <button className="btn btn-sm btn-ghost btn-danger" title="Annuler la saisie" onClick={() => window.confirm('Annuler cette saisie de caisse ? Son écriture est retirée (ou contrepassée si elle est validée).') && act(() => api.del(`${K}/movements/${r.movement_id}`), 'Saisie annulée')}><Trash2 /></button>}
                       </td>
                     </tr>
                   ))}

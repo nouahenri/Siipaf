@@ -51,13 +51,33 @@ async function unsyncedCash(db, { from = null, before = null, on = null }) {
     .filter(p => (!from || p.date >= from) && (!before || p.date < before) && (!on || p.date === on));
 }
 
-/** Solde de la caisse au soir de la veille de `date` (brouillons et versements à synchroniser compris). */
+/**
+ * Opérations annulées (demande du client du 18/11) : une écriture validée et sa contrepassation validée se neutralisent ;
+ * la caisse les ignore (brouillard, soldes, journées, alertes). Elles restent dans les journaux (SYSCOHADA).
+ * Filtre à appliquer à une requête qui porte l'alias `e` sur acc_entries.
+ */
+function notCancelled(db) {
+  return q => q.whereNot(b => b.where('e.status', 'valide').where(c => c
+    .whereExists(db('acc_entries as rv').whereRaw('rv.reversal_of = e.id').where('rv.status', 'valide'))
+    .orWhere(o => o.whereNotNull('e.reversal_of').whereExists(db('acc_entries as og').whereRaw('og.id = e.reversal_of').where('og.status', 'valide')))));
+}
+
+/** Identifiants, parmi `ids`, des écritures d'une paire annulée. */
+async function cancelledAmong(db, ids) {
+  if (!ids.length) return new Set();
+  const rows = await db('acc_entries as e').whereIn('e.id', ids).where('e.status', 'valide').where(c => c
+    .whereExists(db('acc_entries as rv').whereRaw('rv.reversal_of = e.id').where('rv.status', 'valide'))
+    .orWhere(o => o.whereNotNull('e.reversal_of').whereExists(db('acc_entries as og').whereRaw('og.id = e.reversal_of').where('og.status', 'valide')))).pluck('e.id');
+  return new Set(rows);
+}
+
+/** Solde de la caisse au soir de la veille de `date` (brouillons et versements à synchroniser compris, opérations annulées exclues). */
 async function balanceBefore(db, j, date) {
   const { years, floor } = await yearsBefore(db, date);
   let total = 0;
   for (const fy of years) {
     const [s] = await db('acc_lines as l').join('acc_entries as e', 'e.id', 'l.entry_id').where('l.account_id', j.account_id).where('e.fiscal_year_id', fy.id)
-      .where(b => b.where('e.date', '<', date).orWhere('e.source', 'an')).sum({ d: 'l.debit' }).sum({ c: 'l.credit' });
+      .where(b => b.where('e.date', '<', date).orWhere('e.source', 'an')).modify(notCancelled(db)).sum({ d: 'l.debit' }).sum({ c: 'l.credit' });
     total += (Number(s.d) || 0) - (Number(s.c) || 0);
   }
   if (floor) total += (await unsyncedCash(db, { from: floor, before: date })).reduce((t, p) => t + p.amount, 0);
@@ -69,8 +89,11 @@ const ORIGINS = {
   manuel: 'Écriture manuelle', contrepassation: 'Contrepassation', caisse_ecart: 'Écart de caisse', an: 'À-nouveaux', sage: 'Import Sage', achat: 'Achat',
 };
 
-/** Brouillard de caisse d'une journée : solde de la veille, mouvements, totaux, solde du soir, arrêté. */
-async function dayBook(db, date) {
+/**
+ * Brouillard de caisse d'une journée : solde de la veille, mouvements, totaux, solde du soir, arrêté.
+ * `showCancelled` : opérations annulées affichées (signalées), jamais comptées dans les totaux ni le solde.
+ */
+async function dayBook(db, date, { showCancelled = false } = {}) {
   const j = await cashJournal(db);
   const opening = await balanceBefore(db, j, date);
   const lines = await db('acc_lines as l').join('acc_entries as e', 'e.id', 'l.entry_id').join('acc_journals as jj', 'jj.id', 'e.journal_id')
@@ -80,8 +103,9 @@ async function dayBook(db, date) {
     .select('l.id as line_id', 'l.debit', 'l.credit', 'l.label as line_label', 'e.id as entry_id', 'e.number', 'e.status', 'e.label', 'e.ref', 'e.source', 'e.source_key',
       'jj.code as journal_code', 'm.id as movement_id', 'm.beneficiary', 'm.reference as movement_ref', 'm.document_filename', 'm.document_name', 'm.document_mime',
       'n.label as nature_label', 'u.name as created_by_name');
-  const rows = lines.map(l => ({
-    key: `l${l.line_id}`, entry_id: l.entry_id, number: l.number, status: l.status, journal_code: l.journal_code,
+  const cancelled = await cancelledAmong(db, [...new Set(lines.map(l => l.entry_id))]);
+  const rows = lines.filter(l => showCancelled || !cancelled.has(l.entry_id)).map(l => ({
+    key: `l${l.line_id}`, cancelled: cancelled.has(l.entry_id), entry_id: l.entry_id, number: l.number, status: l.status, journal_code: l.journal_code,
     source: l.source_key && l.source_key.startsWith('cash_closing:') ? 'caisse_ecart' : l.source, origin: ORIGINS[l.source_key?.startsWith('cash_closing:') ? 'caisse_ecart' : l.source] || l.source,
     label: l.label, ref: l.movement_ref || l.ref, nature: l.nature_label, beneficiary: l.beneficiary, created_by: l.created_by_name,
     receipt: Number(l.debit) || 0, expense: Number(l.credit) || 0, gap: isGapEntry(l.source_key),
@@ -92,8 +116,9 @@ async function dayBook(db, date) {
     rows.push({ key: `p${p.id}`, entry_id: null, number: null, status: 'a_synchroniser', source: 'versement', origin: 'Versement client', label: `Versement en espèces — ${p.client_name || 'client'}`, ref: p.reference, receipt: p.amount, expense: 0, gap: false, payment_id: p.id, movement_id: null, document: null });
   }
   let running = opening;
-  for (const r of rows) { running += r.receipt - r.expense; r.balance = running; }
-  const sum = (k, f = () => true) => rows.filter(f).reduce((t, r) => t + r[k], 0);
+  for (const r of rows) { if (!r.cancelled) running += r.receipt - r.expense; r.balance = running; }
+  const counted = rows.filter(r => !r.cancelled);
+  const sum = (k, f = () => true) => counted.filter(f).reduce((t, r) => t + r[k], 0);
   const receipts = sum('receipt', r => !r.gap), expenses = sum('expense', r => !r.gap);
   const theoretical = opening + receipts - expenses;
   const c = await db('cash_closings as c').leftJoin('users as u', 'u.id', 'c.closed_by').where('c.date', date).first('c.*', 'u.name as closed_by_name');
@@ -107,6 +132,7 @@ async function dayBook(db, date) {
   return {
     date, journal: { id: j.id, code: j.code, label: j.label, account_code: j.account_code }, opening, receipts, expenses, theoretical,
     closing_balance: opening + sum('receipt') - sum('expense'), rows, closing, pending_sync: rows.filter(r => r.status === 'a_synchroniser').length,
+    cancelled_count: cancelled.size, show_cancelled: showCancelled,
   };
 }
 
@@ -114,7 +140,7 @@ async function dayBook(db, date) {
 async function recentDays(db, { from, to }) {
   const j = await cashJournal(db);
   const rows = await db('acc_lines as l').join('acc_entries as e', 'e.id', 'l.entry_id').where('l.account_id', j.account_id).whereNot('e.source', 'an')
-    .where('e.date', '>=', from).where('e.date', '<=', to).groupBy('e.date').select('e.date').sum({ d: 'l.debit' }).sum({ c: 'l.credit' });
+    .where('e.date', '>=', from).where('e.date', '<=', to).modify(notCancelled(db)).groupBy('e.date').select('e.date').sum({ d: 'l.debit' }).sum({ c: 'l.credit' });
   const by = {};
   for (const r of rows) by[day(r.date)] = { date: day(r.date), receipts: Number(r.d) || 0, expenses: Number(r.c) || 0 };
   for (const p of await unsyncedCash(db, { from, before: isoDay(new Date(new Date(`${to}T12:00:00Z`).getTime() + 864e5)) })) {

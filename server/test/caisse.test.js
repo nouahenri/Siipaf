@@ -191,3 +191,30 @@ test('versement supprimé : sa contrepassation (brouillon) se valide, elle ne se
   const hidden = (await comptable.get(`${C}/entries?limit=500&hide_cancelled=1`)).body.rows.map(e => e.id);
   assert.ok(!hidden.includes(entry.id) && !hidden.includes(rev.id), 'paire annulée masquée');
 });
+
+test('opérations annulées (écriture validée + contrepassation validée) : ignorées par la caisse, affichables sans être comptées', async () => {
+  const d = ago(3);
+  const before = (await tresoriere.get(`${K}/day?date=${d}`)).body;
+  const daysBefore = (await tresoriere.get(`${K}/days`)).body.find(x => x.date === d);
+  const res = await tresoriere.post(`${K}/movements`).send({ date: d, direction: 'entree', nature_id: await nature('Recettes diverses', 'entree'), amount: 70000, label: 'Saisie de test' });
+  assert.equal(res.status, 201, JSON.stringify(res.body));
+  const entryId = res.body.entry_id;
+  await comptable.post(`${C}/entries/validate`).send({ ids: [entryId] });
+  // Contrepassation validée à une autre date (comme Synchroniser le fait à la date du jour)
+  const rev = await comptable.post(`${C}/entries/${entryId}/reverse`).send({ date: ago(1), reason: 'test', validate: true });
+  assert.equal(rev.status, 201, JSON.stringify(rev.body));
+
+  const after = (await tresoriere.get(`${K}/day?date=${d}`)).body;
+  assert.equal(after.receipts, before.receipts, 'entrée annulée non comptée');
+  assert.ok(!after.rows.some(r => r.entry_id === entryId), 'masquée par défaut');
+  const shown = (await tresoriere.get(`${K}/day?date=${d}&annulees=1`)).body;
+  const row = shown.rows.find(r => r.entry_id === entryId);
+  assert.ok(row && row.cancelled, 'affichée et signalée sur demande');
+  assert.equal(shown.receipts, before.receipts, 'jamais comptée');
+  assert.equal(shown.closing_balance, after.closing_balance);
+  // Jour de la contrepassation : pas de sortie fantôme, solde de la veille inchangé
+  const revDay = (await tresoriere.get(`${K}/day?date=${ago(1)}`)).body;
+  assert.ok(!revDay.rows.some(r => r.entry_id === rev.body.id));
+  const daysAfter = (await tresoriere.get(`${K}/days`)).body.find(x => x.date === d);
+  assert.equal(daysAfter?.receipts || 0, daysBefore?.receipts || 0, 'journées récentes sans l’opération annulée');
+});

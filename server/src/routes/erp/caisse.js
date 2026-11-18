@@ -49,7 +49,7 @@ module.exports = function caisseRoutes(db) {
 
   r.get('/day', read, ah(async (req, res) => {
     const date = req.query.date ? parse(day, String(req.query.date)) : isoDay(new Date());
-    res.json(await caisse.dayBook(db, date));
+    res.json(await caisse.dayBook(db, date, { showCancelled: req.query.annulees === '1' }));
   }));
 
   r.get('/days', read, ah(async (req, res) => {
