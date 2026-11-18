@@ -3,7 +3,20 @@
 > Document de reprise pour continuer le travail dans une nouvelle discussion.
 > **Dernière mise à jour : 18 novembre 2026.**
 >
-> **18/11 — NON LIVRÉ (commit local, branche non poussée) : Caisse, contrepassation motivée, types de fournisseurs,
+> **API / DASHBOARD / ERP EN PRODUCTION : release `da5f572` (18/11, ~08 h 36 heure serveur)**, demande du client (« mets en
+> ligne quand les tests sont verts », « fais aussi en ligne sur github »). Suite **551/551**. Branche **poussée**
+> (`8fb083b..da5f572`). Copie propre `../siipaf-deploy` sur `da5f572`, builds admin / client / ERP ;
+> `deploy/livraison-da5f572.zip` (7 096 875 o, sha256 `4558da9e…`) = `siipaf-api-da5f572.zip` (sha256 `bbdce5a0…`, 357
+> fichiers, avec `server/assets/liasse-dgi-modele.xlsm`) + `update-da5f572.sh` (contrôle `require('jszip')` ajouté).
+> Dépôt par Claude in Chrome, API `Fileman/upload_files` (l'appel JS a dépassé le délai de l'outil, fichier arrivé : taille
+> identique par `list_files`). Terminal : empreinte OK, sauvegardes `~/sauvegardes/deploiement-da5f572-20261118-083551/`,
+> npm « added 5 packages », 0 faille, **3 migrations (Batch 26)**, `{"ok":true}`, `DEPLOY_OK da5f572`. Vérifié : 4 sites +
+> santé en 200, `/erp/compta/caisse/meta`, `/liasse/meta`, `/supplier-kinds` → 401 sans session, bundle ERP
+> `index-BBY_9ix_.js` en ligne avec Caisse, Liasse fiscale, écritures annulées, types de fournisseurs, suppression de
+> versement. **À faire par le client** : renseigner le NCC (Liasse fiscale › Préparation), reprendre le solde réel de la
+> caisse dans les soldes d’ouverture (compte 571100, journal AN ; pas par un écart d’arrêté), importer la balance N-1 si 2025 n'est pas dans l'ERP, contrepasser/valider les versements de test.
+>
+> **18/11 — contenu de la release `da5f572` : Caisse, contrepassation motivée, types de fournisseurs,
 > suppression d'un versement dans l'ERP, liasse fiscale DGI.**
 > - **Caisse** (demande de la trésorière) : ERP › Comptabilité › Caisse (`/compta/caisse`). Solde de la veille, entrées et
 >   sorties du jour, solde du soir, tirés du compte du journal de caisse (571…), brouillons compris ; versements clients en
