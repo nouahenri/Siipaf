@@ -3,6 +3,9 @@
  * - « Recevoir des notifications push » (Paramètres) : annonces envoyées depuis le dashboard (Ventes › Notifications push),
  *   pour tous, connecté ou non (POST /api/public/devices, avec la ville préférée et la langue) ;
  * - client connecté : notifications de son dossier (POST /api/client/push), sauf si l'interrupteur est coupé.
+ * Autorisation du téléphone et interrupteur alignés (demande du client du 18/11) : accepter les notifications (demande à la
+ * connexion ou réglages du téléphone) active l'interrupteur et inscrit le téléphone ; l'état est relu à chaque retour dans
+ * l'application ; notifications bloquées dans le téléphone = interrupteur éteint et lien vers les réglages.
  * Il faut un identifiant de projet EAS (app.json › extra.eas.projectId, posé par `eas init`) et une version de
  * développement ou de production : Expo Go sur Android ne reçoit plus de push (SDK 53 et suivants).
  */
@@ -47,6 +50,20 @@ async function pushToken(ask: boolean): Promise<TokenResult> {
   }
 }
 
+export type OsPermission = 'granted' | 'undetermined' | 'denied' | 'unavailable';
+/** Autorisation des notifications donnée au téléphone, sans rien demander. */
+export async function osPermission(): Promise<OsPermission> {
+  if (Platform.OS === 'web' || !Device.isDevice) return 'unavailable';
+  try {
+    const p = await Notifications.getPermissionsAsync();
+    // eslint-disable-next-line import/namespace
+    if (p.granted || p.ios?.status === Notifications.IosAuthorizationStatus.PROVISIONAL) return 'granted';
+    return p.canAskAgain ? 'undetermined' : 'denied';
+  } catch {
+    return 'unavailable';
+  }
+}
+
 const device = (token: string) => {
   const p = getPrefs();
   return { token, platform: Platform.OS, city_id: p.preferredCity, language: p.language };
@@ -59,7 +76,11 @@ export async function registerForPush(): Promise<string | null> {
   if (!token) return null;
   try {
     await clientApi.post('/push', { token, platform: Platform.OS });
-    if (getPrefs().push === 'on') await publicApi.post('/devices', device(token));
+    // Autorisation acceptée à la connexion : l'interrupteur « Recevoir des notifications push » s'active (annonces comprises)
+    if (getPrefs().push !== 'off') {
+      await publicApi.post('/devices', device(token)).catch(() => {});
+      if (getPrefs().push === 'unset') await setPref('push', 'on');
+    }
     return token;
   } catch {
     return null;
@@ -91,11 +112,19 @@ export async function disablePush(connected: boolean) {
   ]);
 }
 
-/** Au démarrage et quand la ville préférée ou la langue change : met à jour l'inscription aux annonces (sans rien demander). */
+/**
+ * Au démarrage, au retour dans l'application et quand la ville préférée ou la langue change : inscription aux annonces
+ * tenue à jour, sans rien demander. Autorisation donnée hors de l'interrupteur (réglages du téléphone, connexion) et
+ * aucun choix fait dans l'application : l'interrupteur s'active.
+ */
 export async function syncDevice() {
-  if (getPrefs().push !== 'on') return;
+  const pref = getPrefs().push;
+  if (pref === 'off') return;
+  if ((await osPermission()) !== 'granted') return;
   const { token } = await pushToken(false);
-  if (token) await publicApi.post('/devices', device(token)).catch(() => {});
+  if (!token) return;
+  await publicApi.post('/devices', device(token)).catch(() => {});
+  if (pref === 'unset') await setPref('push', 'on');
 }
 
 export async function unregisterPush() {

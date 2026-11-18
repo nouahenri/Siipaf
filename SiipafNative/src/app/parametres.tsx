@@ -10,10 +10,10 @@ import { Image } from 'expo-image';
 import { router } from 'expo-router';
 import * as StoreReview from 'expo-store-review';
 import * as WebBrowser from 'expo-web-browser';
-import { useState, type ReactNode } from 'react';
-import { Alert as RNAlert, Platform, Pressable, ScrollView, StyleSheet, View } from 'react-native';
+import { useEffect, useState, type ReactNode } from 'react';
+import { AppState, Linking, Alert as RNAlert, Platform, Pressable, ScrollView, StyleSheet, View } from 'react-native';
 import {
-  Bell, BellRing, Brush, ChevronRight, Database, Eraser, Globe, HandCoins, Info, Languages, Lock, LogOut, MapPin, MessageSquareWarning,
+  Bell, BellOff, BellRing, Brush, ChevronRight, Database, Eraser, Globe, HandCoins, Info, Languages, Lock, LogOut, MapPin, MessageSquareWarning,
   Moon, ScanFace, Share2, ShieldCheck, Smartphone, Star, Trash2, Type, Vibrate, Volume2, Wallet, Zap, type LucideIcon,
 } from 'lucide-react-native';
 import { BottomSheet, OptionList, type SelectOption } from '@/components/ui/Select';
@@ -25,7 +25,7 @@ import { clientApi } from '@/lib/api';
 import { useSite } from '@/lib/content';
 import { LANGUAGES } from '@/lib/i18n';
 import { mail } from '@/lib/links';
-import { disablePush, enablePush } from '@/lib/push';
+import { disablePush, enablePush, osPermission, type OsPermission } from '@/lib/push';
 import type { Prefs } from '@/lib/prefs';
 import { useFilters } from '@/lib/queries';
 import { KEYS, prefs as storage } from '@/lib/storage';
@@ -121,11 +121,24 @@ export default function Parametres() {
     qc.setQueryData<PushPrefs>(['client', 'push-prefs'], old => old && { ...old, prefs: { ...old.prefs, [k]: on } });
     try { await clientApi.put('/push/prefs', { [k]: on }); } catch (e: any) { toast(e.message, 'error'); push.refetch(); }
   };
-  // Interrupteur général : activé si choisi, ou par défaut pour le client connecté (inscrit à la connexion)
-  const pushOn = prefs.push === 'on' || (prefs.push === 'unset' && connected);
+  // Autorisation du téléphone, relue à l'ouverture et à chaque retour dans l'application (réglages du téléphone)
+  const [osPerm, setOsPerm] = useState<OsPermission>('unavailable');
+  useEffect(() => {
+    const read = () => { osPermission().then(setOsPerm).catch(() => {}); };
+    read();
+    const sub = AppState.addEventListener('change', st => { if (st === 'active') read(); });
+    return () => sub.remove();
+  }, []);
+  // Interrupteur général : jamais allumé si le téléphone bloque les notifications ; sinon activé si choisi, par défaut pour
+  // le client connecté, ou dès que l'autorisation a été donnée au téléphone (l'inscription suit, voir syncDevice)
+  const blocked = osPerm === 'denied';
+  const pushOn = !blocked && prefs.push !== 'off' && (prefs.push === 'on' || connected || osPerm === 'granted');
+  const openSettings = () => { Linking.openSettings().catch(() => {}); };
   const togglePushAll = async (on: boolean) => {
     if (!on) { await disablePush(connected); toast(t('Notifications push désactivées')); return; }
+    if (blocked) { toast(t('Autorisez les notifications de SIIPAF dans les réglages du téléphone'), 'error'); openSettings(); return; }
     const res = await enablePush(connected);
+    osPermission().then(setOsPerm).catch(() => {});
     if (res.token) toast(t('Notifications push activées'));
     else toast(res.reason === 'web' || res.reason === 'device' ? t('Disponible dans l’application installée sur votre téléphone')
       : res.reason === 'refused' ? t('Autorisez les notifications de SIIPAF dans les réglages du téléphone') : t('Activation impossible pour le moment'), 'error');
@@ -177,6 +190,9 @@ export default function Parametres() {
       <Group title={t('Notifications')}>
         <Item icon={BellRing} label={t('Recevoir des notifications push')} sub={t('Nouveaux programmes, lancements et offres de SIIPAF')}
           right={<Toggle label={t('Recevoir des notifications push')} value={pushOn} onChange={togglePushAll} />} />
+        {blocked && prefs.push !== 'off' && (
+          <Item icon={BellOff} label={t('Notifications bloquées par le téléphone')} sub={t('Touchez pour les autoriser dans les réglages du téléphone')} onPress={openSettings} />
+        )}
         {connected ? (push.data ? Object.entries(push.data.kinds).map(([k, label]) => (
           <Item key={k} icon={Bell} label={t(label)} right={<Toggle label={t(label)} value={push.data!.prefs[k] !== false} onChange={on => togglePush(k, on)} />} />
         )) : <Item icon={Bell} label={push.error ? t('Réglages indisponibles pour le moment') : t('Chargement…')} />)

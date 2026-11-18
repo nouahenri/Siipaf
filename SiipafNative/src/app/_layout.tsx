@@ -12,7 +12,7 @@ import { DarkTheme, DefaultTheme, router, Stack, ThemeProvider } from 'expo-rout
 import * as SplashScreen from 'expo-splash-screen';
 import { StatusBar } from 'expo-status-bar';
 import { useCallback, useEffect, useState } from 'react';
-import { Platform, Pressable } from 'react-native';
+import { AppState, Platform, Pressable } from 'react-native';
 import { ArrowLeft } from 'lucide-react-native';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import { KeyboardProvider } from 'react-native-keyboard-controller';
@@ -67,10 +67,15 @@ function HeaderBack() {
 }
 const headerLeft = () => <HeaderBack />;
 
-/** Inscription aux annonces tenue à jour : au démarrage et quand la ville préférée ou la langue change. */
+/** Inscription aux annonces tenue à jour : au démarrage, au retour dans l'application (autorisation donnée ou retirée dans
+ * les réglages du téléphone) et quand la ville préférée ou la langue change. */
 function PushSync() {
   const { prefs } = usePrefs();
   useEffect(() => { syncDevice().catch(() => {}); }, [prefs.push, prefs.preferredCity, prefs.language]);
+  useEffect(() => {
+    const sub = AppState.addEventListener('change', s => { if (s === 'active') syncDevice().catch(() => {}); });
+    return () => sub.remove();
+  }, []);
   return null;
 }
 
