@@ -3,7 +3,17 @@
 > Document de reprise pour continuer le travail dans une nouvelle discussion.
 > **Dernière mise à jour : 18 novembre 2026.**
 >
-> **API / DASHBOARD / ERP EN PRODUCTION : release `728545a` (18/11, ~09 h 50 heure serveur)**, demande du client (« fais la
+> **API / DASHBOARD / ERP EN PRODUCTION : release `1457f46` (18/11, ~10 h 40 heure serveur)**, demande du client (« mets en
+> ligne quand les tests sont verts »). **Caisse** : les opérations annulées (écriture validée + contrepassation validée,
+> filtre `notCancelled` dans `services/caisse.js`) ne comptent plus — brouillard, solde de la veille, journées récentes,
+> journées à arrêter, plafond ; plus de sortie fantôme le jour d'une contrepassation (cas des versements TEST CLIENT,
+> 3 000 000 FCFA le 18/11). Case « Afficher les opérations annulées » (`?annulees=1`) : lignes « Annulée », grisées, jamais
+> comptées. Suppression physique refusée (choix du client : masquer, SYSCOHADA). Vérifié sur la démo (paire à deux dates).
+> Suite **555/555**. Branche poussée. `livraison-1457f46.zip` (7 102 413 o, API sha256 `a69f8c47…`), sauvegardes
+> `~/sauvegardes/deploiement-1457f46-20261118-103948/`, aucune migration, `DEPLOY_OK 1457f46` (journal lu par Fileman).
+> Vérifié : 4 sites + santé en 200, bundle ERP `index-DnEJgZRJ.js` identique au build.
+>
+> **Production précédente : release `728545a` (18/11, ~09 h 50 heure serveur)**, demande du client (« fais la
 > mise en ligne »). **Suppression définitive d'un dossier de vente** (test ou erreur), super administrateur : ERP › Dossiers
 > de vente › fiche › « Supprimer définitivement » ; aperçu `GET /admin/sales/:id/suppression` (blocages : versements
 > restants, écriture validée non annulée / contrepassation en brouillon) puis `DELETE /admin/sales/:id` avec
