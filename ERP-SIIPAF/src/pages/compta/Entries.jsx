@@ -122,6 +122,8 @@ export function EntryDrawer({ id, onClose, onChange, onOpen }) {
   const e = useResource(`/admin/erp/compta/entries/${id}`);
   const [editing, setEditing] = useState(false);
   const [reversing, setReversing] = useState(false);
+  // Contrepassation d'un versement supprimé (créée par « Synchroniser ») : elle se valide, supprimée elle reviendrait
+  const paymentReversal = !!e.data?.source_key?.startsWith('reverse:payment:');
   const d = e.data;
   const act = async (fn, msg) => { try { await fn(); toast(msg); e.reload(); onChange?.(); } catch (err) { toast(err.message, 'err'); } };
   const total = k => (d?.lines || []).reduce((t, l) => t + l[k], 0);
@@ -131,7 +133,7 @@ export function EntryDrawer({ id, onClose, onChange, onOpen }) {
       <div className="row" style={{ gap: 8 }}>
         {d.status === 'brouillon' && can('compta:validate') && <button className="btn btn-primary" onClick={() => act(() => api.post('/admin/erp/compta/entries/validate', { ids: [d.id] }), 'Écriture validée')}><CheckCheck />Valider</button>}
         {d.status === 'brouillon' && can('compta:entries') && <button className="btn" onClick={() => setEditing(true)}>Modifier</button>}
-        {d.status === 'brouillon' && can('compta:entries') && <button className="btn btn-ghost btn-danger" onClick={() => window.confirm('Supprimer ce brouillon ?') && act(async () => { await api.del(`/admin/erp/compta/entries/${d.id}`); onClose(); }, 'Brouillon supprimé')}><Trash2 />Supprimer</button>}
+        {d.status === 'brouillon' && can('compta:entries') && !paymentReversal && <button className="btn btn-ghost btn-danger" onClick={() => window.confirm(/^(payment|fund_call|tma|sale_revenue):/.test(d.source_key || '') ? 'Supprimer ce brouillon ?\n\nIl est tiré d’une opération (versement, appel de fonds, travaux modificatifs ou vente) : « Synchroniser » le recréera tant que cette opération existe. Pour qu’il ne revienne pas, corrigez ou supprimez l’opération elle-même (dossier de vente).' : 'Supprimer ce brouillon ?') && act(async () => { await api.del(`/admin/erp/compta/entries/${d.id}`); onClose(); }, 'Brouillon supprimé')}><Trash2 />Supprimer</button>}
         {d.status === 'valide' && !d.reversed_by && can('compta:reverse') && <button className="btn" onClick={() => setReversing(true)}><RotateCcw />Contrepasser</button>}
         {d.reversed_by && onOpen && <button className="btn" onClick={() => onOpen(d.reversed_by.id)}>{d.reversed_by.status === 'brouillon' ? 'Ouvrir la contrepassation (brouillon)' : 'Voir la contrepassation'}</button>}
         {d.reverses && onOpen && <button className="btn btn-ghost" onClick={() => onOpen(d.reverses.id)}>Écriture d’origine</button>}
@@ -151,6 +153,7 @@ export function EntryDrawer({ id, onClose, onChange, onOpen }) {
             {d.ref && <><dt>Pièce</dt><dd>{d.ref}</dd></>}
             {d.reversed_by && <><dt>Contrepassée par</dt><dd>{d.reversed_by.number || 'brouillon à valider'} · {date(d.reversed_by.date)}{d.reversed_by.status === 'valide' && d.status === 'valide' ? ' — écriture annulée' : ''}</dd></>}
             {d.reverses && <><dt>Contrepassation de</dt><dd>{d.reverses.number || 'brouillon'}</dd></>}
+            {paymentReversal && d.status === 'brouillon' && <><dt>À faire</dt><dd>Le versement d’origine a été supprimé : <b>validez</b> cette contrepassation pour annuler son écriture. Supprimée, elle serait recréée à la prochaine synchronisation.</dd></>}
           </dl>
           <div className="table-wrap"><table className="table">
             <thead><tr><th>Compte</th><th>Libellé · tiers · programme</th><th className="right">Débit</th><th className="right">Crédit</th></tr></thead>

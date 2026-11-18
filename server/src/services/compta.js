@@ -134,6 +134,11 @@ async function deleteDraft(trx, entryId) {
   const e = await trx('acc_entries').where({ id: entryId }).first();
   if (!e) throw new HttpError(404, 'Écriture introuvable.');
   if (e.status === 'valide') throw new HttpError(409, 'Une écriture validée ne se supprime pas : contrepassez-la.');
+  // Contrepassation d'un versement supprimé, créée par « Synchroniser » : supprimée, elle serait recréée à la synchronisation
+  // suivante (l'écriture validée du versement resterait sans annulation). Elle se valide.
+  if (e.source_key && e.source_key.startsWith('reverse:payment:')) {
+    throw new HttpError(409, 'Cette contrepassation annule l’écriture d’un versement supprimé : validez-la. Supprimée, elle serait recréée à la prochaine synchronisation.');
+  }
   await trx('acc_entries').where({ id: e.id }).del();
 }
 

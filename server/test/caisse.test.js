@@ -167,3 +167,27 @@ test('écriture faite par erreur : contrepassation motivée et validée aussitô
   assert.ok(!hidden.includes(id) && !hidden.includes(res.body.id), 'paire annulée masquée');
   assert.ok(await db('acc_entries').where({ id }).first(), 'jamais effacée');
 });
+
+test('versement supprimé : sa contrepassation (brouillon) se valide, elle ne se supprime pas', async () => {
+  const project = await db('projects').where({ slug: 'ahoutoue' }).first();
+  await admin.put(`/api/admin/projects/${project.id}/lots`).send([{ code: 'CS2', price_fcfa: 15000000 }]);
+  const lot = await db('lots').where({ project_id: project.id, code: 'CS2' }).first();
+  const sale = (await admin.post(`/api/admin/lots/${lot.id}/sale`).send({ name: 'Test Versement', phone: '0708080808', financing: 'comptant', reserved_at: D1 })).body;
+  await comptable.post(`/api/admin/sales/${sale.id}/payments`).send({ amount_fcfa: 250000, paid_at: D2, method: 'virement' });
+  const pay = await db('payments').where({ sale_id: sale.id }).first();
+  await comptable.post(`${C}/sync`);
+  const entry = await db('acc_entries').where({ source_key: `payment:${pay.id}` }).first();
+  await comptable.post(`${C}/entries/validate`).send({ ids: [entry.id] });
+  await comptable.delete(`/api/admin/payments/${pay.id}`);
+  await comptable.post(`${C}/sync`);
+  const rev = await db('acc_entries').where({ source_key: `reverse:payment:${pay.id}` }).first();
+  assert.equal(rev.status, 'brouillon');
+  const res = await comptable.delete(`${C}/entries/${rev.id}`);
+  assert.equal(res.status, 409);
+  assert.match(res.body.error || res.body.message || JSON.stringify(res.body), /validez-la/);
+  await comptable.post(`${C}/entries/validate`).send({ ids: [rev.id] });
+  await comptable.post(`${C}/sync`);
+  assert.equal((await db('acc_entries').where('source_key', 'like', `reverse:payment:${pay.id}`)).length, 1, 'pas de nouvelle contrepassation');
+  const hidden = (await comptable.get(`${C}/entries?limit=500&hide_cancelled=1`)).body.rows.map(e => e.id);
+  assert.ok(!hidden.includes(entry.id) && !hidden.includes(rev.id), 'paire annulée masquée');
+});
