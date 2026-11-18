@@ -190,6 +190,6 @@ function throttledExpiry(db, intervalMs = 60 * 1000) {
 }
 
 module.exports = {
-  findOrCreateLead, changeLotStatus, placeOption, expireOptions, throttledExpiry,
+  findOrCreateLead, changeLotStatus, placeOption, expireOptions, throttledExpiry, writeStatus,
   normalizePhone, normalizeEmail,
 };

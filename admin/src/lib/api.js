@@ -33,7 +33,7 @@ export const api = {
   post: (url, body) => request('POST', url, body),
   patch: (url, body) => request('PATCH', url, body),
   put: (url, body) => request('PUT', url, body),
-  del: url => request('DELETE', url),
+  del: (url, body) => request('DELETE', url, body), // corps facultatif (confirmation d'une suppression définitive)
 };
 
 export const qs = params =>

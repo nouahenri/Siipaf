@@ -4,7 +4,7 @@ import { Search, FileSignature, Plus, Printer, Trash2 } from 'lucide-react';
 import { api, qs } from '@admin/lib/api';
 import { useAuth, useResource, useToast, useSaved } from '@admin/lib/app-context';
 import { usePersistentState } from '@admin/lib/navigation';
-import { Card, Empty, Skeleton, ErrorBox, Drawer, Field, Badge, Pagination, Advance } from '@admin/components/ui';
+import { Card, Empty, Skeleton, ErrorBox, Drawer, Field, Badge, Pagination, Advance, Modal } from '@admin/components/ui';
 import { INSTALLMENT_STATUS } from '@admin/lib/domain';
 import { date, fcfa } from '@admin/lib/format';
 import { useCommercialMeta, compact } from '../../lib/commercial';
@@ -94,7 +94,8 @@ export default function Sales() {
 }
 
 export function SaleDrawer({ id, onClose, onChange }) {
-  const { can } = useAuth();
+  const { can, user } = useAuth();
+  const [deleting, setDeleting] = useState(false);
   const toast = useToast();
   const saved = useSaved();
   const meta = useCommercialMeta();
@@ -134,7 +135,9 @@ export function SaleDrawer({ id, onClose, onChange }) {
   };
 
   return (
-    <Drawer title={d ? `${d.client_name} · lot ${d.lot_code}` : 'Dossier de vente'} onClose={onClose}>
+    <Drawer title={d ? `${d.client_name} · lot ${d.lot_code}` : 'Dossier de vente'} onClose={onClose}
+      footer={d && user?.role === 'super_admin' ? <button className="btn btn-ghost btn-danger" onClick={() => setDeleting(true)}><Trash2 />Supprimer définitivement</button> : null}>
+      {deleting && <DeleteSale id={id} onClose={() => setDeleting(false)} onDone={() => { setDeleting(false); onChange?.(); onClose(); }} />}
       {tmaForm && <TmaForm saleId={id} onClose={() => setTmaForm(false)} onSaved={() => { setTmaForm(false); tma.reload(); }} />}
       {!d ? <Skeleton h={400} /> : (
         <div className="stack" style={{ gap: 18 }}>
@@ -268,5 +271,60 @@ export function SaleDrawer({ id, onClose, onChange }) {
       )}
       {leadId && <LeadDrawer id={leadId} onClose={() => setLeadId(null)} onChange={s.reload} />}
     </Drawer>
+  );
+}
+
+/**
+ * Suppression définitive d'un dossier (test, erreur) — super administrateur. Aperçu d'abord : ce qui bloque (versements,
+ * écritures validées non annulées), ce qui sera supprimé ; confirmation en tapant SUPPRIMER. Le désistement reste la voie normale.
+ */
+function DeleteSale({ id, onClose, onDone }) {
+  const saved = useSaved();
+  const pv = useResource(`/admin/sales/${id}/suppression`);
+  const [withClient, setWithClient] = useState(true);
+  const [word, setWord] = useState('');
+  const [error, setError] = useState(null);
+  const [busy, setBusy] = useState(false);
+  const p = pv.data;
+  const run = async () => {
+    setError(null); setBusy(true);
+    try {
+      const r = await api.del(`/admin/sales/${id}`, { confirm: word.trim(), with_client: withClient });
+      saved(r.client_deleted ? 'Dossier et client supprimés définitivement' : 'Dossier supprimé définitivement');
+      onDone();
+    } catch (e) { setError(e); } finally { setBusy(false); }
+  };
+  return (
+    <Modal title="Supprimer définitivement le dossier" onClose={onClose} footer={<><button className="btn btn-ghost" onClick={onClose}>Annuler</button><button className="btn btn-primary btn-danger" disabled={!p || p.blockers.length > 0 || word.trim() !== 'SUPPRIMER' || busy} onClick={run}><Trash2 />Supprimer définitivement</button></>}>
+      <div className="stack" style={{ gap: 12 }}>
+        <ErrorBox error={error || pv.error} />
+        {!p ? <Skeleton h={120} /> : (
+          <>
+            <p className="small"><b>{p.sale.client_name}</b>{p.sale.client_code ? ` (${p.sale.client_code})` : ''} · {p.sale.project_name} · lot {p.sale.lot_code}</p>
+            <p className="small muted">Pour un dossier de test ou ouvert par erreur. Pour un client qui renonce, utilisez plutôt le désistement : il garde l’historique.</p>
+            {p.blockers.length > 0 ? (
+              <div className="erp-panel stack" style={{ gap: 6 }}>
+                <b className="small" style={{ color: 'var(--danger)' }}>Impossible pour l’instant :</b>
+                <ul className="small" style={{ margin: 0, paddingLeft: 18 }}>{p.blockers.map(b => <li key={b}>{b}</li>)}</ul>
+              </div>
+            ) : (
+              <>
+                <ul className="small" style={{ margin: 0, paddingLeft: 18 }}>
+                  <li>Le dossier, ses échéances, documents, appels de fonds et déclarations sont effacés de la base.</li>
+                  <li>Le lot {p.lot.code} {p.lot.freed ? 'redevient disponible' : `garde son statut (${p.lot.status})`} ; son historique note la suppression.</li>
+                  {p.drafts_to_delete.length > 0 && <li>{p.drafts_to_delete.length} écriture(s) en brouillon du dossier sont effacées.</li>}
+                  {p.cancelled_entries_kept > 0 && <li>{p.cancelled_entries_kept} écriture(s) validée(s) et annulée(s) restent dans les journaux (règle comptable), masquées de la liste.</li>}
+                </ul>
+                <label className="checkbox small">
+                  <input type="checkbox" checked={withClient && p.client.can_delete} disabled={!p.client.can_delete} onChange={e => setWithClient(e.target.checked)} />
+                  Supprimer aussi le client {p.client.can_delete ? '(aucun autre dossier)' : p.client.other_sales ? `— impossible : ${p.client.other_sales} autre(s) dossier(s)` : '— impossible : option en cours'}
+                </label>
+                <Field label="Tapez SUPPRIMER pour confirmer"><input className="input" value={word} onChange={e => setWord(e.target.value)} autoComplete="off" aria-label="Confirmation" /></Field>
+              </>
+            )}
+          </>
+        )}
+      </div>
+    </Modal>
   );
 }

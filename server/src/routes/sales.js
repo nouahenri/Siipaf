@@ -345,6 +345,17 @@ module.exports = function salesRoutes(db) {
     });
   }));
 
+  // Suppression définitive d'un dossier (test, erreur) : super administrateur ; aperçu d'abord (blocages comptables)
+  const saleDeletion = require('../services/saleDeletion');
+  r.get('/sales/:id/suppression', requirePermission('sales:read'), ah(async (req, res) => {
+    if (req.user.role !== 'super_admin') throw new HttpError(403, 'Réservé au super administrateur.');
+    res.json(await saleDeletion.preview(db, idParam(req)));
+  }));
+  r.delete('/sales/:id', requirePermission('sales:read'), ah(async (req, res) => {
+    const { confirm, with_client } = parse(z.object({ confirm: z.literal('SUPPRIMER'), with_client: z.boolean().default(true) }), req.body || {});
+    res.json(await saleDeletion.deleteForGood(db, idParam(req), { withClient: with_client && confirm === 'SUPPRIMER', user: req.user }));
+  }));
+
   r.delete('/payments/:id', requirePermission('payments:delete'), ah(async (req, res) => {
     const p = await db('payments').where({ id: idParam(req) }).first();
     if (!p) throw new HttpError(404, 'Versement introuvable.');
