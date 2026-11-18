@@ -3,7 +3,27 @@
 > Document de reprise pour continuer le travail dans une nouvelle discussion.
 > **Dernière mise à jour : 18 novembre 2026.**
 >
-> **API / DASHBOARD / ERP EN PRODUCTION : release `8165a16` (18/11, ~09 h 07 heure serveur)**, demande du client (« mets en
+> **API / DASHBOARD / ERP EN PRODUCTION : release `728545a` (18/11, ~09 h 50 heure serveur)**, demande du client (« fais la
+> mise en ligne »). **Suppression définitive d'un dossier de vente** (test ou erreur), super administrateur : ERP › Dossiers
+> de vente › fiche › « Supprimer définitivement » ; aperçu `GET /admin/sales/:id/suppression` (blocages : versements
+> restants, écriture validée non annulée / contrepassation en brouillon) puis `DELETE /admin/sales/:id` avec
+> `{ confirm: 'SUPPRIMER', with_client }` ; efface le dossier (cascade), `lot_handovers`, `worksite_changes`, brouillons
+> comptables du dossier, remet le lot disponible (historique), supprime le client s'il n'a ni autre dossier ni option ;
+> écritures validées annulées gardées. `services/saleDeletion.js`, `api.del(url, body)`. Parcours rejoué sur la démo (cas
+> TEST CLIENT : blocage sur la contrepassation, validation, suppression, sync sans recréation). Suite **554/554**. Branche
+> poussée. `livraison-728545a.zip` (7 101 379 o, API sha256 `2b3cce57…`), terminal (fenêtre Chrome non capturable : suivi
+> par `Fileman/get_file_content` du journal), sauvegardes `~/sauvegardes/deploiement-728545a-20261118-095021/`, aucune
+> migration, `DEPLOY_OK 728545a`. Vérifié : 4 sites + santé en 200, routes 401 sans session, bundles ERP `index-OZzEgXEg.js`
+> et admin `index-CGAwURPA.js` identiques au build. **À faire par le client** : valider la contrepassation de CA-2020-00002
+> puis supprimer définitivement le dossier TEST CLIENT.
+> **App mobile (committé `5b43129`, NON publié, mis de côté à la demande du client)** : interrupteur « Recevoir des
+> notifications push » aligné sur l'autorisation du téléphone (`osPermission`, `syncDevice` au retour dans l'app, ligne
+> « Notifications bloquées par le téléphone » → réglages). tsc et lint OK ; APK release construit (JAVA_HOME = JBR
+> d'Android Studio) et contrôlé (texte présent dans le bundle Hermes) ; **pas testé sur téléphone** (émulateur impossible :
+> pas de pilote de virtualisation). APK précédent sauvegardé dans le dossier de la session. À reprendre : test sur
+> téléphone, numéro de version, publication.
+>
+> **Production précédente : release `8165a16` (18/11, ~09 h 07 heure serveur)**, demande du client (« mets en
 > ligne quand les tests sont verts »). Correctif : la contrepassation d'un versement supprimé (brouillon
 > `reverse:payment:…` créé par Synchroniser) ne se supprime plus — supprimée, elle revenait à chaque synchronisation
 > (boucle constatée en ligne sur les versements de test) ; consigne « validez » dans la fiche ; confirmation explicite
