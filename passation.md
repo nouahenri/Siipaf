@@ -3,7 +3,19 @@
 > Document de reprise pour continuer le travail dans une nouvelle discussion.
 > **Dernière mise à jour : 18 novembre 2026.**
 >
-> **API / DASHBOARD / ERP EN PRODUCTION : release `da5f572` (18/11, ~08 h 36 heure serveur)**, demande du client (« mets en
+> **API / DASHBOARD / ERP EN PRODUCTION : release `8165a16` (18/11, ~09 h 07 heure serveur)**, demande du client (« mets en
+> ligne quand les tests sont verts »). Correctif : la contrepassation d'un versement supprimé (brouillon
+> `reverse:payment:…` créé par Synchroniser) ne se supprime plus — supprimée, elle revenait à chaque synchronisation
+> (boucle constatée en ligne sur les versements de test) ; consigne « validez » dans la fiche ; confirmation explicite
+> pour la suppression d'un brouillon tiré d'une opération (versement, appel de fonds, TMA, vente). Parcours complet rejoué
+> dans l'ERP de démo (versement → sync → validation → suppression → sync → suppression refusée → validation → sync : rien
+> de recréé, paire masquée, caisse nette à 0) + test serveur. Suite **552/552**. Branche poussée. `deploy/livraison-8165a16.zip`
+> (7 097 284 o) = `siipaf-api-8165a16.zip` (sha256 `ce628a3e…`) + `update-8165a16.sh`. Terminal : empreinte OK, sauvegardes
+> `~/sauvegardes/deploiement-8165a16-20261118-090654/`, aucune migration, `{"ok":true}`, `DEPLOY_OK 8165a16`. Vérifié : 4
+> sites + santé en 200, bundle ERP `index-BKfnEE0M.js` identique au build. **À faire par le client** : ouvrir les deux
+> contrepassations en brouillon des versements de test (Écritures) et les **valider**.
+>
+> **Production précédente : release `da5f572` (18/11, ~08 h 36 heure serveur)**, demande du client (« mets en
 > ligne quand les tests sont verts », « fais aussi en ligne sur github »). Suite **551/551**. Branche **poussée**
 > (`8fb083b..da5f572`). Copie propre `../siipaf-deploy` sur `da5f572`, builds admin / client / ERP ;
 > `deploy/livraison-da5f572.zip` (7 096 875 o, sha256 `4558da9e…`) = `siipaf-api-da5f572.zip` (sha256 `bbdce5a0…`, 357
