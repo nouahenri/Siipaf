@@ -76,7 +76,8 @@ module.exports = function comptaRoutes(db) {
   }));
 
   // ─── Plan comptable ───────────────────────────────────────
-  r.get('/accounts', read, ah(async (req, res) => {
+  // Plan comptable lisible aussi par la caisse (compte d'une nouvelle nature d'opération)
+  r.get('/accounts', requirePermission('compta:read', 'caisse:write'), ah(async (req, res) => {
     const q = db('acc_accounts').orderBy('code');
     if (req.query.q) {
       const s = String(req.query.q).trim();
@@ -192,6 +193,12 @@ module.exports = function comptaRoutes(db) {
       const s = `%${String(req.query.q).trim()}%`;
       q.where(b => b.where('e.label', 'like', s).orWhere('e.number', 'like', s).orWhere('e.ref', 'like', s));
     }
+    // Écritures annulées : une écriture validée et sa contrepassation validée se neutralisent ; masquées sur demande
+    // (elles restent dans les journaux, le grand livre et l'export : rien n'est effacé)
+    if (req.query.hide_cancelled === '1') {
+      q.whereNot(b => b.where('e.status', 'valide').whereExists(db('acc_entries as r').whereRaw('r.reversal_of = e.id').where('r.status', 'valide')));
+      q.whereNot(b => b.where('e.status', 'valide').whereNotNull('e.reversal_of').whereExists(db('acc_entries as o').whereRaw('o.id = e.reversal_of').where('o.status', 'valide')));
+    }
     const [{ total }] = await q.clone().count({ total: '*' });
     const rows = await q.select('e.*', 'j.code as journal_code', 'p.name as project_name')
       .orderBy([{ column: 'e.date', order: 'desc' }, { column: 'e.id', order: 'desc' }]).limit(limit).offset(offset);
@@ -240,9 +247,11 @@ module.exports = function comptaRoutes(db) {
     res.json({ validated: done, errors });
   }));
 
+  // Contrepassation (motif conservé dans le libellé) ; « valider aussitôt » annule l'écriture d'un coup, avec le droit de valider
   r.post('/entries/:id/reverse', requirePermission('compta:reverse'), ah(async (req, res) => {
-    const { date } = parse(z.object({ date: day.optional() }), req.body || {});
-    const e = await db.transaction(trx => ct.reverseEntry(trx, idParam(req), { date, userId: req.user.id }));
+    const { date, reason, validate } = parse(z.object({ date: day.optional(), reason: optText(120), validate: z.boolean().optional() }), req.body || {});
+    if (validate && !req.can('compta:validate')) throw new HttpError(403, 'Valider la contrepassation demande le droit « Valider les écritures ».');
+    const e = await db.transaction(trx => ct.reverseEntry(trx, idParam(req), { date, reason, validate: !!validate, userId: req.user.id }));
     res.status(201).json(await ct.entryDetail(db, e.id));
   }));
 
@@ -256,13 +265,14 @@ module.exports = function comptaRoutes(db) {
 
   // ─── Fournisseurs et achats ───────────────────────────────
   const supplierSchema = z.object({
-    name: z.string().trim().min(2).max(160), kind: z.enum(['fournisseur', 'sous_traitant', 'prestataire', 'notaire']).default('fournisseur'),
+    name: z.string().trim().min(2).max(160), kind: z.string().trim().min(2).max(20).default('fournisseur'), // liste réglable (supplier_kinds)
     phone: optText(40), email: z.string().trim().toLowerCase().email().optional().nullable().or(z.literal('').transform(() => null)),
     address: optText(255), ncc: optText(40), rccm: optText(60), expense_account: z.string().trim().max(12).optional().nullable(), notes: optText(500),
     // Imputation habituelle (programme ou lieu), proposée à la saisie de ses factures ; vide : rien de proposé
     project_id: z.number().int().positive().optional().nullable(), place_id: z.number().int().positive().optional().nullable(),
   });
-  const supplierRow = async data => {
+  const supplierRow = async (data, current = null) => {
+    if (data.kind !== undefined && data.kind !== current && !(await db('supplier_kinds').where({ code: data.kind, active: true }).first('id'))) throw new HttpError(400, 'Type de fournisseur inconnu ou désactivé.');
     const { expense_account, ...rest } = data;
     if (rest.project_id && rest.place_id) throw new HttpError(400, 'Imputation habituelle : un programme ou un lieu, pas les deux.');
     if (expense_account === undefined) return rest;
@@ -272,9 +282,36 @@ module.exports = function comptaRoutes(db) {
   };
 
   r.get('/suppliers', read, ah(async (req, res) => {
-    const rows = await db('suppliers as s').leftJoin('acc_accounts as a', 'a.id', 's.expense_account_id').orderBy('s.name').select('s.*', 'a.code as expense_account');
+    const rows = await db('suppliers as s').leftJoin('acc_accounts as a', 'a.id', 's.expense_account_id').leftJoin('supplier_kinds as k', 'k.code', 's.kind').orderBy('s.name').select('s.*', 'a.code as expense_account', 'k.label as kind_label');
     const balances = Object.fromEntries((await ct.partnerBalances(db, 'fournisseur', { includeDraft: true })).map(b => [b.partner_id, b.balance]));
     res.json(rows.map(s => ({ ...s, active: !!s.active, balance: -(balances[s.id] || 0) })));
+  }));
+
+  // Types de fournisseurs : liste réglable par ceux qui gèrent les fournisseurs (les 4 d'origine se renomment, ne se désactivent pas)
+  const kindSlug = label => String(label).normalize('NFD').replace(/[̀-ͯ]/g, '').toLowerCase().replace(/[^a-z0-9]+/g, '_').replace(/^_+|_+$/g, '').slice(0, 20) || 'type';
+  r.get('/supplier-kinds', requirePermission('compta:read', 'appro:read'), ah(async (req, res) => {
+    const rows = await db('supplier_kinds').orderBy([{ column: 'sort' }, { column: 'label' }]);
+    const used = Object.fromEntries((await db('suppliers').groupBy('kind').select('kind').count({ n: '*' })).map(r => [r.kind, Number(r.n)]));
+    res.json(rows.map(k => ({ ...k, active: !!k.active, system: !!k.system, suppliers: used[k.code] || 0 })));
+  }));
+  r.post('/supplier-kinds', requirePermission('suppliers:write'), ah(async (req, res) => {
+    const { label } = parse(z.object({ label: z.string().trim().min(2).max(80) }), req.body);
+    const all = await db('supplier_kinds').select('code', 'label');
+    if (all.some(k => k.label.toLocaleLowerCase('fr') === label.toLocaleLowerCase('fr'))) throw new HttpError(409, 'Ce type existe déjà.');
+    let code = kindSlug(label);
+    for (let i = 2; all.some(k => k.code === code); i++) code = `${kindSlug(label).slice(0, 17)}_${i}`;
+    const [{ m } = {}] = await db('supplier_kinds').max({ m: 'sort' });
+    await db('supplier_kinds').insert({ code, label, sort: (Number(m) || 0) + 1 });
+    res.status(201).json(await db('supplier_kinds').where({ code }).first());
+  }));
+  r.patch('/supplier-kinds/:id', requirePermission('suppliers:write'), ah(async (req, res) => {
+    const data = parse(z.object({ label: z.string().trim().min(2).max(80), active: z.boolean() }).partial(), req.body);
+    const k = await db('supplier_kinds').where({ id: idParam(req) }).first();
+    if (!k) throw new HttpError(404, 'Type introuvable.');
+    if (k.system && data.active === false) throw new HttpError(409, 'Les types d’origine servent ailleurs (sous-traitants des chantiers, notaires des actes) : renommez-les plutôt.');
+    if (data.label && (await db('supplier_kinds').whereNot({ id: k.id }).select('label')).some(x => x.label.toLocaleLowerCase('fr') === data.label.toLocaleLowerCase('fr'))) throw new HttpError(409, 'Ce type existe déjà.');
+    await db('supplier_kinds').where({ id: k.id }).update({ ...data, updated_at: new Date() });
+    res.json(await db('supplier_kinds').where({ id: k.id }).first());
   }));
 
   r.post('/suppliers', requirePermission('suppliers:write'), ah(async (req, res) => {
@@ -284,7 +321,8 @@ module.exports = function comptaRoutes(db) {
   }));
 
   r.patch('/suppliers/:id', requirePermission('suppliers:write'), ah(async (req, res) => {
-    const data = await supplierRow(parse(supplierSchema.partial().extend({ active: z.boolean().optional() }), req.body));
+    const current = await db('suppliers').where({ id: idParam(req) }).first('kind');
+    const data = await supplierRow(parse(supplierSchema.partial().extend({ active: z.boolean().optional() }), req.body), current?.kind);
     const n = await db('suppliers').where({ id: idParam(req) }).update({ ...data, updated_at: new Date() });
     if (!n) throw new HttpError(404, 'Fournisseur introuvable.');
     res.json(await db('suppliers').where({ id: idParam(req) }).first());
@@ -464,8 +502,8 @@ module.exports = function comptaRoutes(db) {
   }));
   r.get('/reports/treasury', read, ah(async (req, res) => res.json(await ct.treasury(db, { includeDraft: req.query.draft === '1' }))));
 
-  // Pastille du menu « Parc auto et matériel » : dépenses du parc à valider
-  r.get('/dashboard', read, ah(async (req, res) => res.json({ ...(await ct.dashboard(db)), parc_to_validate: (await require('../../services/parcCompta').pendingCosts(db)).length })));
+  // Pastilles du menu : dépenses du parc à valider, journées de caisse à arrêter
+  r.get('/dashboard', read, ah(async (req, res) => res.json({ ...(await ct.dashboard(db)), parc_to_validate: (await require('../../services/parcCompta').pendingCosts(db)).length, cash_to_close: (await require('../../services/caisse').daysToClose(db)).length })));
 
   // ─── Export et réglages ───────────────────────────────────
   r.get('/export/sage', requirePermission('compta:export'), ah(async (req, res) => {

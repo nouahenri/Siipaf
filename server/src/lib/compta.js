@@ -57,8 +57,9 @@ const SYSCOHADA_ACCOUNTS = [
   ['622', 'Locations et charges locatives'], ['624', 'Entretien, réparations et maintenance'], ['625', 'Primes d’assurance'], ['627', 'Publicité, publications, relations publiques'], ['628', 'Frais de télécommunications'],
   ['63', 'Autres services extérieurs'], ['631', 'Frais bancaires'], ['632', 'Rémunérations d’intermédiaires et de conseils'], ['632100', 'Honoraires d’architectes et bureaux d’études'],
   ['632200', 'Frais de notaire et de géomètre'], ['632300', 'Commissions d’apporteurs d’affaires'], ['633', 'Frais de formation du personnel'], ['637', 'Personnel extérieur à l’entité'],
+  ['638', 'Autres charges externes'], ['6383', 'Réceptions'], ['6384', 'Missions'],
   ['64', 'Impôts et taxes'], ['641', 'Impôts et taxes directs'], ['645', 'Impôts et taxes indirects'], ['646', 'Droits d’enregistrement'], ['647', 'Pénalités et amendes fiscales'],
-  ['65', 'Autres charges'], ['66', 'Charges de personnel'], ['661', 'Rémunérations directes versées au personnel national'], ['663', 'Indemnités forfaitaires versées au personnel'],
+  ['65', 'Autres charges'], ['658', 'Charges diverses'], ['66', 'Charges de personnel'], ['661', 'Rémunérations directes versées au personnel national'], ['663', 'Indemnités forfaitaires versées au personnel'],
   ['664', 'Charges sociales'], ['6641', 'Charges sociales sur rémunérations du personnel national'], ['668', 'Autres charges sociales'],
   ['67', 'Frais financiers et charges assimilées'], ['671', 'Intérêts des emprunts'], ['674', 'Autres intérêts'],
   ['68', 'Dotations aux amortissements'], ['681', 'Dotations aux amortissements d’exploitation'], ['69', 'Dotations aux provisions et aux dépréciations'],
@@ -67,7 +68,7 @@ const SYSCOHADA_ACCOUNTS = [
   ['705', 'Travaux facturés'], ['706', 'Services vendus'], ['707', 'Produits accessoires'], ['707100', 'Frais de dossier et pénalités facturés aux clients'],
   ['71', 'Subventions d’exploitation'], ['72', 'Production immobilisée'],
   ['73', 'Variations des stocks de biens et de services produits'], ['734', 'Variations des stocks de produits en cours'], ['736', 'Variations des stocks de produits finis'],
-  ['75', 'Autres produits'], ['77', 'Revenus financiers et produits assimilés'], ['78', 'Transferts de charges'], ['79', 'Reprises de provisions et dépréciations'],
+  ['75', 'Autres produits'], ['758', 'Produits divers'], ['77', 'Revenus financiers et produits assimilés'], ['78', 'Transferts de charges'], ['79', 'Reprises de provisions et dépréciations'],
   // Classe 8 — Hors activités ordinaires et résultat
   ['81', 'Valeurs comptables des cessions d’immobilisations'], ['82', 'Produits des cessions d’immobilisations'], ['83', 'Charges hors activités ordinaires'],
   ['84', 'Produits hors activités ordinaires'], ['85', 'Dotations hors activités ordinaires'], ['86', 'Reprises hors activités ordinaires'], ['87', 'Participation des travailleurs'],
@@ -118,6 +119,8 @@ const DEFAULT_SETTINGS = {
     // Immobilisations du parc : compte d'actif par sorte de bien, amortissements, dotations, sorties d'actif
     immo_vehicule: '245', immo_engin: '241', immo_materiel: '241', immo_informatique: '244', immo_autre: '241',
     depreciation: '284', depreciation_expense: '681', disposal_value: '81', disposal_income: '82',
+    // Caisse : écart constaté à l'arrêté du soir (comptage des espèces) — manquant en charge, excédent en produit
+    cash_shortage: '658', cash_surplus: '758',
   },
   // Durée d'amortissement linéaire par sorte de bien (années), modifiable sur chaque bien
   depreciation_years: { vehicule: 4, engin: 5, materiel: 5, informatique: 3, autre: 5 },

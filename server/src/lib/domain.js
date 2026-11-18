@@ -433,7 +433,7 @@ const SELF_SERVICE = ['self:conges', 'self:pointage', 'self:frais', 'self:vehicu
 // Actions détaillées des modules de l'ERP (une ligne du catalogue chacune)
 const SAV_ACTIONS = ['sav:all', 'sav:create', 'sav:handle', 'sav:assign', 'sav:reserves', 'sav:interventions'];
 const APPRO_ACTIONS = ['appro:read', 'appro:write', 'appro:validate', 'appro:stock', 'appro:settings'];
-const COMPTA_ACTIONS = ['compta:entries', 'compta:validate', 'achats:write', 'achats:validate', 'achats:pay', 'frais:post', 'compta:close', 'compta:settings', 'compta:export'];
+const COMPTA_ACTIONS = ['caisse:write', 'liasse:read', 'liasse:prepare', 'compta:entries', 'compta:validate', 'achats:write', 'achats:validate', 'achats:pay', 'frais:post', 'compta:close', 'compta:settings', 'compta:export'];
 const PAIE_ACTIONS = ['paie:employees', 'paie:prepare', 'paie:validate', 'paie:pay', 'paie:settings'];
 const COURRIER_ACTIONS = ['courrier:read', 'courrier:write', 'courrier:assign'];
 const CONTRACT_ACTIONS = ['contrats:read', 'contrats:write'];
@@ -648,11 +648,12 @@ const PERMISSION_CATALOG = [
   ] },
   { group: 'ERP · Comptabilité', items: [
     ['compta:read', 'Consulter la comptabilité', 'Écritures, états, trésorerie, achats, tableau de bord'],
+    ['caisse:write', 'Tenir la caisse', 'Point de caisse du jour : entrées et sorties en espèces (avec justificatif), natures des opérations, arrêté du soir avec comptage des espèces ; ouvre la page Caisse sans le reste de la comptabilité', 'Caisse'],
     ['compta:entries', 'Saisir des écritures', 'Écritures manuelles en brouillon, modification et suppression des brouillons', 'Écritures'],
     ['compta:sync', 'Synchroniser les ventes et versements', 'Écritures automatiques des ventes, versements et appels de fonds', 'Écritures'],
     ['compta:import', 'Importer des écritures Sage', 'Journal d’écritures (fichier CSV, TXT ou Excel) : simulation, puis import', 'Écritures'],
     ['compta:assets', 'Immobilisations du parc', 'Compléter la fiche d’immobilisation, passer les dotations aux amortissements, sortir un bien de l’actif', 'Écritures'],
-    ['compta:validate', 'Valider les écritures', 'Numérotation définitive des brouillons', 'Validation'],
+    ['compta:validate', 'Valider les écritures', 'Numérotation définitive des brouillons ; rouvrir le dernier arrêté de caisse', 'Validation'],
     ['compta:reverse', 'Contrepasser une écriture validée', 'Écriture inverse d’une écriture définitive', 'Validation'],
     ['suppliers:write', 'Gérer les fournisseurs', 'Créer et modifier les fournisseurs', 'Achats et fournisseurs'],
     ['achats:write', 'Saisir les achats', 'Factures d’achat en brouillon (modifier, supprimer), cartes carburant', 'Achats et fournisseurs'],
@@ -668,6 +669,8 @@ const PERMISSION_CATALOG = [
     ['compta:plan', 'Plan comptable et journaux', 'Créer et modifier les comptes et les journaux ; importer le plan Sage ; créer les comptes manquants à l’import', 'Paramétrage'],
     ['compta:settings', 'Régler la comptabilité', 'Modes de chiffre d’affaires, TVA, comptes utilisés, jour de clôture, durées d’amortissement, format Sage', 'Paramétrage'],
     ['compta:export', 'Exporter vers Sage', 'Fichier des écritures validées'],
+    ['liasse:read', 'Consulter et produire la liasse fiscale', 'Bilan fiscal DGI (actif, passif, compte de résultat, flux de trésorerie), contrôles, impression et classeur DGI rempli ; ouvre États et export sans le reste de la comptabilité', 'Liasse fiscale'],
+    ['liasse:prepare', 'Préparer la liasse fiscale', 'Fiche d’identification de l’entité, balance N-1 importée, renseignements du tableau des flux de trésorerie', 'Liasse fiscale'],
   ] },
   { group: 'ERP · Paie', items: [
     ['paie:read', 'Consulter la paie', 'Salaires, bulletins, livre de paie, déclarations'],
@@ -1687,6 +1690,7 @@ const INFO_AUDIENCES = {
   dg: { label: 'Direction générale', hint: 'Super administrateur et comptes qui valident en direction (demandes, chantiers)', perms: ['demandes:dg', 'chantiers:stages', 'chantiers:situations'], superAdmin: true },
   exploitation: { label: 'Direction des exploitations', hint: 'Comptes qui ouvrent la Vue Direction', perms: ['direction:read'] },
   compta: { label: 'Comptabilité', hint: 'Comptes qui saisissent les écritures ou les achats', perms: ['compta:entries', 'achats:write', 'achats:validate'], module: 'compta' },
+  caisse: { label: 'Caisse', hint: 'Comptes qui tiennent la caisse (point du soir)', perms: ['caisse:write'], module: 'compta' },
   juridique: { label: 'Juridique', hint: 'Comptes qui gèrent le Juridique', perms: ['juridique:deeds', 'juridique:litigation', 'juridique:guarantees', 'juridique:settings'], module: 'juridique' },
   marketing: { label: 'Marketing & Communication', hint: 'Comptes qui valident les contenus (responsable de la communication)', perms: ['marketing:validate'], module: 'marketing' },
   qhse: { label: 'QHSE', hint: 'Comptes qui valident les contrôles hebdomadaires et les audits (direction des exploitations, ressources humaines, responsable QHSE)', perms: ['qhse:validate'], module: 'qhse' },
@@ -1784,6 +1788,9 @@ const INFO_EVENTS = {
   // Comptabilité
   'import.versements': { module: 'compta', label: 'Versements repris par un import de clients (ancienne plateforme)', audiences: ['compta'], priority: 'action', recipient_hint: 'Les écritures restent à synchroniser.' },
   'compta.a_synchroniser': { module: 'compta', label: 'Opérations commerciales à synchroniser en Comptabilité', audiences: ['compta'], priority: 'action' },
+  'caisse.non_arretee': { module: 'compta', label: 'Journée de caisse avec des mouvements, pas encore arrêtée', audiences: ['caisse'], priority: 'action', recipient_hint: 'Une alerte par jour tant qu’une journée des 7 derniers jours reste à arrêter.' },
+  'caisse.ecart': { module: 'compta', label: 'Écart constaté à l’arrêté de la caisse (manquant ou excédent)', audiences: ['dg', 'compta'], priority: 'urgent' },
+  'caisse.plafond': { module: 'compta', label: 'Caisse au-dessus du plafond d’espèces (réglé dans Comptabilité › Réglages)', audiences: ['caisse', 'compta'], priority: 'action', recipient_hint: 'Une seule alerte par passage au-dessus du plafond ; elle est réarmée quand la caisse redescend.' },
   'tresorerie.seuil': { module: 'compta', label: 'Trésorerie passée sous le seuil d’alerte (réglé dans Comptabilité › Paramètres)', audiences: ['dg', 'compta'], priority: 'urgent', recipient_hint: 'Une seule alerte par passage sous le seuil ; elle est réarmée quand la trésorerie repasse au-dessus.' },
   'paie.validee': { module: 'compta', label: 'Paie du mois validée (écriture de paie passée, salaires à payer)', audiences: ['compta', 'dg'], priority: 'action', requiredPerms: ['paie:read'], recipient_hint: 'Accès à la paie requis (consultation de la paie).' },
   'paie.payee': { module: 'compta', label: 'Salaires du mois payés', audiences: ['compta', 'dg'], requiredPerms: ['paie:read'], recipient_hint: 'Accès à la paie requis (consultation de la paie).' },
@@ -1889,6 +1896,7 @@ const MODULE_SETTINGS = {
   },
   compta: {
     compta_treasury_threshold_fcfa: { group: 'Trésorerie', label: 'Seuil d’alerte de trésorerie (FCFA)', hint: 'Quand le total des comptes de banque, de caisse et de Mobile Money passe sous ce seuil, la Direction générale et la Comptabilité sont prévenues (une seule fois par passage sous le seuil) et la Vue Direction le signale ; 0 désactive l’alerte', default: 5000000, min: 0, max: 100000000000, perm: 'compta:settings', who: 'la Comptabilité' },
+    compta_cash_ceiling_fcfa: { group: 'Caisse', label: 'Plafond d’espèces en caisse (FCFA)', hint: 'Au-dessus de ce montant, la caisse et la Comptabilité sont prévenues (une seule fois par passage au-dessus) pour verser l’excédent en banque ; 0 désactive l’alerte', default: 0, min: 0, max: 100000000000, perm: 'compta:settings', who: 'la Comptabilité' },
   },
   commercial: {
     vefa_due_days: { group: 'Appels de fonds VEFA', label: 'Délai de paiement d’un appel de fonds (jours)', hint: 'Délai laissé à l’acquéreur pour régler un appel de fonds, pour les programmes sans plan VEFA propre (un plan de programme garde son délai)', default: 15, min: 1, max: 90, perm: 'vefa:write', who: 'le responsable des appels de fonds' },

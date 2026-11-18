@@ -138,14 +138,14 @@ async function deleteDraft(trx, entryId) {
 }
 
 /** Contrepassation : écriture inverse (débit ↔ crédit) liée à l'origine, à la date choisie. */
-async function reverseEntry(trx, entryId, { date, userId, validate = false }) {
+async function reverseEntry(trx, entryId, { date, userId, validate = false, reason = null }) {
   const e = await trx('acc_entries').where({ id: entryId }).first();
   if (!e) throw new HttpError(404, 'Écriture introuvable.');
   if (e.status !== 'valide') throw new HttpError(409, 'Seule une écriture validée se contrepasse ; un brouillon se modifie ou se supprime.');
   if (await trx('acc_entries').where({ reversal_of: e.id }).first()) throw new HttpError(409, 'Cette écriture a déjà été contrepassée.');
   const lines = await trx('acc_lines').where({ entry_id: e.id }).orderBy('sort');
   return createEntry(trx, {
-    journal: e.journal_id, date: date || day(new Date()), label: `Contrepassation ${e.number} — ${e.label}`.slice(0, 255), ref: e.number,
+    journal: e.journal_id, date: date || day(new Date()), label: `Contrepassation ${e.number}${reason ? ` (${reason})` : ''} — ${e.label}`.slice(0, 255), ref: e.number,
     source: 'contrepassation', source_key: e.source_key ? `reverse:${e.source_key}` : null, project_id: e.project_id, reversal_of: e.id, userId, validate,
     lines: lines.map(l => ({ account_id: l.account_id, partner_type: l.partner_type, partner_id: l.partner_id, label: l.label, debit: Number(l.credit), credit: Number(l.debit), project_id: l.project_id, lot_id: l.lot_id })),
   });
@@ -159,9 +159,10 @@ async function entryDetail(db, entryId) {
   const lines = await db('acc_lines as l').join('acc_accounts as a', 'a.id', 'l.account_id').leftJoin('projects as p', 'p.id', 'l.project_id')
     .where('l.entry_id', e.id).orderBy('l.sort').select('l.*', 'a.code as account_code', 'a.label as account_label', 'p.name as project_name');
   const names = await partnerNames(db, lines);
-  const reversed = await db('acc_entries').where({ reversal_of: e.id }).first('id', 'number');
+  const reversed = await db('acc_entries').where({ reversal_of: e.id }).first('id', 'number', 'status', 'date');
+  const reverses = e.reversal_of ? await db('acc_entries').where({ id: e.reversal_of }).first('id', 'number', 'status') : null;
   return {
-    ...e, date: day(e.date), reversed_by: reversed || null,
+    ...e, date: day(e.date), reversed_by: reversed ? { ...reversed, date: day(reversed.date) } : null, reverses: reverses || null,
     lines: lines.map(l => ({ ...l, debit: Number(l.debit), credit: Number(l.credit), partner_name: names[`${l.partner_type}:${l.partner_id}`] || null })),
   };
 }
@@ -358,9 +359,10 @@ async function treasuryTick(db, now = new Date()) {
   });
 }
 
-/** Tâche horaire : « N opérations à synchroniser » dans la cloche de la Comptabilité, une fois par jour tant qu'il en reste ; seuil de trésorerie. */
+/** Tâche horaire : « N opérations à synchroniser » dans la cloche de la Comptabilité, une fois par jour tant qu'il en reste ; seuil de trésorerie ; caisse (journées à arrêter, plafond). */
 async function tick(db, now = new Date()) {
   await treasuryTick(db, now).catch(e => console.error('[compta] seuil de trésorerie :', e.message));
+  await require('./caisse').tick(db, now).catch(e => console.error('[caisse]', e.message));
   const n = await pendingSync(db);
   if (!n) return 0;
   return require('./notifications').inform(db, 'compta.a_synchroniser', {

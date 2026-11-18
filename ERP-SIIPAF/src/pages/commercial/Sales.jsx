@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
 import { Link, useSearchParams } from 'react-router-dom';
-import { Search, FileSignature, Plus, Printer } from 'lucide-react';
+import { Search, FileSignature, Plus, Printer, Trash2 } from 'lucide-react';
 import { api, qs } from '@admin/lib/api';
 import { useAuth, useResource, useToast, useSaved } from '@admin/lib/app-context';
 import { usePersistentState } from '@admin/lib/navigation';
@@ -108,6 +108,12 @@ export function SaleDrawer({ id, onClose, onChange }) {
 
   // Comptabilité : enregistre et confirme ; commercial : déclare un versement de son client (à confirmer)
   const confirmer = can('payments:write');
+  // Versement saisi par erreur ou de test (droit « Supprimer un versement ») : dossier, reçu et espace client corrigés
+  // aussitôt ; « Synchroniser » retire ensuite son écriture (brouillon) ou la contrepasse (validée)
+  const removePayment = async p => {
+    if (!window.confirm(`Supprimer le versement de ${fcfa(p.amount_fcfa)} du ${date(p.paid_at)} ?\n\nLe solde du dossier, le reçu et l’espace client sont corrigés. En comptabilité, « Synchroniser » retirera son écriture si elle est en brouillon, ou la contrepassera si elle est validée (contrepassation à valider ensuite).`)) return;
+    try { await api.del(`/admin/payments/${p.id}`); saved('Versement supprimé'); s.reload(); onChange?.(); } catch (err) { toast(err.message, 'err'); }
+  };
   const record = async e => {
     e.preventDefault();
     try {
@@ -251,6 +257,7 @@ export function SaleDrawer({ id, onClose, onChange }) {
                     <span className="row" style={{ gap: 6 }}>
                       <b className="small tabular">{fcfa(p.amount_fcfa)}</b>
                       <Link className="btn btn-sm btn-ghost btn-icon" to={`/compta/recu/${p.id}`} aria-label={`Reçu du versement du ${date(p.paid_at)}`} title="Reçu de versement"><Printer /></Link>
+                      {can('payments:delete') && <button className="btn btn-sm btn-ghost btn-icon btn-danger" onClick={() => removePayment(p)} aria-label={`Supprimer le versement du ${date(p.paid_at)}`} title="Supprimer le versement"><Trash2 /></button>}
                     </span>
                   </li>
                 ))}

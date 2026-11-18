@@ -6,18 +6,22 @@ import { Card, Empty, Skeleton, ErrorBox, Field, Advance } from '@admin/componen
 import { date } from '@admin/lib/format';
 import { useComptaMeta, amt, signed, PeriodPicker, periodQuery, AccountInput, downloadCsv } from '../../lib/compta';
 import { EntryDrawer } from './Entries';
+import Liasse from './Liasse';
 
 const TABS = [
   ['balance', 'Balance'], ['grand-livre', 'Grand livre'], ['resultat', 'Résultat et bilan'], ['tva', 'TVA'],
-  ['marges', 'Marge par programme'], ['tiers', 'Clients et fournisseurs'], ['export', 'Export Sage'],
+  ['marges', 'Marge par programme'], ['tiers', 'Clients et fournisseurs'], ['export', 'Export Sage'], ['liasse', 'Liasse fiscale'],
 ];
 const CLASSES = { 1: 'Ressources durables', 2: 'Actif immobilisé', 3: 'Stocks', 4: 'Tiers', 5: 'Trésorerie', 6: 'Charges', 7: 'Produits', 8: 'Hors activités ordinaires' };
 const monthLabel = m => { const [y, mo] = m.split('-').map(Number); return new Date(y, mo - 1, 1).toLocaleDateString('fr-FR', { month: 'long', year: 'numeric' }); };
 
 export default function Reports() {
+  const { can } = useAuth();
+  // Liasse fiscale : droit à part (Direction générale sans le reste de la comptabilité)
+  const tabs = TABS.filter(([id]) => (id === 'liasse' ? can('liasse:read') : can('compta:read')));
   const { meta } = useComptaMeta();
   const [params, setParams] = useSearchParams();
-  const tab = params.get('onglet') || 'balance';
+  const tab = tabs.some(([id]) => id === params.get('onglet')) ? params.get('onglet') : tabs[0]?.[0];
   const [period, setPeriod] = useState(() => ({ fiscal_year_id: '', from: '', to: '', draft: true }));
   const current = meta?.fiscal_years.find(y => y.status === 'ouvert');
   const p = period.fiscal_year_id || period.from || period.to ? period : { ...period, fiscal_year_id: current?.id || '' };
@@ -26,9 +30,9 @@ export default function Reports() {
   return (
     <div className="stack">
       <div className="tabs" role="tablist">
-        {TABS.map(([id, l]) => <button key={id} role="tab" aria-selected={tab === id} className={`tab ${tab === id ? 'active' : ''}`} onClick={() => setParams({ onglet: id })}>{l}</button>)}
+        {tabs.map(([id, l]) => <button key={id} role="tab" aria-selected={tab === id} className={`tab ${tab === id ? 'active' : ''}`} onClick={() => setParams({ onglet: id })}>{l}</button>)}
       </div>
-      {tab !== 'export' && meta && <PeriodPicker meta={meta} value={p} onChange={setPeriod} />}
+      {tab !== 'export' && tab !== 'liasse' && meta && <PeriodPicker meta={meta} value={p} onChange={setPeriod} />}
       {tab === 'balance' && <Balance q={q} />}
       {tab === 'grand-livre' && <Ledger q={q} />}
       {tab === 'resultat' && <Statements q={q} />}
@@ -36,6 +40,7 @@ export default function Reports() {
       {tab === 'marges' && <Margins q={q} />}
       {tab === 'tiers' && <Partners q={q} />}
       {tab === 'export' && <SageExport />}
+      {tab === 'liasse' && <Liasse />}
     </div>
   );
 }

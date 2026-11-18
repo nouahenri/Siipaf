@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { useSearchParams } from 'react-router-dom';
-import { Plus, Truck, FileText, CheckCheck, Wallet, Pencil, Trash2, Paperclip } from 'lucide-react';
+import { Plus, Truck, FileText, CheckCheck, Wallet, Pencil, Trash2, Paperclip, Tags } from 'lucide-react';
 import { api } from '@admin/lib/api';
 import { useAuth, useResource, useToast, useSaved } from '@admin/lib/app-context';
 import { Card, Empty, Skeleton, ErrorBox, Drawer, Modal, Field, Badge } from '@admin/components/ui';
@@ -10,7 +10,6 @@ import { splitVatClient } from './vat';
 import PlacePicker, { placeLabel, NO_PLACE } from '../../components/PlacePicker';
 import { useChantierRefs } from '../../lib/chantiers';
 
-const KINDS = { fournisseur: 'Fournisseur', sous_traitant: 'Sous-traitant', prestataire: 'Prestataire', notaire: 'Notaire' };
 
 export default function Purchases() {
   const [params, setParams] = useSearchParams();
@@ -230,13 +229,15 @@ function InvoiceForm({ invoice, onClose, onSaved }) {
 function Suppliers() {
   const { can } = useAuth();
   const list = useResource('/admin/erp/compta/suppliers');
+  const kinds = useResource('/admin/erp/compta/supplier-kinds');
   const [edit, setEdit] = useState(null);
+  const [managing, setManaging] = useState(false);
   const rows = list.data || [];
   return (
     <>
       <div className="row-between">
         <span className="small muted">{rows.length} fournisseur(s) · dettes : <b>{fcfa(rows.reduce((t, s) => t + Math.max(0, s.balance), 0))}</b></span>
-        {can('suppliers:write') && <button className="btn btn-primary" onClick={() => setEdit({})}><Plus />Fournisseur</button>}
+        {can('suppliers:write') && <div className="row" style={{ gap: 6 }}><button className="btn" onClick={() => setManaging(true)}><Tags />Types</button><button className="btn btn-primary" onClick={() => setEdit({})}><Plus />Fournisseur</button></div>}
       </div>
       <Card bodyClass="">
         {!list.data ? <div className="card-body"><Skeleton h={200} /></div> : !rows.length ? <div className="card-body"><Empty icon={Truck}>Aucun fournisseur. Ajoutez vos fournisseurs de matériaux, sous-traitants et prestataires (architectes, notaires…).</Empty></div> : (
@@ -246,7 +247,7 @@ function Suppliers() {
               {rows.map(s => (
                 <tr key={s.id} className={can('suppliers:write') ? 'clickable' : ''} onClick={() => can('suppliers:write') && setEdit(s)} style={{ opacity: s.active ? 1 : 0.5 }}>
                   <td><b>{s.name}</b></td>
-                  <td className="small">{KINDS[s.kind]}</td>
+                  <td className="small">{s.kind_label || s.kind}</td>
                   <td className="small">{s.phone || '—'}{s.email && <div className="muted">{s.email}</div>}</td>
                   <td className="small">{s.ncc || '—'}{s.rccm && <div className="muted">{s.rccm}</div>}</td>
                   <td className="small tabular">{s.expense_account || '—'}</td>
@@ -257,13 +258,15 @@ function Suppliers() {
           </table></div>
         )}
       </Card>
-      {edit && <SupplierForm supplier={edit} onClose={() => setEdit(null)} onSaved={() => { setEdit(null); list.reload(); }} />}
+      {edit && <SupplierForm supplier={edit} kinds={kinds} onClose={() => setEdit(null)} onSaved={() => { setEdit(null); list.reload(); }} />}
+      {managing && <SupplierKinds kinds={kinds} onClose={() => { setManaging(false); list.reload(); }} />}
     </>
   );
 }
 
-function SupplierForm({ supplier, onClose, onSaved }) {
+function SupplierForm({ supplier, kinds, onClose, onSaved }) {
   const saved = useSaved();
+  const [newKind, setNewKind] = useState(null);
   const [f, setF] = useState({ name: supplier.name || '', kind: supplier.kind || 'fournisseur', phone: supplier.phone || '', email: supplier.email || '', address: supplier.address || '', ncc: supplier.ncc || '', rccm: supplier.rccm || '', expense_account: supplier.expense_account || '', notes: supplier.notes || '', active: supplier.active ?? true, place: { project_id: supplier.project_id || null, worksite_id: null, place_id: supplier.place_id || null } });
   const [error, setError] = useState(null);
   const set = k => e => setF(x => ({ ...x, [k]: e.target.type === 'checkbox' ? e.target.checked : e.target.value }));
@@ -279,7 +282,22 @@ function SupplierForm({ supplier, onClose, onSaved }) {
       <form id="sup-form" className="form-grid" onSubmit={save}>
         <div className="full"><ErrorBox error={error} /></div>
         <Field label="Nom ou raison sociale" className="full"><input className="input" required minLength={2} value={f.name} onChange={set('name')} autoFocus /></Field>
-        <Field label="Type"><select className="select" value={f.kind} onChange={set('kind')}>{Object.entries(KINDS).map(([k, v]) => <option key={k} value={k}>{v}</option>)}</select></Field>
+        <Field label="Type">
+          {newKind == null ? (
+            <div className="row" style={{ gap: 6 }}>
+              <select className="select" value={f.kind} onChange={e => (e.target.value === '__new' ? setNewKind('') : set('kind')(e))}>
+                {(kinds.data || []).filter(k => k.active || k.code === f.kind).map(k => <option key={k.code} value={k.code}>{k.label}</option>)}
+                <option value="__new">+ Nouveau type…</option>
+              </select>
+            </div>
+          ) : (
+            <div className="row" style={{ gap: 6 }}>
+              <input className="input" autoFocus maxLength={80} value={newKind} onChange={e => setNewKind(e.target.value)} placeholder="Bureau d’études, géomètre…" aria-label="Nouveau type" />
+              <button type="button" className="btn btn-sm" disabled={newKind.trim().length < 2} onClick={async () => { setError(null); try { const k = await api.post('/admin/erp/compta/supplier-kinds', { label: newKind.trim() }); await kinds.reload(); setF(x => ({ ...x, kind: k.code })); setNewKind(null); saved('Type ajouté'); } catch (err) { setError(err); } }}>Ajouter</button>
+              <button type="button" className="btn btn-sm btn-ghost" onClick={() => setNewKind(null)}>Annuler</button>
+            </div>
+          )}
+        </Field>
         <Field label="Compte de charge habituel"><AccountInput value={f.expense_account} onChange={v => setF(x => ({ ...x, expense_account: v }))} classes={[6]} /></Field>
         <Field label="Affectation habituelle" hint="Proposée à la saisie de ses factures"><PlacePicker value={f.place} onChange={v => setF(x => ({ ...x, place: { ...v, worksite_id: null, project_id: v.project_id } }))} empty="Aucune" /></Field>
         <Field label="Téléphone"><input className="input" value={f.phone} onChange={set('phone')} /></Field>
@@ -289,6 +307,36 @@ function SupplierForm({ supplier, onClose, onSaved }) {
         <Field label="Adresse" className="full"><input className="input" value={f.address} onChange={set('address')} /></Field>
         {supplier.id && <label className="checkbox"><input type="checkbox" checked={f.active} onChange={set('active')} />Actif</label>}
       </form>
+    </Modal>
+  );
+}
+
+/** Types de fournisseurs (liste réglable) : renommer, ajouter, désactiver ; les quatre types d'origine se renomment seulement. */
+function SupplierKinds({ kinds, onClose }) {
+  const saved = useSaved();
+  const [label, setLabel] = useState('');
+  const [error, setError] = useState(null);
+  const act = async (fn, msg) => { setError(null); try { await fn(); saved(msg); kinds.reload(); } catch (e) { setError(e); } };
+  return (
+    <Modal title="Types de fournisseurs" onClose={onClose} footer={<button className="btn" onClick={onClose}>Fermer</button>}>
+      <div className="stack" style={{ gap: 12 }}>
+        <ErrorBox error={error} />
+        <p className="small muted">Proposés sur la fiche de chaque fournisseur. Les sous-traitants sont proposés sur les chantiers et les notaires dans les actes : ces types d’origine se renomment mais restent actifs.</p>
+        <div className="table-wrap"><table className="table">
+          <thead><tr><th>Type</th><th className="right">Fournisseurs</th><th /></tr></thead>
+          <tbody>{(kinds.data || []).map(k => (
+            <tr key={k.id} style={{ opacity: k.active ? 1 : 0.5 }}>
+              <td><input className="input" defaultValue={k.label} maxLength={80} onBlur={e => e.target.value.trim() && e.target.value.trim() !== k.label && act(() => api.patch(`/admin/erp/compta/supplier-kinds/${k.id}`, { label: e.target.value.trim() }), 'Type renommé')} aria-label={`Intitulé du type ${k.label}`} /></td>
+              <td className="right tabular small">{k.suppliers}</td>
+              <td className="right">{k.system ? <span className="small muted">d’origine</span> : <button className="btn btn-sm btn-ghost" onClick={() => act(() => api.patch(`/admin/erp/compta/supplier-kinds/${k.id}`, { active: !k.active }), k.active ? 'Type désactivé' : 'Type réactivé')}>{k.active ? 'Désactiver' : 'Réactiver'}</button>}</td>
+            </tr>
+          ))}</tbody>
+        </table></div>
+        <form className="row" style={{ gap: 6 }} onSubmit={e => { e.preventDefault(); act(() => api.post('/admin/erp/compta/supplier-kinds', { label: label.trim() }), 'Type ajouté').then(() => setLabel('')); }}>
+          <input className="input" required minLength={2} maxLength={80} value={label} onChange={e => setLabel(e.target.value)} placeholder="Nouveau type : bureau d’études, géomètre…" aria-label="Nouveau type" />
+          <button className="btn btn-primary"><Plus />Ajouter</button>
+        </form>
+      </div>
     </Modal>
   );
 }

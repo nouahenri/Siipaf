@@ -58,6 +58,8 @@ import ComptaSettings from './pages/compta/Settings';
 import Employees from './pages/compta/Employees';
 import Payroll, { PayrollRun } from './pages/compta/Payroll';
 import Receipt from './pages/compta/Receipt';
+import Caisse, { CaissePrint } from './pages/compta/Caisse';
+import { LiassePrint } from './pages/compta/Liasse';
 import ServiceRequests from './components/ServiceRequests';
 import DisplaySettings from '@admin/components/DisplaySettings';
 import { ReportPage } from './components/Reports';
@@ -156,9 +158,12 @@ function App() {
         <Route path="compta" element={<Guard perm="compta:read"><ComptaDashboard /></Guard>} />
         <Route path="rapports/:module" element={<ReportPage />} />
         <Route path="compta/recu/:id"element={<Guard perm={['sales:read', 'payments:write']}><Receipt /></Guard>} />
+        <Route path="compta/caisse" element={<Guard perm={['compta:read', 'caisse:write']}><Caisse /></Guard>} />
+        <Route path="compta/caisse/brouillard/:date" element={<Guard perm={['compta:read', 'caisse:write']}><CaissePrint /></Guard>} />
         <Route path="compta/ecritures" element={<Guard perm="compta:read"><Entries /></Guard>} />
         <Route path="compta/achats" element={<Guard perm="compta:read"><Purchases /></Guard>} />
-        <Route path="compta/etats" element={<Guard perm="compta:read"><Reports /></Guard>} />
+        <Route path="compta/etats" element={<Guard perm={['compta:read', 'liasse:read']}><Reports /></Guard>} />
+        <Route path="compta/liasse/impression/:fy" element={<Guard perm="liasse:read"><LiassePrint /></Guard>} />
         <Route path="compta/plan" element={<Guard perm="compta:read"><Chart /></Guard>} />
         <Route path="compta/parc" element={<Guard perm="compta:read"><Parc /></Guard>} />
         <Route path="compta/paie" element={<Guard perm="paie:read"><Payroll /></Guard>} />

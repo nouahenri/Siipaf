@@ -1,7 +1,38 @@
 # Passation — Plateforme SIIPAF
 
 > Document de reprise pour continuer le travail dans une nouvelle discussion.
-> **Dernière mise à jour : 17 novembre 2026.**
+> **Dernière mise à jour : 18 novembre 2026.**
+>
+> **18/11 — NON LIVRÉ (commit local, branche non poussée) : Caisse, contrepassation motivée, types de fournisseurs,
+> suppression d'un versement dans l'ERP, liasse fiscale DGI.**
+> - **Caisse** (demande de la trésorière) : ERP › Comptabilité › Caisse (`/compta/caisse`). Solde de la veille, entrées et
+>   sorties du jour, solde du soir, tirés du compte du journal de caisse (571…), brouillons compris ; versements clients en
+>   espèces non synchronisés comptés à part. Saisie Entrée/Sortie par **nature** (liste par défaut, administrable : Réglages
+>   de la Compta et « + Nature » dans la saisie), justificatif privé (`uploads/private/caisse`), sortie refusée si la caisse
+>   deviendrait négative. **Arrêté du soir** : billetage FCFA ou total compté, écart passé en écriture (658 manquant / 758
+>   excédent, comptes réglables), journée verrouillée ; réouverture du dernier arrêté par `compta:validate`. Brouillard
+>   imprimable `/compta/caisse/brouillard/:date`. Droit **`caisse:write` « Tenir la caisse »** (page Caisse sans le reste de
+>   la Compta). Alertes `caisse.non_arretee`, `caisse.ecart` (DG + Compta), `caisse.plafond` (réglage
+>   `compta_cash_ceiling_fcfa`, 0 = off). Migration `20261218000000_caisse` (cash_natures, cash_movements, cash_closings,
+>   comptes 638/6383/6384/658/758). Service `services/caisse.js`, routes `routes/erp/caisse.js`.
+> - **Écritures** : « Contrepasser » ouvre une fenêtre (date, **motif** gardé dans le libellé, « Valider aussitôt » avec
+>   `compta:validate`) ; lien vers la contrepassation (brouillon à valider/supprimer) et vers l'écriture d'origine ; paire
+>   validée + contrepassation validée **masquée par défaut** (case « Afficher les écritures annulées », `hide_cancelled=1`).
+>   Une écriture validée ne s'efface jamais (SYSCOHADA).
+> - **Versement supprimable dans le dossier de vente de l'ERP** (poubelle, droit `payments:delete`) ; « Synchroniser »
+>   retire ou contrepasse ensuite son écriture.
+> - **Types de fournisseurs** administrables : table `supplier_kinds` (migration `20261219000000_types_fournisseurs`), bouton
+>   « Types » et « + Nouveau type… » dans la fiche ; les 4 d'origine se renomment, ne se désactivent pas.
+> - **Liasse fiscale DGI** (SYSCOHADA révisé, système normal) : États et export › onglet « Liasse fiscale ». Bilan actif
+>   (brut, amort., net, N-1), passif, compte de résultat (XA…XI), TFT (renseignements FF…FQ proposés depuis les écritures,
+>   modifiables), contrôles, impression `/compta/liasse/impression/:fy`, **classeur DGI rempli** (`GET
+>   /admin/erp/compta/liasse/:fy/classeur`, `.xlsm` du client dans `server/assets/liasse-dgi-modele.xlsm`, Collage_Balance
+>   N/N-1 + Présentation_Entité + Table_TFT, recalcul à l'ouverture, macros gardées) pour les 39 notes et annexes DGI.
+>   Postes extraits du modèle (`scripts/liasse-extraire-postes.js` → `src/lib/liasse-postes.json`, 75 postes, 983 comptes).
+>   N-1 : exercice précédent dans l'ERP, sinon balance N-1 importée (onglet Préparation), sinon bilan N-1 lu dans les
+>   à-nouveaux. Droits **`liasse:read`** (Compta + comptes `demandes:dg` + super admin) et **`liasse:prepare`** (Compta).
+>   Migration `20261220000000_liasse_fiscale`. **Dépendance ajoutée : `jszip`** ; l'archive de mise en ligne doit contenir
+>   **`server/assets/`** (nouveau dossier).
 >
 > **API / DASHBOARD / ERP EN PRODUCTION : release `45d0c26` (17/11, ~13 h 16 heure serveur)**, demande du client (« mise en
 > ligne »). ERP › Comptabilité : **import Sage** — `06cf9a0` « Reprendre les intitulés de Sage » épargne les comptes du plan

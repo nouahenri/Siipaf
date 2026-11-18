@@ -6,11 +6,12 @@ import { Card, Skeleton, Field, ErrorBox, Badge, Modal } from '@admin/components
 import { date } from '@admin/lib/format';
 import { useComptaMeta, AccountInput, amt } from '../../lib/compta';
 import ModuleSettings from '../ModuleSettings';
+import { CashNatures } from './Caisse';
 
 const ACCOUNT_LABELS = {
   client: 'Clients', client_advance: 'Avances et acomptes reçus des clients', supplier: 'Fournisseurs', supplier_advance: 'Acomptes versés aux fournisseurs (bons de commande)', vat_collected: 'TVA facturée sur ventes',
   vat_deductible: 'TVA récupérable sur achats', sale_housing: 'Ventes de logements', sale_land: 'Ventes de terrains aménagés', expense_default: 'Charge proposée par défaut sur un achat',
-  opening_balance: 'Compte d’attente (reprise)',
+  opening_balance: 'Compte d’attente (reprise)', cash_shortage: 'Caisse : manquant constaté à l’arrêté', cash_surplus: 'Caisse : excédent constaté à l’arrêté',
 };
 // Parc auto et matériel (choix du client du 23/10) : charge de chaque nature de dépense, immobilisations
 const PARC_ACCOUNT_LABELS = {
@@ -35,6 +36,7 @@ export default function Settings() {
         <Rules meta={meta} write={can('compta:settings')} onChange={reload} />
         <Journals meta={meta} write={can('compta:plan')} onChange={reload} />
       </div>
+      <CashNatures />
       <ModuleSettings module="compta" prefs={false} />
     </div>
   );

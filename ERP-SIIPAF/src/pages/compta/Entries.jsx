@@ -23,8 +23,10 @@ export default function Entries() {
   const [importing, setImporting] = useState(false);
   const filters = { journal_id: params.get('journal_id') || '', status: params.get('status') || '', source: params.get('source') || '', from: params.get('from') || '', to: params.get('to') || '' };
   const openId = Number(params.get('e')) || null;
+  // Écritures annulées (validée + contrepassation validée) : masquées par défaut, elles restent dans les états et l'export
+  const showCancelled = params.get('annulees') === '1';
   useEffect(() => { const t = setTimeout(() => { setDebounced(q); setPage(1); }, 300); return () => clearTimeout(t); }, [q]);
-  const list = useResource(`/admin/erp/compta/entries${qs({ ...filters, q: debounced, limit: pageSize, offset: (page - 1) * pageSize })}`);
+  const list = useResource(`/admin/erp/compta/entries${qs({ ...filters, hide_cancelled: showCancelled ? '' : '1', q: debounced, limit: pageSize, offset: (page - 1) * pageSize })}`);
   const set = (k, v) => { const p = new URLSearchParams(params); if (v) p.set(k, v); else p.delete(k); setParams(p); setPage(1); setSelected([]); };
   const rows = list.data?.rows || [];
   const drafts = rows.filter(e => e.status === 'brouillon');
@@ -67,6 +69,7 @@ export default function Entries() {
           </select>
           <input className="input" type="date" style={{ width: 'auto' }} value={filters.from} onChange={e => set('from', e.target.value)} aria-label="Du" />
           <input className="input" type="date" style={{ width: 'auto' }} value={filters.to} onChange={e => set('to', e.target.value)} aria-label="Au" />
+          <label className="checkbox small" title="Écriture validée et sa contrepassation validée : elles se neutralisent et restent dans les journaux, le grand livre et l’export"><input type="checkbox" checked={showCancelled} onChange={e => set('annulees', e.target.checked ? '1' : '')} />Afficher les écritures annulées</label>
         </div>
         <div className="row">
           {/* Versement d'un client : enregistré dans son dossier, puis passé en écriture par « Synchroniser » */}
@@ -106,18 +109,19 @@ export default function Entries() {
           </>
         )}
       </Card>
-      {openId && <EntryDrawer id={openId} onClose={() => set('e', '')} onChange={() => list.reload()} />}
+      {openId && <EntryDrawer id={openId} onClose={() => set('e', '')} onChange={() => list.reload()} onOpen={id => set('e', String(id))} />}
       {importing && <SageImport onClose={() => setImporting(false)} onDone={() => list.reload()} />}
       {creating && <EntryForm onClose={() => setCreating(false)} onSaved={e => { setCreating(false); list.reload(); set('e', String(e.id)); }} />}
     </div>
   );
 }
 
-export function EntryDrawer({ id, onClose, onChange }) {
+export function EntryDrawer({ id, onClose, onChange, onOpen }) {
   const { can } = useAuth();
   const toast = useToast();
   const e = useResource(`/admin/erp/compta/entries/${id}`);
   const [editing, setEditing] = useState(false);
+  const [reversing, setReversing] = useState(false);
   const d = e.data;
   const act = async (fn, msg) => { try { await fn(); toast(msg); e.reload(); onChange?.(); } catch (err) { toast(err.message, 'err'); } };
   const total = k => (d?.lines || []).reduce((t, l) => t + l[k], 0);
@@ -128,7 +132,9 @@ export function EntryDrawer({ id, onClose, onChange }) {
         {d.status === 'brouillon' && can('compta:validate') && <button className="btn btn-primary" onClick={() => act(() => api.post('/admin/erp/compta/entries/validate', { ids: [d.id] }), 'Écriture validée')}><CheckCheck />Valider</button>}
         {d.status === 'brouillon' && can('compta:entries') && <button className="btn" onClick={() => setEditing(true)}>Modifier</button>}
         {d.status === 'brouillon' && can('compta:entries') && <button className="btn btn-ghost btn-danger" onClick={() => window.confirm('Supprimer ce brouillon ?') && act(async () => { await api.del(`/admin/erp/compta/entries/${d.id}`); onClose(); }, 'Brouillon supprimé')}><Trash2 />Supprimer</button>}
-        {d.status === 'valide' && !d.reversed_by && can('compta:reverse') && <button className="btn" onClick={() => window.confirm('Créer l’écriture inverse (contrepassation) à la date du jour ?') && act(() => api.post(`/admin/erp/compta/entries/${d.id}/reverse`, {}), 'Contrepassation créée (brouillon)')}><RotateCcw />Contrepasser</button>}
+        {d.status === 'valide' && !d.reversed_by && can('compta:reverse') && <button className="btn" onClick={() => setReversing(true)}><RotateCcw />Contrepasser</button>}
+        {d.reversed_by && onOpen && <button className="btn" onClick={() => onOpen(d.reversed_by.id)}>{d.reversed_by.status === 'brouillon' ? 'Ouvrir la contrepassation (brouillon)' : 'Voir la contrepassation'}</button>}
+        {d.reverses && onOpen && <button className="btn btn-ghost" onClick={() => onOpen(d.reverses.id)}>Écriture d’origine</button>}
       </div>
     )}>
       {!d ? <Skeleton h={300} /> : (
@@ -143,7 +149,8 @@ export function EntryDrawer({ id, onClose, onChange }) {
             <dt>Date</dt><dd>{date(d.date)}</dd>
             <dt>Libellé</dt><dd>{d.label}</dd>
             {d.ref && <><dt>Pièce</dt><dd>{d.ref}</dd></>}
-            {d.reversed_by && <><dt>Contrepassée par</dt><dd>{d.reversed_by.number || 'brouillon'}</dd></>}
+            {d.reversed_by && <><dt>Contrepassée par</dt><dd>{d.reversed_by.number || 'brouillon à valider'} · {date(d.reversed_by.date)}{d.reversed_by.status === 'valide' && d.status === 'valide' ? ' — écriture annulée' : ''}</dd></>}
+            {d.reverses && <><dt>Contrepassation de</dt><dd>{d.reverses.number || 'brouillon'}</dd></>}
           </dl>
           <div className="table-wrap"><table className="table">
             <thead><tr><th>Compte</th><th>Libellé · tiers · programme</th><th className="right">Débit</th><th className="right">Crédit</th></tr></thead>
@@ -162,7 +169,38 @@ export function EntryDrawer({ id, onClose, onChange }) {
         </div>
       )}
       {editing && d && <EntryForm entry={d} onClose={() => setEditing(false)} onSaved={() => { setEditing(false); e.reload(); onChange?.(); }} />}
+      {reversing && d && <ReverseModal entry={d} onClose={() => setReversing(false)} onDone={() => { setReversing(false); e.reload(); onChange?.(); }} />}
     </Drawer>
+  );
+}
+
+/**
+ * Contrepassation d'une écriture validée (faite par erreur, ou de test) : écriture inverse datée au choix, motif gardé dans
+ * son libellé. Validée aussitôt (droit « Valider les écritures »), les deux écritures se neutralisent : l'écriture est annulée,
+ * masquée de la liste par défaut, mais conservée dans les journaux (une écriture validée ne s'efface jamais).
+ */
+function ReverseModal({ entry, onClose, onDone }) {
+  const { can } = useAuth();
+  const saved = useSaved();
+  const today = new Date().toISOString().slice(0, 10);
+  const [f, setF] = useState({ date: entry.date, reason: '', validate: can('compta:validate') });
+  const [error, setError] = useState(null);
+  const save = async ev => {
+    ev.preventDefault(); setError(null);
+    try { await api.post(`/admin/erp/compta/entries/${entry.id}/reverse`, { date: f.date, reason: f.reason, validate: f.validate }); saved(f.validate ? 'Écriture annulée (contrepassation validée)' : 'Contrepassation créée (brouillon à valider)'); onDone(); } catch (err) { setError(err); }
+  };
+  return (
+    <Modal title={`Contrepasser ${entry.number}`} onClose={onClose} footer={<><button className="btn btn-ghost" type="button" onClick={onClose}>Annuler</button><button className="btn btn-primary" form="reverse-form"><RotateCcw />Contrepasser</button></>}>
+      <form id="reverse-form" className="form-grid" onSubmit={save}>
+        <div className="full"><ErrorBox error={error} /></div>
+        <p className="full small">Une écriture validée ne s’efface pas : on passe l’écriture inverse. À la même date que l’origine, les soldes de la journée (caisse, banque) ne bougent pas.</p>
+        <Field label="Date de la contrepassation" hint={f.date === entry.date ? 'Même date que l’écriture d’origine' : undefined}><input className="input" type="date" required max={today} value={f.date} onChange={e => setF(x => ({ ...x, date: e.target.value }))} /></Field>
+        <Field label="Motif *" hint="Gardé dans le libellé de la contrepassation"><input className="input" required minLength={3} maxLength={120} value={f.reason} onChange={e => setF(x => ({ ...x, reason: e.target.value }))} placeholder="Saisie de test, doublon, erreur de montant…" /></Field>
+        {can('compta:validate')
+          ? <label className="checkbox full"><input type="checkbox" checked={f.validate} onChange={e => setF(x => ({ ...x, validate: e.target.checked }))} />Valider aussitôt : l’écriture est annulée (sinon, brouillon à faire valider)</label>
+          : <p className="full small muted">La contrepassation sera un brouillon : un compte qui valide les écritures la confirmera.</p>}
+      </form>
+    </Modal>
   );
 }
 

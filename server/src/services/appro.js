@@ -94,7 +94,7 @@ async function refs(db) {
   const [art, loc, places, worksites, suppliers, unitsList, accounts, conf, accounting, validators, emitters] = await Promise.all([
     articles(db), locations(db), db('places').where({ active: true }).orderBy('name').select('id', 'name', 'kind'),
     db('worksites').whereNot({ status: 'clos' }).orderBy('reference').select('id', 'reference', 'name', 'project_id'),
-    db('suppliers').where({ active: true }).orderBy('name').select('id', 'name', 'kind', 'expense_account_id'),
+    db('suppliers as s').leftJoin('supplier_kinds as k', 'k.code', 's.kind').where('s.active', true).orderBy('s.name').select('s.id', 's.name', 's.kind', 's.expense_account_id', 'k.label as kind_label'),
     db('worksite_ref_items').where({ kind: 'unite', active: true }).orderBy(['sort', 'label']).select('code', 'label'),
     db('acc_accounts').whereIn('class', [2, 6]).orderBy('code').select('id', 'code', 'label'), settings(db), ct.getSettings(db), approvers(db), issuers(db),
   ]);

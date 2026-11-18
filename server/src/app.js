@@ -121,6 +121,8 @@ function createApp(db) {
   admin.use('/erp/achats', require('./routes/erp/appro')(db));
   admin.use('/erp/lieux', require('./routes/erp/lieux')(db));
   admin.use('/erp/demarrage', require('./routes/erp/onboarding')(db));
+  admin.use('/erp/compta/caisse', require('./routes/erp/caisse')(db));
+  admin.use('/erp/compta/liasse', require('./routes/erp/liasse')(db));
   admin.use('/erp/compta', require('./routes/erp/compta')(db));
   admin.use('/erp/paie', require('./routes/erp/paie')(db));
   admin.use('/erp/rh', require('./routes/erp/rh')(db));

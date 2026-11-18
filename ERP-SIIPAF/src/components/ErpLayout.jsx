@@ -4,7 +4,7 @@ import { MENU, PageTitleContext, matchDetail, useNavigationTrail, BackButton, wi
 import {
   LayoutGrid, LifeBuoy, LayoutDashboard, ClipboardList, ClipboardCheck, CalendarClock, LogOut, Menu, ExternalLink,
   Briefcase, Columns3, ListTodo, CalendarDays, Building2, FileSignature, Landmark, Target,
-  Calculator, BookOpen, ShoppingCart, FileBarChart, ListTree, Settings2, Contact, Banknote,
+  Calculator, BookOpen, ShoppingCart, FileBarChart, ListTree, Settings2, Contact, Banknote, Wallet,
   Users, UserRound, Palmtree, Fingerprint, Receipt, UserPlus, GraduationCap, ShieldCheck, UserCog, Building, Mail, FileClock, Truck, BookOpenCheck, Inbox, Rocket,
   Scale, Stamp, ShieldHalf, AlarmClock, HardHat, MapPinned, Share2, Boxes, PackageCheck, Megaphone, Library, ShieldAlert, SearchCheck, ListChecks, CalendarRange, Bot,
 } from 'lucide-react';
@@ -37,6 +37,8 @@ const DETAILS = [
   [/^\/([a-z]+)\/moi\/dossier\/\d+$/, m => ({ title: 'Fiche employé', parent: { to: `/${m[1]}/moi`, label: 'Mon espace' } })],
   [/^\/compta\/paie\/\d+$/, detail('Paie du mois', '/compta/paie', 'Paie')],
   [/^\/compta\/recu\/\d+$/, detail('Reçu de versement', '/compta/ventes', 'Dossiers de vente')],
+  [/^\/compta\/caisse\/brouillard\/[\d-]+$/, detail('Brouillard de caisse', '/compta/caisse', 'Caisse')],
+  [/^\/compta\/liasse\/impression\/\d+$/, detail('Liasse fiscale', '/compta/etats?onglet=liasse', 'États et export')],
   [/^\/marketing\/campagnes\/\d+$/, detail('Campagne', '/marketing/campagnes', 'Campagnes')],
   [/^\/qhse\/controles\/(nouveau|\d+)$/, m => ({ title: m[1] === 'nouveau' ? 'Contrôle du jour' : 'Contrôle journalier', parent: { to: '/qhse/controles', label: 'Contrôles journaliers' } })],
   [/^\/qhse\/hebdomadaires\/\d+$/, detail('Contrôle hebdomadaire', '/qhse/hebdomadaires', 'Contrôles hebdomadaires')],
@@ -86,16 +88,17 @@ const MODULES = {
     ],
   },
   compta: {
-    label: 'Comptabilité', icon: Calculator, perm: ['compta:read', 'paie:read', 'rh:read'],
+    label: 'Comptabilité', icon: Calculator, perm: ['compta:read', 'caisse:write', 'liasse:read', 'paie:read', 'rh:read'],
     items: [
       { to: '/compta', label: 'Tableau de bord', icon: LayoutDashboard, end: true, perm: 'compta:read' },
+      { to: '/compta/caisse', label: 'Caisse', icon: Wallet, badge: 'cash_to_close', perm: ['compta:read', 'caisse:write'] },
       { to: '/compta/ecritures', label: 'Écritures', icon: BookOpen, badge: 'drafts', perm: 'compta:read' },
       { to: '/compta/achats', label: 'Achats et fournisseurs', icon: ShoppingCart, perm: 'compta:read' },
       { to: '/compta/parc', label: 'Parc auto et matériel', icon: Truck, badge: 'parc_to_validate', perm: 'compta:read' },
       { to: '/compta/ventes', label: 'Dossiers de vente', icon: FileSignature, perm: 'sales:read' },
       { to: '/compta/paie', label: 'Paie', icon: Banknote, perm: 'paie:read' },
       { to: '/compta/employes', label: 'Employés', icon: Contact, perm: ['paie:read', 'rh:read'] },
-      { to: '/compta/etats', label: 'États et export', icon: FileBarChart, perm: 'compta:read' },
+      { to: '/compta/etats', label: 'États et export', icon: FileBarChart, perm: ['compta:read', 'liasse:read'] },
       { to: '/compta/plan', label: 'Plan comptable', icon: ListTree, perm: 'compta:read' },
       { to: '/compta/parametres', label: 'Réglages', icon: Settings2 },
       { to: '/compta/acces', label: 'Rôles et privilèges', icon: ShieldCheck, perm: 'users:read' },
@@ -206,7 +209,7 @@ const TITLES = {
   '/marketing': 'Marketing & Communication', '/marketing/campagnes': 'Campagnes', '/marketing/calendrier': 'Calendrier éditorial', '/marketing/contenus': 'Bibliothèque de contenus', '/marketing/reglages': 'Réglages — Marketing & Communication', '/marketing/acces': 'Rôles et privilèges — Marketing & Communication',
   '/qhse': 'QHSE', '/qhse/controles': 'Contrôles journaliers', '/qhse/controles/nouveau': 'Contrôle du jour', '/qhse/hebdomadaires': 'Contrôles hebdomadaires', '/qhse/audits': 'Inspections et audits', '/qhse/actions': 'Actions correctives', '/qhse/reglages': 'Réglages — QHSE', '/qhse/acces': 'Rôles et privilèges — QHSE',
   '/chantiers/liste': 'Chantiers', '/chantiers/reglages': 'Réglages — Chantiers', '/chantiers/acces': 'Rôles et privilèges — Chantiers',
-  '/compta': 'Comptabilité', '/compta/ecritures': 'Écritures comptables', '/compta/achats': 'Achats et fournisseurs', '/compta/etats': 'États comptables',
+  '/compta': 'Comptabilité', '/compta/ecritures': 'Écritures comptables', '/compta/caisse': 'Caisse', '/compta/achats': 'Achats et fournisseurs', '/compta/etats': 'États comptables',
   '/compta/plan': 'Plan comptable SYSCOHADA', '/compta/parametres': 'Réglages — Comptabilité', '/compta/paie': 'Paie', '/compta/parc': 'Parc auto et matériel — Comptabilité', '/compta/employes': 'Employés', '/rh': 'Ressources humaines', '/rh/moi': 'Mon espace', '/rh/personnel': 'Personnel', '/rh/conges': 'Congés et absences', '/rh/presences': 'Présences', '/rh/borne': 'Borne de pointage', '/rh/frais': 'Notes de frais', '/rh/recrutement': 'Recrutement', '/rh/competences': 'Compétences et formations', '/rh/objectifs': 'Performance et entretiens', '/rh/reglages': 'Réglages — Ressources humaines', '/commercial/acces': 'Rôles et privilèges — Service commercial', '/compta/acces': 'Rôles et privilèges — Comptabilité', '/rh/acces': 'Rôles et privilèges — Ressources humaines', '/sav/acces': 'Rôles et privilèges — Client & SAV', '/comptes': 'Comptes utilisateurs', '/parametres': 'Paramètres', '/sav': 'Client & SAV', '/sav/reclamations': 'Réclamations', '/sav/reserves': 'Réserves de livraison', '/sav/interventions': 'Interventions',
 };
 
