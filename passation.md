@@ -3,7 +3,18 @@
 > Document de reprise pour continuer le travail dans une nouvelle discussion.
 > **Dernière mise à jour : 20 novembre 2026.**
 >
-> **API EN PRODUCTION : release `770eed6` (20/11, ~09 h 07 heure serveur)**, demande du client (« mets en ligne »).
+> **API / ESPACE CLIENT EN PRODUCTION : release `7e2858b` (20/11, ~09 h 40 heure serveur)**, demande du client (« mets en
+> ligne dès que les tests sont terminés »). **Paiement volontaire** (app et web) : bouton « Faire un paiement volontaire »
+> sous le reste à payer, montant libre jusqu'au reste à régler, déclaration sans `schedule_id` ; confirmée, elle s'impute
+> sur les échéances dans l'ordre (règle du serveur). **Espace client web** : fenêtre « Régler » reprise de l'app
+> (`client/src/components/PaySheet.jsx`, logos dans `client/public/logo_payment/`), bouton « Régler » sur chaque échéance.
+> **App** : tuile « Prochaine échéance » cliquable → Paiements avec le détail de l'échéance (`?echeance=<seq>`).
+> Suite **556/556**, vérifié sur la démo (web et aperçu de l'app, client SIIPAF-2026-0029). `livraison-7e2858b.zip`
+> (7 179 661 o, API sha256 `4a9dc2a3…`, client recompilé, admin/ERP inchangés), `DEPLOY_OK 7e2858b`, bundle client
+> `index-CVw21ZMg.js` identique au build. **App (non publiée)** : barre du bas de la vitrine remplacée par une barre
+> dessinée (`components/ui/FabTabs.tsx`), Sita en bouton rond central surélevé ; espace client garde la barre native.
+>
+> **Production précédente : release `770eed6` (20/11, ~09 h 07 heure serveur)**, demande du client (« mets en ligne »).
 > **Lien PayPal** « Règlement SIIPAF » créé (compte PayPal SIIPAF SA) : https://www.paypal.com/ncp/payment/49E8YB9W88H3S,
 > montant libre en EUR (PayPal refuse le XOF), sans adresse de livraison, renseigné dans Admin › Paramètres › Général
 > (`pay_paypal`). **Retour automatique** : URL de redirection PayPal = `https://client.siipaf.com/paiement/retour`
