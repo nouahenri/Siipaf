@@ -1,9 +1,21 @@
 # Passation — Plateforme SIIPAF
 
 > Document de reprise pour continuer le travail dans une nouvelle discussion.
-> **Dernière mise à jour : 18 novembre 2026.**
+> **Dernière mise à jour : 20 novembre 2026.**
 >
-> **API / DASHBOARD / ERP EN PRODUCTION : release `1457f46` (18/11, ~10 h 40 heure serveur)**, demande du client (« mets en
+> **API EN PRODUCTION : release `770eed6` (20/11, ~09 h 07 heure serveur)**, demande du client (« mets en ligne »).
+> **Lien PayPal** « Règlement SIIPAF » créé (compte PayPal SIIPAF SA) : https://www.paypal.com/ncp/payment/49E8YB9W88H3S,
+> montant libre en EUR (PayPal refuse le XOF), sans adresse de livraison, renseigné dans Admin › Paramètres › Général
+> (`pay_paypal`). **Retour automatique** : URL de redirection PayPal = `https://client.siipaf.com/paiement/retour`
+> (`routes/paymentReturn.js`, CSP à nonce) → `siipaf://paiement-retour` (adresse `intent` sur Android, repli espace client) ;
+> dans l'app `+native-intent.tsx` ignore ce lien si l'app est ouverte (fenêtre « Régler » gardée), mène à Paiements après
+> relance ; écran de secours `paiement-retour.tsx`. Wave / Orange / MTN / Moov : pas de retour possible (liens marchands
+> fixes). Suite **556/556**, `livraison-770eed6.zip` (7 105 021 o, API sha256 `1880989b…`), front inchangé (dist de
+> 1457f46), sauvegardes `~/sauvegardes/deploiement-770eed6-20261120-090706/`, `DEPLOY_OK 770eed6`. Dépôt : le formulaire
+> cPanel vide son champ → `Fileman/upload_files` depuis un champ fichier ajouté à la page. **App non publiée** : le retour
+> dans l'app arrive avec la prochaine version (JS seul, pas de prebuild). Branche non poussée.
+>
+> **Production précédente : release `1457f46` (18/11, ~10 h 40 heure serveur)**, demande du client (« mets en
 > ligne quand les tests sont verts »). **Caisse** : les opérations annulées (écriture validée + contrepassation validée,
 > filtre `notCancelled` dans `services/caisse.js`) ne comptent plus — brouillard, solde de la veille, journées récentes,
 > journées à arrêter, plafond ; plus de sortie fantôme le jour d'une contrepassation (cas des versements TEST CLIENT,
