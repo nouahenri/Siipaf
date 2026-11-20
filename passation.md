@@ -3,7 +3,25 @@
 > Document de reprise pour continuer le travail dans une nouvelle discussion.
 > **Dernière mise à jour : 20 novembre 2026.**
 >
-> **API / ESPACE CLIENT EN PRODUCTION : release `7e2858b` (20/11, ~09 h 40 heure serveur)**, demande du client (« mets en
+> **API / DASHBOARD / ERP EN PRODUCTION : release `de5bc14` (20/11, ~10 h 52 heure serveur)**, demande du client (« mets
+> en ligne dès que c'est vert »). **Moyens de paiement** (champs `pay_*`) : super administrateur seul ; une modification
+> devient une proposition (`payment_setting_changes`, migration `20261221000000`) qui ne s'applique aux clients qu'après
+> validation de la DG (droit **`paiements:dg`**, encadré en tête de l'ERP › Vue Direction, refus motivé) ; notifications
+> `moyens_paiement.a_valider` (DG) et `.decision` (auteur) ; choix du client : appliquer après validation, l'auteur peut
+> valider lui-même s'il est DG, périmètre = moyens de paiement seuls. Dashboard : encadré séparé « Moyens de paiement »
+> (« Soumettre à la Direction générale », proposition en attente avec ancien/nouveau, annulation). **Version minimale
+> de l'app** (`app_min_version`, Paramètres › Général, format 1.2.0, vide = jamais imposée) lue par `GET /api/public/app`.
+> **App (non publiée, AAB fait par le client)** : `components/StoreUpdate.tsx` (module `expo-in-app-updates` 0.13, sans
+> prebuild) — Android fenêtre native Google Play (flexible ; immédiate si obligatoire), iPhone alerte + fiche App Store ;
+> proposée une fois par version du store, obligatoire et répétée sous la version minimale ; barre de la vitrine animée
+> (`FabTabs` : rond flottant + encoche qui suivent l'onglet actif, onglet tiré de l'adresse, TabList masquée sous `Tabs`
+> pour la navigation, SVG en pleine largeur). Suite **558/558**, `livraison-de5bc14.zip` (7 185 504 o, API sha256
+> `2216d04c…`), migration appliquée (batch 27), `DEPLOY_OK de5bc14`, bundles admin `index-B1jvtXsb.js` et ERP
+> `index-DPkYpzCM.js` identiques au build. **Non vérifié à l'écran** : encadrés dashboard/ERP (pas d'accès admin de
+> démo dans cette session). **À signaler au client** : liens Orange Money et Moov Money réglés en production pointent
+> vers des pages d'information, pas des liens de paiement marchand.
+>
+> **Production précédente : release `7e2858b` (20/11, ~09 h 40 heure serveur)**, demande du client (« mets en
 > ligne dès que les tests sont terminés »). **Paiement volontaire** (app et web) : bouton « Faire un paiement volontaire »
 > sous le reste à payer, montant libre jusqu'au reste à régler, déclaration sans `schedule_id` ; confirmée, elle s'impute
 > sur les échéances dans l'ordre (règle du serveur). **Espace client web** : fenêtre « Régler » reprise de l'app
