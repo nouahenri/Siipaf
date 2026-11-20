@@ -257,3 +257,15 @@ test('« Régler » depuis l’application : moyens réglés dans le dashboard, 
   assert.match(msgs.body, /Transaction introuvable/);
   assert.equal((await mobile('get', `/api/client/dossiers/${dossier.id}`, tok)).body.declarations[0].status, 'rejete');
 });
+
+test('page de retour d’un paiement PayPal : rouvre l’application, sans script ni style extérieurs ni contenu de la requête', async () => {
+  const r = await request(app).get('/paiement/retour?tx=<script>alert(1)</script>&st=Completed');
+  assert.equal(r.status, 200);
+  assert.match(r.headers['content-type'], /text\/html/);
+  assert.equal(r.headers['cache-control'], 'no-store');
+  assert.match(r.text, /siipaf:\/\/paiement-retour/);
+  assert.match(r.text, /intent:\/\/paiement-retour#Intent;scheme=siipaf;package=com\.siipaf\.com;/);
+  assert.doesNotMatch(r.text, /alert\(1\)/);
+  const nonce = /script-src 'nonce-([^']+)'/.exec(r.headers['content-security-policy'])[1];
+  assert.match(r.text, new RegExp(`<script nonce="${nonce.replace(/[+/=]/g, '\$&')}">`));
+});

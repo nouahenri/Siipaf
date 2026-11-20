@@ -160,6 +160,9 @@ function createApp(db) {
   });
   app.use('/uploads', express.static(uploadsDir, { maxAge: '30d', immutable: true, index: false }));
 
+  // Retour d'un paiement en ligne (PayPal) vers l'application mobile : avant les interfaces compilées
+  app.use(require('./routes/paymentReturn')());
+
   // Interfaces compilées, choisies selon l'adresse : admin.siipaf.com → dashboard (admin/dist),
   // erp.siipaf.com → ERP (ERP-SIIPAF/dist), client.siipaf.com → espace client (client/dist).
   // En local : admin.localhost:4000, erp.localhost:4000 et localhost:4000.

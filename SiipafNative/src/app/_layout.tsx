@@ -94,6 +94,7 @@ function Navigation() {
         <Stack.Screen name="espace-client" options={{ headerShown: false, animation: 'fade' }} />
         <Stack.Screen name="projet/[slug]" options={{ headerShown: false }} />
         <Stack.Screen name="carte/[slug]" options={{ headerShown: false }} />
+        <Stack.Screen name="paiement-retour" options={{ headerShown: false, animation: 'none' }} />
         <Stack.Screen name="parametres" options={{ headerLeft, headerLargeTitle: true, headerLargeTitleShadowVisible: false, headerLargeTitleStyle: { fontFamily: fonts.bold, color: c.ink }, title: t('Paramètres') }} />
         <Stack.Screen name="confidentialite" options={{ headerLeft, title: t('Confidentialité') }} />
         <Stack.Screen name="infos/a-propos" options={{ headerLeft, headerLargeTitle: true, headerLargeTitleShadowVisible: false, headerLargeTitleStyle: { fontFamily: fonts.bold, color: c.ink }, title: t('Qui sommes-nous') }} />
