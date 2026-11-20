@@ -111,6 +111,13 @@ module.exports = function publicRoutes(db) {
    * Paramètres › Listes) des programmes publiés, types de biens cochés dans les fiches, paliers de budget (Paramètres ›
    * Général, en millions FCFA) qui comptent au moins un programme dans la grille de prix. Chaque entrée a son compte.
    */
+  /** Application mobile, à l'ouverture : version minimale exigée (Paramètres › Général ; null = mise à jour jamais imposée). */
+  r.get('/app', ah(async (req, res) => {
+    const settings = await getSettings(db);
+    res.set('Cache-Control', 'public, max-age=300');
+    res.json({ min_version: settings.app_min_version || null });
+  }));
+
   r.get('/filtres', ah(async (req, res) => {
     const projects = await db('projects').where({ published: true }).whereNull('archived_at').select('id', 'city_id', 'location_id', 'category');
     const ids = projects.map(p => p.id);

@@ -3,7 +3,8 @@ const express = require('express');
 const { z } = require('../lib/zod');
 const { ah, parse, idParam, HttpError, json } = require('../lib/http');
 const { requirePermission } = require('../auth');
-const { REF_KINDS, FEATURE_KINDS, VIABILISATION_STATES, APP_SETTINGS, monthChoices, listValues } = require('../lib/domain');
+const { REF_KINDS, FEATURE_KINDS, VIABILISATION_STATES, APP_SETTINGS, PAY_SETTING_KEYS, monthChoices, listValues } = require('../lib/domain');
+const paymentSettings = require('../services/paymentSettings');
 const { syncProjectText, projectsUsing, norm, sameLabel, PROJECT_REF_COLUMNS, stateLabels, defaultStateLabels, STATE_KEYS } = require('../services/refs');
 const { getSettings, saveSettings } = require('../services/settings');
 
@@ -144,22 +145,47 @@ module.exports = function settingsRoutes(db) {
   }));
 
   // ─── Réglages généraux ───────────────────────────────────
-  r.get('/settings', requirePermission('projects:read'), ah(async (req, res) => {
-    res.json({ values: await getSettings(db), fields: APP_SETTINGS });
-  }));
+  // Moyens de paiement (pay_*) : proposition du super administrateur en attente de la direction générale
+  const settingsView = async req => ({
+    values: await getSettings(db), fields: APP_SETTINGS, payment_keys: PAY_SETTING_KEYS,
+    payment_pending: await paymentSettings.pending(db), can_edit_payment: req.user.role === 'super_admin',
+  });
+  r.get('/settings', requirePermission('projects:read'), ah(async (req, res) => res.json(await settingsView(req))));
 
   r.put('/settings', requirePermission('settings:general'), ah(async (req, res) => {
     // Réglage en liste : « 6, 12, 24 » (au moins une valeur valable) ; les autres sont des entiers bornés
     const listOf = (k, f) => z.string().max(200).refine(t => listValues(t, f).length > 0, `${f.label} : au moins une valeur entre ${f.min} et ${f.max} ${f.unit}.`)
       .transform(t => listValues(t, f).join(', '));
-    const shape = Object.fromEntries(Object.entries(APP_SETTINGS).map(([k, f]) => [k, (f.text ? z.string().trim().max(f.max, `${f.label} : ${f.max} caractères au plus.`) : f.list ? listOf(k, f) : z.number().int().min(f.min).max(f.max)).optional()]));
+    // Texte à format imposé (version minimale de l'application) : vide accepté
+    const textOf = f => {
+      const s = z.string().trim().max(f.max, `${f.label} : ${f.max} caractères au plus.`);
+      return f.pattern ? s.refine(t => !t || new RegExp(f.pattern).test(t), `${f.label} : ${f.patternMessage}`) : s;
+    };
+    const shape = Object.fromEntries(Object.entries(APP_SETTINGS).map(([k, f]) => [k, (f.text ? textOf(f) : f.list ? listOf(k, f) : z.number().int().min(f.min).max(f.max)).optional()]));
     const values = parse(z.object(shape), req.body);
     // Le délai par défaut fait partie des délais proposés
     const current = await getSettings(db);
     const months = values.balance_months_default ?? current.balance_months_default;
     const choices = monthChoices(values.balance_months_choices ?? current.balance_months_choices);
     if (!choices.includes(months)) values.balance_months_choices = [...choices, months].sort((a, b) => a - b).join(', ');
-    res.json({ values: await saveSettings(db, values), fields: APP_SETTINGS });
+    // Moyens de paiement : jamais enregistrés directement ; une modification devient une proposition à valider par la DG
+    const pay = Object.fromEntries(PAY_SETTING_KEYS.filter(k => k in values).map(k => [k, values[k]]));
+    for (const k of PAY_SETTING_KEYS) delete values[k];
+    const proposal = await paymentSettings.propose(db, req.user, pay);
+    if (Object.keys(values).length) await saveSettings(db, values);
+    res.json({ ...(await settingsView(req)), payment_submitted: !!proposal });
+  }));
+
+  // Direction générale (ERP › Vue Direction) : proposition en attente, validation ou refus motivé
+  r.get('/settings/paiements/en-attente', requirePermission('paiements:dg'), ah(async (req, res) => res.json(await paymentSettings.pending(db))));
+  r.post('/settings/paiements/:id/valider', requirePermission('paiements:dg'), ah(async (req, res) => res.json(await paymentSettings.decide(db, idParam(req), req.user, { approve: true }))));
+  r.post('/settings/paiements/:id/refuser', requirePermission('paiements:dg'), ah(async (req, res) => {
+    const { reason } = parse(z.object({ reason: z.string().trim().min(3, 'Indiquez le motif du refus.').max(500) }), req.body);
+    res.json(await paymentSettings.decide(db, idParam(req), req.user, { approve: false, reason }));
+  }));
+  r.post('/settings/paiements/:id/annuler', requirePermission('settings:general'), ah(async (req, res) => {
+    await paymentSettings.cancel(db, idParam(req), req.user);
+    res.json(await settingsView(req));
   }));
 
   return r;

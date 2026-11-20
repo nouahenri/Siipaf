@@ -27,6 +27,7 @@ const SETTING_HELP = {
   pay_moov_money_link: 'Lien de paiement marchand Moov Money (prioritaire).',
   pay_moov_money: 'Numéro marchand Moov Money affiché en secours. Lien et numéro vides : moyen non proposé.',
   pay_paypal: 'Lien de paiement PayPal (paypal.me/… ou lien de facture) : le client paie par compte PayPal ou carte Visa. Les paiements déclarés arrivent dans ERP › Comptabilité, versements à confirmer.',
+  app_min_version: 'À l’ouverture, l’application vérifie s’il existe une version plus récente sur Google Play ou l’App Store et la propose (Android : fenêtre de mise à jour de Google Play ; iPhone : fiche App Store). Si la version installée est inférieure à celle-ci (ex. 1.2.0), la mise à jour devient obligatoire et l’application reste bloquée jusqu’à l’installation. Vide : toujours proposée, jamais imposée.',
   budget_tiers: 'Menu « Budget » de la recherche de l’application mobile, en millions de FCFA, séparés par des virgules. « 10, 25, 50, 100 » propose : moins de 10 M, 10 à 25 M, 25 à 50 M, 50 à 100 M, plus de 100 M. Un palier sans programme n’est pas affiché.',
 };
 const HELP = {
@@ -272,37 +273,102 @@ function StateLabels({ kind, meta, editable, reload }) {
 }
 
 function General({ editable }) {
-  const toast = useToast();
   const saved = useSaved();
   const settings = useResource('/admin/settings');
   const [values, setValues] = useState(null);
   const [error, setError] = useState(null);
   if (settings.loading && !settings.data) return <Skeleton h={160} />;
   if (settings.error) return <ErrorBox error={settings.error} />;
-  const v = values || settings.data.values;
+  const data = settings.data;
+  const payKeys = data.payment_keys || [];
+  const v = values || data.values;
+  const general = Object.entries(data.fields).filter(([k]) => !payKeys.includes(k));
+  // Réglage en liste ou texte envoyé tel quel, les autres en nombre
+  const bodyOf = keys => Object.fromEntries(keys.map(k => [k, data.fields[k]?.list || data.fields[k]?.text ? String(v[k] ?? '') : Number(v[k])]));
   const save = async () => {
     setError(null);
     try {
-      // Réglage en liste (délais de solde proposés) envoyé tel quel, les autres en nombre
-      const body = Object.fromEntries(Object.entries(v).map(([k, x]) => [k, settings.data.fields[k]?.list || settings.data.fields[k]?.text ? String(x ?? '') : Number(x)]));
-      await api.put('/admin/settings', body);
+      await api.put('/admin/settings', bodyOf(general.map(([k]) => k)));
       saved('Réglages enregistrés');
       setValues(null); settings.reload();
     } catch (e) { setError(e); }
   };
   return (
-    <Card title="Réglages généraux" actions={editable && <button className="btn btn-primary btn-sm" onClick={save} disabled={!values}>Enregistrer</button>}>
+    <>
+      <Card title="Réglages généraux" actions={editable && <button className="btn btn-primary btn-sm" onClick={save} disabled={!values || !general.some(([k]) => v[k] !== data.values[k])}>Enregistrer</button>}>
+        <ErrorBox error={error} />
+        <fieldset disabled={!editable} style={{ border: 'none' }} className="form-grid">
+          {general.map(([k, f]) => <SettingField key={k} k={k} f={f} v={v} setValues={setValues} />)}
+        </fieldset>
+      </Card>
+      <PaymentSettings data={data} reload={settings.reload} />
+    </>
+  );
+}
+
+function SettingField({ k, f, v, setValues }) {
+  return (
+    <Field label={f.label} hint={SETTING_HELP[k] || null}>
+      {f.text
+        ? <input className="input" value={v[k] ?? ''} maxLength={f.max} onChange={e => setValues({ ...v, [k]: e.target.value })} placeholder={k === 'pay_paypal' ? 'https://paypal.me/…' : k === 'app_min_version' ? 'Ex. : 1.2.0 (vide = jamais imposée)' : k.endsWith('_link') ? 'https://…' : 'Numéro marchand'} />
+        : f.list
+        ? <input className="input tabular" value={v[k] ?? ''} onChange={e => setValues({ ...v, [k]: e.target.value })} placeholder={k === 'budget_tiers' ? '10, 25, 50, 100' : '6, 12, 24, 36'} />
+        : <input className="input" type="number" min={f.min} max={f.max} value={v[k] ?? ''} onChange={e => setValues({ ...v, [k]: e.target.value })} />}
+    </Field>
+  );
+}
+
+/**
+ * Moyens de paiement de l'application et de l'espace client : le super administrateur seul propose un changement,
+ * qui ne s'applique aux clients qu'après validation de la direction générale (ERP › Vue Direction).
+ */
+function PaymentSettings({ data, reload }) {
+  const saved = useSaved();
+  const [values, setValues] = useState(null);
+  const [error, setError] = useState(null);
+  const [busy, setBusy] = useState(false);
+  const payKeys = data.payment_keys || [];
+  const v = values || data.values;
+  const pending = data.payment_pending;
+  const editable = !!data.can_edit_payment;
+  const changed = payKeys.some(k => String(v[k] ?? '') !== String(data.values[k] ?? ''));
+  const submit = async () => {
+    setError(null); setBusy(true);
+    try {
+      await api.put('/admin/settings', Object.fromEntries(payKeys.map(k => [k, String(v[k] ?? '')])));
+      saved('Proposition envoyée à la Direction générale');
+      setValues(null); reload();
+    } catch (e) { setError(e); }
+    setBusy(false);
+  };
+  const cancel = async () => {
+    if (!window.confirm('Annuler la proposition en attente ? Les moyens de paiement actuels restent en vigueur.')) return;
+    setError(null);
+    try { await api.post(`/admin/settings/paiements/${pending.id}/annuler`); saved('Proposition annulée'); reload(); } catch (e) { setError(e); }
+  };
+  return (
+    <Card title="Moyens de paiement (application et espace client)" style={{ marginTop: 16 }}
+      actions={editable && <button className="btn btn-primary btn-sm" onClick={submit} disabled={!changed || busy}>Soumettre à la Direction générale</button>}>
       <ErrorBox error={error} />
+      <p className="hint" style={{ marginBottom: 12 }}>
+        {editable ? 'Seul le super administrateur modifie ces champs. Le changement est soumis à la Direction générale (ERP › Vue Direction) : les clients gardent les moyens actuels jusqu’à sa validation.'
+          : 'Modifiables par le super administrateur seul, après validation de la Direction générale.'}
+      </p>
+      {pending && (
+        <div className="alert-info" style={{ flexDirection: 'column', alignItems: 'stretch', padding: 12, borderRadius: 8, marginBottom: 16 }}>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
+            <strong><Badge tone="warn">En attente de validation</Badge> Proposée par {pending.requested_by_name || '—'}</strong>
+            {editable && <button className="btn btn-ghost btn-sm" onClick={cancel}>Annuler la proposition</button>}
+          </div>
+          <table className="table table-compact" style={{ marginTop: 8 }}>
+            <thead><tr><th>Champ</th><th>Actuel</th><th>Proposé</th></tr></thead>
+            <tbody>{pending.changes.map(c => <tr key={c.key}><td>{c.label}</td><td style={{ wordBreak: 'break-all' }}>{c.before || <em>vide</em>}</td><td style={{ wordBreak: 'break-all' }}><strong>{c.after || <em>vide</em>}</strong></td></tr>)}</tbody>
+          </table>
+          {editable && <span className="hint" style={{ marginTop: 6 }}>Une nouvelle proposition remplace celle-ci.</span>}
+        </div>
+      )}
       <fieldset disabled={!editable} style={{ border: 'none' }} className="form-grid">
-        {Object.entries(settings.data.fields).map(([k, f]) => (
-          <Field key={k} label={f.label} hint={SETTING_HELP[k] || null}>
-            {f.text
-              ? <input className="input" value={v[k] ?? ''} maxLength={f.max} onChange={e => setValues({ ...v, [k]: e.target.value })} placeholder={k === 'pay_paypal' ? 'https://paypal.me/…' : k.endsWith('_link') ? 'https://…' : 'Numéro marchand'} />
-              : f.list
-              ? <input className="input tabular" value={v[k] ?? ''} onChange={e => setValues({ ...v, [k]: e.target.value })} placeholder={k === 'budget_tiers' ? '10, 25, 50, 100' : '6, 12, 24, 36'} />
-              : <input className="input" type="number" min={f.min} max={f.max} value={v[k] ?? ''} onChange={e => setValues({ ...v, [k]: e.target.value })} />}
-          </Field>
-        ))}
+        {payKeys.map(k => <SettingField key={k} k={k} f={data.fields[k]} v={v} setValues={setValues} />)}
       </fieldset>
     </Card>
   );

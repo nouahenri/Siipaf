@@ -153,7 +153,13 @@ const APP_SETTINGS = {
   pay_moov_money_link: { label: 'Moov Money : lien de paiement marchand', text: true, max: 300 },
   pay_moov_money: { label: 'Moov Money : numéro marchand (secours)', text: true, max: 60 },
   pay_paypal: { label: 'Paiement PayPal / carte Visa : lien de paiement (paypal.me…)', text: true, max: 300 },
+  // Application mobile, à l'ouverture : en dessous de cette version (« 1.2.0 »), la mise à jour du store est obligatoire ;
+  // vide = toujours proposée, jamais imposée (GET /api/public/app)
+  app_min_version: { label: 'Application mobile : version minimale exigée', text: true, max: 20, pattern: '^\\d{1,4}(\\.\\d{1,4}){0,2}$', patternMessage: 'Version de la forme 1.2.0.' },
 };
+
+/** Champs des moyens de paiement : modifiables par le super administrateur seul, appliqués après validation de la DG. */
+const PAY_SETTING_KEYS = Object.keys(APP_SETTINGS).filter(k => k.startsWith('pay_'));
 
 /** Moyens du bouton « Régler » de l'application : réglage du dashboard et mode de versement retenu par la Comptabilité. */
 const CLIENT_PAY_CHANNELS = {
@@ -745,6 +751,7 @@ const PERMISSION_CATALOG = [
     ['lieux:write', 'Gérer les lieux (siège, bureaux, dépôts)', 'Liste des lieux hors programmes, choisis comme imputation des achats, dépenses, frais, pointages et contrats ; axe analytique de la Comptabilité'],
     ['circuit:write', 'Régler le circuit d’information', 'Services prévenus pour chaque événement (Administration générale › Circuit d’information)'],
     ['demandes:dg', 'Valider en direction générale', 'Demandes d’achat dont le montant atteint le plafond réglé dans Paramètres › Général'],
+    ['paiements:dg', 'Valider les moyens de paiement', 'Changements des moyens de paiement de l’application et de l’espace client (Paramètres › Général), proposés par le super administrateur : ils ne s’appliquent qu’après cette validation (ERP › Vue Direction)'],
   ] },
   { group: 'ERP · Juridique', items: [
     ['juridique:read', 'Consulter le Juridique', 'Circuit des ventes jusqu’à l’acte, litiges, cautions et retenues de garantie, impayés transmis'],
@@ -1687,7 +1694,7 @@ function deliveryDelay(promised, forecast, deliveredAt = null) {
 const INFO_AUDIENCES = {
   commercial_resp: { label: 'Responsables commerciaux', hint: 'Comptes qui attribuent les prospects et valident les transferts', perms: ['leads:assign', 'leads:transfer_decide'], module: 'commercial' },
   achats: { label: 'Achats & stocks', hint: 'Comptes qui préparent les achats, valident les commandes ou gèrent les stocks', perms: ['appro:locations', 'appro:needs', 'appro:quotes', 'appro:orders', 'appro:validate', 'appro:direction', 'appro:stock', 'appro:receive', 'appro:minimum'], module: 'achats' },
-  dg: { label: 'Direction générale', hint: 'Super administrateur et comptes qui valident en direction (demandes, chantiers)', perms: ['demandes:dg', 'chantiers:stages', 'chantiers:situations'], superAdmin: true },
+  dg: { label: 'Direction générale', hint: 'Super administrateur et comptes qui valident en direction (demandes, chantiers)', perms: ['demandes:dg', 'paiements:dg', 'chantiers:stages', 'chantiers:situations'], superAdmin: true },
   exploitation: { label: 'Direction des exploitations', hint: 'Comptes qui ouvrent la Vue Direction', perms: ['direction:read'] },
   compta: { label: 'Comptabilité', hint: 'Comptes qui saisissent les écritures ou les achats', perms: ['compta:entries', 'achats:write', 'achats:validate'], module: 'compta' },
   caisse: { label: 'Caisse', hint: 'Comptes qui tiennent la caisse (point du soir)', perms: ['caisse:write'], module: 'compta' },
@@ -1829,6 +1836,8 @@ const INFO_EVENTS = {
   'depart.dossiers': { module: 'rh', label: 'Départ d’un employé : dossiers à réaffecter', audiences: [], priority: 'action', recipient_hint: 'La Direction et les comptes RH sont prévenus.' },
   'depart.portefeuille': { module: 'commercial', label: 'Départ d’un commercial : prospects, clients ou activités à réattribuer', audiences: ['commercial_resp'], priority: 'action' },
   'demande.responsable': { module: 'administration', label: 'Demande interne à valider par le responsable direct', audiences: [], priority: 'action', recipient_hint: 'Le responsable direct du demandeur est prévenu.' },
+  'moyens_paiement.a_valider': { module: 'administration', label: 'Moyens de paiement modifiés par le super administrateur, à valider par la Direction générale', audiences: ['dg'], priority: 'action', requiredPerms: ['paiements:dg'], recipient_hint: 'Droit « Valider les moyens de paiement » requis. Le super administrateur est prévenu de la décision.' },
+  'moyens_paiement.decision': { module: 'administration', label: 'Décision sur un changement des moyens de paiement (l’auteur est prévenu)', audiences: [] },
   'demande.dg': { module: 'administration', label: 'Achat interne à valider par la Direction générale', audiences: [], priority: 'action', recipient_hint: 'Les comptes qui valident pour la Direction sont prévenus.' },
   'demande.service': { module: 'administration', label: 'Demande interne adressée à un service', audiences: [], priority: 'action', recipient_hint: 'Les comptes du service destinataire sont prévenus.' },
   'demande.sg': { module: 'administration', label: 'Demande interne à traiter par les services généraux', audiences: [], priority: 'action', recipient_hint: 'Les comptes qui traitent les demandes sont prévenus.' },
@@ -2080,7 +2089,7 @@ module.exports = {
   LOTISSEMENT_STAGES, LOTISSEMENT_STAGE_LABELS, ALL_SITE_STAGES, siteStagesFor, siteStageLabel, siteStageIndex, siteStageError,
   MESSAGE_SENDERS, CLIENT_PASSWORD_MIN, CLIENT_RESET_HOURS, CLIENT_VISIBLE_SALE_STATUSES,
   addMonths, buildSchedule, allocatePayments, phoneKey, looksLikeClientCode, PROTECTED_ROLES, DELETABLE_LOT_STATUSES, NEW_LOT_STATUSES, PROJECT_CATEGORIES,
-  REF_KINDS, FEATURE_KINDS, SITE_FIGURE_ICONS, siteFigures, VIABILISATION_STATES, APP_SETTINGS, THEMES, categoryForProjectType, monthChoices, listValues, paymentTerms, monthlyFor,
+  REF_KINDS, FEATURE_KINDS, SITE_FIGURE_ICONS, siteFigures, VIABILISATION_STATES, APP_SETTINGS, PAY_SETTING_KEYS, THEMES, categoryForProjectType, monthChoices, listValues, paymentTerms, monthlyFor,
   offerSurface, gridOfferFor, GRID_PRICED_STATUSES,
   SAV_CATEGORIES, SAV_PRIORITIES, SAV_STATUSES, SAV_STATUS_LABELS, SAV_OPEN_STATUSES, SAV_TRANSITIONS, SAV_SOURCES,
   WARRANTIES, warrantyFor, warrantyDates, SAV_LAND_CATEGORIES, SAV_RESERVE_STATUSES, SAV_INTERVENTION_STATUSES,

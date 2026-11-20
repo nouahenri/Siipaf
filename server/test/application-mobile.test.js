@@ -5,7 +5,7 @@
 const { test, before, after } = require('node:test');
 const assert = require('node:assert/strict');
 const jwt = require('jsonwebtoken');
-const { setup, login, request } = require('./helpers');
+const { setup, login, createUser, request } = require('./helpers');
 const push = require('../src/services/push');
 
 let db, app, admin, lead, password;
@@ -37,6 +37,13 @@ after(async () => {
 });
 
 let token;
+
+/** Moyens de paiement : proposés par le super administrateur, puis validés (le super administrateur peut valider). */
+async function setPay(values) {
+  const saved = ok(await admin.put('/api/admin/settings').send(values));
+  assert.ok(saved.payment_pending, 'proposition en attente');
+  ok(await admin.post(`/api/admin/settings/paiements/${saved.payment_pending.id}/valider`));
+}
 
 test('connexion depuis l’application : jeton de 30 jours dans la réponse, sans cookie', async () => {
   const web = await request(app).post('/api/client/login').send({ login: lead.client_code, password });
@@ -220,12 +227,11 @@ test('« Régler » depuis l’application : moyens réglés dans le dashboard, 
   const tok = (await mobile('post', '/api/client/login').send({ login: lead.client_code, password: 'MotDePasseMobile-2026' })).body.token;
   assert.ok(tok);
   assert.deepEqual((await mobile('get', '/api/client/payer', tok)).body, [], 'aucun moyen tant que rien n’est réglé');
-  const saved = await admin.put('/api/admin/settings').send({ pay_wave: '07 00 00 00 01', pay_paypal: 'https://paypal.me/siipaf' });
-  assert.equal(saved.status, 200, JSON.stringify(saved.body));
+  await setPay({ pay_wave: '07 00 00 00 01', pay_paypal: 'https://paypal.me/siipaf' });
   const channels = (await mobile('get', '/api/client/payer', tok)).body;
   assert.deepEqual(channels.map(c => [c.key, c.link, c.number]), [['wave', null, '07 00 00 00 01'], ['paypal', 'https://paypal.me/siipaf', null]]);
   // Lien marchand Wave : prioritaire, le numéro reste en secours ; une valeur qui n'est pas une adresse est ignorée
-  ok(await admin.put('/api/admin/settings').send({ pay_wave_link: 'https://pay.wave.com/m/M_ci_test/c/ci/', pay_orange_money_link: 'pas un lien' }));
+  await setPay({ pay_wave_link: 'https://pay.wave.com/m/M_ci_test/c/ci/', pay_orange_money_link: 'pas un lien' });
   const wave = (await mobile('get', '/api/client/payer', tok)).body.find(c => c.key === 'wave');
   assert.deepEqual([wave.link, wave.number], ['https://pay.wave.com/m/M_ci_test/c/ci/', '07 00 00 00 01']);
   assert.equal((await mobile('get', '/api/client/payer', tok)).body.some(c => c.key === 'orange_money'), false);
@@ -278,5 +284,43 @@ test('page de retour d’un paiement PayPal : rouvre l’application, sans scrip
   assert.match(r.text, /intent:\/\/paiement-retour#Intent;scheme=siipaf;package=com\.siipaf\.com;/);
   assert.doesNotMatch(r.text, /alert\(1\)/);
   const nonce = /script-src 'nonce-([^']+)'/.exec(r.headers['content-security-policy'])[1];
-  assert.match(r.text, new RegExp(`<script nonce="${nonce.replace(/[+/=]/g, '\$&')}">`));
+  assert.ok(r.text.includes(`<script nonce="${nonce}">`), 'script autorisé par le nonce de l’en-tête');
+});
+
+test('nouvelle version de l’application : version minimale réglée au dashboard, lue à l’ouverture', async () => {
+  assert.deepEqual(ok(await request(app).get('/api/public/app')), { min_version: null }, 'vide : mise à jour jamais imposée');
+  assert.equal((await admin.put('/api/admin/settings').send({ app_min_version: 'v2' })).status, 400, 'format refusé');
+  ok(await admin.put('/api/admin/settings').send({ app_min_version: ' 1.2.0 ' }));
+  assert.deepEqual(ok(await request(app).get('/api/public/app')), { min_version: '1.2.0' });
+  ok(await admin.put('/api/admin/settings').send({ app_min_version: '' }));
+  assert.equal(ok(await request(app).get('/api/public/app')).min_version, null);
+});
+
+test('moyens de paiement : proposés par le super administrateur, appliqués aux clients seulement après validation de la DG', async () => {
+  const tok = (await mobile('post', '/api/client/login').send({ login: lead.client_code, password: 'MotDePasseMobile-2026' })).body.token;
+  const wave = async () => (await mobile('get', '/api/client/payer', tok)).body.find(c => c.key === 'wave');
+  const current = (await wave())?.number;
+  // Proposition : enregistrée à valider, les clients gardent l'ancien numéro ; les autres réglages s'enregistrent normalement
+  const saved = ok(await admin.put('/api/admin/settings').send({ pay_wave: '07 99 99 99 99', option_days_default: 9 }));
+  assert.equal(saved.payment_submitted, true);
+  assert.equal(saved.values.option_days_default, 9);
+  assert.deepEqual(saved.payment_pending.changes.map(c => [c.key, c.before, c.after]), [['pay_wave', current || '', '07 99 99 99 99']]);
+  assert.equal((await wave())?.number, current, 'pas appliqué avant validation');
+  // Sans le droit « Valider les moyens de paiement » : refusé
+  const PWD = 'motdepasse-test-123';
+  const comptable = await login(app, await createUser(db, 'comptable', 'compta.paiements@test.ci'), PWD);
+  assert.equal((await comptable.post(`/api/admin/settings/paiements/${saved.payment_pending.id}/valider`)).status, 403);
+  // Refus : motif obligatoire, rien n'est appliqué
+  assert.equal((await admin.post(`/api/admin/settings/paiements/${saved.payment_pending.id}/refuser`).send({ reason: '' })).status, 400);
+  const refused = ok(await admin.post(`/api/admin/settings/paiements/${saved.payment_pending.id}/refuser`).send({ reason: 'Numéro inconnu de Wave' }));
+  assert.equal(refused.status, 'refusee');
+  assert.equal((await wave())?.number, current);
+  assert.equal(ok(await admin.get('/api/admin/settings/paiements/en-attente')), null);
+  // Nouvelle proposition validée : appliquée ; déjà traitée : 409
+  const again = ok(await admin.put('/api/admin/settings').send({ pay_wave: '07 88 88 88 88' }));
+  ok(await admin.post(`/api/admin/settings/paiements/${again.payment_pending.id}/valider`));
+  assert.equal((await wave()).number, '07 88 88 88 88');
+  assert.equal((await admin.post(`/api/admin/settings/paiements/${again.payment_pending.id}/valider`)).status, 409);
+  // Valeurs inchangées renvoyées par le formulaire : aucune proposition
+  assert.equal(ok(await admin.put('/api/admin/settings').send({ pay_wave: '07 88 88 88 88' })).payment_submitted, false);
 });

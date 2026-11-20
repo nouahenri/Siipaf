@@ -9,7 +9,8 @@ import {
 } from 'lucide-react';
 import { useState } from 'react';
 import { Link } from 'react-router-dom';
-import { useResource } from '@admin/lib/app-context';
+import { useAuth, useResource, useSaved } from '@admin/lib/app-context';
+import { api } from '@admin/lib/api';
 import PeriodPicker, { thisYear, yearPeriod, periodQuery, periodName } from '../../components/PeriodPicker';
 import { Card, Skeleton, Empty, ErrorBox, Advance, Badge } from '@admin/components/ui';
 import { LineChart } from '@admin/components/Charts';
@@ -65,6 +66,57 @@ function Section({ icon: Icon, title, to, children }) {
   );
 }
 
+/**
+ * Moyens de paiement proposés par le super administrateur (Paramètres › Général du dashboard) : la direction générale
+ * valide ou refuse (motif obligatoire). Les clients gardent les moyens en vigueur jusqu'à la validation.
+ */
+function PaymentApproval() {
+  const { can } = useAuth();
+  const saved = useSaved();
+  const allowed = can('paiements:dg');
+  const res = useResource(allowed ? '/admin/settings/paiements/en-attente' : null);
+  const [error, setError] = useState(null);
+  const [refusing, setRefusing] = useState(false);
+  const [reason, setReason] = useState('');
+  const [busy, setBusy] = useState(false);
+  const p = res.data;
+  if (!allowed || !p) return null;
+  const act = async (path, body, msg) => {
+    setError(null); setBusy(true);
+    try { await api.post(`/admin/settings/paiements/${p.id}/${path}`, body); saved(msg); setRefusing(false); setReason(''); res.reload(); } catch (e) { setError(e); }
+    setBusy(false);
+  };
+  return (
+    <Card title={<span><Wallet aria-hidden="true" width={16} style={{ verticalAlign: '-3px', marginRight: 6 }} />Moyens de paiement à valider</span>}
+      actions={<Badge tone="warn">En attente</Badge>}>
+      <ErrorBox error={error} />
+      <p className="muted" style={{ marginBottom: 10 }}>
+        Proposé par <strong>{p.requested_by_name || '—'}</strong> le {dateTime(p.created_at)}. Les clients (application et espace client) gardent les moyens actuels jusqu’à votre validation.
+      </p>
+      <div className="table-wrap" style={{ maxHeight: 'none' }}>
+        <table className="table table-compact">
+          <thead><tr><th>Champ</th><th>Actuel</th><th>Proposé</th></tr></thead>
+          <tbody>{p.changes.map(c => (
+            <tr key={c.key}><td>{c.label}</td><td style={{ wordBreak: 'break-all' }}>{c.before || <em className="muted">vide</em>}</td><td style={{ wordBreak: 'break-all' }}><strong>{c.after || <em className="muted">vide (moyen retiré)</em>}</strong></td></tr>
+          ))}</tbody>
+        </table>
+      </div>
+      {refusing ? (
+        <div style={{ display: 'flex', gap: 8, marginTop: 12, flexWrap: 'wrap', alignItems: 'flex-start' }}>
+          <textarea className="input" rows={2} style={{ flex: 1, minWidth: 220 }} placeholder="Motif du refus (transmis au super administrateur)" value={reason} onChange={e => setReason(e.target.value)} maxLength={500} autoFocus />
+          <button className="btn btn-danger btn-sm" disabled={busy || reason.trim().length < 3} onClick={() => act('refuser', { reason: reason.trim() }, 'Proposition refusée')}>Confirmer le refus</button>
+          <button className="btn btn-ghost btn-sm" onClick={() => { setRefusing(false); setReason(''); }}>Annuler</button>
+        </div>
+      ) : (
+        <div style={{ display: 'flex', gap: 8, marginTop: 12, flexWrap: 'wrap' }}>
+          <button className="btn btn-primary btn-sm" disabled={busy} onClick={() => act('valider', {}, 'Moyens de paiement validés : appliqués aux clients')}>Valider et appliquer</button>
+          <button className="btn btn-ghost btn-sm" disabled={busy} onClick={() => setRefusing(true)}>Refuser</button>
+        </div>
+      )}
+    </Card>
+  );
+}
+
 export default function Direction() {
   const res = useResource('/admin/erp/direction/overview');
   const d = res.data;
@@ -77,6 +129,7 @@ export default function Direction() {
 
   return (
     <div className="stack">
+      <PaymentApproval />
       <p className="muted">Situation au {dateTime(d.at)} — chiffres calculés par chaque module, en temps réel.</p>
       <div className="grid grid-4">
         <Kpi icon={Banknote} label="CA signé depuis janvier" count={c.ytd.ca_fcfa} format={money} foot={`${num(c.ytd.ventes)} ventes`} tint="blue" />

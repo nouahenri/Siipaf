@@ -18,6 +18,7 @@ import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import { KeyboardProvider } from 'react-native-keyboard-controller';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 import { AnimatedSplash } from '@/components/AnimatedSplash';
+import { StoreUpdate } from '@/components/StoreUpdate';
 import { SCREENS, syncDevice } from '@/lib/push';
 import { MenuProvider } from '@/providers/menu';
 import { PreferencesProvider, usePrefs, useT } from '@/providers/preferences';
@@ -89,6 +90,7 @@ function Navigation() {
       <StatusBar style={isDark ? 'light' : 'dark'} />
       {Platform.OS !== 'web' && <NotificationRouter />}
       {Platform.OS !== 'web' && <PushSync />}
+      {Platform.OS !== 'web' && <StoreUpdate />}
       <Stack screenOptions={{ headerTitleStyle, headerTintColor: c.ink, headerStyle: { backgroundColor: c.surface }, headerShadowVisible: false, headerBackButtonDisplayMode: 'minimal', contentStyle: { backgroundColor: c.bg } }}>
         <Stack.Screen name="(site)" options={{ headerShown: false }} />
         <Stack.Screen name="espace-client" options={{ headerShown: false, animation: 'fade' }} />
