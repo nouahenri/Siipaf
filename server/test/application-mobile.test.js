@@ -256,6 +256,17 @@ test('« Régler » depuis l’application : moyens réglés dans le dashboard, 
   const msgs = await db('client_messages').where({ lead_id: lead.id }).orderBy('id', 'desc').first();
   assert.match(msgs.body, /Transaction introuvable/);
   assert.equal((await mobile('get', `/api/client/dossiers/${dossier.id}`, tok)).body.declarations[0].status, 'rejete');
+
+  // Paiement volontaire : sans échéance, montant libre ; une fois confirmé, il réduit le reste à régler et règle les échéances dans l'ordre
+  const before = (await mobile('get', `/api/client/dossiers/${dossier.id}`, tok)).body;
+  const free = await mobile('post', `/api/client/dossiers/${dossier.id}/declarations`, tok).send({ channel: 'wave', amount_fcfa: 75000, reference: 'WV-LIBRE-1' });
+  assert.equal(free.status, 201, JSON.stringify(free.body));
+  const freeDecl = await db('payment_declarations').where({ id: free.body.id }).first();
+  assert.equal(freeDecl.schedule_id, null);
+  ok(await admin.post(`/api/admin/payment-declarations/${free.body.id}/confirm`).send({}));
+  const paid = (await mobile('get', `/api/client/dossiers/${dossier.id}`, tok)).body;
+  assert.equal(paid.remaining_fcfa, before.remaining_fcfa - 75000);
+  if (paid.schedule.length) assert.equal(paid.schedule[0].paid_fcfa, before.schedule[0].paid_fcfa + Math.min(75000, before.schedule[0].remaining_fcfa));
 });
 
 test('page de retour d’un paiement PayPal : rouvre l’application, sans script ni style extérieurs ni contenu de la requête', async () => {

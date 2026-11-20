@@ -1,5 +1,5 @@
 /**
- * « Régler » une échéance depuis l'application (feuille coulissante) :
+ * « Régler » une échéance, ou faire un paiement volontaire, depuis l'application (feuille coulissante) :
  * 1. choix du moyen (logos officiels, assets/logo_payment) parmi ceux réglés dans le dashboard › Paramètres › Général ;
  * 2. montant (reste à régler, modifiable, plafonné) ; « Payer dans Wave » ouvre l'application de l'opérateur sur le lien
  *    marchand (prioritaire), le numéro marchand reste à copier en secours ;
@@ -63,7 +63,11 @@ function Logo({ k, size = 46 }: { k: string; size?: number }) {
     );
 }
 
-export function PaySheet({ dossier, line, onClose }: { dossier: DossierDetail; line: Installment; onClose: () => void }) {
+/**
+ * `line` absente : paiement volontaire (sans attendre une échéance). Montant libre jusqu'au reste à régler du dossier ;
+ * la déclaration part sans échéance et, une fois confirmée, s'impute comme tout versement sur les échéances dans l'ordre.
+ */
+export function PaySheet({ dossier, line, onClose }: { dossier: DossierDetail; line?: Installment | null; onClose: () => void }) {
   const { c, space, radius, fonts } = useTheme();
   const { client } = useSession();
   const toast = useToast();
@@ -72,7 +76,7 @@ export function PaySheet({ dossier, line, onClose }: { dossier: DossierDetail; l
   const pending = (dossier.declarations || []).filter(d => d.status === 'a_confirmer').reduce((s, d) => s + d.amount_fcfa, 0);
   const max = Math.max(0, dossier.remaining_fcfa - pending);
   const [ch, setCh] = useState<Channel | null>(null);
-  const [value, setValue] = useState(String(Math.min(line.remaining_fcfa, max)));
+  const [value, setValue] = useState(line ? String(Math.min(line.remaining_fcfa, max)) : '');
   const [reference, setReference] = useState('');
   const [proof, setProof] = useState<{ id: number; uri: string } | null>(null);
   const [uploading, setUploading] = useState(false);
@@ -92,7 +96,7 @@ export function PaySheet({ dossier, line, onClose }: { dossier: DossierDetail; l
   }, []);
 
   const declare = useMutation({
-    mutationFn: () => clientApi.post(`/dossiers/${dossier.id}/declarations`, { channel: ch!.key, amount_fcfa: sum, reference: reference.trim(), schedule_id: line.id || null, proof_file_id: proof?.id || null }),
+    mutationFn: () => clientApi.post(`/dossiers/${dossier.id}/declarations`, { channel: ch!.key, amount_fcfa: sum, reference: reference.trim(), schedule_id: line?.id || null, proof_file_id: proof?.id || null }),
     onSuccess: () => {
       Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success).catch(() => {});
       qc.invalidateQueries({ queryKey: ['client', 'dossier', dossier.id] });
@@ -143,7 +147,7 @@ export function PaySheet({ dossier, line, onClose }: { dossier: DossierDetail; l
     ]));
   };
 
-  const title = done ? 'Paiement déclaré' : ch ? `Payer avec ${ch.label}` : `Régler : ${line.label}`;
+  const title = done ? 'Paiement déclaré' : ch ? `Payer avec ${ch.label}` : line ? `Régler : ${line.label}` : 'Paiement volontaire';
   const footer = done ? <Button label="Terminé" block onPress={onClose} />
     : ch ? <Button label="J’ai payé : déclarer ce paiement" icon={Check} block haptic loading={declare.isPending} onPress={submit} />
     : undefined;
@@ -159,9 +163,10 @@ export function PaySheet({ dossier, line, onClose }: { dossier: DossierDetail; l
       ) : !ch ? (
         <>
           <View style={{ padding: space.md, borderRadius: radius.lg, backgroundColor: c.surfaceAlt, marginBottom: space.lg }}>
-            <Txt variant="small">Reste à régler sur cette échéance</Txt>
-            <Txt style={{ fontFamily: fonts.bold, fontSize: 26, color: c.ink }}>{amount(line.remaining_fcfa)} <Txt variant="small">FCFA</Txt></Txt>
+            <Txt variant="small">{line ? 'Reste à régler sur cette échéance' : 'Vous pouvez verser jusqu’à'}</Txt>
+            <Txt style={{ fontFamily: fonts.bold, fontSize: 26, color: c.ink }}>{amount(line ? line.remaining_fcfa : max)} <Txt variant="small">FCFA</Txt></Txt>
             {pending ? <Txt variant="tiny" style={{ marginTop: 4 }}>{fcfa(pending)} déjà déclarés, en cours de vérification.</Txt> : null}
+            {!line ? <Txt variant="tiny" style={{ marginTop: 4 }}>Montant libre, sans attendre la date d’une échéance : une fois confirmé, il règle vos prochaines échéances dans l’ordre.</Txt> : null}
           </View>
           <Txt variant="h3" style={{ marginBottom: space.sm }}>Choisissez votre moyen de paiement</Txt>
           {channels.isLoading ? <Txt variant="small">Chargement…</Txt>

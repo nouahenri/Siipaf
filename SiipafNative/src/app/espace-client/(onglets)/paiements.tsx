@@ -3,8 +3,8 @@
  * d'une échéance avec les versements qui l'ont réglée (même règle d'imputation que le serveur), versements et reçus,
  * prochains appels de fonds VEFA.
  */
-import { router } from 'expo-router';
-import { useMemo, useState } from 'react';
+import { router, useLocalSearchParams } from 'expo-router';
+import { useEffect, useMemo, useState } from 'react';
 import { RefreshControl, ScrollView, View } from 'react-native';
 import { CalendarDays, Check, ChevronRight, Clock, Landmark, MessageCircle, Receipt, TriangleAlert, Wallet } from 'lucide-react-native';
 import { ClientHeader, NoDossier } from '@/components/client/common';
@@ -45,8 +45,19 @@ export default function Paiements() {
   const [tab, setTab] = useState<'echeancier' | 'versements'>('echeancier');
   const [filter, setFilter] = useState<'tout' | 'a_venir' | 'en_retard' | 'payee' | null>(null);
   const [open, setOpen] = useState<Installment | null>(null);
-  const [paying, setPaying] = useState<Installment | null>(null);
+  // Échéance à régler, « libre » pour un paiement volontaire (sans échéance), null si fermé
+  const [paying, setPaying] = useState<Installment | 'libre' | null>(null);
   const allocations = useMemo(() => (d ? allocate(d.schedule, d.payments) : {}), [d]);
+  // Arrivée depuis la tuile « Prochaine échéance » de l'accueil : détail de l'échéance ouvert, une seule fois
+  // (réglé pendant le rendu, puis paramètre effacé : une nouvelle touche sur la tuile rouvre bien le détail)
+  const { echeance } = useLocalSearchParams<{ echeance?: string }>();
+  const [seen, setSeen] = useState<string | undefined>();
+  if (echeance && d && echeance !== seen) {
+    setSeen(echeance);
+    const line = d.schedule.find(l => String(l.seq) === echeance);
+    if (line) { setFilter('tout'); setTab('echeancier'); setOpen(line); }
+  } else if (!echeance && seen) setSeen(undefined);
+  useEffect(() => { if (echeance && echeance === seen) router.setParams({ echeance: undefined }); }, [echeance, seen]);
 
   const body = () => {
     if (!selected) return <NoDossier />;
@@ -72,9 +83,19 @@ export default function Paiements() {
         </Card>
         {d.overdue_count > 0 && (
           <View style={{ marginTop: space.md }}>
-            <Callout icon={TriangleAlert} tone="danger" title={`${plural(d.overdue_count, 'échéance en retard', 'échéances en retard')} · ${fcfa(d.overdue_fcfa)}`} text="Les paiements se font par virement ou Mobile Money auprès de SIIPAF. Votre conseiller reste disponible." />
+            <Callout icon={TriangleAlert} tone="danger" title={`${plural(d.overdue_count, 'échéance en retard', 'échéances en retard')} · ${fcfa(d.overdue_fcfa)}`} text="Touchez une échéance puis « Régler » : Wave, Orange Money, MTN MoMo, Moov Money ou PayPal / carte Visa. Votre conseiller reste disponible." />
           </View>
         )}
+        {/* Paiement volontaire : verser quand le client le souhaite, sans attendre la date d'une échéance (même sans échéancier) */}
+        {d.status !== 'desiste' && d.remaining_fcfa > 0 ? (
+          <View style={{ marginTop: space.md, gap: space.sm }}>
+            <Button label="Faire un paiement volontaire" icon={Wallet} variant="outline" block haptic onPress={() => setPaying('libre')} />
+            {(() => {
+              const pending = (d.declarations || []).filter(x => x.status === 'a_confirmer').reduce((s, x) => s + x.amount_fcfa, 0);
+              return pending ? <Txt variant="tiny" center>{fcfa(pending)} déclarés, en vérification par notre service comptable.</Txt> : null;
+            })()}
+          </View>
+        ) : null}
         <View style={{ marginVertical: space.lg }}>
           <Segmented value={tab} onChange={setTab} options={[['echeancier', 'Échéancier'], ['versements', `Versements · ${d.payments.length}`]]} />
         </View>
@@ -187,7 +208,7 @@ export default function Paiements() {
           </>
         )}
       </Sheet>
-      {paying && d ? <PaySheet dossier={d} line={paying} onClose={() => setPaying(null)} /> : null}
+      {paying && d ? <PaySheet dossier={d} line={paying === 'libre' ? null : paying} onClose={() => setPaying(null)} /> : null}
     </View>
   );
 }

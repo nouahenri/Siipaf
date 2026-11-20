@@ -7,6 +7,7 @@ import { amount, date, daysUntil, fcfa, plural, shortDate } from '../lib/format'
 import { INSTALLMENT_STATUS, PAYMENT_METHODS } from '../lib/domain';
 import { Badge, Empty, ErrorState, PageHead, PageSkeleton, PayBar, Pager, Sheet } from '../components/ui';
 import { NoDossier } from './Home';
+import { PaySheet } from '../components/PaySheet';
 
 export const useDossier = id => useResource(id ? `dossier:${id}` : null, () => api.get(`/dossiers/${id}`));
 
@@ -59,7 +60,7 @@ function allocate(lines, payments) {
   return out;
 }
 
-function InstallmentSheet({ line, total, allocations, onClose }) {
+function InstallmentSheet({ line, total, allocations, declarations, onPay, onClose }) {
   const st = INSTALLMENT_STATUS[line.status];
   const days = daysUntil(line.due_date);
   const timing = line.status === 'payee' ? null
@@ -69,7 +70,10 @@ function InstallmentSheet({ line, total, allocations, onClose }) {
   return (
     <Sheet title={line.label} onClose={onClose}
       footer={line.status !== 'payee' && (
-        <Link to="/messages" className="btn btn-ghost" onClick={onClose}><MessageCircle aria-hidden="true" />Une question ? Écrire à SIIPAF</Link>
+        <>
+          <button type="button" className="btn btn-primary btn-block" onClick={() => onPay(line)}><Wallet aria-hidden="true" />Régler</button>
+          <Link to="/messages" className="btn btn-ghost btn-block" onClick={onClose}><MessageCircle aria-hidden="true" />Une question ? Écrire à SIIPAF</Link>
+        </>
       )}>
       <div style={{ display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap' }}>
         <Badge tone={st.tone}>{st.label}</Badge>
@@ -94,17 +98,27 @@ function InstallmentSheet({ line, total, allocations, onClose }) {
           </Link>
         ))}
       </div>
+      {/* Paiements déclarés en ligne pour cette échéance (ou sans échéance : paiement volontaire) */}
+      {declarations.filter(x => !x.schedule_id || x.schedule_id === line.id).map(x => (
+        <div key={x.id} className={`callout ${x.status === 'rejete' ? 'danger' : 'info'}`} style={{ marginTop: 14 }}>
+          <span className="callout-icon">{x.status === 'rejete' ? <AlertTriangle aria-hidden="true" /> : <Clock aria-hidden="true" />}</span>
+          <span className="callout-body">
+            <span className="callout-title">{x.status === 'rejete' ? `Paiement de ${fcfa(x.amount_fcfa)} non confirmé` : `${fcfa(x.amount_fcfa)} déclarés, en vérification`}</span>
+            <span className="callout-text" style={{ display: 'block' }}>{x.status === 'rejete' ? x.reject_reason || 'Voir le message du service comptable.' : `Réf. ${x.reference || '—'} · confirmé par la Comptabilité sous peu`}</span>
+          </span>
+        </div>
+      ))}
       {line.status !== 'payee' && (
         <div className="detail-section">
           <h3>Comment payer</h3>
-          <p className="small" style={{ color: 'var(--ink-2)' }}>Par virement ou Mobile Money auprès de SIIPAF, en indiquant votre code client. Le reçu apparaît ici dès l’enregistrement du versement par notre service comptable.</p>
+          <p className="small" style={{ color: 'var(--ink-2)' }}>Cliquez sur « Régler » : Wave, Orange Money, MTN MoMo, Moov Money ou PayPal / carte Visa, puis déclarez votre paiement. Le reçu apparaît ici dès sa confirmation par notre service comptable.</p>
         </div>
       )}
     </Sheet>
   );
 }
 
-function Schedule({ lines, payments }) {
+function Schedule({ lines, payments, declarations, onPay }) {
   const [filter, setFilter] = useState(() => (lines.some(l => l.status === 'en_retard') ? 'en_retard' : 'a_venir'));
   const [page, setPage] = useState(1);
   const [open, setOpen] = useState(null);
@@ -164,7 +178,7 @@ function Schedule({ lines, payments }) {
         )}
         <Pager page={current} pages={pages} onPage={setPage} label="Pages de l’échéancier" />
       </div>
-      {open && <InstallmentSheet line={open} total={lines.length} allocations={allocations[open.seq] || []} onClose={() => setOpen(null)} />}
+      {open && <InstallmentSheet line={open} total={lines.length} allocations={allocations[open.seq] || []} declarations={declarations} onPay={l => { setOpen(null); onPay(l); }} onClose={() => setOpen(null)} />}
     </>
   );
 }
@@ -199,10 +213,13 @@ export default function Paiements() {
   const { selected } = useSession();
   const { data: d, error, loading, reload } = useDossier(selected?.id);
   const [tab, setTab] = useState('echeancier');
+  // Échéance à régler, « libre » pour un paiement volontaire (sans échéance), null si fermé
+  const [paying, setPaying] = useState(null);
 
   if (!selected) return <NoDossier />;
   if (loading) return <PageSkeleton />;
   if (error) return <ErrorState error={error} onRetry={reload} />;
+  const pending = (d.declarations || []).filter(x => x.status === 'a_confirmer').reduce((s, x) => s + x.amount_fcfa, 0);
 
   return (
     <>
@@ -215,8 +232,15 @@ export default function Paiements() {
               <span className="callout-icon"><AlertTriangle aria-hidden="true" /></span>
               <span className="callout-body">
                 <span className="callout-title">{plural(d.overdue_count, 'échéance en retard', 'échéances en retard')} · {fcfa(d.overdue_fcfa)}</span>
-                <span className="callout-text" style={{ display: 'block' }}>Les paiements se font par virement ou Mobile Money auprès de SIIPAF. Votre conseiller reste disponible.</span>
+                <span className="callout-text" style={{ display: 'block' }}>Cliquez sur une échéance puis « Régler » : Wave, Orange Money, MTN MoMo, Moov Money ou PayPal / carte Visa. Votre conseiller reste disponible.</span>
               </span>
+            </div>
+          )}
+          {/* Paiement volontaire : verser quand le client le souhaite, sans attendre la date d'une échéance (même sans échéancier) */}
+          {d.status !== 'desiste' && d.remaining_fcfa > 0 && (
+            <div className="pay-free">
+              <button type="button" className="btn btn-ghost btn-block" onClick={() => setPaying('libre')}><Wallet aria-hidden="true" />Faire un paiement volontaire</button>
+              {pending > 0 && <p className="small muted" style={{ textAlign: 'center' }}>{fcfa(pending)} déclarés, en vérification par notre service comptable.</p>}
             </div>
           )}
         </div>
@@ -225,7 +249,7 @@ export default function Paiements() {
             <button type="button" aria-pressed={tab === 'echeancier'} onClick={() => setTab('echeancier')}>Échéancier</button>
             <button type="button" aria-pressed={tab === 'versements'} onClick={() => setTab('versements')}>Versements · {d.payments.length}</button>
           </div>
-          {tab === 'echeancier' ? <Schedule lines={d.schedule} payments={d.payments} /> : <Payments payments={d.payments} />}
+          {tab === 'echeancier' ? <Schedule lines={d.schedule} payments={d.payments} declarations={d.declarations || []} onPay={setPaying} /> : <Payments payments={d.payments} />}
           {tab === 'echeancier' && d.vefa_upcoming?.length > 0 && (
             <div className="card" style={{ marginTop: 14 }}>
               <div className="row-group">Prochains appels de fonds · selon l’avancement du chantier</div>
@@ -240,6 +264,7 @@ export default function Paiements() {
           )}
         </div>
       </div>
+      {paying && <PaySheet dossier={d} line={paying === 'libre' ? null : paying} onDeclared={reload} onClose={() => setPaying(null)} />}
     </>
   );
 }

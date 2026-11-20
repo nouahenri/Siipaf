@@ -7,7 +7,7 @@ import { LinearGradient } from 'expo-linear-gradient';
 import { router, useFocusEffect } from 'expo-router';
 import { useCallback, useState } from 'react';
 import { Pressable, RefreshControl, ScrollView, View } from 'react-native';
-import { ArrowRight, Camera, FileText, House, LifeBuoy, MapPin, MessageCircle, Ruler, TriangleAlert, Wallet } from 'lucide-react-native';
+import { ArrowRight, Camera, ChevronRight, FileText, House, LifeBuoy, MapPin, MessageCircle, Ruler, TriangleAlert, Wallet } from 'lucide-react-native';
 import { ClientHeader, NoDossier } from '@/components/client/common';
 import { Badge, Callout, Card, ProgressBar, Ring, SectionHead, Skeleton, Txt } from '@/components/ui';
 import { amount, dayLabel, daysUntil, fcfa, firstName, greeting, plural, shortDate } from '@/lib/format';
@@ -88,7 +88,9 @@ function Due({ d }: { d: Dossier }) {
   const days = daysUntil(n.due_date);
   const [dd, mm] = shortDate(n.due_date).split(' ');
   return (
-    <Card>
+    // Ouvre Paiements sur le détail de cette échéance (bouton « Régler »)
+    <Card onPress={() => router.navigate({ pathname: '/espace-client/paiements', params: { echeance: String(n.seq) } })}
+      accessibilityLabel={`Prochaine échéance : ${n.label}, ${fcfa(n.remaining_fcfa)}, le ${shortDate(n.due_date)}. Voir le détail et régler`}>
       <View style={{ flexDirection: 'row', alignItems: 'center', gap: space.md }}>
         <View style={{ width: 58, height: 64, borderRadius: radius.md, backgroundColor: c.dark, alignItems: 'center', justifyContent: 'center' }}>
           <Txt style={{ color: c.goldLight, fontSize: 11, fontFamily: fonts.semibold, textTransform: 'uppercase' }}>{mm}</Txt>
@@ -99,6 +101,7 @@ function Due({ d }: { d: Dossier }) {
           <Txt style={{ fontFamily: fonts.bold, fontSize: 20, color: c.ink }}>{fcfa(n.remaining_fcfa)}</Txt>
           <Txt variant="small">{days === 0 ? 'Aujourd’hui' : days != null && days > 0 ? `Dans ${plural(days, 'jour', 'jours')}` : ''}</Txt>
         </View>
+        <ChevronRight size={20} color={c.ink3} />
       </View>
     </Card>
   );
